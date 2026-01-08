@@ -1,0 +1,20 @@
+#!/bin/bash
+echo "========================================"
+echo "  Educational Platform - Dev Server"
+echo "========================================"
+echo ""
+echo "[1/3] Checking dependencies..."
+npm install
+echo ""
+echo "[2/3] Starting backend server..."
+echo "   Backend API: http://localhost:3001"
+echo "   Debug Routes: http://localhost:3001/api/debug/routes"
+echo ""
+echo "[3/3] Starting frontend..."
+echo "   Frontend: http://localhost:5173"
+echo ""
+echo "========================================"
+echo "  Press Ctrl+C to stop all servers"
+echo "========================================"
+echo ""
+npm run dev
