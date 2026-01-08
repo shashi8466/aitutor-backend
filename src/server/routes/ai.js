@@ -238,7 +238,16 @@ OUTPUT FORMAT (JSON ONLY):
       finalData.question = originalImages[0] + "\n" + finalData.question;
     }
 
-    res.json(finalData);
+    // --- FINAL SANITIZATION ---
+    const sanitized = {
+      question: finalData.question || finalData.questionText || finalData.text || "Question text missing",
+      options: finalData.options || finalData.choices || [],
+      correctAnswer: finalData.correctAnswer || finalData.answer || "",
+      explanation: finalData.explanation || finalData.solution || "",
+      concept: finalData.concept || question.concept || ""
+    };
+
+    res.json(sanitized);
   } catch (error) {
     console.error("❌ Generate Similar Error:", error);
     res.status(500).json({ error: error.message });
@@ -397,10 +406,37 @@ router.post('/quiz-from-content', async (req, res) => {
       return res.status(400).json({ error: 'Missing or invalid context parameter' });
     }
     const prompt = `Create a 5-question multiple choice quiz based on this text: ${context.substring(0, 3000)}. 
-    Return JSON ONLY: {"quiz": [{"question": "...", "options": ["...", "..."], "correctAnswer": "...", "explanation": "..."}]}`;
+    Return JSON ONLY: {"quiz": [{
+  "question": "The actual question text using LaTeX",
+  "options": ["Option A", "Option B", "Option C", "Option D"],
+  "correctAnswer": "A",
+  "explanation": "Step-by-step solution",
+  "concept": "Topic name"
+}]}
+
+Return ONLY this JSON object.`;
+
     const text = await generateAIResponse([{ role: "user", content: prompt }], true);
-    let data = extractJSON(text);
-    res.json({ quiz: data.quiz || data || [] });
+    let parsed = extractJSON(text);
+
+    if (!parsed || !Array.isArray(parsed.quiz) || parsed.quiz.length === 0) {
+      throw new Error("AI failed to generate a valid quiz structure with questions.");
+    }
+
+    const sanitizedQuiz = parsed.quiz.map(q => {
+      if (!q.question && !q.questionText) {
+        throw new Error("AI failed to generate a valid question text for one of the quiz items.");
+      }
+      return {
+        question: q.question || q.questionText || "Question text missing",
+        options: q.options || q.choices || [],
+        correctAnswer: q.correctAnswer || q.answer || "",
+        explanation: q.explanation || q.solution || "",
+        concept: q.concept || ""
+      };
+    });
+
+    res.json({ quiz: sanitizedQuiz });
   } catch (error) {
     console.error('❌ Quiz-from-content Error:', error);
     res.status(500).json({ error: error.message });
