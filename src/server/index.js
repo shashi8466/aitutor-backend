@@ -24,14 +24,29 @@ console.log(`  - OpenAI Key: ${process.env.OPENAI_API_KEY ? '✅ Present' : '❌
 console.log('');
 
 // 4. CRITICAL: CORS Configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'https://aitutor-4431c.web.app',
+  'https://aitutor-4431c.firebaseapp.com'
+];
+
 app.use(cors({
-  origin: true,  // Allow all origins in development
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-console.log('✅ CORS enabled for all origins');
+console.log('✅ CORS configured for production and local development');
 
 // 5. Body parsing with increased limits
 app.use(express.json({ limit: '50mb' }));
@@ -136,7 +151,7 @@ console.log('');
 // 10. Debug routes endpoint
 app.get('/api/debug/routes', (req, res) => {
   const routes = [];
-  
+
   app._router.stack.forEach((middleware) => {
     if (middleware.route) {
       routes.push({
