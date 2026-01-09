@@ -164,6 +164,15 @@ try {
   });
 }
 
+// Contact Routes
+try {
+  const contactModule = await import('./routes/contact.js');
+  app.use('/api/contact', contactModule.default);
+  console.log('✅ Contact Routes mounted at /api/contact');
+} catch (error) {
+  console.error('❌ Failed to load Contact Routes:', error.message);
+}
+
 console.log('');
 
 // 10. Debug routes endpoint

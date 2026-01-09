@@ -447,12 +447,23 @@ export const settingsService = {
 // --- CONTACT SERVICE ---
 export const contactService = {
   submit: async (formData) => {
-    return await supabase.from('contact_messages').insert([{
-      full_name: formData.fullName,
+    // 1. Save to DB for history
+    await supabase.from('contact_messages').insert([{
+      full_name: formData.fullName || formData.name,
       email: formData.email,
       mobile: formData.mobile,
       message: formData.message
     }]);
+
+    // 2. Post to backend to send Email
+    return axios.post('/api/contact', {
+      name: formData.fullName || formData.name,
+      email: formData.email,
+      mobile: formData.mobile,
+      subject: formData.subject || 'Direct Contact',
+      message: formData.message,
+      type: formData.subject ? 'Support Ticket' : 'General Inquiry'
+    });
   }
 };
 

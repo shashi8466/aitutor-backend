@@ -2,13 +2,18 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import { contactService } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
-const { FiHelpCircle, FiMessageSquare, FiMail, FiChevronDown, FiChevronUp, FiSend } = FiIcons;
+const { FiHelpCircle, FiMessageSquare, FiMail, FiChevronDown, FiChevronUp, FiSend, FiLoader } = FiIcons;
 
 const Support = () => {
+  const { user } = useAuth();
   const [activeAccordion, setActiveAccordion] = useState(null);
   const [ticketForm, setTicketForm] = useState({ subject: '', message: '' });
+  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
   const faqs = [
     {
@@ -29,13 +34,27 @@ const Support = () => {
     }
   ];
 
-  const handleTicketSubmit = (e) => {
+  const handleTicketSubmit = async (e) => {
     e.preventDefault();
-    // Simulate API call
-    setTimeout(() => {
+    setLoading(true);
+    setError('');
+
+    try {
+      await contactService.submit({
+        name: user?.name || 'Logged-in Student',
+        email: user?.email || 'unknown@student.com',
+        subject: ticketForm.subject,
+        message: ticketForm.message,
+        mobile: user?.user_metadata?.mobile || ''
+      });
       setSubmitted(true);
       setTicketForm({ subject: '', message: '' });
-    }, 1000);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleAccordion = (index) => {
@@ -74,9 +93,9 @@ const Support = () => {
                     className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                   >
                     <span className="font-medium text-gray-900">{faq.question}</span>
-                    <SafeIcon 
-                      icon={activeAccordion === index ? FiChevronUp : FiChevronDown} 
-                      className="w-4 h-4 text-gray-500" 
+                    <SafeIcon
+                      icon={activeAccordion === index ? FiChevronUp : FiChevronDown}
+                      className="w-4 h-4 text-gray-500"
                     />
                   </button>
                   {activeAccordion === index && (
@@ -100,15 +119,15 @@ const Support = () => {
               <SafeIcon icon={FiMessageSquare} className="w-6 h-6 text-green-600" />
               <h2 className="text-xl font-semibold text-gray-900">Contact Support</h2>
             </div>
-            
+
             {submitted ? (
               <div className="text-center py-12">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <SafeIcon icon={FiSend} className="w-8 h-8 text-green-600" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900">Message Sent!</h3>
-                <p className="text-gray-600 mt-2">We'll get back to you shortly.</p>
-                <button 
+                <p className="text-gray-600 mt-2">Your request has been sent to our support team.</p>
+                <button
                   onClick={() => setSubmitted(false)}
                   className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
                 >
@@ -117,13 +136,18 @@ const Support = () => {
               </div>
             ) : (
               <form onSubmit={handleTicketSubmit} className="space-y-4">
+                {error && (
+                  <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100">
+                    {error}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                  <select 
+                  <select
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={ticketForm.subject}
-                    onChange={(e) => setTicketForm({...ticketForm, subject: e.target.value})}
+                    onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value })}
                   >
                     <option value="">Select a topic...</option>
                     <option value="Technical Issue">Technical Issue</option>
@@ -138,22 +162,23 @@ const Support = () => {
                   <textarea
                     required
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
                     placeholder="Describe your issue or suggestion..."
                     value={ticketForm.message}
-                    onChange={(e) => setTicketForm({...ticketForm, message: e.target.value})}
+                    onChange={(e) => setTicketForm({ ...ticketForm, message: e.target.value })}
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2 shadow-md disabled:opacity-50"
                 >
-                  <SafeIcon icon={FiSend} className="w-4 h-4" />
-                  <span>Send Message</span>
+                  {loading ? <SafeIcon icon={FiLoader} className="animate-spin w-4 h-4" /> : <SafeIcon icon={FiSend} className="w-4 h-4" />}
+                  <span>{loading ? 'Sending...' : 'Send Message'}</span>
                 </button>
               </form>
             )}
-            
+
             <div className="mt-6 pt-6 border-t border-gray-200">
               <div className="flex items-center justify-center space-x-2 text-gray-500 text-sm">
                 <SafeIcon icon={FiMail} className="w-4 h-4" />
