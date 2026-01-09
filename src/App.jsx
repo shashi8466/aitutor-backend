@@ -35,9 +35,17 @@ import axios from 'axios';
 
 // FIXED: Use relative path by default to allow Vite Proxy to handle routing.
 // This is essential for WebContainer/StackBlitz environments.
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''; 
+// FIXED: Force Render URL on Firebase hosting, use relative path on localhost
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const isFirebase = window.location.hostname.includes('aitutor-4431c') || window.location.hostname.includes('firebaseapp.com');
+const PROD_URL = 'https://aitutor-backend-u7h3.onrender.com';
 
-console.log('🔌 API Base URL configured to:', BACKEND_URL || '(Relative Path / Proxy)');
+const BACKEND_URL = isFirebase ? PROD_URL : (import.meta.env.VITE_BACKEND_URL || '');
+
+console.log('📡 [API Connectivity]');
+console.log('  - Hostname:', window.location.hostname);
+console.log('  - Environment:', isLocal ? 'Local Development' : isFirebase ? 'Production (Firebase)' : 'Unknown');
+console.log('  - Backend URL:', BACKEND_URL || '(Relative Path / Proxy)');
 
 axios.defaults.baseURL = BACKEND_URL;
 axios.defaults.withCredentials = true;
@@ -93,8 +101,8 @@ function App() {
           <Route path="/contact" element={<ContactPage />} />
 
           {/* Student Routes */}
-          <Route 
-            path="/student" 
+          <Route
+            path="/student"
             element={
               <ProtectedRoute role="student">
                 <StudentLayout />
@@ -107,7 +115,7 @@ function App() {
             <Route path="course/:courseId/level/:level" element={<LevelDashboard />} />
             <Route path="course/:courseId/level/:level/video" element={<VideoPlayer />} />
             <Route path="course/:courseId/level/:level/quiz" element={<QuizInterface />} />
-            
+
             {/* New Sidebar Features */}
             <Route path="calendar" element={<StudentCalendar />} />
             <Route path="worksheets" element={<Worksheets />} />
@@ -125,13 +133,13 @@ function App() {
           </Route>
 
           {/* Admin Routes */}
-          <Route 
-            path="/admin/*" 
+          <Route
+            path="/admin/*"
             element={
               <ProtectedRoute role="admin">
                 <AdminDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
         </Routes>
       </AnimatePresence>

@@ -389,132 +389,138 @@ const detectIntent = (msg) => {
 };
 
 export const handleTutorRequest = async (userId, message, context) => {
-    console.log(`🧠 [Tutor Flow] Processing request for user ${userId}`);
-    const startTime = Date.now();
+    try {
+        console.log(`🧠 [Tutor Flow] Processing request for user ${userId}`);
+        const startTime = Date.now();
+        console.log(`🤖 [Tutor Agent] Step 1: Loading state for ${userId}`);
 
-    // 0. Load Site Settings & State in parallel for speed
-    const [siteSettings, state] = await Promise.all([
-        getAppSettings(),
-        getStudentState(userId)
-    ]);
-    const appName = siteSettings.app_name || 'Pundits AI';
-    if (!state.current_state) state.current_state = "Start Session";
+        // 0. Load Site Settings & State in parallel for speed
+        const [siteSettings, state] = await Promise.all([
+            getAppSettings(),
+            getStudentState(userId)
+        ]);
+        const appName = siteSettings.app_name || 'Pundits AI';
+        if (!state.current_state) state.current_state = "Start Session";
 
-    // 1. FAST SAFETY CHECK - Skip LLM for short/simple messages
-    const msgLower = message.toLowerCase().trim();
-    const isSuspicious = msgLower.includes('give me the answer') ||
-        msgLower.includes('just tell me') ||
-        msgLower.includes('cheat') ||
-        message.length > 500; // Long messages need check
+        // 1. FAST SAFETY CHECK - Skip LLM for short/simple messages
+        const msgLower = message.toLowerCase().trim();
+        const isSuspicious = msgLower.includes('give me the answer') ||
+            msgLower.includes('just tell me') ||
+            msgLower.includes('cheat') ||
+            message.length > 500; // Long messages need check
 
-    if (isSuspicious) {
-        const safety = await safetyGuard(message);
-        if (safety && !safety.safe) {
-            return { reply: "I cannot fulfill that request. " + (safety.reason || "Please try a different approach.") };
-        }
-    }
-
-    // 2. Update Session Log
-    state.session_log = state.session_log || [];
-    state.session_log.push({ sender: 'user', text: message, timestamp: new Date() });
-
-    // 3. FAST ROUTING - Use keyword detection first (no LLM call)
-    let nextState = detectIntent(message);
-
-    // Only use LLM orchestrator if no keyword match AND message is ambiguous
-    if (!nextState && message.length > 20 && !msgLower.includes('?')) {
-        // Skip orchestrator for simple questions - default to Teach/DoubtSolving
-        nextState = msgLower.includes('how') || msgLower.includes('what') || msgLower.includes('why') || msgLower.includes('explain')
-            ? 'Doubt Solving'
-            : 'Teach';
-        console.log(`👉 [Orchestrator] Fast-path routing to: ${nextState}`);
-    } else if (!nextState) {
-        // Default for short questions
-        nextState = 'Doubt Solving';
-        console.log(`👉 [Orchestrator] Default routing to: ${nextState}`);
-    } else {
-        console.log(`👉 [Orchestrator] Keyword forced state: ${nextState}`);
-    }
-
-    // Normalize state names if LLM messes up
-    if (nextState === 'Recap') nextState = 'Parent Report';
-
-    if (nextState && nextState !== state.current_state) {
-        state.current_state = nextState;
-    }
-
-    // 4. FAST PATH - Use quick response for simple short questions (under 80 chars)
-    const isSimpleQuestion = message.length < 80 &&
-        (msgLower.includes('?') || msgLower.startsWith('what') || msgLower.startsWith('how') ||
-            msgLower.startsWith('why') || msgLower.startsWith('explain') || msgLower.startsWith('help'));
-
-    if (isSimpleQuestion && (nextState === 'Doubt Solving' || nextState === 'Teach')) {
-        console.log(`⚡ [Fast Path] Using quick response for simple question`);
-        const quickResp = await quickResponseAgent(message, appName);
-        if (quickResp?.reply) {
-            state.session_log.push({ sender: 'ai', text: quickResp.reply, timestamp: new Date() });
-            await updateStudentState(userId, state);
-            console.log(`✅ [Tutor Flow] Fast response in ${Date.now() - startTime}ms`);
-            return { reply: quickResp.reply };
-        }
-    }
-
-    // 5. Execute Agent based on State (full response for complex queries)
-    let agentResponse;
-    const sysOverride = (txt) => `SYSTEM_INSTRUCTION: ${txt}`;
-
-    switch (state.current_state) {
-        case "Intake":
-            agentResponse = await tppSatTutorAgent(sysOverride("The user wants to start intake. Ask for Goal, Test Date, and Weaknesses explicitly."), state, appName);
-            break;
-
-        case "Diagnose":
-            agentResponse = await tppDiagnosticPlannerAgent(sysOverride("Perform a diagnostic assessment. Ask 1 calibrated question or requests test data."), state, appName);
-            break;
-
-        case "Plan Session":
-            agentResponse = await tppDiagnosticPlannerAgent(message, state, appName);
-            break;
-
-        case "Teach":
-            agentResponse = await tppSatTutorAgent(message, state, appName);
-            break;
-
-        case "Practice Loop":
-            agentResponse = await tppWeaknessDrillerAgent(message, state, appName);
-            break;
-
-        case "Review":
-            agentResponse = await tppTestAnalystAgent(message, state, appName);
-            break;
-
-        case "Recap":
-        case "Parent Report":
-            agentResponse = await tppParentReporterAgent(message, state, appName);
-            break;
-
-        case "Doubt Solving":
-            agentResponse = await tppDoubtSolverAgent(message, state, appName);
-            break;
-
-        case "Start Session":
-        default:
-            if (message.toLowerCase().includes("plan")) {
-                agentResponse = await tppDiagnosticPlannerAgent(message, state, appName);
-            } else if (message.toLowerCase().includes("report") || message.toLowerCase().includes("parent")) {
-                agentResponse = await tppParentReporterAgent(message, state, appName);
-            } else {
-                agentResponse = await tppSatTutorAgent(message, state, appName);
+        if (isSuspicious) {
+            const safety = await safetyGuard(message);
+            if (safety && !safety.safe) {
+                return { reply: "I cannot fulfill that request. " + (safety.reason || "Please try a different approach.") };
             }
-            break;
+        }
+
+        // 2. Update Session Log
+        state.session_log = state.session_log || [];
+        state.session_log.push({ sender: 'user', text: message, timestamp: new Date() });
+
+        // 3. FAST ROUTING - Use keyword detection first (no LLM call)
+        let nextState = detectIntent(message);
+
+        // Only use LLM orchestrator if no keyword match AND message is ambiguous
+        if (!nextState && message.length > 20 && !msgLower.includes('?')) {
+            // Skip orchestrator for simple questions - default to Teach/DoubtSolving
+            nextState = msgLower.includes('how') || msgLower.includes('what') || msgLower.includes('why') || msgLower.includes('explain')
+                ? 'Doubt Solving'
+                : 'Teach';
+            console.log(`👉 [Orchestrator] Fast-path routing to: ${nextState}`);
+        } else if (!nextState) {
+            // Default for short questions
+            nextState = 'Doubt Solving';
+            console.log(`👉 [Orchestrator] Default routing to: ${nextState}`);
+        } else {
+            console.log(`👉 [Orchestrator] Keyword forced state: ${nextState}`);
+        }
+
+        // Normalize state names if LLM messes up
+        if (nextState === 'Recap') nextState = 'Parent Report';
+
+        if (nextState && nextState !== state.current_state) {
+            state.current_state = nextState;
+        }
+
+        // 4. FAST PATH - Use quick response for simple short questions (under 80 chars)
+        const isSimpleQuestion = message.length < 80 &&
+            (msgLower.includes('?') || msgLower.startsWith('what') || msgLower.startsWith('how') ||
+                msgLower.startsWith('why') || msgLower.startsWith('explain') || msgLower.startsWith('help'));
+
+        if (isSimpleQuestion && (nextState === 'Doubt Solving' || nextState === 'Teach')) {
+            console.log(`⚡ [Fast Path] Using quick response for simple question`);
+            const quickResp = await quickResponseAgent(message, appName);
+            if (quickResp?.reply) {
+                state.session_log.push({ sender: 'ai', text: quickResp.reply, timestamp: new Date() });
+                await updateStudentState(userId, state);
+                console.log(`✅ [Tutor Flow] Fast response in ${Date.now() - startTime}ms`);
+                return { reply: quickResp.reply };
+            }
+        }
+
+        // 5. Execute Agent based on State (full response for complex queries)
+        let agentResponse;
+        const sysOverride = (txt) => `SYSTEM_INSTRUCTION: ${txt}`;
+
+        switch (state.current_state) {
+            case "Intake":
+                agentResponse = await tppSatTutorAgent(sysOverride("The user wants to start intake. Ask for Goal, Test Date, and Weaknesses explicitly."), state, appName);
+                break;
+
+            case "Diagnose":
+                agentResponse = await tppDiagnosticPlannerAgent(sysOverride("Perform a diagnostic assessment. Ask 1 calibrated question or requests test data."), state, appName);
+                break;
+
+            case "Plan Session":
+                agentResponse = await tppDiagnosticPlannerAgent(message, state, appName);
+                break;
+
+            case "Teach":
+                agentResponse = await tppSatTutorAgent(message, state, appName);
+                break;
+
+            case "Practice Loop":
+                agentResponse = await tppWeaknessDrillerAgent(message, state, appName);
+                break;
+
+            case "Review":
+                agentResponse = await tppTestAnalystAgent(message, state, appName);
+                break;
+
+            case "Recap":
+            case "Parent Report":
+                agentResponse = await tppParentReporterAgent(message, state, appName);
+                break;
+
+            case "Doubt Solving":
+                agentResponse = await tppDoubtSolverAgent(message, state, appName);
+                break;
+
+            case "Start Session":
+            default:
+                if (message.toLowerCase().includes("plan")) {
+                    agentResponse = await tppDiagnosticPlannerAgent(message, state, appName);
+                } else if (message.toLowerCase().includes("report") || message.toLowerCase().includes("parent")) {
+                    agentResponse = await tppParentReporterAgent(message, state, appName);
+                } else {
+                    agentResponse = await tppSatTutorAgent(message, state, appName);
+                }
+                break;
+        }
+
+        // 6. Update State
+        const reply = agentResponse?.reply || "I'm thinking...";
+        state.session_log.push({ sender: 'ai', text: reply, timestamp: new Date() });
+
+        // Persist state
+        await updateStudentState(userId, state);
+
+        return { reply };
+    } catch (err) {
+        console.error("❌ [Tutor Agent] Critical Error:", err);
+        throw err; // Re-throw to be caught by route handler
     }
-
-    // 6. Update State
-    const reply = agentResponse?.reply || "I'm thinking...";
-    state.session_log.push({ sender: 'ai', text: reply, timestamp: new Date() });
-
-    // Persist state
-    await updateStudentState(userId, state);
-
-    return { reply };
 };

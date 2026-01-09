@@ -27,8 +27,8 @@ const upload = multer({
 });
 
 // CRITICAL: Environment var config
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
 
 // CONFIGURATION: Ensure 'documents' bucket is used
 const BUCKET_NAME = 'documents';
@@ -41,7 +41,7 @@ console.log(' - Storage Bucket:', BUCKET_NAME);
 // Helper to get authenticated Supabase client
 const getSupabase = (authHeader) => {
   // Use service role key for server-side operations
-  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
 
   // If auth header is provided, use it; otherwise use service role key
   const token = authHeader ? authHeader.replace('Bearer ', '') : SERVICE_ROLE_KEY;

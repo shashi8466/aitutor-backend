@@ -11,10 +11,17 @@ const AIQuestionCard = ({ data, onComplete }) => {
   const [selected, setSelected] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  // Safety checks
+  // Safety checks & Robust Key Extraction
   if (!data) return <div className="text-red-500">Error: Invalid question data</div>;
 
-  const safeOptions = Array.isArray(data.options) ? data.options : [];
+  // Try to find the question text across common key variations
+  const questionText = data.question || data.questionText || data.question_text ||
+    data.text || data.Question || "Question text missing";
+
+  // Try to find options
+  let safeOptions = data.options || data.choices || data.Options || data.Choices || [];
+  if (!Array.isArray(safeOptions)) safeOptions = [];
+
   const effectiveIsMCQ = safeOptions.length > 1;
 
   const rawCorrect = (data.correctAnswer || '').toString().trim();
@@ -52,7 +59,7 @@ const AIQuestionCard = ({ data, onComplete }) => {
       </div>
 
       <div className="mb-4 font-bold text-lg text-black dark:text-white leading-relaxed">
-        <MathRenderer text={data.question || "Question text missing"} />
+        <MathRenderer text={questionText} />
       </div>
 
       {effectiveIsMCQ ? (

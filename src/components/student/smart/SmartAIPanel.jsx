@@ -4,17 +4,15 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
 import MathRenderer from '../../../common/MathRenderer';
 import { aiService } from '../../../services/api';
+import axios from 'axios';
 
 const { FiMessageSquare, FiLayers, FiCheckSquare, FiFileText, FiSend, FiLoader, FiCpu, FiHeadphones, FiList, FiPlay, FiPause, FiChevronRight, FiAlertTriangle, FiUser } = FiIcons;
 
 const checkBackendHealth = async () => {
   try {
-    const res = await fetch('/api/health');
-    if (!res.ok) return false;
-    const data = await res.json();
-    return data && data.status === 'ok';
+    const res = await axios.get('/api/health');
+    return res.data && res.data.status === 'ok';
   } catch (err) {
-    // If it's a parse error (e.g. returned HTML), return false
     return false;
   }
 };

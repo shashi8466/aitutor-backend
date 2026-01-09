@@ -33,8 +33,8 @@ try {
 // Helper function to get authenticated Supabase client
 const getSupabase = (authHeader) => {
   const token = authHeader?.replace('Bearer ', '');
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
 
   return createClient(supabaseUrl, supabaseKey, {
     global: {

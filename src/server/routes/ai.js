@@ -39,6 +39,7 @@ router.get('/routes', (req, res) => {
 router.post('/chat', async (req, res) => {
   try {
     const { message, context } = req.body;
+    console.log(`📩 [Chat Route] Received: "${message}" with context: "${context?.substring(0, 50)}..."`);
     if (context && context.includes('Expert SAT Tutor')) {
       const user = await getUserFromRequest(req);
       if (user) {
