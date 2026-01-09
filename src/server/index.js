@@ -98,8 +98,8 @@ app.get('/api/debug/env', (req, res) => {
   res.json({
     OPENAI_API_KEY: redact(process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY),
     SUPABASE_URL: redact(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
-    SUPABASE_KEY: redact(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY),
-    SUPABASE_SERVICE_KEY: redact(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY),
+    SUPABASE_KEY: redact(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env['anon-public']),
+    SUPABASE_SERVICE_KEY: redact(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SERVICE_ROLE_KEY || process.env['service_role']),
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT
   });
