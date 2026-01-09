@@ -3,42 +3,36 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 console.log('🔧 Initializing AI Utils...');
 
-// Initialize keys
-const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+// Initialize Clients lazily
+let openai = null;
+let genAI = null;
 
-console.log('🔑 API Key status:', apiKey ? 'Found' : 'Missing');
-console.log('🔑 API Key type:', apiKey?.startsWith('AIza') ? 'Google Gemini' : apiKey?.startsWith('sk-') ? 'OpenAI' : 'Unknown');
+const getAIClient = () => {
+  const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+  if (!apiKey) return { apiKey: null };
 
-// Determine provider
-const isGoogleKey = apiKey?.startsWith('AIza');
+  const isGoogleKey = apiKey.startsWith('AIza');
 
-// Initialize Clients
-let openai;
-let genAI;
-
-try {
-  if (apiKey) {
-    if (isGoogleKey) {
+  if (isGoogleKey) {
+    if (!genAI) {
       console.log('🤖 Initializing Google Gemini Client...');
       genAI = new GoogleGenerativeAI(apiKey);
-      console.log('✅ Google Gemini client initialized');
-    } else {
-      console.log('🤖 Initializing OpenAI Client...');
-      openai = new OpenAI({
-        apiKey: apiKey,
-      });
-      console.log('✅ OpenAI client initialized successfully');
     }
+    return { apiKey, isGoogleKey, client: genAI };
   } else {
-    console.warn('⚠️ No AI API Key found in environment variables');
+    if (!openai) {
+      console.log('🤖 Initializing OpenAI Client...');
+      openai = new OpenAI({ apiKey });
+    }
+    return { apiKey, isGoogleKey, client: openai };
   }
-} catch (error) {
-  console.error('❌ AI Client Initialization Error:', error);
-}
+};
 
 export const generateAIResponse = async (messages, jsonMode = false, temperature = 0.7, fastMode = false) => {
+  const { apiKey, isGoogleKey, client } = getAIClient();
+
   if (!apiKey) {
-    throw new Error("AI API Key is missing. Please add OPENAI_API_KEY to your .env file.");
+    throw new Error("AI API Key is missing. Please add OPENAI_API_KEY to your environment variables.");
   }
 
   const MAX_RETRIES = fastMode ? 1 : 3; // Fewer retries for fast mode
@@ -49,9 +43,9 @@ export const generateAIResponse = async (messages, jsonMode = false, temperature
       if (!fastMode) console.log(`🔄 [AI] Attempt ${attempt}/${MAX_RETRIES} (Mode: ${jsonMode ? "JSON" : "Text"}, Temp: ${temperature})`);
 
       if (isGoogleKey) {
-        if (!genAI) throw new Error("Google AI client not initialized");
+        if (!client) throw new Error("Google AI client not initialized");
         // Use flash model for speed
-        const model = genAI.getGenerativeModel({
+        const model = client.getGenerativeModel({
           model: "gemini-1.5-flash",
           generationConfig: {
             responseMimeType: jsonMode ? "application/json" : "text/plain",
@@ -66,9 +60,9 @@ export const generateAIResponse = async (messages, jsonMode = false, temperature
         const result = await model.generateContent(prompt);
         return result.response.text();
       } else {
-        if (!openai) throw new Error("OpenAI client not initialized");
+        if (!client) throw new Error("OpenAI client not initialized");
         // Use gpt-4o-mini for fast mode, gpt-4o for full mode
-        const completion = await openai.chat.completions.create({
+        const completion = await client.chat.completions.create({
           model: fastMode ? "gpt-4o-mini" : "gpt-4o",
           messages: messages,
           temperature: temperature,

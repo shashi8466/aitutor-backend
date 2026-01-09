@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
-
 export const getAppSettings = async () => {
     try {
+        const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+        const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+
+        if (!SUPABASE_KEY) {
+            console.warn('⚠️ [SettingsHelper] SUPABASE_KEY missing, using defaults');
+            return { app_name: 'Pundits AI', logo_url: null };
+        }
+
         const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
         const { data, error } = await supabase
             .from('site_settings')

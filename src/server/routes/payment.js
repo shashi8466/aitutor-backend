@@ -34,7 +34,11 @@ try {
 const getSupabase = (authHeader) => {
   const token = authHeader?.replace('Bearer ', '');
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+
+  if (!supabaseKey) {
+    throw new Error('Supabase initialization failed: supabaseKey is required.');
+  }
 
   return createClient(supabaseUrl, supabaseKey, {
     global: {

@@ -87,6 +87,24 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 🟢 Debug: Verify Env Vars (Redacted)
+app.get('/api/debug/env', (req, res) => {
+  const redact = (str) => {
+    if (!str) return '❌ MISSING';
+    if (str.length < 8) return '✅ PRESENT (Short)';
+    return `✅ ${str.substring(0, 4)}...${str.substring(str.length - 4)}`;
+  };
+
+  res.json({
+    OPENAI_API_KEY: redact(process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY),
+    SUPABASE_URL: redact(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+    SUPABASE_KEY: redact(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY),
+    SUPABASE_SERVICE_KEY: redact(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY),
+    NODE_ENV: process.env.NODE_ENV,
+    PORT: process.env.PORT
+  });
+});
+
 console.log('✅ Core routes registered\n');
 
 // 9. Load feature routes
