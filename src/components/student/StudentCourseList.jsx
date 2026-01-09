@@ -30,7 +30,7 @@ const StudentCourseList = () => {
       ]);
 
       setAllCourses(coursesRes.data || []);
-      
+
       const ids = new Set((enrollmentsRes.data || []).map(e => e.course_id));
       setEnrolledIds(ids);
     } catch (error) {
@@ -45,32 +45,41 @@ const StudentCourseList = () => {
       alert("Please log in to enroll.");
       return;
     }
-    
+
     try {
       setEnrollLoading(courseId);
-      // Ensure courseId is a number if DB expects bigint
       const cId = parseInt(courseId, 10);
-      
-      await enrollmentService.enroll(user.id, cId);
-      
-      // Update local state first for immediate feedback
-      setEnrolledIds(prev => new Set(prev).add(cId));
-      
-      // Reload data to ensure persistence is confirmed before navigating
-      await loadData();
-      
-      // Navigate immediately to the course
-      navigate(`/student/course/${cId}`);
+
+      // Call backend to create Stripe Checkout session
+      const response = await enrollmentService.initiateEnrollment(user.id, cId);
+
+      // If it's a free course, the backend enrolls directly
+      if (response.data.free) {
+        setEnrolledIds(prev => new Set(prev).add(cId));
+        await loadData();
+        navigate(`/student/course/${cId}`);
+        return;
+      }
+
+      // For paid courses, redirect to Stripe Checkout
+      if (response.data.url) {
+        console.log('🔗 Redirecting to Stripe Checkout:', response.data.url);
+        // CRITICAL: Redirect to Stripe's hosted checkout page
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No checkout URL received from server');
+      }
+
     } catch (error) {
-      console.error("Enrollment failed", error);
-      alert("Enrollment failed. Please try again or contact support.");
+      console.error("Enrollment initiation failed", error);
+      alert(error.response?.data?.error || "Enrollment failed. Please try again or contact support.");
     } finally {
       setEnrollLoading(null);
     }
   };
 
-  const filteredCourses = allCourses.filter(c => 
-    c.name.toLowerCase().includes(filter.toLowerCase()) || 
+  const filteredCourses = allCourses.filter(c =>
+    c.name.toLowerCase().includes(filter.toLowerCase()) ||
     c.description?.toLowerCase().includes(filter.toLowerCase())
   );
 
@@ -91,12 +100,12 @@ const StudentCourseList = () => {
           <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Courses</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your learning journey.</p>
         </div>
-        
+
         <div className="relative w-full md:w-72">
           <SafeIcon icon={FiSearch} className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
-          <input 
-            type="text" 
-            placeholder="Search courses..." 
+          <input
+            type="text"
+            placeholder="Search courses..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#E53935] outline-none text-sm transition-all shadow-sm"
@@ -112,11 +121,11 @@ const StudentCourseList = () => {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {enrolledCourses.map((course, idx) => (
-              <CourseCard 
-                key={course.id} 
-                course={course} 
-                index={idx} 
-                isEnrolled={true} 
+              <CourseCard
+                key={course.id}
+                course={course}
+                index={idx}
+                isEnrolled={true}
                 onAction={() => navigate(`/student/course/${course.id}`)}
               />
             ))}
@@ -132,10 +141,10 @@ const StudentCourseList = () => {
         {availableCourses.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {availableCourses.map((course, idx) => (
-              <CourseCard 
-                key={course.id} 
-                course={course} 
-                index={idx} 
+              <CourseCard
+                key={course.id}
+                course={course}
+                index={idx}
                 isEnrolled={false}
                 isLoading={enrollLoading === course.id}
                 onAction={() => handleEnroll(course.id)}
@@ -155,7 +164,7 @@ const StudentCourseList = () => {
 };
 
 const CourseCard = ({ course, index, isEnrolled, onAction, isLoading }) => (
-  <motion.div 
+  <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: index * 0.05 }}
@@ -172,24 +181,24 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading }) => (
         </div>
       </div>
       <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{course.description}</p>
-      
+
       {isEnrolled && (
         <div className="mt-4 flex items-center gap-2">
           <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-green-500 w-1/3 rounded-full"></div> 
+            <div className="h-full bg-green-500 w-1/3 rounded-full"></div>
           </div>
           <span className="text-xs font-bold text-gray-500">Active</span>
         </div>
       )}
     </div>
-    
+
     <div className="p-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-100 dark:border-gray-700">
-      <button 
+      <button
         onClick={onAction}
         disabled={isLoading}
         className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2
-          ${isEnrolled 
-            ? 'bg-white border border-gray-200 text-gray-900 hover:border-[#E53935] hover:text-[#E53935]' 
+          ${isEnrolled
+            ? 'bg-white border border-gray-200 text-gray-900 hover:border-[#E53935] hover:text-[#E53935]'
             : 'bg-[#E53935] text-white hover:bg-[#d32f2f] shadow-md shadow-red-500/20'
           } ${isLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
       >

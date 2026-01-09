@@ -323,11 +323,27 @@ export const aiService = {
   }
 };
 
-// --- ENROLLMENT SERVICE ---
+// ENROLLMENT SERVICE ---
 export const enrollmentService = {
+  /**
+   * Initiate Stripe Checkout for paid enrollment
+   * For free courses, directly enrolls the student
+   */
+  initiateEnrollment: async (userId, courseId) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+
+    return axios.post('/api/payment/create-checkout-session', {
+      userId,
+      courseId
+    }, { headers });
+  },
+
+  // Direct enroll (free courses only - backend will validate)
   enroll: async (userId, courseId) => {
     return await supabase.from('enrollments').insert([{ user_id: userId, course_id: courseId }]);
   },
+
   isEnrolled: async (userId, courseId) => {
     const { data } = await supabase
       .from('enrollments')
@@ -337,17 +353,24 @@ export const enrollmentService = {
       .single();
     return !!data;
   },
+
   getCourseStudents: async (courseId) => {
     return await supabase
       .from('enrollments')
       .select('enrolled_at, profiles:user_id(name, email)')
       .eq('course_id', courseId);
   },
+
   getStudentEnrollments: async (userId) => {
     return await supabase
       .from('enrollments')
       .select('course_id, enrolled_at, courses(*)')
       .eq('user_id', userId);
+  },
+
+  // Verify Stripe payment session
+  verifyPaymentSession: async (sessionId) => {
+    return axios.get(`/api/payment/verify-session/${sessionId}`);
   }
 };
 

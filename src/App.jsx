@@ -26,6 +26,7 @@ import WeaknessDrills from './components/student/agents/WeaknessDrills';
 import TestReview from './components/student/agents/TestReview';
 import CollegeAdvisor from './components/student/agents/CollegeAdvisor';
 import ParentConnect from './components/student/agents/ParentConnect';
+import PaymentSuccess from './components/student/PaymentSuccess';
 import SalesBot from './components/common/SalesBot';
 
 //============================================
@@ -130,6 +131,9 @@ function App() {
             <Route path="test-review" element={<TestReview />} />
             <Route path="college" element={<CollegeAdvisor />} />
             <Route path="parent" element={<ParentConnect />} />
+
+            {/* Payment */}
+            <Route path="payment-success" element={<PaymentSuccess />} />
           </Route>
 
           {/* Admin Routes */}
