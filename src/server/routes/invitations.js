@@ -9,6 +9,19 @@ import supabase from '../../supabase/supabaseAdmin.js';
 
 const router = express.Router();
 
+// Helper to normalize assigned courses
+const getAssignedCourses = (profile) => {
+    let rawAssigned = profile?.assigned_courses || [];
+    if (typeof rawAssigned === 'string') {
+        try {
+            rawAssigned = JSON.parse(rawAssigned);
+        } catch (e) {
+            rawAssigned = [];
+        }
+    }
+    return Array.isArray(rawAssigned) ? rawAssigned.map(Number).filter(id => !isNaN(id)) : [];
+};
+
 /**
  * Generate a unique invitation code
  */
@@ -58,7 +71,7 @@ router.post('/create', async (req, res) => {
 
         // If tutor, verify they have access to this course
         if (profile.role === 'tutor') {
-            const assigned = (profile.assigned_courses || []).map(Number);
+            const assigned = getAssignedCourses(profile);
             if (!assigned.includes(Number(courseId))) {
                 return res.status(403).json({ error: 'Not authorized for this course' });
             }

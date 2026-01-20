@@ -12,6 +12,19 @@ import supabase from '../../supabase/supabase.js';
 
 const router = express.Router();
 
+// Helper to normalize assigned courses
+const getAssignedCourses = (profile) => {
+    let rawAssigned = profile?.assigned_courses || [];
+    if (typeof rawAssigned === 'string') {
+        try {
+            rawAssigned = JSON.parse(rawAssigned);
+        } catch (e) {
+            rawAssigned = [];
+        }
+    }
+    return Array.isArray(rawAssigned) ? rawAssigned.map(Number).filter(id => !isNaN(id)) : [];
+};
+
 /**
  * Generate a unique enrollment key
  */
@@ -300,7 +313,7 @@ router.get('/keys', async (req, res) => {
 
         // Tutors see keys they created OR keys for courses they are assigned to
         if (profile?.role === 'tutor') {
-            const assigned = (profile.assigned_courses || []).map(Number);
+            const assigned = getAssignedCourses(profile);
 
             if (assigned.length > 0) {
                 // Tutors assigned to courses see keys for those courses + any keys they created
