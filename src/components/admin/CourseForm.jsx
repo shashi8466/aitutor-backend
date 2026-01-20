@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService } from '../../services/api';
+import axios from 'axios';
 
-const { FiX, FiSave, FiUpload, FiFile, FiVideo, FiBook, FiCheck, FiTrash2, FiLoader, FiAlertCircle, FiDollarSign, FiUsers, FiAlertTriangle } = FiIcons;
+const { FiX, FiSave, FiUpload, FiFile, FiVideo, FiBook, FiCheck, FiTrash2, FiLoader, FiAlertCircle, FiDollarSign, FiUsers, FiAlertTriangle, FiKey, FiCopy, FiClock } = FiIcons;
 
 const CourseForm = ({ course, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -16,6 +17,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
     manual_enrollment_count: course?.manual_enrollment_count || '',
     price_section_a: course?.price_section_a || '',
     price_section_b: course?.price_section_b || '',
+    start_date: course?.start_date ? new Date(course.start_date).toISOString().slice(0, 16) : ''
   });
 
   const [newFiles, setNewFiles] = useState({});
@@ -24,6 +26,17 @@ const CourseForm = ({ course, onClose, onSave }) => {
   const [fetchingUploads, setFetchingUploads] = useState(false);
   const [error, setError] = useState('');
   const [uploadStatus, setUploadStatus] = useState({ message: '', type: 'info' });
+
+  // Enrollment Key State
+  const [generateKey, setGenerateKey] = useState(false);
+  const [generatedKey, setGeneratedKey] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [keyOptions, setKeyOptions] = useState({
+    maxUses: '',
+    maxStudents: '',
+    validUntil: '',
+    description: ''
+  });
 
   useEffect(() => {
     if (course?.id) {
@@ -71,6 +84,48 @@ const CourseForm = ({ course, onClose, onSave }) => {
 
   const handleFileChange = (key, file) => setNewFiles(prev => ({ ...prev, [key]: file }));
 
+  // State for custom key
+  const [customKey, setCustomKey] = useState('');
+
+  const createEnrollmentKey = async (courseId) => {
+    try {
+      if (customKey && (customKey.length < 4 || customKey.length > 12)) {
+        setError('Enrollment Key must be between 4 and 12 characters.');
+        setLoading(false);
+        return null;
+      }
+
+      const payload = {
+        courseId,
+        customCode: customKey || undefined, // Send custom code if provided
+        maxUses: keyOptions.maxUses ? parseInt(keyOptions.maxUses) : null,
+        maxStudents: keyOptions.maxStudents ? parseInt(keyOptions.maxStudents) : null,
+        validUntil: keyOptions.validUntil || null,
+        description: keyOptions.description || `Access key for ${formData.name}`
+      };
+
+      const response = await axios.post('/api/enrollment/create-key', payload);
+
+      if (response.data.success || response.data.key) {
+        setGeneratedKey(response.data.key); // Store the full key object
+        setUploadStatus({ message: 'Course and Key created successfully!', type: 'success' });
+        return response.data.key;
+      }
+    } catch (error) {
+      console.error('Error generating key:', error);
+      setError('Failed to generate enrollment key: ' + (error.response?.data?.error || error.message));
+    }
+    return null;
+  };
+
+  const copyKeyToClipboard = () => {
+    if (generatedKey?.key_code) {
+      navigator.clipboard.writeText(generatedKey.key_code);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -79,28 +134,54 @@ const CourseForm = ({ course, onClose, onSave }) => {
 
     try {
       // 1. Save Course
+      // Only include fields that actually exist in the courses table
       const cleanData = {
         name: formData.name,
-        tutor_type: formData.tutor_type,
         description: formData.description,
-        status: formData.status,
-        price_full: Number(formData.price_full) || 0,
-        manual_enrollment_count: Number(formData.manual_enrollment_count) || 0,
-        price_section_a: Number(formData.price_section_a) || 0,
-        price_section_b: Number(formData.price_section_b) || 0,
-        levels: ['Easy', 'Medium', 'Hard'],
+        tutor_type: formData.tutor_type,
+        price: Number(formData.price_full) || 0,
+        currency: 'INR',
+        is_free: Number(formData.price_full) === 0,
+        start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
       };
 
       let savedCourse;
       if (course?.id) {
-        const { data } = await courseService.update(course.id, cleanData);
-        savedCourse = data;
+        console.log('📝 Updating existing course:', course.id);
+        const response = await courseService.update(course.id, cleanData);
+        console.log('📡 Update response:', response);
+        savedCourse = response.data || response;
       } else {
-        const { data } = await courseService.create(cleanData);
-        savedCourse = data;
+        console.log('➕ Creating new course with data:', cleanData);
+        const response = await courseService.create(cleanData);
+        console.log('📡 Create response:', response);
+
+        // Check for Supabase error
+        if (response.error) {
+          console.error('❌ Supabase error:', response.error);
+          throw new Error(`Database error: ${response.error.message || response.error}`);
+        }
+
+        savedCourse = response.data || response;
       }
 
-      // 2. Upload Files with Auto-Cleanup
+      console.log('🔍 Saved course object:', savedCourse);
+
+      // Verify course was saved
+      if (!savedCourse || !savedCourse.id) {
+        console.error('❌ No course ID found! savedCourse:', savedCourse);
+        throw new Error('Failed to save course - no course ID returned. Check browser console for details.');
+      }
+
+      console.log('✅ Course saved:', savedCourse);
+
+      // 2. Generate Enrollment Key if requested
+      if (generateKey && savedCourse?.id) {
+        setUploadStatus({ message: 'Generating enrollment key...', type: 'info' });
+        await createEnrollmentKey(savedCourse.id);
+      }
+
+      // 3. Upload Files with Auto-Cleanup
       const uploadKeys = Object.keys(newFiles);
       const errors = [];
       let successCount = 0;
@@ -149,10 +230,10 @@ const CourseForm = ({ course, onClose, onSave }) => {
           }
         } catch (err) {
           console.error(`Upload error for ${key}:`, err);
-          
+
           // Enhanced error message
           let errorMsg = err.message || 'Upload failed';
-          
+
           if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
             errorMsg = '❌ Backend server is not responding. Please ensure the backend is running on port 3001.';
           } else if (err.code === 'ECONNREFUSED') {
@@ -164,7 +245,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
           } else if (err.response?.data?.error) {
             errorMsg = err.response.data.error;
           }
-          
+
           errors.push(`${file.name}: ${errorMsg}`);
         }
       }
@@ -173,21 +254,24 @@ const CourseForm = ({ course, onClose, onSave }) => {
         setError(errors.join('; '));
         setUploadStatus({ message: 'Saved with errors', type: 'error' });
       } else {
-        setUploadStatus({ message: 'All saved successfully!', type: 'success' });
-        setTimeout(() => {
-          onSave();
-          onClose();
-        }, 1500);
+        setUploadStatus({ message: generateKey ? 'Course saved! Enrollment key generated!' : 'All saved successfully!', type: 'success' });
+        if (!generateKey) {
+          setTimeout(() => {
+            onSave();
+            onClose();
+          }, 1500);
+        }
+        // If key was generated, keep modal open to show the key
       }
     } catch (error) {
       console.error('Save error:', error);
-      
+
       let errorMsg = error.message || 'Failed to save course.';
-      
+
       if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
         errorMsg = '❌ Backend server is not running. Please start it with: npm run server';
       }
-      
+
       setError(errorMsg);
       setUploadStatus({ message: 'Error occurred', type: 'error' });
     } finally {
@@ -279,6 +363,16 @@ const CourseForm = ({ course, onClose, onSave }) => {
                   />
                 </div>
               </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date & Time</label>
+                <input
+                  type="datetime-local"
+                  name="start_date"
+                  value={formData.start_date}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                />
+              </div>
             </div>
 
             {/* Display Settings (Price & Enrollment) */}
@@ -316,6 +410,153 @@ const CourseForm = ({ course, onClose, onSave }) => {
                   <p className="text-xs text-gray-500 mt-1">Set to 0 for "Free".</p>
                 </div>
               </div>
+            </div>
+
+            {/* Enrollment Key Generator */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+              <h4 className="font-bold text-gray-900 text-lg border-b pb-2 mb-4 flex items-center gap-2">
+                <SafeIcon icon={FiKey} className="w-5 h-5 text-blue-600" />
+                Enrollment Key (Optional)
+              </h4>
+
+              <div className="flex items-start gap-4">
+                <input
+                  type="checkbox"
+                  id="generateKey"
+                  checked={generateKey}
+                  onChange={(e) => setGenerateKey(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <div className="flex-1">
+                  <label htmlFor="generateKey" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                    Generate enrollment key when creating this course
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Students will need this key to enroll in the course
+                  </p>
+                </div>
+              </div>
+
+              {generateKey && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="space-y-4 pt-4 border-t border-gray-100"
+                >
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex justify-between">
+                      <span>Custom Key Code (Optional)</span>
+                      <span className={`text-[10px] ${customKey.length > 0 && (customKey.length < 4 || customKey.length > 12) ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                        {customKey.length}/12 chars (Min 4)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={customKey}
+                      maxLength={12}
+                      onChange={(e) => setCustomKey(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
+                      placeholder="e.g. SUMMER-2024 (Leave empty for random)"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-blue-50/50 uppercase tracking-wider font-mono text-blue-900 ${customKey.length > 0 && (customKey.length < 4 || customKey.length > 12)
+                        ? 'border-red-300 ring-red-500'
+                        : 'border-blue-200'
+                        }`}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">If empty, a code like MATH-X7Y2 will be generated.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Max Uses (Optional)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={keyOptions.maxUses}
+                        onChange={(e) => setKeyOptions({ ...keyOptions, maxUses: e.target.value })}
+                        placeholder="Unlimited (Leave empty)"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">How many times the key can be used. Leave empty for infinite.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Max Students (Optional)
+                      </label>
+                      <input
+                        type="number"
+                        value={keyOptions.maxStudents}
+                        onChange={(e) => setKeyOptions({ ...keyOptions, maxStudents: e.target.value })}
+                        placeholder="Unlimited (Leave empty)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Maximum number of students who can use this key</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <SafeIcon icon={FiClock} className="w-4 h-4" />
+                        Valid Until (Optional)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={keyOptions.validUntil}
+                        onChange={(e) => setKeyOptions({ ...keyOptions, validUntil: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Leave empty to never expire</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Description (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={keyOptions.description}
+                        onChange={(e) => setKeyOptions({ ...keyOptions, description: e.target.value })}
+                        placeholder="Batch 2026"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {generatedKey && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-green-50 border border-green-200 rounded-lg p-6"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <SafeIcon icon={FiCheck} className="w-6 h-6 text-green-600" />
+                    <h5 className="font-bold text-green-900">Enrollment Key Generated!</h5>
+                  </div>
+
+                  <div className="flex items-center gap-3 mb-4">
+                    <code className="flex-1 text-lg font-mono font-bold bg-white px-4 py-3 rounded-lg text-blue-600 border border-green-300">
+                      {generatedKey.key_code}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={copyKeyToClipboard}
+                      className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <SafeIcon icon={copiedKey ? FiCheck : FiCopy} className="w-5 h-5" />
+                      {copiedKey ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+
+                  <div className="text-sm text-green-800 space-y-1">
+                    <p>✓ Share this key with your students</p>
+                    <p>✓ Students can use it to enroll in the course</p>
+                    {generatedKey.max_uses && <p>✓ Valid for {generatedKey.max_uses} uses</p>}
+                    {generatedKey.valid_until && <p>✓ Expires on {new Date(generatedKey.valid_until).toLocaleDateString()}</p>}
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Upload Sections */}

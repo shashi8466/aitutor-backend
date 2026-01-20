@@ -2,9 +2,14 @@ import React from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/layout/Navbar';
+import supabase from './supabase/supabase';
 import HomePage from './components/layout/HomePage';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
+import RoleSelector from './components/auth/RoleSelector';
+import AdminLogin from './components/auth/AdminLogin';
+import TutorLogin from './components/auth/TutorLogin';
+import StudentLogin from './components/auth/StudentLogin';
 import StudentDashboard from './components/student/StudentDashboard';
 import StudentCourseList from './components/student/StudentCourseList';
 import CourseView from './components/student/CourseView';
@@ -20,6 +25,7 @@ import Worksheets from './components/student/Worksheets';
 import StudentSettings from './components/student/StudentSettings';
 import Support from './components/student/Support';
 import StudentCalendar from './components/student/StudentCalendar';
+import EnrollmentKeyInput from './components/student/EnrollmentKeyInput';
 import AITutorAgent from './components/student/agents/AITutorAgent';
 import StudyPlanPage from './components/student/agents/StudyPlanPage';
 import WeaknessDrills from './components/student/agents/WeaknessDrills';
@@ -28,6 +34,7 @@ import CollegeAdvisor from './components/student/agents/CollegeAdvisor';
 import ParentConnect from './components/student/agents/ParentConnect';
 import PaymentSuccess from './components/student/PaymentSuccess';
 import SalesBot from './components/common/SalesBot';
+import TutorDashboard from './components/tutor/TutorDashboard';
 
 //============================================
 // CRITICAL: Configure Axios Base URL
@@ -51,10 +58,21 @@ console.log('  - Backend URL:', BACKEND_URL || '(Relative Path / Proxy)');
 axios.defaults.baseURL = BACKEND_URL;
 axios.defaults.withCredentials = true;
 
-// Add request interceptor for debugging
+// Add request interceptor for auth and debugging
 axios.interceptors.request.use(
-  (config) => {
-    console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+  async (config) => {
+    // console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+
+    try {
+      // Get the session from Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+      }
+    } catch (error) {
+      console.error('📡 Auth Interceptor Error:', error);
+    }
+
     return config;
   },
   (error) => {
@@ -87,8 +105,11 @@ function App() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isStudentRoute = location.pathname.startsWith('/student');
-  const isAuthRoute = location.pathname === '/login' || location.pathname === '/signup';
-  const showNavbar = !isAdminRoute && !isStudentRoute && !isAuthRoute;
+  const isTutorRoute = location.pathname.startsWith('/tutor');
+  const isAuthRoute = location.pathname === '/login' ||
+    location.pathname === '/signup' ||
+    location.pathname.startsWith('/login/');
+  const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isAuthRoute;
 
   return (
     <div className="app-container">
@@ -97,7 +118,12 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<Login />} />
+
+          {/* Authentication Routes */}
+          <Route path="/login" element={<RoleSelector />} />
+          <Route path="/login/admin" element={<AdminLogin />} />
+          <Route path="/login/tutor" element={<TutorLogin />} />
+          <Route path="/login/student" element={<StudentLogin />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/contact" element={<ContactPage />} />
 
@@ -112,6 +138,7 @@ function App() {
           >
             <Route index element={<StudentDashboard />} />
             <Route path="courses" element={<StudentCourseList />} />
+            <Route path="enroll" element={<EnrollmentKeyInput />} />
             <Route path="course/:courseId" element={<CourseView />} />
             <Route path="course/:courseId/level/:level" element={<LevelDashboard />} />
             <Route path="course/:courseId/level/:level/video" element={<VideoPlayer />} />
@@ -135,6 +162,16 @@ function App() {
             {/* Payment */}
             <Route path="payment-success" element={<PaymentSuccess />} />
           </Route>
+
+          {/* Tutor Routes */}
+          <Route
+            path="/tutor/*"
+            element={
+              <ProtectedRoute role="tutor">
+                <TutorDashboard />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Admin Routes */}
           <Route

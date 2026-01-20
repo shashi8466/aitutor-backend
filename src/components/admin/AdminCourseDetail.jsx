@@ -3,10 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { courseService, uploadService, questionService, enrollmentService } from '../../services/api';
+import { courseService, uploadService, questionService, enrollmentService, authService } from '../../services/api';
 import CourseForm from './CourseForm';
 
-const { FiBook, FiArrowLeft, FiEdit, FiFile, FiVideo, FiHelpCircle, FiUsers, FiTrash2, FiCheck, FiFilter, FiCalendar, FiMail } = FiIcons;
+import EnrollmentKeyManager from './EnrollmentKeyManager';
+import TutorGrades from '../tutor/TutorGrades';
+
+const { FiBook, FiArrowLeft, FiEdit, FiFile, FiVideo, FiHelpCircle, FiUsers, FiTrash2, FiCheck, FiFilter, FiCalendar, FiMail, FiKey, FiRefreshCw, FiCheckCircle, FiPlus } = FiIcons;
 
 const AdminCourseDetail = () => {
   const { id } = useParams();
@@ -14,6 +17,8 @@ const AdminCourseDetail = () => {
   const [uploads, setUploads] = useState([]);
   const [questionsCount, setQuestionsCount] = useState(0);
   const [students, setStudents] = useState([]);
+  const [allTutors, setAllTutors] = useState([]);
+  const [updating, setUpdating] = useState({});
   const [activeTab, setActiveTab] = useState('content');
   const [showEditForm, setShowEditForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,6 +36,10 @@ const AdminCourseDetail = () => {
       // Load uploads
       const { data: uploadsData } = await uploadService.getAll({ courseId: id });
       setUploads(uploadsData);
+
+      // Load all profiles to filter tutors
+      const { data: profiles } = await authService.getAllProfiles();
+      setAllTutors((profiles || []).filter(p => p.role === 'tutor'));
 
       // Load all questions for this course so we can compute an "active" count
       // that matches what students actually see:
@@ -129,6 +138,24 @@ const AdminCourseDetail = () => {
               onClick={() => setActiveTab('students')}
               icon={FiUsers}
               label={`Enrolled Students (${(course.manual_enrollment_count || 0) > students.length ? course.manual_enrollment_count : students.length})`}
+            />
+            <TabButton
+              active={activeTab === 'keys'}
+              onClick={() => setActiveTab('keys')}
+              icon={FiKey}
+              label="Enrollment Keys"
+            />
+            <TabButton
+              active={activeTab === 'tutors'}
+              onClick={() => setActiveTab('tutors')}
+              icon={FiIcons.FiShield || FiUsers}
+              label="Tutors & Staff"
+            />
+            <TabButton
+              active={activeTab === 'grades'}
+              onClick={() => setActiveTab('grades')}
+              icon={FiIcons.FiBarChart2 || FiBook}
+              label="Grades & Analysis"
             />
           </div>
         </div>
@@ -261,6 +288,101 @@ const AdminCourseDetail = () => {
           </div>
         )}
 
+        {/* Enrollment Keys Tab */}
+        {activeTab === 'keys' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
+            <EnrollmentKeyManager courseId={id} courseName={course.name} />
+          </div>
+        )}
+
+        {/* Tutors Tab */}
+        {activeTab === 'tutors' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Course Tutors & Staff</h3>
+                <p className="text-sm text-gray-500">Manage instructors authorized to view this course's analytics</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {allTutors.length === 0 ? (
+                <div className="col-span-full py-12 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                  <SafeIcon icon={FiUsers} className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 font-bold uppercase tracking-widest">No Tutors Found</p>
+                  <p className="text-sm text-gray-400 mt-1">Visit User Management to create tutor accounts.</p>
+                </div>
+              ) : (
+                allTutors.map(tutor => {
+                  const isAssigned = (tutor.assigned_courses || []).includes(parseInt(id));
+                  const isUpdating = updating[tutor.id];
+
+                  return (
+                    <div
+                      key={tutor.id}
+                      className={`p-5 rounded-2xl border-2 transition-all ${isAssigned
+                        ? 'border-blue-500 bg-blue-50/30 shadow-md shadow-blue-50'
+                        : 'border-gray-100 bg-white hover:border-blue-200'
+                        }`}
+                    >
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-white ${isAssigned ? 'bg-blue-600' : 'bg-gray-400'}`}>
+                          {tutor.name?.charAt(0) || 'T'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-gray-900 truncate uppercase tracking-tight">{tutor.name}</h4>
+                          <p className={`text-[10px] font-black uppercase inline-flex px-2 py-0.5 rounded-md ${tutor.tutor_approved ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                            {tutor.tutor_approved ? 'Approved' : 'Pending Approval'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        disabled={isUpdating}
+                        onClick={async () => {
+                          setUpdating(prev => ({ ...prev, [tutor.id]: true }));
+                          const currentCourses = tutor.assigned_courses || [];
+                          const newCourses = isAssigned
+                            ? currentCourses.filter(cid => cid !== parseInt(id))
+                            : [...currentCourses, parseInt(id)];
+
+                          try {
+                            await authService.updateProfile(tutor.id, { assigned_courses: newCourses });
+                            setAllTutors(prev => prev.map(p => p.id === tutor.id ? { ...p, assigned_courses: newCourses } : p));
+                          } catch (err) {
+                            console.error('Update failed:', err);
+                          } finally {
+                            setUpdating(prev => ({ ...prev, [tutor.id]: false }));
+                          }
+                        }}
+                        className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isAssigned
+                          ? 'bg-blue-600 text-white hover:bg-red-600'
+                          : 'bg-white border-2 border-gray-100 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                          }`}
+                      >
+                        {isUpdating ? (
+                          <SafeIcon icon={FiRefreshCw} className="animate-spin" />
+                        ) : isAssigned ? (
+                          <><SafeIcon icon={FiCheckCircle} /> Assigned Account</>
+                        ) : (
+                          <><FiPlus className="w-4 h-4" /> Authorize Access</>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Grades Tab */}
+        {activeTab === 'grades' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-2">
+            <TutorGrades adminMode={true} courseId={id} />
+          </div>
+        )}
+
         {/* Edit Form Modal */}
         {showEditForm && (
           <CourseForm
@@ -278,8 +400,8 @@ const TabButton = ({ active, onClick, icon, label }) => (
   <button
     onClick={onClick}
     className={`flex-1 py-4 px-6 text-center font-medium transition-colors flex items-center justify-center gap-2 ${active
-        ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
       }`}
   >
     <SafeIcon icon={icon} className="w-4 h-4" /> {label}

@@ -1,19 +1,19 @@
-// SAT SCORING CONSTANTS
+// SAT SCORING CONSTANTS (Refined Model)
 const SCORING_CONFIG = {
   MATH: {
     QUESTIONS: 22,
     LEVELS: {
-      'Easy': { min: 200, max: 550 },
-      'Medium': { min: 200, max: 680 },
-      'Hard': { min: 200, max: 800 }
+      'Easy': { min: 200, max: 500 },
+      'Medium': { min: 400, max: 650 },
+      'Hard': { min: 550, max: 800 }
     }
   },
   RW: {
     QUESTIONS: 27,
     LEVELS: {
-      'Easy': { min: 200, max: 560 },
-      'Medium': { min: 200, max: 700 },
-      'Hard': { min: 200, max: 800 }
+      'Easy': { min: 200, max: 480 },
+      'Medium': { min: 380, max: 650 },
+      'Hard': { min: 550, max: 800 }
     }
   }
 };
@@ -49,23 +49,13 @@ export const calculateStudentScore = (progressData, diagnosticData) => {
     // Default to Medium if unknown level
     const levelStats = config.LEVELS[levelName] || config.LEVELS['Medium'];
 
-    // Step 3.2 / 4.2: Level Score
-    // Formula: 200 + (Correct / TotalQ) * (Level_Max - 200)
-    // We use (percentageScore / 100) as (Correct / TotalQ)
     const ratio = (percentageScore || 0) / 100;
     const levelMax = levelStats.max;
-    const levelMin = 200; // Always 200 per tables
+    const levelMin = levelStats.min;
 
-    const levelScore = 200 + (ratio * (levelMax - 200));
-
-    // Step 5.1: Normalize
-    // Normalized = (Level_Score - 200) / (Level_Max - 200)
-    // Note: This mathematically simplifies to 'ratio' but we keep logic explicit for clarity/updates
-    const normalized = (levelScore - 200) / (levelMax - 200);
-
-    // Step 5.2: Final SAT Section Score
-    // Final = 200 + (Normalized * 600)
-    const finalScore = 200 + (normalized * 600);
+    // Direct mapping to the level's score range
+    // Formula: Level_Min + (Correct_Ratio * (Level_Max - Level_Min))
+    const finalScore = levelMin + (ratio * (levelMax - levelMin));
 
     return Math.round(finalScore);
   };

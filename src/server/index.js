@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getUserFromRequest } from './utils/authHelper.js';
 
 // 1. Load environment variables FIRST
 dotenv.config();
@@ -54,10 +55,20 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 console.log('✅ Body parsing configured (50MB limit)');
 
-// 6. Request logging
-app.use((req, res, next) => {
+// 6. Request logging & Auth Middleware
+app.use(async (req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.url}`);
+
+  try {
+    const user = await getUserFromRequest(req);
+    if (user) {
+      req.user = user;
+    }
+  } catch (error) {
+    console.warn(`[${timestamp}] Auth middleware warning:`, error.message);
+  }
+
   next();
 });
 
@@ -113,7 +124,11 @@ console.log('🔗 Loading Feature Routes...\n');
 let routesLoaded = {
   ai: false,
   upload: false,
-  payment: false
+  payment: false,
+  tutor: false,
+  enrollment: false,
+  invitations: false,
+  grading: false
 };
 
 // AI Routes
@@ -171,6 +186,55 @@ try {
   console.log('✅ Contact Routes mounted at /api/contact');
 } catch (error) {
   console.error('❌ Failed to load Contact Routes:', error.message);
+}
+
+// Tutor Routes
+try {
+  const tutorModule = await import('./routes/tutor.js');
+  app.use('/api/tutor', tutorModule.default);
+  routesLoaded.tutor = true;
+  console.log('✅ Tutor Routes mounted at /api/tutor');
+} catch (error) {
+  console.error('❌ Failed to load Tutor Routes:', error.message);
+}
+
+// Enrollment Routes
+try {
+  const enrollmentModule = await import('./routes/enrollment.js');
+  app.use('/api/enrollment', enrollmentModule.default);
+  routesLoaded.enrollment = true;
+  console.log('✅ Enrollment Routes mounted at /api/enrollment');
+} catch (error) {
+  console.error('❌ Failed to load Enrollment Routes:', error.message);
+}
+
+// Invitation Routes
+try {
+  const invitationsModule = await import('./routes/invitations.js');
+  app.use('/api/invitations', invitationsModule.default);
+  routesLoaded.invitations = true;
+  console.log('✅ Invitation Routes mounted at /api/invitations');
+} catch (error) {
+  console.error('❌ Failed to load Invitation Routes:', error.message);
+}
+
+// Auth Debug Route (For manual verification)
+try {
+  const authDebugModule = await import('./routes/auth-debug.js');
+  app.use('/api/auth-debug', authDebugModule.default);
+  console.log('🔧 Auth Debug Route mounted at /api/auth-debug');
+} catch (error) {
+  console.error('❌ Failed to load Auth Debug Route:', error.message);
+}
+
+// Grading Routes
+try {
+  const gradingModule = await import('./routes/grading.js');
+  app.use('/api/grading', gradingModule.default);
+  routesLoaded.grading = true;
+  console.log('✅ Grading Routes mounted at /api/grading');
+} catch (error) {
+  console.error('❌ Failed to load Grading Routes:', error.message);
 }
 
 console.log('');
@@ -242,6 +306,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  - AI Routes: ${routesLoaded.ai ? '✅' : '❌'}`);
   console.log(`  - Upload Routes: ${routesLoaded.upload ? '✅' : '❌'}`);
   console.log(`  - Payment Routes: ${routesLoaded.payment ? '✅' : '❌'}`);
+  console.log(`  - Tutor Routes: ${routesLoaded.tutor ? '✅' : '❌'}`);
+  console.log(`  - Enrollment Routes: ${routesLoaded.enrollment ? '✅' : '❌'}`);
+  console.log(`  - Invitation Routes: ${routesLoaded.invitations ? '✅' : '❌'}`);
+  console.log(`  - Grading Routes: ${routesLoaded.grading ? '✅' : '❌'}`);
   console.log('');
   console.log('🔍 Debug Tools:');
   console.log(`  - Health Check: http://localhost:${PORT}/api/health`);

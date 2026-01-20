@@ -23,7 +23,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
     setLoading(true);
     try {
       const response = await courseService.getAll();
-      let filteredCourses = response.data;
+      let filteredCourses = response?.data || [];
 
       if (filters.status) {
         filteredCourses = filteredCourses.filter(c => c.status === filters.status);
@@ -39,6 +39,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
       onStatsUpdate?.();
     } catch (error) {
       console.error('Error loading courses:', error);
+      setCourses([]); // Set to empty array on error
     } finally {
       setLoading(false);
     }
@@ -72,14 +73,14 @@ const CourseManagement = ({ onStatsUpdate }) => {
         className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
       >
         <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-                <SafeIcon icon={FiFilter} className="w-5 h-5 text-gray-600" />
-                <h3 className="font-medium text-gray-900">Filters</h3>
-            </div>
-            <button onClick={loadCourses} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
-                <SafeIcon icon={FiRefreshCw} className="w-3 h-3 mr-1" />
-                Refresh
-            </button>
+          <div className="flex items-center space-x-2">
+            <SafeIcon icon={FiFilter} className="w-5 h-5 text-gray-600" />
+            <h3 className="font-medium text-gray-900">Filters</h3>
+          </div>
+          <button onClick={loadCourses} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
+            <SafeIcon icon={FiRefreshCw} className="w-3 h-3 mr-1" />
+            Refresh
+          </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -110,10 +111,10 @@ const CourseManagement = ({ onStatsUpdate }) => {
       {/* Courses Grid */}
       {loading ? (
         <div className="text-center py-12">
-            <SafeIcon icon={FiRefreshCw} className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
-            <p className="mt-2 text-gray-500">Loading courses...</p>
+          <SafeIcon icon={FiRefreshCw} className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
+          <p className="mt-2 text-gray-500">Loading courses...</p>
         </div>
-      ) : courses.length === 0 ? (
+      ) : (!courses || courses.length === 0) ? (
         <div className="text-center py-12 bg-white rounded-xl shadow border border-gray-200">
           <p className="text-gray-500">No courses found.</p>
         </div>

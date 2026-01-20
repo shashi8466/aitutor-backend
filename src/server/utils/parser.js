@@ -446,6 +446,39 @@ const finalizeQuestion = (q) => {
       if (q.type === 'short_answer') q.options = [];
     }
 
+    // SECTION DETECTION (New for Advanced Grading)
+    const textToAnalyze = (q.question + ' ' + (q.explanation || '')).toLowerCase();
+
+    const mathKeywords = [
+      'algebra', 'equation', 'variable', 'linear', 'quadratic', 'function',
+      'exponential', 'polynomial', 'radical', 'geometry', 'trigonometry',
+      'ratio', 'percentage', 'probability', 'triangles', 'circle',
+      'coordinate', 'graph', 'slope', 'solution', 'calculate', 'value of x'
+    ];
+
+    const readingKeywords = [
+      'main purpose', 'summarizes', 'completes the text', 'logical and precise',
+      'passage', 'sentence', 'text structure', 'best describes', 'central idea',
+      'word in context', 'inference', 'character', 'narrator', 'evidence'
+    ];
+
+    const writingKeywords = [
+      'standard english conventions', 'punctuation', 'grammar', 'subject-verb',
+      'pronoun', 'colons', 'semicolons', 'shorter sentence', 'logical transition',
+      'effective transition', 'combine the sentences'
+    ];
+
+    if (writingKeywords.some(k => textToAnalyze.includes(k))) {
+      q.section = 'writing';
+    } else if (readingKeywords.some(k => textToAnalyze.includes(k))) {
+      q.section = 'reading';
+    } else if (mathKeywords.some(k => textToAnalyze.includes(k)) || /\d+[+\-*/=]\d+/.test(q.question)) {
+      q.section = 'math';
+    } else {
+      // Fallback or default
+      q.section = 'math';
+    }
+
     return q;
   } catch (err) {
     console.warn("Error finalizing question:", err.message);

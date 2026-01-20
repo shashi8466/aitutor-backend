@@ -6,11 +6,11 @@ import { createClient } from '@supabase/supabase-js'
 // 3. Go to Project Settings -> API
 // 4. Copy "Project URL" and "anon" public key
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co'
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const SUPABASE_URL = (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL : import.meta.env?.VITE_SUPABASE_URL) || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+const SUPABASE_ANON_KEY = (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY : import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn('⚠️ Warning: Supabase variables are missing. Some features may not work.');
+  console.warn('⚠️ Warning: Supabase variables are missing in supabase.js. Check your .env file.');
 }
 
 // Standard client configuration

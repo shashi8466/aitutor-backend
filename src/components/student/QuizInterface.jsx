@@ -5,7 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import AITutorModal from './AITutorModal';
-import { questionService, progressService, enrollmentService } from '../../services/api';
+import { questionService, progressService, enrollmentService, gradingService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -33,8 +33,8 @@ const QuizInterface = () => {
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [savingResult, setSavingResult] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
-  const [isNewHigh, setIsNewHigh] = useState(false);
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
+  const [submissionResult, setSubmissionResult] = useState(null);
 
   useEffect(() => {
     if (user?.id && courseId) {
@@ -209,35 +209,73 @@ const QuizInterface = () => {
 
   const handleFinishQuiz = async () => {
     setSavingResult(true);
-    const total = questions.length;
-    const correctCount = questions.reduce((acc, _, idx) => acc + (isCorrectAnswer(idx) ? 1 : 0), 0);
-    const percentage = Math.round((correctCount / total) * 100);
-    const isPassed = percentage >= 10;
 
-    if (user?.id) {
+    // Prepare data for advanced grading
+    const questionIds = questions.map(q => q.id);
+    const answers = questions.map((_, idx) => userAnswers[idx] || '');
+    const duration = Math.floor((Date.now() - quizStartTime) / 1000);
+
+    try {
+      console.log("Submitting test for advanced grading...");
+      const response = await gradingService.submitTest({
+        courseId: parseInt(courseId),
+        level: level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
+        questionIds,
+        answers,
+        duration
+      });
+
+      const { submissionId, rawScore, rawPercentage, scaledScore, sectionScores } = response.data;
+
+      setSubmissionResult({
+        submissionId,
+        rawScore,
+        percentage: rawPercentage,
+        scaledScore,
+        sectionScores,
+        totalQuestions: questions.length
+      });
+
+      // SYNC: Also save to the simplified student_progress table to ensure level unlocking
       try {
-        console.log("Saving Progress...", { courseId, level, percentage });
-        const levelFormatted = level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
-
-        // Wait for the new response format from saveProgress
-        const res = await progressService.saveProgress(
+        await progressService.saveProgress(
           user.id,
           parseInt(courseId),
-          levelFormatted,
-          percentage,
-          isPassed
+          level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
+          Math.round(rawPercentage),
+          rawPercentage >= 40
         );
-
-        setResultMessage(res.message);
-        setIsNewHigh(res.isNewHigh);
-
-      } catch (err) {
-        console.error("Failed to save progress:", err);
-        setResultMessage("Progress saved locally but failed to sync.");
+        console.log("✅ [QUIZ] Progress synced to student_progress table");
+      } catch (syncErr) {
+        console.warn("⚠️ [QUIZ] Failed to sync to student_progress, but submission was saved:", syncErr);
       }
+
+      setResultMessage("Test submitted and graded successfully!");
+      setShowResults(true);
+
+    } catch (err) {
+      console.error("Advanced grading submission failed:", err);
+      // Fallback to basic progress saving if advanced grading fails
+      const total = questions.length;
+      const correctCount = questions.reduce((acc, _, idx) => acc + (isCorrectAnswer(idx) ? 1 : 0), 0);
+      const percentage = Math.round((correctCount / total) * 100);
+
+      try {
+        await progressService.saveProgress(
+          user.id,
+          parseInt(courseId),
+          level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
+          percentage,
+          percentage >= 40
+        );
+        setResultMessage("Saved to progress (fallback)");
+        setShowResults(true);
+      } catch (fallbackErr) {
+        setError("Failed to save result. Please check your connection.");
+      }
+    } finally {
+      setSavingResult(false);
     }
-    setSavingResult(false);
-    setShowResults(true);
   };
 
   const getOptionLetter = (idx) => String.fromCharCode(65 + idx);
@@ -250,37 +288,51 @@ const QuizInterface = () => {
   if (accessDenied) return <div className="p-8 text-center">Access Denied</div>;
 
   if (showResults) {
-    const total = questions.length;
-    const correctCount = questions.reduce((acc, _, idx) => acc + (isCorrectAnswer(idx) ? 1 : 0), 0);
-    const percentage = Math.round((correctCount / total) * 100);
-    const satScore = Math.round(200 + (percentage / 100) * 600);
-    const isPassed = percentage >= 10;
+    const res = submissionResult;
+    const percentage = res ? Math.round(res.percentage) : 0;
+    const scaledScore = res?.scaledScore || Math.round(200 + (percentage / 100) * 600);
+    const isPassed = percentage >= 40;
 
     return (
       <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-950 flex flex-col items-center justify-center p-4 transition-colors">
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-xl max-w-lg w-full text-center border border-gray-100 dark:border-gray-800">
-          <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg ${isPassed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-            <SafeIcon icon={isPassed ? FiAward : FiX} className={`w-12 h-12 ${isPassed ? 'text-green-600' : 'text-[#E53935]'}`} />
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-xl max-w-2xl w-full text-center border border-gray-100 dark:border-gray-800">
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg ${isPassed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+            <SafeIcon icon={isPassed ? FiAward : FiX} className={`w-10 h-10 ${isPassed ? 'text-green-600' : 'text-[#E53935]'}`} />
           </div>
 
-          <h2 className="text-3xl font-extrabold text-black dark:text-white mb-2">{isPassed ? "Level Passed!" : "Level Failed"}</h2>
+          <h2 className="text-3xl font-extrabold text-black dark:text-white mb-2">{isPassed ? "Great Job!" : "Keep Practicing"}</h2>
+          <p className="text-gray-500 mb-6 font-medium">Test session completed successfully</p>
 
-          {/* Enhanced Feedback Message */}
-          <div className={`mb-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${isNewHigh ? 'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900/50' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-            {isNewHigh ? <SafeIcon icon={FiTrendingUp} className="w-4 h-4" /> : <SafeIcon icon={FiCheck} className="w-4 h-4" />}
-            {resultMessage || "Progress Saved"}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30">
-              <p className="text-xs text-blue-800 dark:text-blue-400 font-bold uppercase tracking-wider">Score</p>
-              <p className="text-3xl font-extrabold text-blue-900 dark:text-blue-300">{satScore}</p>
+          {/* Section Scores Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 transition-all hover:shadow-md">
+              <p className="text-[10px] text-blue-800 dark:text-blue-400 font-black uppercase tracking-widest mb-1">Overall</p>
+              <p className="text-3xl font-black text-blue-900 dark:text-blue-200">{scaledScore}</p>
+              <p className="text-xs font-bold text-blue-700/60">{percentage}% Accuracy</p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-              <p className="text-xs text-gray-800 dark:text-gray-400 font-bold uppercase tracking-wider">Percentage</p>
-              <p className="text-3xl font-extrabold text-black dark:text-white">{percentage}%</p>
-            </div>
+            {res?.sectionScores && Object.entries(res.sectionScores).map(([section, data]) => (
+              data.total > 0 && (
+                <div key={section} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{section}</p>
+                  <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
+                  <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
+                </div>
+              )
+            ))}
           </div>
+
+          {/* Scoring Info Card */}
+          <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-left">
+            <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white mb-2">
+              <SafeIcon icon={FiInfo} className="w-4 h-4 text-blue-500" /> Scoring Insights
+            </h4>
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              Your score is calculated based on the <strong>{level}</strong> difficulty.
+              In the SAT, higher level modules unlock higher score ceilings.
+              Your raw score of {res?.rawScore} corrects out of {res?.totalQuestions} questions was converted to a scaled score considering the module weight.
+            </p>
+          </div>
+
           <div className="flex flex-col gap-3">
             <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
               <SafeIcon icon={FiSkipForward} className="w-5 h-5" /> Next Level / Dashboard

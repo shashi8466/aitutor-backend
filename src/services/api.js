@@ -18,10 +18,24 @@ export const authService = {
         password,
       });
       if (error) throw error;
+
       // Fetch profile to get role
       const profile = await authService.getDbProfile(data.user.id);
-      return { success: true, user: { ...data.user, ...profile } };
+
+      // Merge user data, ensuring profile properties (like custom role) 
+      // override the default Supabase user properties (like role: 'authenticated')
+      const userWithProfile = {
+        ...data.user,
+        ...profile,
+        // Explicitly force the role from profile if it exists
+        role: profile?.role || data.user.user_metadata?.role || 'student'
+      };
+
+      console.log('Login successful for:', email, 'Role:', userWithProfile.role);
+
+      return { success: true, user: userWithProfile };
     } catch (error) {
+      console.error('Login service error:', error.message);
       return { success: false, error: error.message };
     }
   },
@@ -61,7 +75,7 @@ export const authService = {
   getDbProfile: async (userId) => {
     const { data } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
       .eq('id', userId)
       .single();
     return data;
@@ -71,7 +85,7 @@ export const authService = {
       .from('profiles')
       .update({ role })
       .eq('id', userId)
-      .select()
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
       .single();
     if (error) throw error;
     return { data };
@@ -79,7 +93,7 @@ export const authService = {
   getAllProfiles: async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return { data };
@@ -97,7 +111,7 @@ export const authService = {
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select()
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
       .single();
     if (error) throw error;
     return { data };
@@ -227,7 +241,7 @@ export const uploadService = {
 
     const { count: usersCount } = await supabase
       .from('profiles')
-      .select('*', { count: 'exact', head: true });
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile', { count: 'exact', head: true })
 
     return { uploadsCount, usersCount };
   }
@@ -340,9 +354,9 @@ export const enrollmentService = {
   },
 
   // Direct enroll (free courses only - backend will validate)
-  enroll: async (userId, courseId) => {
-    return await supabase.from('enrollments').insert([{ user_id: userId, course_id: courseId }]);
-  },
+  // This method has been removed to enforce enrollment key requirement
+  // All enrollments must now go through the proper enrollment flow
+  // that checks for enrollment key requirements
 
   isEnrolled: async (userId, courseId) => {
     const { data } = await supabase
@@ -355,10 +369,13 @@ export const enrollmentService = {
   },
 
   getCourseStudents: async (courseId) => {
-    return await supabase
-      .from('enrollments')
-      .select('enrolled_at, profiles:user_id(name, email)')
-      .eq('course_id', courseId);
+    const response = await axios.get(`/api/enrollment/course-students/${courseId}`);
+    return { data: response.data.students || [], error: null };
+  },
+
+  validateKeyLength: (keyCode) => {
+    const code = (keyCode || '').trim();
+    return code.length >= 4 && code.length <= 12;
   },
 
   getStudentEnrollments: async (userId) => {
@@ -371,6 +388,24 @@ export const enrollmentService = {
   // Verify Stripe payment session
   verifyPaymentSession: async (sessionId) => {
     return axios.get(`/api/payment/verify-session/${sessionId}`);
+  },
+
+  // Use an enrollment key to enroll in a course
+  useKey: async (keyCode) => {
+    return axios.post('/api/enrollment/use-key', { keyCode });
+  },
+
+  getKeys: async (courseId = null) => {
+    const url = courseId && courseId !== 'all' ? `/api/enrollment/keys?courseId=${courseId}` : '/api/enrollment/keys';
+    return axios.get(url);
+  },
+
+  createKey: async (data) => {
+    return axios.post('/api/enrollment/create-key', data);
+  },
+
+  deleteKey: async (id) => {
+    return axios.delete(`/api/enrollment/key/${id}`);
   }
 };
 
@@ -517,6 +552,56 @@ export const testReviewService = {
       .select('*')
       .eq('id', reviewId)
       .single();
+  }
+};
+
+// --- GRADING SERVICE ---
+export const gradingService = {
+  submitTest: async (data) => {
+    // data: { courseId, level, questionIds, answers, duration }
+    return axios.post('/api/grading/submit-test', data);
+  },
+  getSubmission: async (id) => {
+    return axios.get(`/api/grading/submission/${id}`);
+  },
+  getMyScores: async (courseId) => {
+    return axios.get(`/api/grading/my-scores/${courseId}`);
+  },
+  getSectionAnalysis: async (courseId) => {
+    return axios.get(`/api/grading/section-analysis/${courseId}`);
+  },
+  configureScale: async (data) => {
+    return axios.post('/api/grading/configure-scale', data);
+  },
+  getScales: async (courseId) => {
+    return axios.get(`/api/grading/scales/${courseId}`);
+  }
+};
+
+// --- TUTOR SERVICE (GROUPS & MANAGEMENT) ---
+export const tutorService = {
+  getDashboard: async () => {
+    return axios.get('/api/tutor/dashboard');
+  },
+  getGroups: async (courseId = null) => {
+    const url = courseId ? `/api/tutor/groups?courseId=${courseId}` : '/api/tutor/groups';
+    return axios.get(url);
+  },
+  createGroup: async (data) => {
+    return axios.post('/api/tutor/groups', data);
+  },
+  addGroupMembers: async (groupId, studentIds) => {
+    return axios.post(`/api/tutor/groups/${groupId}/members`, { studentIds });
+  },
+  removeGroupMember: async (groupId, studentId) => {
+    return axios.delete(`/api/tutor/groups/${groupId}/members/${studentId}`);
+  },
+  deleteGroup: async (groupId) => {
+    return axios.delete(`/api/tutor/groups/${groupId}`);
+  },
+  getStudents: async (courseId = null) => {
+    const url = courseId ? `/api/tutor/students?courseId=${courseId}` : '/api/tutor/students';
+    return axios.get(url);
   }
 };
 

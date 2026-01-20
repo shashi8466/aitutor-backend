@@ -33,13 +33,53 @@ const Signup = () => {
   const { signup, login } = useAuth();
   const { settings } = useSettings();
   const navigate = useNavigate();
+  const [enrollmentKey, setEnrollmentKey] = useState(null);
+  const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
     authService.wakeUp();
+    // Check for enrollment key in URL
+    const query = new URLSearchParams(window.location.search);
+    const key = query.get('key');
+    if (key) {
+      setEnrollmentKey(key.trim().toUpperCase());
+    }
   }, []);
+
+  const handleAutoEnroll = async (key) => {
+    if (!key) return;
+    setEnrolling(true);
+    try {
+      await enrollmentService.useKey(key);
+    } catch (err) {
+      console.error('Auto-enrollment failed:', err);
+    } finally {
+      setEnrolling(false);
+    }
+  };
 
   const handleInteraction = () => {
     authService.wakeUp();
+  };
+
+  const finalizeRegistration = async (role) => {
+    if (enrollmentKey) {
+      setEnrolling(true);
+      try {
+        await enrollmentService.useKey(enrollmentKey);
+      } catch (err) {
+        console.error('Auto-enrollment failed during signup:', err);
+      }
+    }
+
+    // Redirect based on role
+    if (role === 'admin') {
+      navigate('/admin');
+    } else if (role === 'tutor') {
+      navigate('/tutor');
+    } else {
+      navigate('/student');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -62,11 +102,9 @@ const Signup = () => {
 
       if (result.success) {
         if (result.session) {
-          // User is logged in immediately (Email Confirmation is likely OFF in Supabase)
+          // User is logged in immediately
           setRedirecting(true);
-          setTimeout(() => {
-            navigate(formData.role === 'admin' ? '/admin' : '/student');
-          }, 1000);
+          await finalizeRegistration(formData.role);
         } else {
           // User needs to check email
           setSuccessMode(true);
@@ -79,7 +117,7 @@ const Signup = () => {
             const loginResult = await login({ email: formData.email, password: formData.password });
             if (loginResult.success) {
               setRedirecting(true);
-              navigate(formData.role === 'admin' ? '/admin' : '/student');
+              await finalizeRegistration(formData.role);
               return;
             } else {
               setError("This email is registered but the password didn't match. Please Log In.");
@@ -127,7 +165,7 @@ const Signup = () => {
     const result = await login({ email: formData.email, password: formData.password });
     if (result.success) {
       setRedirecting(true);
-      navigate(formData.role === 'admin' ? '/admin' : '/student');
+      await finalizeRegistration(formData.role);
     } else {
       setResendStatus('Email not verified yet. Please check your inbox.');
       setCheckingVerification(false);
@@ -236,6 +274,20 @@ const Signup = () => {
           className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700"
           onMouseEnter={handleInteraction}
         >
+          {enrollmentKey && (
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-dashed border-blue-200 dark:border-blue-800 rounded-xl flex items-center gap-3">
+              <div className="p-2 bg-blue-500 rounded-lg">
+                <SafeIcon icon={FiLink} className="text-white w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest leading-none mb-1">Invitation Detected</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+                  You will be auto-enrolled with key: <span className="text-blue-600 font-black">{enrollmentKey}</span>
+                </p>
+              </div>
+            </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm flex flex-col gap-2 animate-pulse">
@@ -339,6 +391,7 @@ const Signup = () => {
                 className="block w-full pl-3 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
               >
                 <option value="student">Student</option>
+                <option value="tutor">Tutor (Requires Approval)</option>
                 <option value="admin">Admin (Demo Purpose)</option>
               </select>
             </div>

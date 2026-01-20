@@ -114,7 +114,32 @@ router.post('/create-checkout-session', async (req, res) => {
 
     // Handle free courses
     if (!course.price_full || parseFloat(course.price_full) === 0) {
-      // For free courses, directly enroll the student
+      // For free courses, check if enrollment key is required
+      // First, check if the course requires an enrollment key
+      const { data: keyCheck } = await supabase
+        .from('enrollment_keys')
+        .select('id')
+        .eq('course_id', courseId)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (keyCheck && keyCheck.length > 0) {
+        // If enrollment keys exist for this course, student must use a key
+        // Check if there's a specific key for this user's enrollment method
+        // Actually, if there are ANY active keys for the course, we should require one to be used
+        // But we should allow enrollment if no keys exist at all
+        // Let me reconsider: If there are active enrollment keys for this course, 
+        // students should not be able to enroll directly - they must use the enrollment key system
+
+        // So the logic should be: if keys exist, return an error saying to use the key
+        return res.status(200).json({  // Return 200 so frontend can handle the 'requiresKey' flag logic easily
+          requiresKey: true,
+          error: 'This course requires an enrollment key.',
+          courseName: course.name
+        });
+      }
+
+      // If no enrollment key is required, allow direct enrollment
       const { data: enrollment, error: enrollError } = await supabase
         .from('enrollments')
         .insert([{
@@ -246,6 +271,19 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       }
 
       const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+      // Check if enrollment keys exist for this course - if they do, direct enrollment shouldn't be allowed
+      const { data: keyCheck } = await supabase
+        .from('enrollment_keys')
+        .select('id')
+        .eq('course_id', courseId)
+        .eq('is_active', true)
+        .limit(1);
+
+      if (keyCheck && keyCheck.length > 0) {
+        console.error('❌ [Payment] Course has active enrollment keys, direct enrollment not allowed');
+        return res.status(400).send('Course requires enrollment key. Direct enrollment not allowed.');
+      }
 
       const { data: enrollment, error: enrollError } = await supabase
         .from('enrollments')

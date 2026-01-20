@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS courses (
   description text,
   levels text[] DEFAULT '{Easy,Medium,Hard}',
   questions_count integer DEFAULT 0,
+  start_date timestamptz,
   created_at timestamptz DEFAULT now()
 );
 

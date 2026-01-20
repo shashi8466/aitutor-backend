@@ -50,19 +50,32 @@ const StudentCourseList = () => {
       setEnrollLoading(courseId);
       const cId = parseInt(courseId, 10);
 
-      // Call backend to create Stripe Checkout session
+      // START FIX: Check if course requires key first
+      // We do this by checking the 'enrollment_key' requirement directly if possible, or handling the specific failure
+
+      // Better approach: We should know if the course requires a key from the course object itself if possible,
+      // but since we might not have that flag, we can rely on the initiateEnrollment response more robustly
+
+      // However, the issue is initiateEnrollment might be returning an error that is not being caught correctly above
+      // OR we need to preemptively redirect if we know it's a key-based course.
+
+      // Let's rely on the initiateEnrollment response but make sure we catch the specific case
       const response = await enrollmentService.initiateEnrollment(user.id, cId);
 
-      // If it's a free course, the backend enrolls directly
-      if (response.data.free) {
-        setEnrolledIds(prev => new Set(prev).add(cId));
-        await loadData();
-        navigate(`/student/course/${cId}`);
+      // Check if the response explicitly tells us a key is required
+      if (response.data?.requiresKey) {
+        navigate('/student/enroll', { state: { courseId: cId, courseName: response.data.courseName || 'Course' } });
+        return;
+      }
+
+      // If it returns an error saying key is required (backup check)
+      if (response.data?.error && (response.data.error.includes('key') || response.data.error.includes('Key'))) {
+        navigate('/student/enroll', { state: { courseId: cId, courseName: response.data.courseName || 'Course' } });
         return;
       }
 
       // For paid courses, redirect to Stripe Checkout
-      if (response.data.url) {
+      if (response.data?.url) {
         console.log('🔗 Redirecting to Stripe Checkout:', response.data.url);
         // CRITICAL: Redirect to Stripe's hosted checkout page
         window.location.href = response.data.url;

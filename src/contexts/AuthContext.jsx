@@ -57,19 +57,27 @@ export const AuthProvider = ({ children }) => {
     // 3. EVENT LISTENER
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+      console.log(`🔐 [Auth] State Change Event: ${event}`);
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // Optimistic update
         const rawUser = session?.user;
         if (rawUser) {
-          const optimisticUser = {
-            ...rawUser,
-            role: rawUser.user_metadata?.role || 'student',
-            name: rawUser.user_metadata?.name || 'Student'
-          };
-          setUser(optimisticUser);
-          setLoading(false); 
-          syncProfile(optimisticUser);
+          setUser(prev => {
+            // Only update if the user ID changed or we didn't have a user
+            // This prevents re-renders on every token refresh
+            if (!prev || prev.id !== rawUser.id) {
+              const initialRole = rawUser.user_metadata?.role || 'student';
+              const optimisticUser = {
+                ...rawUser,
+                role: initialRole === 'authenticated' ? 'student' : initialRole,
+                name: rawUser.user_metadata?.name || 'User'
+              };
+              syncProfile(optimisticUser);
+              return optimisticUser;
+            }
+            return prev;
+          });
+          setLoading(false);
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);

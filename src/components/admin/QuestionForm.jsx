@@ -15,6 +15,7 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
     options: question?.options || ['', '', '', ''],
     correct_answer: question?.correct_answer || '',
     explanation: question?.explanation || '',
+    section: question?.section || 'math',
     image: question?.image || null
   });
 
@@ -27,7 +28,7 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       const submitData = {
         ...formData,
@@ -90,25 +91,25 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
     setError(''); // Clear previous errors
 
     if (file.size > 5 * 1024 * 1024) {
-        setError("File size too large. Please upload an image under 5MB.");
-        return;
+      setError("File size too large. Please upload an image under 5MB.");
+      return;
     }
 
     setUploadingImage(true);
     try {
-        const { publicUrl } = await questionService.uploadImage(file);
-        setFormData(prev => ({ ...prev, image: publicUrl }));
+      const { publicUrl } = await questionService.uploadImage(file);
+      setFormData(prev => ({ ...prev, image: publicUrl }));
     } catch (err) {
-        console.error("Upload failed", err);
-        setError("Failed to upload image. Please check your internet connection.");
+      console.error("Upload failed", err);
+      setError("Failed to upload image. Please check your internet connection.");
     } finally {
-        setUploadingImage(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const removeImage = () => {
-      setFormData(prev => ({ ...prev, image: null }));
+    setFormData(prev => ({ ...prev, image: null }));
   };
 
   return (
@@ -135,14 +136,14 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
         </div>
 
         {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
-                <SafeIcon icon={FiAlertCircle} className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                <span>{error}</span>
-            </div>
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
+            <SafeIcon icon={FiAlertCircle} className="w-5 h-5 mt-0.5 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
               <select
@@ -183,6 +184,20 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
                 <option value="short_answer">Short Answer</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+              <select
+                name="section"
+                value={formData.section}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="math">Math</option>
+                <option value="reading">Reading</option>
+                <option value="writing">Writing</option>
+                <option value="general">General</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -200,54 +215,54 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
 
           {/* IMAGE UPLOAD SECTION */}
           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                 <SafeIcon icon={FiImage} className="w-4 h-4 text-blue-600"/> Question Image (Optional)
-             </label>
-             
-             {formData.image ? (
-                 <div className="relative inline-block group">
-                     <img 
-                        src={formData.image} 
-                        alt="Question Preview" 
-                        className="h-32 w-auto rounded border border-gray-300 object-contain bg-white" 
-                     />
-                     <button
-                        type="button"
-                        onClick={removeImage}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600"
-                        title="Remove Image"
-                     >
-                         <SafeIcon icon={FiX} className="w-4 h-4" />
-                     </button>
-                 </div>
-             ) : (
-                 <div className="flex items-center gap-3">
-                     <button
-                        type="button"
-                        onClick={() => fileInputRef.current.click()}
-                        disabled={uploadingImage}
-                        className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                     >
-                         {uploadingImage ? (
-                             <>
-                                <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" /> Uploading...
-                             </>
-                         ) : (
-                             <>
-                                <SafeIcon icon={FiUpload} className="w-4 h-4" /> Upload Image
-                             </>
-                         )}
-                     </button>
-                     <span className="text-xs text-gray-500">Supports JPG, PNG, GIF (Max 5MB)</span>
-                 </div>
-             )}
-             <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleImageUpload} 
-                className="hidden" 
-                accept="image/*"
-             />
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+              <SafeIcon icon={FiImage} className="w-4 h-4 text-blue-600" /> Question Image (Optional)
+            </label>
+
+            {formData.image ? (
+              <div className="relative inline-block group">
+                <img
+                  src={formData.image}
+                  alt="Question Preview"
+                  className="h-32 w-auto rounded border border-gray-300 object-contain bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600"
+                  title="Remove Image"
+                >
+                  <SafeIcon icon={FiX} className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current.click()}
+                  disabled={uploadingImage}
+                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                >
+                  {uploadingImage ? (
+                    <>
+                      <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" /> Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <SafeIcon icon={FiUpload} className="w-4 h-4" /> Upload Image
+                    </>
+                  )}
+                </button>
+                <span className="text-xs text-gray-500">Supports JPG, PNG, GIF (Max 5MB)</span>
+              </div>
+            )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+              className="hidden"
+              accept="image/*"
+            />
           </div>
 
           {formData.type === 'mcq' && (
@@ -365,8 +380,8 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
             </button>
           </div>
         </form>
-      </motion.div>
-    </motion.div>
+      </motion.div >
+    </motion.div >
   );
 };
 

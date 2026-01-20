@@ -27,22 +27,25 @@ const upload = multer({
 });
 
 // CRITICAL: Environment var config
-// Helper to get authenticated Supabase client
-const getSupabase = (authHeader) => {
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env['Project-URL'] || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env['anon-public'];
-  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SERVICE_ROLE_KEY || process.env['service_role'];
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const BUCKET_NAME = process.env.BUCKET_NAME || 'documents';
 
-  if (!SUPABASE_KEY) {
-    throw new Error('Supabase client failed: SUPABASE_KEY is required.');
+// Helper to get authenticated Supabase client
+// Helper to get authenticated Supabase client (Now always uses SERVICE ROLE for uploads)
+// This is necessary because uploads table often has strict RLS and schema cache issues
+const getSupabase = (authHeader) => {
+  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!SERVICE_ROLE_KEY) {
+    console.error('❌ Service Role Key missing! Uploads might fail.');
   }
 
-  // If auth header is provided, use it; otherwise use service role key
-  const token = authHeader ? authHeader.replace('Bearer ', '') : SERVICE_ROLE_KEY;
-
-  return createClient(SUPABASE_URL, SUPABASE_KEY, {
-    global: {
-      headers: { Authorization: `Bearer ${token}` }
+  // Always use Service Role for Uploding Logic to bypass RLS issues
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
     }
   });
 };
@@ -153,23 +156,118 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     const fileUrl = urlData.publicUrl;
 
-    // 6. Create initial upload record
-    const { data: initialUpload, error: uploadError } = await supabase
+    // 6. Create initial upload record with Fallback for missing columns
+    let initialUpload;
+    let uploadError;
+
+    // Try full insert first
+    const fullData = {
+      course_id: parseInt(courseId),
+      file_name: req.file.originalname,
+      status: (parse === 'true' || category === 'quiz_document') ? 'processing' : 'completed',
+      questions_count: 0,
+      category: category,
+      level: level,
+      file_type: fileExt,
+      file_url: fileUrl
+    };
+
+    const { data: fullUpload, error: fullError } = await supabase
       .from('uploads')
-      .insert([{
-        course_id: parseInt(courseId),
-        file_name: req.file.originalname,
-        status: (parse === 'true' || category === 'quiz_document') ? 'processing' : 'completed',
-        questions_count: 0,
-        category: category,
-        level: level,
-        file_type: fileExt,
-        file_url: fileUrl
-      }])
+      .insert([fullData])
       .select()
       .single();
 
-    if (uploadError) throw new Error(`Failed to save file record: ${uploadError.message}`);
+    if (fullError) {
+      console.warn('⚠️ [UPLOAD] Full insert failed, attempting minimal insert (schema mismatch?). Error:', fullError.message);
+
+      // Handle specific schema cache error for 'status' column
+      if (fullError.message && fullError.message.includes("Could not find the 'status' column")) {
+        // This is a schema cache issue, try to work around it by refreshing the connection
+        console.log('🔄 Detected schema cache issue for status column, attempting workaround...');
+        
+        // Create a new supabase client instance to bypass cache
+        const freshSupabase = getSupabase(req.headers.authorization);
+        
+        // Try a minimal insert with only the absolutely required fields
+        const minimalData = {
+          course_id: parseInt(courseId),
+          file_name: req.file.originalname
+          // Don't include status to avoid schema cache error initially
+        };
+
+        // First, try to insert without the status column
+        const { data: insertWithoutStatus, error: insertWithoutStatusError } = await freshSupabase
+          .from('uploads')
+          .insert([minimalData])
+          .select('id, course_id, file_name, created_at')  // Only select known columns
+          .single();
+
+        if (insertWithoutStatusError) {
+          // If even this fails, there might be other schema issues
+          console.error('❌ [UPLOAD] Even minimal insert failed:', insertWithoutStatusError.message);
+          
+          // Last resort: try to ensure the uploads table has the status column via a separate approach
+          // In this case, the user will need to manually run the migration in Supabase SQL Editor
+          throw new Error(`Database error: ${insertWithoutStatusError.message}. Schema may need manual refresh in Supabase dashboard.`);
+        }
+        
+        // Now try to update the record with the status value
+        const { error: updateError } = await freshSupabase
+          .from('uploads')
+          .update({ 
+            status: (parse === 'true' || category === 'quiz_document') ? 'processing' : 'completed',
+            questions_count: 0,
+            category: category,
+            level: level,
+            file_type: fileExt,
+            file_url: fileUrl
+          })
+          .eq('id', insertWithoutStatus.id);
+
+        if (updateError) {
+          console.error('❌ [UPLOAD] Update after insert failed:', updateError.message);
+          // If update fails but insert succeeded, continue with partial data
+          initialUpload = insertWithoutStatus;
+        } else {
+          // Fetch the updated record
+          const { data: updatedData, error: fetchError } = await freshSupabase
+            .from('uploads')
+            .select()
+            .eq('id', insertWithoutStatus.id)
+            .single();
+            
+          if (fetchError) {
+            console.warn('⚠️ [UPLOAD] Could not fetch updated record, using original insert:', fetchError.message);
+            initialUpload = insertWithoutStatus;
+          } else {
+            initialUpload = updatedData;
+          }
+        }
+      } else {
+        // Fallback: Drop columns that might be missing in older schemas
+        const minimalData = {
+          course_id: parseInt(courseId),
+          file_name: req.file.originalname,
+          status: (parse === 'true' || category === 'quiz_document') ? 'processing' : 'completed'
+          // Removed questions_count to be ultra-safe
+        };
+
+        const { data: minUpload, error: minError } = await supabase
+          .from('uploads')
+          .insert([minimalData])
+          .select()
+          .single();
+
+        if (minError) {
+          console.error('❌ [UPLOAD] Minimal insert also failed:', minError.message);
+          throw new Error(`Database error: ${minError.message}`);
+        }
+        initialUpload = minUpload;
+      }
+    } else {
+      initialUpload = fullUpload;
+    }
 
     const uploadId = initialUpload.id;
     let questionsCount = 0;

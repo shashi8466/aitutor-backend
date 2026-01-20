@@ -4,11 +4,11 @@ export const getUserFromRequest = async (req) => {
     const authHeader = req.headers.authorization;
     if (!authHeader) return null;
 
-    const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env['Project-URL'] || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-    const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env['anon-public'];
+    const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+    const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
 
     if (!SUPABASE_KEY) {
-        console.error('❌ [AuthHelper] SUPABASE_KEY is missing');
+        console.error('❌ [AuthHelper] SUPABASE_ANON_KEY is missing from .env');
         return null;
     }
 
