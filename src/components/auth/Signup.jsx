@@ -5,9 +5,9 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
-import { authService } from '../../services/api';
+import { authService, enrollmentService } from '../../services/api';
 
-const { FiUser, FiLock, FiMail, FiBook, FiEye, FiEyeOff, FiArrowRight, FiAlertCircle, FiLoader, FiRefreshCw, FiCheckCircle, FiPhone, FiUsers, FiArrowLeft } = FiIcons;
+const { FiUser, FiLock, FiMail, FiBook, FiEye, FiEyeOff, FiArrowRight, FiAlertCircle, FiLoader, FiRefreshCw, FiCheckCircle, FiPhone, FiUsers, FiArrowLeft, FiLink } = FiIcons;
 
 const Signup = () => {
   const [formData, setFormData] = useState({

@@ -411,7 +411,7 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                                                 <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
                                                     <div
                                                         className={`h-2 rounded-full transition-all duration-500 ${isAtRisk ? 'bg-red-500' : 'bg-blue-500'}`}
-                                                        style={{ width: `${Math.min(usageRatio, 100)}%` || '10%' }}
+                                                        style={{ width: `${Math.min(usageRatio, 100)}%` }}
                                                     ></div>
                                                 </div>
                                             </div>

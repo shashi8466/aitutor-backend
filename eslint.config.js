@@ -4,11 +4,13 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default [
-  { 
+  {
     ignores: [
       'dist',
-      'src/server/**' // Ignore backend server files to prevent frontend linter from failing on Node.js syntax
-    ] 
+      'src/server/**',
+      '*.cjs',
+      '*.js' // Ignore root-level scripts
+    ]
   },
   js.configs.recommended,
   {
