@@ -98,7 +98,12 @@ router.get('/submission/:submissionId', async (req, res) => {
                 .single();
 
             const isAdmin = profile?.role === 'admin';
-            const assigned = (profile?.assigned_courses || []).map(Number);
+            let rawAssigned = profile?.assigned_courses || [];
+            if (typeof rawAssigned === 'string') {
+                try { rawAssigned = JSON.parse(rawAssigned); } catch (e) { rawAssigned = []; }
+            }
+            const assigned = Array.isArray(rawAssigned) ? rawAssigned.map(Number).filter(id => !isNaN(id)) : [];
+
             const isTutorWithAccess = profile?.role === 'tutor' &&
                 profile?.tutor_approved &&
                 assigned.includes(Number(submission.course_id));

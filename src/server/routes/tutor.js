@@ -8,6 +8,22 @@ import supabase from '../../supabase/supabaseAdmin.js';
 
 const router = express.Router();
 
+/**
+ * Helper to normalize assigned courses to an array of numbers
+ */
+const getAssignedCourses = (profile) => {
+    let rawAssigned = profile?.assigned_courses || [];
+    if (typeof rawAssigned === 'string') {
+        try {
+            rawAssigned = JSON.parse(rawAssigned);
+        } catch (e) {
+            console.error('❌ [TUTOR API] Failed to parse assigned_courses string:', rawAssigned);
+            rawAssigned = [];
+        }
+    }
+    return Array.isArray(rawAssigned) ? rawAssigned.map(Number).filter(id => !isNaN(id)) : [];
+};
+
 router.get('/diagnostics', async (req, res) => {
     try {
         const userId = req.user?.id;
@@ -62,16 +78,7 @@ router.get('/dashboard', async (req, res) => {
                 pending: true
             });
         }
-        let rawAssigned = profile.assigned_courses || [];
-        if (typeof rawAssigned === 'string') {
-            try {
-                rawAssigned = JSON.parse(rawAssigned);
-            } catch (e) {
-                console.error('❌ [TUTOR DASHBOARD] Failed to parse assigned_courses string:', rawAssigned);
-                rawAssigned = [];
-            }
-        }
-        const assignedCourses = Array.isArray(rawAssigned) ? rawAssigned.map(Number).filter(id => !isNaN(id)) : [];
+        const assignedCourses = getAssignedCourses(profile);
         console.log(`📊 [TUTOR DASHBOARD] User: ${userId}, Role: ${profile.role}, Normalized Assigned Courses:`, assignedCourses);
 
         // 1. Get total enrollments count
@@ -319,7 +326,8 @@ router.get('/course-grades/:courseId', async (req, res) => {
 
         const isAdmin = profile.role === 'admin';
         const targetId = parseInt(courseId);
-        const isAssigned = (profile.assigned_courses || []).map(Number).includes(targetId);
+        const assignedCourses = getAssignedCourses(profile);
+        const isAssigned = assignedCourses.includes(targetId);
 
         if (profile.role === 'tutor' && !profile.tutor_approved) {
             console.warn(`⚠️ [GRADES] Tutor not approved: ${userId}`);
@@ -373,19 +381,24 @@ router.get('/student-progress/:studentId', async (req, res) => {
         }
 
         // Verify tutor has access to this student
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('assigned_courses')
+            .select('assigned_courses, role')
             .eq('id', userId)
-            .eq('role', 'tutor')
             .single();
+
+        if (profileError || !profile) {
+            return res.status(404).json({ error: 'Tutor profile not found' });
+        }
+
+        const assignedCourses = getAssignedCourses(profile);
 
         // Check if student is in any of tutor's courses
         const { data: studentEnrollments } = await supabase
             .from('enrollments')
             .select('course_id')
             .eq('user_id', studentId)
-            .in('course_id', profile?.assigned_courses || []);
+            .in('course_id', assignedCourses);
 
         if (!studentEnrollments || studentEnrollments.length === 0) {
             return res.status(403).json({ error: 'Not authorized for this student' });
@@ -403,7 +416,7 @@ router.get('/student-progress/:studentId', async (req, res) => {
             .from('test_submissions')
             .select('*')
             .eq('user_id', studentId)
-            .in('course_id', profile.assigned_courses)
+            .in('course_id', assignedCourses)
             .order('test_date', { ascending: false });
 
         // Get progress records
