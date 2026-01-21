@@ -21,7 +21,6 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import StudentLayout from './components/layout/StudentLayout';
 import ContactPage from './components/layout/ContactPage';
 import Leaderboard from './components/student/Leaderboard';
-import Worksheets from './components/student/Worksheets';
 import StudentSettings from './components/student/StudentSettings';
 import Support from './components/student/Support';
 import StudentCalendar from './components/student/StudentCalendar';
@@ -33,6 +32,7 @@ import TestReview from './components/student/agents/TestReview';
 import CollegeAdvisor from './components/student/agents/CollegeAdvisor';
 import ParentConnect from './components/student/agents/ParentConnect';
 import PaymentSuccess from './components/student/PaymentSuccess';
+import PracticeTests from './components/student/PracticeTests';
 import SalesBot from './components/common/SalesBot';
 import TutorDashboard from './components/tutor/TutorDashboard';
 
@@ -146,7 +146,7 @@ function App() {
 
             {/* New Sidebar Features */}
             <Route path="calendar" element={<StudentCalendar />} />
-            <Route path="worksheets" element={<Worksheets />} />
+            <Route path="practice-tests" element={<PracticeTests />} />
             <Route path="leaderboard" element={<Leaderboard />} />
             <Route path="settings" element={<StudentSettings />} />
             <Route path="support" element={<Support />} />

@@ -122,38 +122,88 @@ router.get('/submission/:submissionId', async (req, res) => {
             .select(`
                 selected_answer,
                 is_correct,
-                question:questions(question, correct_answer, explanation)
+                question:questions(id, question, correct_answer, explanation)
             `)
-            .eq('submission_id', sid)
-            .eq('is_correct', false);
+            .eq('submission_id', sid);
+
+        submission.incorrect_responses = [];
+        submission.correct_responses = [];
 
         if (!responsesError && responses && responses.length > 0) {
-            console.log(`✅ [GRADING] Found ${responses.length} detailed responses in test_responses for submission ${sid}`);
-            submission.incorrect_responses = responses.map(r => ({
-                selected_answer: r.selected_answer,
-                question_text: r.question?.question,
-                correct_answer: r.question?.correct_answer,
-                explanation: r.question?.explanation
-            }));
-        } else {
-            // 2. Fallback: If no responses found (older submission), fetch questions directly using incorrect_questions array
-            console.log(`⚠️ [GRADING] No test_responses found for submission ${sid}. Falling back to questions table.`);
-            const { data: fallbackQuestions, error: fallbackError } = await supabase
-                .from('questions')
-                .select('id, question, correct_answer, explanation')
-                .in('id', submission.incorrect_questions || []);
+            console.log(`✅ [GRADING] Found ${responses.length} total responses in test_responses for submission ${sid}`);
 
-            if (fallbackError) {
-                console.error('❌ [GRADING] Fallback fetch failed:', fallbackError);
-            } else {
-                console.log(`✅ [GRADING] Fallback successful. Found ${fallbackQuestions?.length || 0} questions.`);
-                // Note: We don't have the student's selected_answer in the fallback case (not stored separately before)
-                submission.incorrect_responses = (fallbackQuestions || []).map(q => ({
-                    selected_answer: 'Not recorded (Old Submission)',
-                    question_text: q.question,
-                    correct_answer: q.correct_answer,
-                    explanation: q.explanation
+            submission.incorrect_responses = responses
+                .filter(r => !r.is_correct)
+                .map(r => ({
+                    selected_answer: r.selected_answer,
+                    question_text: r.question?.question,
+                    correct_answer: r.question?.correct_answer,
+                    explanation: r.question?.explanation
                 }));
+
+            submission.correct_responses = responses
+                .filter(r => r.is_correct)
+                .map(r => ({
+                    selected_answer: r.selected_answer,
+                    question_text: r.question?.question,
+                    correct_answer: r.question?.correct_answer,
+                    explanation: r.question?.explanation
+                }));
+        }
+
+        // 2. Supplement/Fallback: If any responses are missing, fetch from questions table
+        const missingIncorrect = (submission.incorrect_questions?.length || 0) > submission.incorrect_responses.length;
+        const missingCorrect = (submission.correct_questions?.length || 0) > submission.correct_responses.length;
+
+        if (missingIncorrect || missingCorrect) {
+            console.log(`⚠️ [GRADING] Supplementing missing responses from questions table. Missing incorrect: ${missingIncorrect}, Missing correct: ${missingCorrect}`);
+
+            if (missingIncorrect) {
+                const existingIds = responses?.filter(r => !r.is_correct).map(r => r.question.id) || [];
+                const missingIds = (submission.incorrect_questions || []).filter(id => !existingIds.includes(parseInt(id)));
+
+                if (missingIds.length > 0) {
+                    const { data: fallback } = await supabase
+                        .from('questions')
+                        .select('id, question, correct_answer, explanation')
+                        .in('id', missingIds);
+
+                    if (fallback) {
+                        submission.incorrect_responses = [
+                            ...submission.incorrect_responses,
+                            ...fallback.map(q => ({
+                                selected_answer: 'Not recorded',
+                                question_text: q.question,
+                                correct_answer: q.correct_answer,
+                                explanation: q.explanation
+                            }))
+                        ];
+                    }
+                }
+            }
+
+            if (missingCorrect) {
+                const existingIds = responses?.filter(r => r.is_correct).map(r => r.question.id) || [];
+                const missingIds = (submission.correct_questions || []).filter(id => !existingIds.includes(parseInt(id)));
+
+                if (missingIds.length > 0) {
+                    const { data: fallback } = await supabase
+                        .from('questions')
+                        .select('id, question, correct_answer, explanation')
+                        .in('id', missingIds);
+
+                    if (fallback) {
+                        submission.correct_responses = [
+                            ...submission.correct_responses,
+                            ...fallback.map(q => ({
+                                selected_answer: q.correct_answer, // Since it's correct, selected must be correct_answer
+                                question_text: q.question,
+                                correct_answer: q.correct_answer,
+                                explanation: q.explanation
+                            }))
+                        ];
+                    }
+                }
             }
         }
 

@@ -31,6 +31,7 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
     const [selectedSubmission, setSelectedSubmission] = useState(null);
     const [submissionDetails, setSubmissionDetails] = useState(null);
     const [loadingDetails, setLoadingDetails] = useState(false);
+    const [activeTab, setActiveTab] = useState('incorrect'); // 'incorrect' or 'correct'
 
     useEffect(() => {
         loadCourses();
@@ -78,6 +79,29 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
         }
     };
 
+    const handleCloseModal = () => {
+        setSelectedSubmission(null);
+        setSubmissionDetails(null);
+        setActiveTab('incorrect');
+    };
+
+    useEffect(() => {
+        if (selectedSubmission) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [selectedSubmission]);
+
+    const getScoreColor = (percentage) => {
+        if (percentage >= 80) return 'text-green-600 dark:text-green-400';
+        if (percentage >= 50) return 'text-yellow-600 dark:text-yellow-400';
+        return 'text-red-600 dark:text-red-400';
+    };
+
     const viewSubmissionDetails = async (submission) => {
         setSelectedSubmission(submission);
         setLoadingDetails(true);
@@ -89,12 +113,6 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
         } finally {
             setLoadingDetails(false);
         }
-    };
-
-    const getScoreColor = (percentage) => {
-        if (percentage >= 80) return 'text-green-600 dark:text-green-400';
-        if (percentage >= 50) return 'text-yellow-600 dark:text-yellow-400';
-        return 'text-red-600 dark:text-red-400';
     };
 
     const displayedSubmissions = studentIdParam
@@ -258,14 +276,19 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
             {/* Detailed Analysis Modal */}
             <AnimatePresence>
                 {selectedSubmission && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setSelectedSubmission(null)}
-                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[9000] flex items-center justify-center p-4"
+                    >
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm shadow-2xl"
+                            onClick={handleCloseModal}
                         />
+
+                        {/* Modal Body */}
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
@@ -275,13 +298,13 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                             <div className="flex justify-between items-start mb-6">
                                 <div>
                                     <h3 className="text-2xl font-black text-gray-900 dark:text-white">Detailed Analysis</h3>
-                                    <p className="text-gray-500">Reviewing {selectedSubmission.user?.name}'s {selectedSubmission.level} test</p>
+                                    <p className="text-gray-500">Reviewing {selectedSubmission.user?.name || 'Student'}'s {selectedSubmission.level} test</p>
                                 </div>
                                 <button
-                                    onClick={() => setSelectedSubmission(null)}
+                                    onClick={handleCloseModal}
                                     className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                                 >
-                                    <SafeIcon icon={FiX} className="w-6 h-6" />
+                                    <FiX className="w-6 h-6 text-gray-400 hover:text-gray-600" />
                                 </button>
                             </div>
 
@@ -290,7 +313,7 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                     <div className="py-20 text-center animate-pulse text-blue-600 font-bold">Loading full analytics...</div>
                                 ) : submissionDetails ? (
                                     <>
-                                        {/* Performance Breakdown */}
+                                        {/* Performance Section */}
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             {[
                                                 { label: 'Math Section', score: submissionDetails.math_scaled_score, color: 'from-blue-500 to-indigo-600' },
@@ -307,7 +330,7 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                             ))}
                                         </div>
 
-                                        {/* Accuracy Stats */}
+                                        {/* Accuracy Cards */}
                                         <div className="grid grid-cols-3 gap-6">
                                             <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 text-center">
                                                 <p className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase mb-1">Correct</p>
@@ -323,15 +346,31 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                             </div>
                                         </div>
 
-                                        {/* Question List */}
+                                        {/* Review Tabs */}
                                         <div className="space-y-4">
-                                            <h4 className="text-sm font-bold text-gray-900 dark:text-white border-b pb-2">Incorrect Responses ({submissionDetails.incorrect_questions?.length || 0})</h4>
-                                            {submissionDetails.incorrect_questions?.length > 0 ? (
-                                                <div className="space-y-3">
-                                                    {submissionDetails.incorrect_responses?.map((resp, i) => (
-                                                        <div key={i} className="p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30">
+                                            <div className="flex gap-4 border-b dark:border-gray-700">
+                                                <button
+                                                    onClick={() => setActiveTab('incorrect')}
+                                                    className={`px-4 py-2 text-sm font-bold transition-all relative ${activeTab === 'incorrect' ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}
+                                                >
+                                                    Incorrect ({submissionDetails.incorrect_responses?.length || 0})
+                                                    {activeTab === 'incorrect' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />}
+                                                </button>
+                                                <button
+                                                    onClick={() => setActiveTab('correct')}
+                                                    className={`px-4 py-2 text-sm font-bold transition-all relative ${activeTab === 'correct' ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}
+                                                >
+                                                    Correct ({submissionDetails.correct_responses?.length || 0})
+                                                    {activeTab === 'correct' && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-600" />}
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                {(activeTab === 'incorrect' ? submissionDetails.incorrect_responses : submissionDetails.correct_responses)?.length > 0 ? (
+                                                    (activeTab === 'incorrect' ? submissionDetails.incorrect_responses : submissionDetails.correct_responses).map((resp, i) => (
+                                                        <div key={i} className={`p-4 rounded-xl border ${activeTab === 'incorrect' ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30' : 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30'}`}>
                                                             <div className="flex gap-3">
-                                                                <span className="w-6 h-6 bg-red-100 dark:bg-red-900/40 text-red-600 rounded flex items-center justify-center font-bold text-xs shrink-0">
+                                                                <span className={`w-6 h-6 rounded flex items-center justify-center font-bold text-xs shrink-0 ${activeTab === 'incorrect' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                                                                     {i + 1}
                                                                 </span>
                                                                 <div className="space-y-3 flex-1 overflow-hidden">
@@ -340,11 +379,11 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                                                     </div>
                                                                     <div className="grid grid-cols-2 gap-4 text-xs">
                                                                         <div className="p-2 bg-white dark:bg-gray-800 rounded-lg">
-                                                                            <p className="text-gray-400 mb-1">Student's Answer:</p>
-                                                                            <p className="font-bold text-red-600">{resp.selected_answer}</p>
+                                                                            <p className="text-gray-400 mb-1">Student:</p>
+                                                                            <p className={`font-bold ${activeTab === 'incorrect' ? 'text-red-600' : 'text-green-600'}`}>{resp.selected_answer}</p>
                                                                         </div>
                                                                         <div className="p-2 bg-white dark:bg-gray-800 rounded-lg">
-                                                                            <p className="text-gray-400 mb-1">Correct Answer:</p>
+                                                                            <p className="text-gray-400 mb-1">Correct:</p>
                                                                             <p className="font-bold text-green-600">{resp.correct_answer}</p>
                                                                         </div>
                                                                     </div>
@@ -357,11 +396,13 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <p className="py-4 text-center text-gray-500 italic text-sm">No incorrect questions! Perfect score.</p>
-                                            )}
+                                                    ))
+                                                ) : (
+                                                    <p className="py-8 text-center text-gray-500 italic text-sm bg-gray-50 dark:bg-gray-900/30 rounded-xl">
+                                                        {activeTab === 'incorrect' ? 'Perfect score! No incorrect answers.' : 'No correct answers found.'}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
                                     </>
                                 ) : (
@@ -369,26 +410,16 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                 )}
                             </div>
 
-                            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                                <div className="flex gap-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 bg-red-500 rounded-full" />
-                                        <span className="text-xs text-gray-500">Critical Gaps</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 bg-green-500 rounded-full" />
-                                        <span className="text-xs text-gray-500">Mastery Areas</span>
-                                    </div>
-                                </div>
+                            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
                                 <button
-                                    onClick={() => setSelectedSubmission(null)}
+                                    onClick={handleCloseModal}
                                     className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all"
                                 >
                                     Close Analysis
                                 </button>
                             </div>
                         </motion.div>
-                    </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </div>

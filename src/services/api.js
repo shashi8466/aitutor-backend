@@ -289,10 +289,10 @@ export const questionService = {
 
 // --- AI SERVICE ---
 export const aiService = {
-  chatWithContent: async (message, context, history) => {
+  chatWithContent: async (message, context, history, difficulty = 'Medium') => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-    return axios.post('/api/ai/chat', { message, context, history }, { headers });
+    return axios.post('/api/ai/chat', { message, context, history, difficulty }, { headers });
   },
   getExplanation: async (question, userAnswer, correctAnswer) => {
     const { data: { session } } = await supabase.auth.getSession();

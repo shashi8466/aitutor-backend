@@ -13,6 +13,7 @@ const AITutorAgent = () => {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [difficulty, setDifficulty] = useState('Medium');
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -21,7 +22,7 @@ const AITutorAgent = () => {
 
   const handleSend = async () => {
     if (!input.trim()) return;
-    
+
     const userMsg = { id: Date.now(), sender: 'user', text: input };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
@@ -29,7 +30,12 @@ const AITutorAgent = () => {
 
     try {
       // Use the generic chat endpoint but with a Tutor system prompt
-      const res = await aiService.chatWithContent(userMsg.text, "Role: Expert SAT Tutor. Goal: Explain concepts clearly, identify weaknesses, and be encouraging.", messages);
+      const res = await aiService.chatWithContent(
+        userMsg.text,
+        "Role: Expert SAT Tutor. Goal: Explain concepts clearly, identify weaknesses, and be encouraging.",
+        messages,
+        difficulty
+      );
       setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: res.data?.reply || "I'm analyzing that..." }]);
     } catch (err) {
       setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: "I'm having trouble connecting to the knowledge base." }]);
@@ -37,6 +43,18 @@ const AITutorAgent = () => {
       setLoading(false);
     }
   };
+
+  const DifficultyButton = ({ level }) => (
+    <button
+      onClick={() => setDifficulty(level)}
+      className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${difficulty === level
+          ? 'bg-white text-black shadow-inner'
+          : 'bg-white/10 text-white/60 hover:bg-white/20'
+        }`}
+    >
+      {level.toUpperCase()}
+    </button>
+  );
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -53,15 +71,22 @@ const AITutorAgent = () => {
             </p>
           </div>
         </div>
+
+        {/* Difficulty Selector */}
+        <div className="hidden md:flex items-center gap-2 bg-white/5 p-1 rounded-full border border-white/10">
+          <DifficultyButton level="Easy" />
+          <DifficultyButton level="Medium" />
+          <DifficultyButton level="Hard" />
+        </div>
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-gray-50 dark:bg-gray-900/50">
         {messages.map((msg) => (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            key={msg.id} 
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            key={msg.id}
             className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}
           >
             <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.sender === 'user' ? 'bg-black text-white' : 'bg-white text-[#E53935] border border-gray-200'}`}>
@@ -87,16 +112,16 @@ const AITutorAgent = () => {
       {/* Input */}
       <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
         <div className="relative max-w-4xl mx-auto">
-          <input 
-            value={input} 
-            onChange={(e) => setInput(e.target.value)} 
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask a doubt, paste a question, or say 'Give me a quiz'..." 
+            placeholder="Ask a doubt, paste a question, or say 'Give me a quiz'..."
             // FIXED: Added dark:text-white and text-gray-900 explicitly
-            className="w-full pl-6 pr-14 py-4 bg-gray-100 dark:bg-gray-900 border-transparent focus:bg-white focus:border-gray-300 rounded-full outline-none transition-all text-gray-900 dark:text-white font-medium" 
+            className="w-full pl-6 pr-14 py-4 bg-gray-100 dark:bg-gray-900 border-transparent focus:bg-white focus:border-gray-300 rounded-full outline-none transition-all text-gray-900 dark:text-white font-medium"
           />
-          <button 
-            onClick={handleSend} 
+          <button
+            onClick={handleSend}
             disabled={!input.trim() || loading}
             className="absolute right-2 top-2 bottom-2 w-10 h-10 bg-[#E53935] text-white rounded-full flex items-center justify-center hover:bg-red-700 disabled:opacity-50 transition-colors shadow-md"
           >

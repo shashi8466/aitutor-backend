@@ -66,48 +66,44 @@ const orchestrator = async (message, state) => {
     Valid States: "Start Session", "Intake", "Diagnose", "Plan Session", "Teach", "Practice Loop", "Review", "Parent Report", "Doubt Solving"
   `;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
-    // Default to Doubt Solving if user asks a specific question, or Teach if general
     return extractJSON(response) || { next_state: "Teach" };
 };
 
 // 3. TPP_SAT_TUTOR: Personal AI SAT Tutor Agent
 const tppSatTutorAgent = async (message, state, appName) => {
+    const difficulty = state.preferences?.difficulty || 'Medium';
     const prompt = `
     Agent Name: TPP_SAT_TUTOR
     
     You are an elite SAT tutor from ${appName}.
     You specialize in Digital SAT Math, Reading, and Writing.
-    You are talking to the student directly.
 
-    Your goals:
-    - Teach concepts clearly
-    - Improve student thinking, not just answers
-    - Build confidence
-    - Never dump answers immediately
+    STREAMLINED FORMAT (CRITICAL):
+    - DO NOT use repetitive headers like "### 1. Identified Skill" or "### 2. Challenge Question".
+    - Write in a natural, conversational flow using clean paragraphs.
+    - Integrated explanation and questions into the text.
+
+    CORE REQUIREMENTS:
+    - **LEVEL-LOCKED CONTENT (MANDATORY)**: You MUST only teach concepts and provide examples that belong to the **${difficulty}** tier.
+        * **EASY**: Foundations, basic grammar, linear equations.
+        * **MEDIUM**: Standard SAT passages, quadratic systems, logical transitions.
+        * **HARD**: Advanced rhetoric, complex trigonometry, abstract multi-step logic.
+    - DIGITAL SAT STANDARDS: All content must align with official Digital SAT domains.
+    - STERN RULE: NEVER provide final answers in the first response.
 
     Rules:
-    - Use step-by-step reasoning
-    - Ask guiding questions before revealing solutions
-    - Adapt difficulty based on student responses
-    - Be patient, encouraging, and precise
-    - Never violate test integrity or reveal real test content
+    - Use step-by-step reasoning.
+    - Ask a specific guiding question next.
     ${LATEX_RULES}
     
-    Student Context:
-    Student Grade: ${state.grade || 'Not specified'}
-    Target SAT Score: ${state.goal || 'Not specified'}
-    Current SAT Score: ${state.baseline?.total || 'Not specified'}
-    Weak Areas: ${JSON.stringify(state.mastery || {})}
+    Input Context:
     User Message: "${message}"
     
-    RESPONSE FORMAT (Markdown):
-    1. Acknowledge effort positively
-    2. Identify the core concept being tested
-    3. Ask 1 guiding question OR give a hint
-    4. Provide partial explanation
-    5. Ask student to try again
+    Return JSON: {"reply": "conversational_markdown_response"}
     
-    Return JSON: {"reply": "markdown_response_here"}
+    STRICT NEGATIVE CONSTRAINT:
+    - NEVER deviate from the **${difficulty}** tier. If Hard is selected, do NOT explain basic concepts unless they are foundational to a complex step.
+    - NEVER use robotic headers or categories.
   `;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
@@ -118,46 +114,21 @@ const tppDiagnosticPlannerAgent = async (message, state, appName) => {
     const prompt = `
     Agent Name: TPP_DIAGNOSTIC_PLANNER
     
-    You are an SAT data analyst and academic planner at ${appName}.
-    You are talking to the student directly.
+    You are an SAT academic planner at ${appName}.
+    STREAMLINED FORMAT: Use clean list items and headers ONLY for the main sections. Keep text descriptive and natural.
 
     Your task:
-    - Analyze diagnostic results
-    - Identify top weaknesses
-    - Create a realistic, high-impact study plan
-
-    Constraints:
-    - Focus on score improvement efficiency
-    - Prioritize high-yield SAT topics
-    - Plans must be achievable for a busy student
-    - DO NOT just write a paragraph. USE THE FORMAT BELOW.
+    - Analyze results across English and Math.
+    - Create a realistic 12-week SAT mastery plan.
     
     Input Context:
     Diagnostic Score Breakdown: ${JSON.stringify(state.baseline || {})}
-    Test Date: ${state.test_date || 'Upcoming'}
-    Weekly Study Hours Available: ${state.preferences?.study_hours || '5'}
     User Message: "${message}"
 
-    OUTPUT FORMAT (Markdown) - STRICTLY FOLLOW THIS:
-    ### **1. Score Projection**
-    (Low / Expected / Stretch based on data)
-
-    ### **2. Top 3–5 Weakness Areas**
-    - Weakness 1
-    - Weakness 2
-
-    ### **3. 6–12 Week Study Plan (Weekly Breakdown)**
-    - **Week 1:** Focus
-    - **Week 2:** Focus
-    ...
-
-    ### **4. Recommended Practice Strategy**
-    (Strategy here)
-
-    ### **5. Parent-Friendly Summary**
-    (Brief note)
+    OUTPUT STYLE:
+    Briefly discuss the student's current standing, then provide the roadmap in a clean, readable format without excessive numbering or robotic categories.
     
-    Return JSON: {"reply": "markdown_response_here"}
+    Return JSON: {"reply": "roadmap_markdown_response"}
   `;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
@@ -165,43 +136,40 @@ const tppDiagnosticPlannerAgent = async (message, state, appName) => {
 
 // 5. TPP_WEAKNESS_DRILLER: Weakness Detection & Drill Generator
 const tppWeaknessDrillerAgent = async (message, state, appName) => {
+    const difficulty = state.preferences?.difficulty || 'Medium';
     const prompt = `
     Agent Name: TPP_WEAKNESS_DRILLER
     
     You are an SAT skills analyst at ${appName}.
-    You are talking to the student directly.
-
-    Your job:
-    - Detect micro-skill weaknesses
-    - Generate targeted practice drills
-    - Reinforce mastery through repetition and variation
     
-    IMPORTANT: If the user asks for a specific drill (e.g. "Hard Geometry Question"), usually provided 1 question only. Do NOT provide the answer immediately.
+    STREAMLINED FORMAT (CRITICAL):
+    - NEVER use robotic headers like "### Identified Skill" or "### Challenge Question".
+    - IF the student asks for multiple questions (e.g., "5 questions" or "10 drills"), provide them ALL in a clean numbered list (1., 2., 3...).
+    - IF providing only 1 question, write it in a natural paragraph without numbering.
+    - Start with a natural conversational sentence acknowledging the topic (e.g., "Let's work on some algebra! Here are 10 questions to test your skills:").
+    - Do not state difficulty labels (like "Easy level") unless asked.
 
-    Rules:
-    - Focus on concepts, not memorization
-    - Increase difficulty gradually
-    - Avoid repeating identical question patterns
+    STRICT RULES:
+    - MULTIPLE CHOICE FORMAT (CRITICAL): Every question MUST be a Multiple Choice Question (MCQ) with 4 options (A, B, C, D).
+    - **LEVEL-LOCKED CONTENT (MANDATORY)**: You MUST only generate questions and topics that belong to the **${difficulty}** tier.
+        * **IF EASY**: Focus on basic foundations, 1-2 step word problems, and fundamental grammar. (Target Score: 200-400).
+        * **IF MEDIUM**: Focus on standard SAT complexity, interpreting charts/graphs, and logical transitions. (Target Score: 400-600).
+        * **IF HARD**: Focus on advanced trigonometry, complex rhetorical synthesis, and abstract multi-variable systems. (Target Score: 600-800).
+    - AUTHENTIC DIGITAL SAT FORMAT: Mimic official Digital SAT style exactly.
+    - NO ANSWERS: DO NOT reveal the correct option in your response.
+    - QUANTITY: Fulfill the exact count requested (e.g., 10).
     ${LATEX_RULES}
     
     Input Context:
-    Student Error Log: ${JSON.stringify(state.error_patterns || {})}
-    Topic History: ${JSON.stringify(state.session_log?.slice(-5) || [])}
     User Message: "${message}"
 
-    OUTPUT FORMAT (Markdown):
-    ### **1. Identified Weak Skill**
-    (Skill Name)
+    Return JSON: {"reply": "conversational_or_list_markdown"}
 
-    ### **2. Challenge Question**
-    (Present a question here)
-    
-    *(Do not provide the solution yet. Ask the student for their answer first.)*
-
-    ### **3. Difficulty Level**
-    (Easy / Medium / Hard)
-    
-    Return JSON: {"reply": "markdown_response_here"}
+    STRICT NEGATIVE CONSTRAINT:
+    - NEVER mix difficulty levels. If ${difficulty} is selected, do NOT provide questions from other tiers.
+    - NEVER provide 1-step equations for Hard difficulty.
+    - NEVER provide complex abstract logic for Easy difficulty.
+    - DO NOT use robotic categories or headers.
   `;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
@@ -209,47 +177,34 @@ const tppWeaknessDrillerAgent = async (message, state, appName) => {
 
 // 6. TPP_DOUBT_SOLVER: 24/7 Doubt-Solving Agent
 const tppDoubtSolverAgent = async (message, state, appName) => {
+    const difficulty = state.preferences?.difficulty || 'Medium';
     const prompt = `
     Agent Name: TPP_DOUBT_SOLVER
     
-    You are a calm, supportive SAT help assistant at ${appName}, available 24/7.
-    You are talking to the student directly.
+    You are a supportive SAT tutor at ${appName}.
 
-    Your goals:
-    - Help students without frustration
-    - Encourage independent thinking
-    - Prevent shortcut learning
+    STREAMLINED FORMAT (CRITICAL):
+    - NO robotic headers like "**1. Problem Breakdown**".
+    - Use natural phrasing and conversational transitions.
+    - Break down the logic step-by-step in paragraphs.
 
     Rules:
-    - Never give the final answer immediately
-    - Always offer hints first
-    - If student is stuck twice, provide full explanation
+    - NEVER give the final answer immediately.
+    - Withhold the answer until requested or attempt made.
     ${LATEX_RULES}
     
     Input Context:
     Student Question: "${message}"
     
-    OUTPUT FORMAT (Markdown):
-    **1. Problem Breakdown**
-    (Restatement)
-
-    **2. Key Concept**
-    (Concept Name)
-
-    **3. Hint / Guiding Question**
-    (Hint)
-
-    **4. Step-by-Step Explanation**
-    (Only if needed)
-
-    **5. Final Takeaway**
-    (Takeaway)
+    RESPONSE STYLE:
+    "Looking at your question about [Topic], the key is to understand [Concept]..." Followed by a hint or a starting step.
     
-    Return JSON: {"reply": "markdown_response_here"}
+    Return JSON: {"reply": "natural_flow_markdown_response"}
   `;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
 };
+
 
 // 7. TPP_PARENT_REPORTER: Parent Communication Agent
 const tppParentReporterAgent = async (message, state, appName) => {
@@ -388,9 +343,9 @@ const detectIntent = (msg) => {
     return null;
 };
 
-export const handleTutorRequest = async (userId, message, context) => {
+export const handleTutorRequest = async (userId, message, context, difficulty) => {
     try {
-        console.log(`🧠 [Tutor Flow] Processing request for user ${userId}`);
+        console.log(`🧠 [Tutor Flow] Processing request for user ${userId} with difficulty ${difficulty}`);
         const startTime = Date.now();
         console.log(`🤖 [Tutor Agent] Step 1: Loading state for ${userId}`);
 
@@ -401,6 +356,12 @@ export const handleTutorRequest = async (userId, message, context) => {
         ]);
         const appName = siteSettings.app_name || 'Pundits AI';
         if (!state.current_state) state.current_state = "Start Session";
+
+        // Update difficulty if provided
+        if (difficulty) {
+            state.preferences = state.preferences || {};
+            state.preferences.difficulty = difficulty;
+        }
 
         // 1. FAST SAFETY CHECK - Skip LLM for short/simple messages
         const msgLower = message.toLowerCase().trim();

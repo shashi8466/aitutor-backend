@@ -24,7 +24,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
       title: "Learning Center",
       items: [
         { name: 'My Courses', path: '/student/courses', icon: FiBook },
-        { name: 'Worksheets', path: '/student/worksheets', icon: FiFileText, badge: 'New' },
+        { name: 'Practice Test', path: '/student/practice-tests', icon: FiActivity, badge: 'Live' },
         { name: 'Leaderboard', path: '/student/leaderboard', icon: FiAward },
       ]
     },
@@ -36,7 +36,6 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         { name: 'Weakness Drills', path: '/student/drills', icon: FiTarget },
         { name: 'Test Review Agent', path: '/student/test-review', icon: FiPieChart },
         { name: 'College Advisor', path: '/student/college', icon: FiMap },
-        { name: 'Parent Connect', path: '/student/parent', icon: FiTrendingUp },
       ]
     },
     {

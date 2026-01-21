@@ -38,13 +38,13 @@ router.get('/routes', (req, res) => {
 // 1. Chat
 router.post('/chat', async (req, res) => {
   try {
-    const { message, context } = req.body;
-    console.log(`📩 [Chat Route] Received: "${message}" with context: "${context?.substring(0, 50)}..."`);
+    const { message, context, difficulty } = req.body;
+    console.log(`📩 [Chat Route] Received: "${message}" with context: "${context?.substring(0, 50)}..." Difficulty: ${difficulty}`);
     if (context && context.includes('Expert SAT Tutor')) {
       const user = await getUserFromRequest(req);
       if (user) {
         try {
-          const tutorRes = await handleTutorRequest(user.id, message, context);
+          const tutorRes = await handleTutorRequest(user.id, message, context, difficulty);
           return res.json({ reply: tutorRes.reply });
         } catch (tutorErr) {
           console.error("❌ Tutor Agent Error:", tutorErr);

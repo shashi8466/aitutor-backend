@@ -60,7 +60,7 @@ const TutorSettingsPage = () => (
 );
 
 const TutorDashboard = () => {
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
     const [dashboardData, setDashboardData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -69,21 +69,23 @@ const TutorDashboard = () => {
     const location = useLocation();
 
     useEffect(() => {
-        console.log('🏗️ [TutorDashboard] Mounted');
+        console.log('🏗️ [TutorDashboard] Mounted/Route Changed');
         fetchDashboardData();
+
+        // Safety Catch: Always reset scroll lock when changing tabs
+        document.body.style.overflow = 'unset';
 
         const handleFocus = () => {
             console.log('👀 [TutorDashboard] Window Focused');
-            // Optionally re-fetch data on focus to keep it fresh
-            // fetchDashboardData(); 
         };
 
         window.addEventListener('focus', handleFocus);
         return () => {
-            console.log('🧹 [TutorDashboard] Unmounted');
+            console.log('🧹 [TutorDashboard] Component Effect Cleanup');
             window.removeEventListener('focus', handleFocus);
+            document.body.style.overflow = 'unset';
         };
-    }, []);
+    }, [location.pathname]); // Trigger on every navigation
 
     const fetchDashboardData = async () => {
         try {
@@ -132,7 +134,7 @@ const TutorDashboard = () => {
                         animate={{ x: 0 }}
                         exit={{ x: -300 }}
                         transition={{ type: "spring", stiffness: 100 }}
-                        className="fixed lg:sticky top-0 left-0 h-screen w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-40 overflow-y-auto"
+                        className="fixed lg:sticky top-0 left-0 h-screen w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-[9999] overflow-y-auto"
                     >
                         <div className="p-6">
                             {/* Header */}
@@ -284,13 +286,18 @@ const TutorDashboard = () => {
                 </main>
             </div>
 
-            {/* Mobile Overlay */}
-            {sidebarOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 lg:hidden z-30"
-                    onClick={() => setSidebarOpen(false)}
-                />
-            )}
+            {/* Mobile Overlay - Only visible below 1024px when sidebar is open */}
+            <AnimatePresence>
+                {sidebarOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setSidebarOpen(false)}
+                        className="fixed inset-0 bg-black/40 backdrop-blur-sm lg:hidden z-[9990] pointer-events-auto"
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };
