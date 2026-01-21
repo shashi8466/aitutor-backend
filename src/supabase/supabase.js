@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 // 4. Copy "Project URL" and "anon" public key
 
 const SUPABASE_URL = (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL : import.meta.env?.VITE_SUPABASE_URL) || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-const SUPABASE_ANON_KEY = (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY : import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
+const SUPABASE_ANON_KEY = (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY : import.meta.env?.VITE_SUPABASE_ANON_KEY) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndxYXZ1YWNnYmF3aGdjZHh4em9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyNzE4MTIsImV4cCI6MjA4MDg0NzgxMn0.X2jOfdw4umwJ8Bxl_vG_EjAVboyblrV89HWDEnX15R4';
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('⚠️ Warning: Supabase variables are missing in supabase.js. Check your .env file.');
