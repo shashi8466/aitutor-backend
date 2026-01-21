@@ -7,11 +7,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { tutorService } from '../../services/api';
 
-const {
+import {
     FiHome, FiBook, FiUsers, FiKey, FiMail, FiBarChart2,
     FiSettings, FiLogOut, FiMenu, FiX, FiAward, FiClock,
-    FiTrendingUp, FiCheckCircle
-} = FiIcons;
+    FiTrendingUp, FiCheckCircle, FiLayers
+} from 'react-icons/fi';
 
 // Import tutor components
 import GroupManager from './GroupManager';
@@ -110,7 +110,7 @@ const TutorDashboard = () => {
         { path: '/tutor', icon: FiHome, label: 'Dashboard', exact: true },
         { path: '/tutor/courses', icon: FiBook, label: 'My Courses' },
         { path: '/tutor/students', icon: FiUsers, label: 'Students' },
-        { path: '/tutor/groups', icon: FiIcons.FiLayers || FiUsers, label: 'Student Groups' },
+        { path: '/tutor/groups', icon: FiLayers, label: 'Student Groups' },
         { path: '/tutor/enrollment-keys', icon: FiKey, label: 'Enrollment Keys' },
         { path: '/tutor/invitations', icon: FiMail, label: 'Invitations' },
         { path: '/tutor/grades', icon: FiBarChart2, label: 'Grade Reports' },

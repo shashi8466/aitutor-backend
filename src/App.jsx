@@ -45,10 +45,14 @@ import axios from 'axios';
 // This is essential for WebContainer/StackBlitz environments.
 // FIXED: Force Render URL on Firebase hosting, use relative path on localhost
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const isFirebase = window.location.hostname.includes('aitutor-4431c') || window.location.hostname.includes('firebaseapp.com');
+const isFirebase =
+  window.location.hostname.includes('aitutor-4431c') ||
+  window.location.hostname.includes('firebaseapp.com') ||
+  window.location.hostname.includes('web.app');
+
 const PROD_URL = 'https://aitutor-backend-u7h3.onrender.com';
 
-const BACKEND_URL = isFirebase ? PROD_URL : (import.meta.env.VITE_BACKEND_URL || '');
+const BACKEND_URL = (isFirebase || !isLocal) ? PROD_URL : (import.meta.env.VITE_BACKEND_URL || '');
 
 console.log('📡 [API Connectivity]');
 console.log('  - Hostname:', window.location.hostname);
