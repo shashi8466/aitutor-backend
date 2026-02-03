@@ -194,26 +194,30 @@ const extractDocxWithMath = async (buffer) => {
           return "";
         }
         if (tagName === 'oMath' || tagName === 'oMathPara') {
-          // Extract text carefully - join nodes with space to see if it's a sentence
+          // Extract text carefully - join nodes with space to capture natural spacing
           const getTagName = (n) => n.nodeName.split(':').pop();
           const getTextWithSpaces = (n) => {
             if (n.nodeType === 3) return n.nodeValue;
             if (getTagName(n) === 't') return n.textContent;
             let t = "";
-            for (let j = 0; j < (n.childNodes?.length || 0); j++) {
-              t += getTextWithSpaces(n.childNodes[j]) + " ";
+            if (n.childNodes) {
+              for (let j = 0; j < n.childNodes.length; j++) {
+                t += getTextWithSpaces(n.childNodes[j]);
+              }
             }
+            // Add space for container nodes that typically separate words (like runs)
+            const tag = getTagName(n);
+            if (['r', 'e', 'num', 'den'].includes(tag)) t += " ";
             return t;
           };
 
           const rawText = getTextWithSpaces(node).replace(/\s+/g, ' ').trim();
-          const hasMathOperators = /[=+\-*/^]/.test(rawText);
-          const hasCommonEnglish = /[,.?;!]/.test(rawText);
+          const spaceCount = (rawText.match(/\s/g) || []).length;
           const letterCount = (rawText.match(/[a-zA-Z]/g) || []).length;
 
-          // Emergency Override: If it has more than 5 letters AND no math symbols, it is NOT an equation.
-          // This stops "A small business owner..." being treated as math.
-          if (hasCommonEnglish || (letterCount > 5 && !hasMathOperators)) {
+          // CRITICAL: If it has more than 1 space OR is long, it's a sentence or phrase.
+          // We return it as plain text and let the frontend MathRenderer detect math bits.
+          if (spaceCount >= 1 || letterCount > 15) {
             return " " + rawText + " ";
           }
 

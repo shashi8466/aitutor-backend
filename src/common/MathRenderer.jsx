@@ -10,6 +10,13 @@ const MathRenderer = ({ text, className = '' }) => {
     let processedText = (text || '').toString();
 
     // ---------------------------------------------------------
+    // 0a. Currency Protection
+    // ---------------------------------------------------------
+    // Prevent dollar signs matched with numbers (like $2,200) from being seen as math delimiters
+    processedText = processedText.replace(/\$(\d+(?:[,.]\d+)?)\b/g, '<span>$</span>$1');
+    processedText = processedText.replace(/\$(\d+(?:[,.]\d+)?)\s/g, '<span>$</span>$1 ');
+
+    // ---------------------------------------------------------
     // 0. Pre-Sanitization (Advanced Recovery for Broken AI JSON)
     // ---------------------------------------------------------
     // The AI often outputs single backslashes in JSON, which JS interprets as control chars.
