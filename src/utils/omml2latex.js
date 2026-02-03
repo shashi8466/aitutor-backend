@@ -26,8 +26,18 @@ export const convertToLatex = (node) => {
     case 'oMath': // Inline Math Container
     case 'oMathPara': // Block Math Container
       const inner = children.map(convertToLatex).join(' ').trim();
+      // If it's already wrapped or contains math-specific LaTeX, keep it as math
       if (inner.startsWith('\\(') || inner.startsWith('$')) return ` ${inner} `;
-      return ` \\(${inner}\\) `;
+
+      // Heuristic: If it has math-specific commands or symbols, wrap it.
+      // Otherwise, return as plain text to allow standard wrapping and fonts.
+      const hasMathSignal = /[\{\}^_]|\\(?:frac|sqrt|left|right|times|sum|int|alpha|beta|gamma|theta)/.test(inner);
+      const isSimpleSymbol = inner.length === 1 && /[^a-zA-Z]/.test(inner);
+
+      if (hasMathSignal || isSimpleSymbol) {
+        return ` \\(${inner}\\) `;
+      }
+      return inner;
 
     case 'f': // Fraction
       const num = children.find(c => getTagName(c) === 'num');

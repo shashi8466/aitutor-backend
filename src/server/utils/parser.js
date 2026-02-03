@@ -207,13 +207,13 @@ const extractDocxWithMath = async (buffer) => {
           };
 
           const rawText = getTextWithSpaces(node).replace(/\s+/g, ' ').trim();
-          const spaceCount = (rawText.match(/\s/g) || []).length;
           const hasMathOperators = /[=+\-*/^]/.test(rawText);
           const hasCommonEnglish = /[,.?;!]/.test(rawText);
           const letterCount = (rawText.match(/[a-zA-Z]/g) || []).length;
 
-          // Heuristic: If it has multiple spaces AND looks like English, it's text.
-          if ((spaceCount >= 2 && letterCount > 10) || hasCommonEnglish || (letterCount > 15 && !hasMathOperators)) {
+          // Emergency Override: If it has more than 5 letters AND no math symbols, it is NOT an equation.
+          // This stops "A small business owner..." being treated as math.
+          if (hasCommonEnglish || (letterCount > 5 && !hasMathOperators)) {
             return " " + rawText + " ";
           }
 
