@@ -31,7 +31,7 @@ export const convertToLatex = (node) => {
 
       // Heuristic: If it has math-specific commands or symbols, wrap it.
       // Otherwise, return as plain text to allow standard wrapping and fonts.
-      const hasMathSignal = /[\{\}^_]|\\(?:frac|sqrt|left|right|times|sum|int|alpha|beta|gamma|theta)/.test(inner);
+      const hasMathSignal = /[{}^_]|\\(?:frac|sqrt|left|right|times|sum|int|alpha|beta|gamma|theta)/.test(inner);
       const isSimpleSymbol = inner.length === 1 && /[^a-zA-Z]/.test(inner);
 
       if (hasMathSignal || isSimpleSymbol) {
