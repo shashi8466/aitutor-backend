@@ -24,8 +24,31 @@ body {
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+/* Math Content Formatting & Overflow Protection */
+.math-content,
+mjx-container {
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  white-space: normal !important;
+}
+
+/* Block math should be scrollable if extremely long, not run off page */
+mjx-container[display="true"] {
+  display: block !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  padding: 0.5rem 0;
+}
+
+/* Force standard font for text blocks inside math to avoid squashing */
+mjx-utext {
+  font-family: inherit !important;
+  white-space: normal !important;
 }
