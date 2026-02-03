@@ -25,7 +25,7 @@ export const convertToLatex = (node) => {
   switch (tagName) {
     case 'oMath': // Inline Math Container
     case 'oMathPara': // Block Math Container
-      const inner = children.map(convertToLatex).join('').trim();
+      const inner = children.map(convertToLatex).join(' ').trim();
       if (inner.startsWith('\\(') || inner.startsWith('$')) return ` ${inner} `;
       return ` \\(${inner}\\) `;
 

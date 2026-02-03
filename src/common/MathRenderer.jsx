@@ -175,11 +175,12 @@ const MathRenderer = ({ text, className = '' }) => {
       ref={nodeRef}
       className={`math-content ${className}`}
       style={{
-        display: 'inline-block',
+        display: 'inline',
         maxWidth: '100%',
         verticalAlign: 'middle',
-        overflowWrap: 'break-word',
-        wordBreak: 'break-word'
+        overflowWrap: 'anywhere',
+        wordBreak: 'normal',
+        whiteSpace: 'normal'
       }}
     />
   );

@@ -194,15 +194,26 @@ const extractDocxWithMath = async (buffer) => {
           return "";
         }
         if (tagName === 'oMath' || tagName === 'oMathPara') {
-          const rawText = node.textContent || "";
+          // Extract text carefully - recursively find text nodes to ensure spaces are caught
+          const getTagName = (n) => n.nodeName.split(':').pop();
+          const getText = (n) => {
+            if (n.nodeType === 3) return n.nodeValue;
+            if (getTagName(n) === 't') return n.textContent;
+            let t = "";
+            for (let j = 0; j < (n.childNodes?.length || 0); j++) t += getText(n.childNodes[j]);
+            return t;
+          };
+
+          const rawText = getText(node).trim();
           const spaceCount = (rawText.match(/\s/g) || []).length;
           const hasMathOperators = /[=+\-*/^]/.test(rawText);
+          const hasCommonEnglish = /[,.?;!]/.test(rawText);
           const letterCount = (rawText.match(/[a-zA-Z]/g) || []).length;
 
-          // Heuristic: If it has spaces, OR if it has many letters but no math symbols,
-          // it's almost certainly text typed in the equation editor.
-          if (spaceCount >= 1 || (letterCount > 10 && !hasMathOperators)) {
-            return " " + rawText + " ";
+          // Heuristic: If it has spaces, punctuation, or many letters with no symbols, it's text.
+          if (spaceCount >= 1 || hasCommonEnglish || (letterCount > 8 && !hasMathOperators)) {
+            // Return with spaces to ensure it doesn't squash
+            return " " + rawText.replace(/\s+/g, ' ') + " ";
           }
 
           try { return convertToLatex(node); } catch (e) { return " [Equation] "; }
