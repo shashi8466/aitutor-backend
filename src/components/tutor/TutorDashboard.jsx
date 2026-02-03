@@ -52,12 +52,9 @@ const TutorOverview = ({ dashboardData }) => (
     </div>
 );
 
-const TutorSettingsPage = () => (
-    <div className="p-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Settings</h2>
-        <p className="text-gray-600 dark:text-gray-400">Manage your tutor profile and notification preferences here.</p>
-    </div>
-);
+import TutorSettings from './TutorSettings';
+
+// Removed TutorSettingsPage placeholder component
 
 const TutorDashboard = () => {
     const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
@@ -281,7 +278,7 @@ const TutorDashboard = () => {
                         <Route path="enrollment-keys" element={<TutorEnrollmentKeys />} />
                         <Route path="invitations" element={<TutorInvitations />} />
                         <Route path="grades" element={<TutorGrades />} />
-                        <Route path="settings" element={<TutorSettingsPage />} />
+                        <Route path="settings" element={<TutorSettings />} />
                     </Routes>
                 </main>
             </div>

@@ -43,20 +43,29 @@ const QuestionCard = ({ question, courses, index, onEdit, onDelete }) => {
               </span>
             )}
           </div>
-          
+
           {/* Admin Image Preview */}
           {question.image && (
             <div className="mb-4 mt-2 p-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center max-w-md">
-              <img 
-                src={question.image} 
-                alt="Question Diagram" 
+              <img
+                src={question.image}
+                alt="Question Diagram"
                 className="max-h-64 w-auto object-contain rounded shadow-sm"
                 onError={(e) => {
-                    e.target.onerror = null; 
-                    e.target.src = "https://placehold.co/400x300?text=Image+Load+Failed";
-                    e.target.style.opacity = "0.5";
+                  e.target.onerror = null;
+                  e.target.src = "https://placehold.co/400x300?text=Image+Load+Failed";
+                  e.target.style.opacity = "0.5";
                 }}
               />
+            </div>
+          )}
+
+          {/* Topic Badge - Display if topic exists */}
+          {question.topic && (
+            <div className="mb-3">
+              <span className="inline-block px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
+                {question.topic}
+              </span>
             </div>
           )}
 

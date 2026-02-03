@@ -4,11 +4,12 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { tutorService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import GroupAnalytics from './GroupAnalytics';
 
 const {
     FiPlus, FiUsers, FiTrash2, FiEdit2, FiX, FiCheck,
     FiPlusCircle, FiUserPlus, FiUserMinus, FiInfo, FiSearch,
-    FiChevronRight
+    FiChevronRight, FiBarChart2
 } = FiIcons;
 
 const GroupManager = () => {
@@ -22,6 +23,9 @@ const GroupManager = () => {
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [error, setError] = useState('');
+    const [showAnalytics, setShowAnalytics] = useState(false);
+    const [analyticsGroupId, setAnalyticsGroupId] = useState(null);
+    const [analyticsGroupName, setAnalyticsGroupName] = useState('');
 
     // Form States
     const [newGroupName, setNewGroupName] = useState('');
@@ -118,6 +122,21 @@ const GroupManager = () => {
         return matchesSearch && isSameCourse;
     });
 
+    // Show analytics view if selected
+    if (showAnalytics && analyticsGroupId) {
+        return (
+            <GroupAnalytics
+                groupId={analyticsGroupId}
+                groupName={analyticsGroupName}
+                onBack={() => {
+                    setShowAnalytics(false);
+                    setAnalyticsGroupId(null);
+                    setAnalyticsGroupName('');
+                }}
+            />
+        );
+    }
+
     if (loading) return <div className="p-8 text-center text-blue-600">Loading groups...</div>;
 
     return (
@@ -184,15 +203,27 @@ const GroupManager = () => {
                                         <SafeIcon icon={FiUsers} className="w-4 h-4" />
                                         <span className="text-sm font-bold">{typeof group.member_count === 'object' ? (group.member_count.count || 0) : (group.member_count || 0)} Students</span>
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedGroup(group);
-                                            setShowAddMemberModal(true);
-                                        }}
-                                        className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                    >
-                                        <SafeIcon icon={FiUserPlus} /> Manage
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setAnalyticsGroupId(group.id);
+                                                setAnalyticsGroupName(group.name);
+                                                setShowAnalytics(true);
+                                            }}
+                                            className="text-sm font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                                        >
+                                            <SafeIcon icon={FiBarChart2} /> Analytics
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedGroup(group);
+                                                setShowAddMemberModal(true);
+                                            }}
+                                            className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                                        >
+                                            <SafeIcon icon={FiUserPlus} /> Manage
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>

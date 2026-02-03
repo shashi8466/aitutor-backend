@@ -17,7 +17,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
       title: "Overview",
       items: [
         { name: 'Dashboard', path: '/student', icon: FiHome, exact: true },
-        { name: 'Calendar', path: '/student/calendar', icon: FiCalendar, badge: 'Soon' },
+        { name: 'Calendar', path: '/student/calendar', icon: FiCalendar },
       ]
     },
     {

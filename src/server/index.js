@@ -128,7 +128,8 @@ let routesLoaded = {
   tutor: false,
   enrollment: false,
   invitations: false,
-  grading: false
+  grading: false,
+  adminGroups: false
 };
 
 // AI Routes
@@ -155,10 +156,12 @@ try {
   console.log('✅ Upload Routes mounted at /api/upload');
 } catch (error) {
   console.error('❌ Failed to load Upload Routes:', error.message);
+  console.error(error); // Add full stack trace
   app.use('/api/upload', (req, res) => {
     res.status(503).json({
       error: 'Upload service unavailable',
-      details: error.message
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   });
 }
@@ -237,6 +240,16 @@ try {
   console.error('❌ Failed to load Grading Routes:', error.message);
 }
 
+// Admin Groups Routes
+try {
+  const adminGroupsModule = await import('./routes/admin-groups.js');
+  app.use('/api/admin', adminGroupsModule.default);
+  routesLoaded.adminGroups = true;
+  console.log('✅ Admin Groups Routes mounted at /api/admin');
+} catch (error) {
+  console.error('❌ Failed to load Admin Groups Routes:', error.message);
+}
+
 console.log('');
 
 // 10. Debug routes endpoint
@@ -310,6 +323,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`  - Enrollment Routes: ${routesLoaded.enrollment ? '✅' : '❌'}`);
   console.log(`  - Invitation Routes: ${routesLoaded.invitations ? '✅' : '❌'}`);
   console.log(`  - Grading Routes: ${routesLoaded.grading ? '✅' : '❌'}`);
+  console.log(`  - Admin Groups Routes: ${routesLoaded.adminGroups ? '✅' : '❌'}`);
   console.log('');
   console.log('🔍 Debug Tools:');
   console.log(`  - Health Check: http://localhost:${PORT}/api/health`);

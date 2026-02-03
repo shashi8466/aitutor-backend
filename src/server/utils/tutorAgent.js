@@ -1,487 +1,311 @@
 import { generateAIResponse, extractJSON } from './ai.js';
 import { getStudentState, updateStudentState } from './studentState.js';
 import { getAppSettings } from './settingsHelper.js';
+import { searchQuestions } from './satQuestionBank.js';
 
 // --- AGENT DEFINITIONS ---
 const LATEX_RULES = `
 MATH FORMATTING (CRITICAL):
-- Use \\\\( ... \\\\) for ALL math (variables, numbers with units, formulas).
-- Use \\\\frac{num}{den} for fractions. NEVER leave an argument empty.
-- NO SPACES in LaTeX commands (e.g., \\\\frac{a}{b}, NOT \\\\frac {a} {b}).
+- Use \\( ... \\) for ALL math (variables, numbers with units, formulas).
+- Use \\frac{num}{den} for fractions. NEVER leave an argument empty.
+- NO SPACES in LaTeX commands (e.g., \\frac{a}{b}, NOT \\frac {a} {b}).
+`;
+
+const SAT_QUESTION_RULES = `
+DIGITAL SAT GENERATION RULES (MANDATORY):
+- Follow College Board (CB) specs for Digital SAT.
+- EVERY question must be Multiple Choice (A-D).
+- Use SAT Phrasing (e.g., "Which of the following is equivalent to...", "The system of equations above...", "In the figure shown...").
+- Include distractors (common student errors) based on typical SAT patterns.
+- Math: Focus on conceptual reasoning, abstraction (using constants like k, p), and multi-step logic.
+- Reading/Writing: Focus on logical transitions, rhetorical synthesis, and evidence-supported claims.
+
+STRICT NEGATIVE CONSTRAINTS (DO NOT DO THIS):
+- NO direct memorization questions (e.g., "What is sin 60?", "Solve 2x=4").
+- NO simple definitions.
+- NO 1-step arithmetic.
+- Questions MUST involve: Variable isolation, substitution, completing the square, or abstract constant reasoning.
+`;
+
+const SAT_EXAMPLES = `
+Examples of TRUE SAT STYLE (Use these as templates):
+
+Type: Advanced Algebra
+"The equation x^2 + y^2 - 6x + 8y = 56 represents a circle in the xy-plane. What is the length of the radius of the circle?"
+(Requires completing the square)
+
+Type: Functions & Constants
+"In the given equation kx - 3y = 4, k is a constant. If the graph of the equation in the xy-plane passes through the point (2, 5), what is the value of k?"
+(Requires substitution and isolation)
+
+Type: Trigonometry
+"In triangle RST, angle S is a right angle. If cos R = 5/13, what is the value of sin T?"
+(Requires co-function identity cos(x) = sin(90-x), not finding the angle)
+
+Type: Linear Systems
+"For which value of k will the system of equations kx - 2y = 5 and 4x - y = 9 have no solution?"
+(Requires matching slopes)
+
+Type: Geometry (Properties)
+"In the figure above, point O is the center of the circle. The measure of arc AB is 40 degrees. What is the measure, in degrees, of angle AOB?"
+(Requires understanding central angles vs inscribed angles)
+
+Type: Problem Solving & Data Analysis
+"The scatterplot shows the relationship between studying time (x hours) and test scores (y) for 20 students. The line of best fit is given by y = 3.5x + 60. What is the predicted score for a student who studies 4 hours?"
+(Requires interpreting linear models in context)
 `;
 
 // 1. SAFETY / INTEGRITY GUARD AGENT
 const safetyGuard = async (message) => {
-    const prompt = `
-    Analyze the following student message for safety and academic integrity.
-    Message: "${message}"
-    
-    Rules:
-    1. Block requests to "just give the answer" without an attempt.
-    2. detailed solution is OK if they tried or asked for explanation.
-    3. Block inappropriate content.
-    
-    Return JSON: {"safe": true/false, "reason": "..."}
-  `;
+    const prompt = `Analyze if this student request is safe and maintains academic integrity: "${message}". Block "just give answer" requests without attempt. JSON: {"safe": boolean, "reason": "string"}`;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
 };
 
-// 1.5 QUICK RESPONSE AGENT - Fast responses for simple questions
+// 1.5 QUICK RESPONSE AGENT
 const quickResponseAgent = async (message, appName) => {
-    const prompt = `You are a helpful SAT tutor from ${appName}. Be concise and helpful.
-${LATEX_RULES}
-
-Student asks: "${message}"
-
-Give a brief, helpful response. Use markdown formatting. Keep it under 100 words.
-Return JSON: {"reply": "your_response_here"}`;
-
-    // Use lower temperature AND fastMode for much faster responses
+    const prompt = `Helpful SAT tutor at ${appName}. Concise response (<100 words). ${LATEX_RULES}\nUser: "${message}"\nJSON: {"reply": "..."}`;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true, 0.5, true);
     return extractJSON(response);
 };
 
-// 2. ORCHESTRATOR AGENT (ROUTER)
-const orchestrator = async (message, state) => {
-    const prompt = `
-    You are the Orchestrator for an AI Tutor.
-    Current Student State: ${JSON.stringify(state)}
-    Last User Message: "${message}"
-    
-    Decide the next state based on the flow:
-    START -> [State 0] Start Session -> [State 1] Intake -> [State 2] Diagnose -> [State 3] Plan -> [State 4] Teach -> [State 5] Practice -> [State 6] Review -> [State 7] Recap -> END
-    
-    If the user message indicates a specific intent (e.g., "I want to practice math"), route accordingly.
-    
-    Available Agents/States:
-    - "Teach" (TPP_SAT_TUTOR): General teaching, concept explanation.
-    - "Plan Session" (TPP_DIAGNOSTIC_PLANNER): Study planning.
-    - "Practice Loop" (TPP_WEAKNESS_DRILLER): Drills and weakness targeting.
-    - "Doubt Solving" (TPP_DOUBT_SOLVER): Specific homework help or doubts.
-    - "Parent Report" (TPP_PARENT_REPORTER): Summary for parents.
-    - "Review" (TPP_TEST_ANALYST): Post-test analysis.
-    
-    Return JSON: {"next_state": "State Name", "rationale": "..."}
-    Valid States: "Start Session", "Intake", "Diagnose", "Plan Session", "Teach", "Practice Loop", "Review", "Parent Report", "Doubt Solving"
-  `;
-    const response = await generateAIResponse([{ role: "user", content: prompt }], true);
-    return extractJSON(response) || { next_state: "Teach" };
-};
-
-// 3. TPP_SAT_TUTOR: Personal AI SAT Tutor Agent
+// 2. TPP_SAT_TUTOR (General Teach)
 const tppSatTutorAgent = async (message, state, appName) => {
     const difficulty = state.preferences?.difficulty || 'Medium';
-    const prompt = `
-    Agent Name: TPP_SAT_TUTOR
-    
-    You are an elite SAT tutor from ${appName}.
-    You specialize in Digital SAT Math, Reading, and Writing.
-
-    STREAMLINED FORMAT (CRITICAL):
-    - DO NOT use repetitive headers like "### 1. Identified Skill" or "### 2. Challenge Question".
-    - Write in a natural, conversational flow using clean paragraphs.
-    - Integrated explanation and questions into the text.
-
-    CORE REQUIREMENTS:
-    - **LEVEL-LOCKED CONTENT (MANDATORY)**: You MUST only teach concepts and provide examples that belong to the **${difficulty}** tier.
-        * **EASY**: Foundations, basic grammar, linear equations.
-        * **MEDIUM**: Standard SAT passages, quadratic systems, logical transitions.
-        * **HARD**: Advanced rhetoric, complex trigonometry, abstract multi-step logic.
-    - DIGITAL SAT STANDARDS: All content must align with official Digital SAT domains.
-    - STERN RULE: NEVER provide final answers in the first response.
-
-    Rules:
-    - Use step-by-step reasoning.
-    - Ask a specific guiding question next.
-    ${LATEX_RULES}
-    
-    Input Context:
-    User Message: "${message}"
-    
-    Return JSON: {"reply": "conversational_markdown_response"}
-    
-    STRICT NEGATIVE CONSTRAINT:
-    - NEVER deviate from the **${difficulty}** tier. If Hard is selected, do NOT explain basic concepts unless they are foundational to a complex step.
-    - NEVER use robotic headers or categories.
-  `;
+    const prompt = `Agent: TPP_SAT_TUTOR. Digital SAT Elite Tutor at ${appName}. Level: ${difficulty}. ${LATEX_RULES}\nUser: "${message}"\nJSON: {"reply": "conversational_markdown"}`;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
 };
 
-// 4. TPP_DIAGNOSTIC_PLANNER: Diagnostic & Study Plan Agent
+// 3. TPP_DIAGNOSTIC_PLANNER
 const tppDiagnosticPlannerAgent = async (message, state, appName) => {
-    const prompt = `
-    Agent Name: TPP_DIAGNOSTIC_PLANNER
-    
-    You are an SAT academic planner at ${appName}.
-    STREAMLINED FORMAT: Use clean list items and headers ONLY for the main sections. Keep text descriptive and natural.
-
-    Your task:
-    - Analyze results across English and Math.
-    - Create a realistic 12-week SAT mastery plan.
-    
-    Input Context:
-    Diagnostic Score Breakdown: ${JSON.stringify(state.baseline || {})}
-    User Message: "${message}"
-
-    OUTPUT STYLE:
-    Briefly discuss the student's current standing, then provide the roadmap in a clean, readable format without excessive numbering or robotic categories.
-    
-    Return JSON: {"reply": "roadmap_markdown_response"}
-  `;
+    const prompt = `Agent: TPP_DIAGNOSTIC_PLANNER. Create 12-week SAT roadmap for: ${JSON.stringify(state.baseline || {})}.\nUser: "${message}"\nJSON: {"reply": "markdown_roadmap"}`;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
 };
 
-// 5. TPP_WEAKNESS_DRILLER: Weakness Detection & Drill Generator
+// 4. SAT_PRACTICE_MODE (Stateful Quiz)
 const tppWeaknessDrillerAgent = async (message, state, appName) => {
-    const difficulty = state.preferences?.difficulty || 'Medium';
-    const prompt = `
-    Agent Name: TPP_WEAKNESS_DRILLER
-    
-    You are an SAT skills analyst at ${appName}.
-    
-    STREAMLINED FORMAT (CRITICAL):
-    - NEVER use robotic headers like "### Identified Skill" or "### Challenge Question".
-    - IF the student asks for multiple questions (e.g., "5 questions" or "10 drills"), provide them ALL in a clean numbered list (1., 2., 3...).
-    - IF providing only 1 question, write it in a natural paragraph without numbering.
-    - Start with a natural conversational sentence acknowledging the topic (e.g., "Let's work on some algebra! Here are 10 questions to test your skills:").
-    - Do not state difficulty labels (like "Easy level") unless asked.
+    if (!state.practice_module) {
+        state.practice_module = { active: false, quiz_data: null };
+    }
+    const module = state.practice_module;
 
-    STRICT RULES:
-    - MULTIPLE CHOICE FORMAT (CRITICAL): Every question MUST be a Multiple Choice Question (MCQ) with 4 options (A, B, C, D).
-    - **LEVEL-LOCKED CONTENT (MANDATORY)**: You MUST only generate questions and topics that belong to the **${difficulty}** tier.
-        * **IF EASY**: Focus on basic foundations, 1-2 step word problems, and fundamental grammar. (Target Score: 200-400).
-        * **IF MEDIUM**: Focus on standard SAT complexity, interpreting charts/graphs, and logical transitions. (Target Score: 400-600).
-        * **IF HARD**: Focus on advanced trigonometry, complex rhetorical synthesis, and abstract multi-variable systems. (Target Score: 600-800).
-    - AUTHENTIC DIGITAL SAT FORMAT: Mimic official Digital SAT style exactly.
-    - NO ANSWERS: DO NOT reveal the correct option in your response.
-    - QUANTITY: Fulfill the exact count requested (e.g., 10).
-    ${LATEX_RULES}
-    
-    Input Context:
-    User Message: "${message}"
+    // Check if user explicitly requested a difficulty in THIS message
+    let difficulty = state.preferences?.difficulty || 'Medium';
+    const msgLower = message.toLowerCase();
+    if (msgLower.includes('hard')) difficulty = 'Hard';
+    else if (msgLower.includes('easy')) difficulty = 'Easy';
+    else if (msgLower.includes('medium')) difficulty = 'Medium';
 
-    Return JSON: {"reply": "conversational_or_list_markdown"}
+    if (!module.active) {
 
-    STRICT NEGATIVE CONSTRAINT:
-    - NEVER mix difficulty levels. If ${difficulty} is selected, do NOT provide questions from other tiers.
-    - NEVER provide 1-step equations for Hard difficulty.
-    - NEVER provide complex abstract logic for Easy difficulty.
-    - DO NOT use robotic categories or headers.
-  `;
-    const response = await generateAIResponse([{ role: "user", content: prompt }], true);
-    return extractJSON(response);
+        // Updated Prompt: Extract relevant search keywords.
+        const paramPrompt = `Identify the specific SAT TOPIC (Math or English) from this request: "${message}". 
+        Examples: "Trigonometry", "Words in Context", "Grammar", "Linear Equations".
+        
+        OUTPUT JSON: {"topic": "Keyword", "count": 5}
+        If vague but Math-related (e.g. "numbers", "calc"), use "Math".
+        If vague but English-related (e.g. "reading", "writing"), use "English".`;
+        const paramRes = await generateAIResponse([{ role: "user", content: paramPrompt }], true);
+        const params = extractJSON(paramRes) || { topic: "Math", count: 5 };
+        const count = Math.min(Math.max(params.count, 1), 5); // Limit to 5 for quality
+
+        // STRICT KB LOOKUP - NO GENERATION
+        let kbQuestions = searchQuestions(params.topic, count, difficulty);
+
+        // Fallback: If no questions found...
+        if (kbQuestions.length === 0) {
+            // 1. Try "Math" broad search if topic looks like math or generic
+            kbQuestions = searchQuestions("Math", count, difficulty);
+            // 2. If still empty, Try "English" broad search (maybe user asked for reading)
+            if (kbQuestions.length === 0) kbQuestions = searchQuestions("English", count, difficulty);
+
+            params.topic = "Practice Mix"; // Update topic label
+        }
+
+        if (kbQuestions.length === 0) {
+            // HYBRID FALLBACK: If KB fails, generate using high-quality constraints (Unlimited Mode)
+            const genPrompt = `
+             Agent: SAT_PRACTICE_ENGINE
+             TASK: Generate ${count} HIGH-STAKES Digital SAT questions for specific topic: "${params.topic}".
+             Difficulty: ${difficulty}
+             
+             ${SAT_QUESTION_RULES}
+             
+             OUTPUT JSON:
+             {
+               "topic": "${params.topic}",
+               "questions": [
+                 {
+                   "id": "gen_1",
+                   "text": "Question text...",
+                   "options": ["A", "B", "C", "D"],
+                   "correctAnswer": "A",
+                   "explanation": "Detailed step-by-step."
+                 }
+               ]
+             }
+             `;
+            const genRes = await generateAIResponse([{ role: "user", content: genPrompt }], true);
+            const genData = extractJSON(genRes);
+
+            if (genData?.questions) {
+                kbQuestions = genData.questions;
+                params.topic = `${params.topic} (AI Generated)`;
+            } else {
+                return { reply: `I couldn't find or generate questions for **${params.topic}**. Let's try a standard topic like Algebra or Grammar.` };
+            }
+        }
+
+        const quizData = {
+            topic: params.topic,
+            questions: kbQuestions
+        };
+
+        module.active = true;
+        module.quiz_data = quizData;
+
+        const formatted = quizData.questions.map((q, i) =>
+            `**Question ${i + 1}**\n${q.text}\n\n` +
+            q.options.map((o, idx) => `- **${String.fromCharCode(65 + idx)})** ${o}`).join('\n')
+        ).join('\n\n---\n\n');
+
+        return { reply: `### 🎯 Digital SAT Practice: ${quizData.topic}\nLevel: **${difficulty}** (Verifed KB Content)\n\n${formatted}\n\n---\n**Reply with your answers (e.g. 1A, 2B...) to see your score.**` };
+    }
+
+    if (module.active) {
+        const quizData = module.quiz_data;
+        const gradingPrompt = `
+        Agent: SAT_GRADER
+        Quiz Key: ${quizData.questions.map(q => `${q.id}: ${q.correctAnswer}`).join(', ')}
+        Student Answers: "${message}"
+        
+        TASK:
+        1. Evaluate answers carefully.
+        2. Show Score.
+        3. Provide SAT-level feedback for each question.
+        4. For incorrect answers, explicitly identify the "distractor trap" the student likely fell into.
+        
+        OUTPUT JSON:
+        {
+          "score": 0,
+          "total": ${quizData.questions.length},
+          "reviews": [{"id": 1, "isCorrect": boolean, "explanation": "Brief rationale"}]
+        }
+        `;
+        const gradingRes = await generateAIResponse([{ role: "user", content: gradingPrompt }], true);
+        const results = extractJSON(gradingRes);
+
+        if (!results) return { reply: "I couldn't parse your answers. Please use the format '1A, 2B'." };
+
+        let report = `### ✅ Quiz Evaluation Complete\n\n**Score: ${results.score} / ${results.total}**\n\n**Detailed Review:**\n\n`;
+        results.reviews.forEach((r, i) => {
+            const q = quizData.questions[i];
+            report += `**${i + 1}️⃣** ${r.isCorrect ? 'Correct ✅' : `Incorect ❌ (Correct: **${q.correctAnswer}**)`}\n*Insight: ${r.explanation}*\n\n`;
+        });
+        report += `---\n**What's next?** 1. Retry 2. New Topic 3. Discussion`;
+
+        module.active = false; // End quiz loop
+        return { reply: report };
+    }
 };
 
-// 6. TPP_DOUBT_SOLVER: 24/7 Doubt-Solving Agent
+// 5. DOUBT SOLVER
 const tppDoubtSolverAgent = async (message, state, appName) => {
-    const difficulty = state.preferences?.difficulty || 'Medium';
-    const prompt = `
-    Agent Name: TPP_DOUBT_SOLVER
-    
-    You are a supportive SAT tutor at ${appName}.
-
-    STREAMLINED FORMAT (CRITICAL):
-    - NO robotic headers like "**1. Problem Breakdown**".
-    - Use natural phrasing and conversational transitions.
-    - Break down the logic step-by-step in paragraphs.
-
-    Rules:
-    - NEVER give the final answer immediately.
-    - Withhold the answer until requested or attempt made.
-    ${LATEX_RULES}
-    
-    Input Context:
-    Student Question: "${message}"
-    
-    RESPONSE STYLE:
-    "Looking at your question about [Topic], the key is to understand [Concept]..." Followed by a hint or a starting step.
-    
-    Return JSON: {"reply": "natural_flow_markdown_response"}
-  `;
+    const prompt = `Agent: TPP_DOUBT_SOLVER at ${appName}. Natural, conversational SAT help. ${LATEX_RULES}\nUser: "${message}"\nJSON: {"reply": "..."}`;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
 };
 
-
-// 7. TPP_PARENT_REPORTER: Parent Communication Agent
+// 6. PARENT REPORTER
 const tppParentReporterAgent = async (message, state, appName) => {
-    const prompt = `
-    Agent Name: TPP_PARENT_REPORTER
-    
-    You are a professional academic advisor communicating with parents on behalf of ${appName}.
-
-    Input Context:
-    Student Name: ${state.user_name || 'Student'}
-    Performance Data: ${JSON.stringify(state.mastery || {})}
-    Current Score: ${state.baseline?.total || 1200}
-    Target Score: ${state.goal || '1400+'}
-    Drills Completed: ${state.session_log?.filter(l => l.text?.includes('drill'))?.length || 3}
-    
-    Task: Write a progress email exactly matching this format:
-
-    OUTPUT FORMAT (Markdown):
-    **Dear Parent,**
-
-    **We’re happy to share your child’s weekly SAT preparation progress.**
-
-    ### **📊 Weekly Progress Summary**
-
-    **Math Score:** [Insert Score, e.g. 640]
-    *(↑ [X]% improvement in accuracy, with notable gains in [Topic])*
-
-    **English (Reading & Writing) Score:** [Insert Score, e.g. 600]
-    *(Steady improvement in [Topic] and [Topic])*
-
-    **Practice Completed:**
-    [Number] focused and challenging practice drills
-
-    **Current Total SAT Score:** [Total]
-    **Target Score:** [Target]
-
-    ### **📈 Progress Outlook**
-
-    Your child is making consistent and meaningful progress and is currently on track toward the [Target] goal. We will continue concentrating on high-impact topics and targeted practice to maximize score improvement in the coming weeks.
-
-    **Great momentum—keep up the excellent work!**
-
-    **Warm regards,**
-    **${appName} Learning Team**
-    
-    Return JSON: {"reply": "markdown_response_here"}
-  `;
+    const prompt = `Agent: TPP_PARENT_REPORTER at ${appName}. Format progress report.\nState: ${JSON.stringify(state)}\nJSON: {"reply": "..."}`;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
 };
 
-// 8. TPP_TEST_ANALYST: Practice Test Review Agent
+// 7. TEST ANALYST
 const tppTestAnalystAgent = async (message, state, appName) => {
-    const prompt = `
-    Agent Name: TPP_TEST_ANALYST
-    
-    You are an SAT performance analyst at ${appName}.
-
-    Your role:
-    - Review full practice tests
-    - Identify patterns in mistakes
-    - Recommend targeted improvements
-
-    Classification:
-    - Concept error
-    - Timing issue
-    - Careless mistake
-    - Strategy gap
-    
-    Input Context:
-    User Message: "${message}"
-    Errors: ${JSON.stringify(state.error_patterns || {})}
-    
-    OUTPUT FORMAT (Markdown):
-    1. Score Summary
-    2. Error Pattern Breakdown
-    3. Top 3 Fixable Issues
-    4. Recommended Practice Plan
-    5. Estimated Score Gain
-    
-    Return JSON: {"reply": "markdown_response_here"}
-  `;
+    const prompt = `Agent: TPP_TEST_ANALYST. Analyze test errors: ${JSON.stringify(state.error_patterns || {})}.\nUser: "${message}"\nJSON: {"reply": "..."}`;
     const response = await generateAIResponse([{ role: "user", content: prompt }], true);
     return extractJSON(response);
 };
 
-// 9. TPP_TUTOR_COPILOT: Tutor Assistant Agent
-const tppTutorCopilotAgent = async (message, state, appName) => {
-    const prompt = `
-    Agent Name: TPP_TUTOR_COPILOT
-    
-    You assist human tutors at ${appName}.
-
-    Goals:
-    - Save tutor time
-    - Improve lesson quality
-    - Highlight what matters most
-
-    Rules:
-    - Be concise
-    - Be actionable
-    
-    Input Context:
-    Student Snapshot: ${JSON.stringify(state.baseline || {})}
-    Current Weaknesses: ${JSON.stringify(state.mastery || {})}
-    
-    OUTPUT FORMAT (Markdown):
-    1. Student Snapshot
-    2. Current Weaknesses
-    3. Suggested Lesson Plan
-    4. Homework Recommendations
-    5. Talking Points for Tutor
-    
-    Return JSON: {"reply": "markdown_response_here"}
-  `;
-    const response = await generateAIResponse([{ role: "user", content: prompt }], true);
-    return extractJSON(response);
+// 8. STRUCTURED TEACHER
+const tppStructuredTeacherAgent = async (message, state, appName) => {
+    if (!state.teaching_module) state.teaching_module = { active: false, step: 'INIT' };
+    const module = state.teaching_module;
+    if (!module.active) {
+        module.active = true; module.step = 'WAIT_FOR_MODE';
+        return { reply: "Let's start learning! Would you like 1. Step-by-step or 2. Quiz?" };
+    }
 };
 
-// --- REFINED ORCHESTRATOR HANDLER ---
+// --- ORCHESTRATOR HANDLER ---
 
-// Helper to sanitize intent
 const detectIntent = (msg) => {
-    const m = msg.toLowerCase();
-
-    // High Priority Keywords
-    if (m.includes('intake') || (m.includes('start') && m.includes('coach')) || m.includes('reset goal')) return 'Intake';
-    if ((m.includes('assess') && m.includes('level')) || m.includes('diagnostic')) return 'Diagnose';
-    if (m.includes('plan') || m.includes('schedule') || m.includes('roadmap')) return 'Plan Session';
-    if (m.includes('practice') || m.includes('drill') || m.includes('quiz')) return 'Practice Loop';
-    if ((m.includes('report') && m.includes('parent')) || m.includes('summary')) return 'Parent Report'; // Mapped name
-    if ((m.includes('review') && m.includes('test')) || m.includes('analyze mistake')) return 'Review';
-    if (m.includes('stuck') || m.includes('hint') || m.includes('solve this') || m.includes('help me')) return 'Doubt Solving';
-
-    // Fallback to Orchestrator prompt if no keywords match
+    const m = (msg || "").toLowerCase();
+    if (m.includes('teach') || m.includes('learn') || m.includes('study')) return 'StructuredTeaching';
+    if (m.includes('quiz') || m.includes('practice') || m.includes('questions') || m.includes('drill')) return 'Practice Loop';
+    if (m.includes('plan') || m.includes('schedule')) return 'Plan Session';
+    if (m.includes('stuck') || m.includes('hint') || m.includes('help me')) return 'Doubt Solving';
     return null;
 };
 
 export const handleTutorRequest = async (userId, message, context, difficulty) => {
     try {
-        console.log(`🧠 [Tutor Flow] Processing request for user ${userId} with difficulty ${difficulty}`);
-        const startTime = Date.now();
-        console.log(`🤖 [Tutor Agent] Step 1: Loading state for ${userId}`);
-
-        // 0. Load Site Settings & State in parallel for speed
-        const [siteSettings, state] = await Promise.all([
-            getAppSettings(),
-            getStudentState(userId)
-        ]);
-        const appName = siteSettings.app_name || 'Pundits AI';
+        const [siteSettings, state] = await Promise.all([getAppSettings(), getStudentState(userId)]);
+        const appName = siteSettings.app_name || 'Personal AI Tutor';
         if (!state.current_state) state.current_state = "Start Session";
+        if (difficulty) { state.preferences = state.preferences || {}; state.preferences.difficulty = difficulty; }
 
-        // Update difficulty if provided
-        if (difficulty) {
-            state.preferences = state.preferences || {};
-            state.preferences.difficulty = difficulty;
-        }
-
-        // 1. FAST SAFETY CHECK - Skip LLM for short/simple messages
-        const msgLower = message.toLowerCase().trim();
-        const isSuspicious = msgLower.includes('give me the answer') ||
-            msgLower.includes('just tell me') ||
-            msgLower.includes('cheat') ||
-            message.length > 500; // Long messages need check
-
-        if (isSuspicious) {
-            const safety = await safetyGuard(message);
-            if (safety && !safety.safe) {
-                return { reply: "I cannot fulfill that request. " + (safety.reason || "Please try a different approach.") };
-            }
-        }
-
-        // 2. Update Session Log
+        const msgLower = (message || "").toLowerCase().trim();
         state.session_log = state.session_log || [];
         state.session_log.push({ sender: 'user', text: message, timestamp: new Date() });
 
-        // 3. FAST ROUTING - Use keyword detection first (no LLM call)
+        // ROUTING
         let nextState = detectIntent(message);
 
-        // Only use LLM orchestrator if no keyword match AND message is ambiguous
-        if (!nextState && message.length > 20 && !msgLower.includes('?')) {
-            // Skip orchestrator for simple questions - default to Teach/DoubtSolving
-            nextState = msgLower.includes('how') || msgLower.includes('what') || msgLower.includes('why') || msgLower.includes('explain')
-                ? 'Doubt Solving'
-                : 'Teach';
-            console.log(`👉 [Orchestrator] Fast-path routing to: ${nextState}`);
-        } else if (!nextState) {
-            // Default for short questions
-            nextState = 'Doubt Solving';
-            console.log(`👉 [Orchestrator] Default routing to: ${nextState}`);
-        } else {
-            console.log(`👉 [Orchestrator] Keyword forced state: ${nextState}`);
+        // Sticky states override
+        const exitKeywords = ['stop', 'exit', 'quit', 'reset'];
+        const inTeacher = state.current_state === 'StructuredTeaching' && state.teaching_module?.active;
+        const inQuiz = state.current_state === 'Practice Loop' && state.practice_module?.active;
+
+        if ((inTeacher || inQuiz) && !exitKeywords.some(k => msgLower.includes(k))) {
+            nextState = state.current_state;
+        } else if (exitKeywords.some(k => msgLower.includes(k))) {
+            if (state.teaching_module) state.teaching_module.active = false;
+            if (state.practice_module) state.practice_module.active = false;
+            nextState = 'Start Session';
         }
 
-        // Normalize state names if LLM messes up
-        if (nextState === 'Recap') nextState = 'Parent Report';
-
-        if (nextState && nextState !== state.current_state) {
-            state.current_state = nextState;
+        // Regex for answers to force Practice Loop
+        if (!nextState && (msgLower.includes('answer') || msgLower.match(/\d+[)\.]\s*[a-d]/i))) {
+            if (state.current_state !== 'StructuredTeaching') nextState = 'Practice Loop';
         }
 
-        // 4. FAST PATH - Use quick response for simple short questions (under 80 chars)
-        const isSimpleQuestion = message.length < 80 &&
-            (msgLower.includes('?') || msgLower.startsWith('what') || msgLower.startsWith('how') ||
-                msgLower.startsWith('why') || msgLower.startsWith('explain') || msgLower.startsWith('help'));
+        if (!nextState) nextState = 'Doubt Solving';
+        if (nextState && nextState !== state.current_state) state.current_state = nextState;
 
-        if (isSimpleQuestion && (nextState === 'Doubt Solving' || nextState === 'Teach')) {
-            console.log(`⚡ [Fast Path] Using quick response for simple question`);
-            const quickResp = await quickResponseAgent(message, appName);
-            if (quickResp?.reply) {
-                state.session_log.push({ sender: 'ai', text: quickResp.reply, timestamp: new Date() });
-                await updateStudentState(userId, state);
-                console.log(`✅ [Tutor Flow] Fast response in ${Date.now() - startTime}ms`);
-                return { reply: quickResp.reply };
-            }
-        }
-
-        // 5. Execute Agent based on State (full response for complex queries)
+        // EXECUTION
         let agentResponse;
-        const sysOverride = (txt) => `SYSTEM_INSTRUCTION: ${txt}`;
-
         switch (state.current_state) {
-            case "Intake":
-                agentResponse = await tppSatTutorAgent(sysOverride("The user wants to start intake. Ask for Goal, Test Date, and Weaknesses explicitly."), state, appName);
-                break;
-
-            case "Diagnose":
-                agentResponse = await tppDiagnosticPlannerAgent(sysOverride("Perform a diagnostic assessment. Ask 1 calibrated question or requests test data."), state, appName);
-                break;
-
-            case "Plan Session":
-                agentResponse = await tppDiagnosticPlannerAgent(message, state, appName);
-                break;
-
-            case "Teach":
-                agentResponse = await tppSatTutorAgent(message, state, appName);
-                break;
-
-            case "Practice Loop":
-                agentResponse = await tppWeaknessDrillerAgent(message, state, appName);
-                break;
-
-            case "Review":
-                agentResponse = await tppTestAnalystAgent(message, state, appName);
-                break;
-
-            case "Recap":
-            case "Parent Report":
-                agentResponse = await tppParentReporterAgent(message, state, appName);
-                break;
-
-            case "Doubt Solving":
-                agentResponse = await tppDoubtSolverAgent(message, state, appName);
-                break;
-
-            case "Start Session":
-            default:
-                if (message.toLowerCase().includes("plan")) {
-                    agentResponse = await tppDiagnosticPlannerAgent(message, state, appName);
-                } else if (message.toLowerCase().includes("report") || message.toLowerCase().includes("parent")) {
-                    agentResponse = await tppParentReporterAgent(message, state, appName);
-                } else {
-                    agentResponse = await tppSatTutorAgent(message, state, appName);
-                }
-                break;
+            case "StructuredTeaching": agentResponse = await tppStructuredTeacherAgent(message, state, appName); break;
+            case "Practice Loop": agentResponse = await tppWeaknessDrillerAgent(message, state, appName); break;
+            case "Doubt Solving": agentResponse = await tppDoubtSolverAgent(message, state, appName); break;
+            case "Plan Session": agentResponse = await tppDiagnosticPlannerAgent(message, state, appName); break;
+            case "Review": agentResponse = await tppTestAnalystAgent(message, state, appName); break;
+            case "Parent Report": agentResponse = await tppParentReporterAgent(message, state, appName); break;
+            default: agentResponse = await tppSatTutorAgent(message, state, appName); break;
         }
 
-        // 6. Update State
-        const reply = agentResponse?.reply || "I'm thinking...";
+        const reply = agentResponse?.reply || "I'm here to help. What's on your mind?";
         state.session_log.push({ sender: 'ai', text: reply, timestamp: new Date() });
-
-        // Persist state
         await updateStudentState(userId, state);
-
         return { reply };
     } catch (err) {
-        console.error("❌ [Tutor Agent] Critical Error:", err);
-        throw err; // Re-throw to be caught by route handler
+        console.error("❌ Tutor Error:", err);
+        return { reply: "I encountered an error. Let's try restarting our session." };
     }
 };

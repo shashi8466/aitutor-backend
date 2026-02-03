@@ -25,7 +25,9 @@ export const convertToLatex = (node) => {
   switch (tagName) {
     case 'oMath': // Inline Math Container
     case 'oMathPara': // Block Math Container
-      return ` \\(${children.map(convertToLatex).join('')}\\) `;
+      const inner = children.map(convertToLatex).join('').trim();
+      if (inner.startsWith('\\(') || inner.startsWith('$')) return ` ${inner} `;
+      return ` \\(${inner}\\) `;
 
     case 'f': // Fraction
       const num = children.find(c => getTagName(c) === 'num');
@@ -75,7 +77,7 @@ export const convertToLatex = (node) => {
       return tNode ? convertToLatex(tNode) : children.map(convertToLatex).join('');
 
     case 't': // Text Node Wrapper
-      const val = children.map(c => c.nodeValue || '').join('');
+      const val = node.textContent || children.map(c => c.nodeValue || '').join('');
 
       // CRITICAL FIX: Wrap text in \text{} if it looks like words/sentences.
       // This prevents "Theequation..." rendering issues when users type text inside Equation Editor.

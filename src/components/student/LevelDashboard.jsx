@@ -104,12 +104,7 @@ const LevelDashboard = () => {
                         >
                           <SafeIcon icon={FiEye} className="w-3 h-3" /> {viewingFile?.id === file.id ? 'Viewing...' : 'View'}
                         </button>
-                        <button
-                          onClick={() => handleDownload(file.file_url, file.file_name)}
-                          className="text-xs font-bold text-black flex items-center gap-1 hover:underline cursor-pointer"
-                        >
-                          <SafeIcon icon={FiDownload} className="w-3 h-3" /> Download
-                        </button>
+                        {/* Download removed for content security - students can only view */}
                       </div>
                     </div>
                   </div>
@@ -260,7 +255,7 @@ const DocumentViewer = ({ file, onClose }) => {
               rel="noopener noreferrer"
               className="px-6 py-2.5 bg-[#E53935] text-white rounded-lg hover:bg-[#d32f2f] font-medium transition-colors shadow-sm"
             >
-              Download to View
+              Open in New Tab
             </a>
           </div>
         )}

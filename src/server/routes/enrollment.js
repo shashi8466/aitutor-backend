@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 import supabase from '../../supabase/supabase.js';
+import fs from 'fs';
 
 const router = express.Router();
 
@@ -251,15 +252,25 @@ router.post('/use-key', async (req, res) => {
 
         if (error) {
             console.error('Error using enrollment key:', error);
-            return res.status(500).json({ error: 'Failed to use enrollment key' });
+            fs.appendFileSync('enrollment_error.log', `[${new Date().toISOString()}] ${JSON.stringify(error)}\n`);
+
+            return res.status(500).json({
+                error: 'Failed to use enrollment key',
+                details: error.message || error
+            });
+        }
+
+        if (!data || data.length === 0) {
+            console.error('No data returned from use_enrollment_key RPC');
+            return res.status(500).json({ error: 'No response from enrollment service' });
         }
 
         const result = data[0];
 
-        if (!result.success) {
+        if (!result || !result.success) {
             return res.status(400).json({
                 enrolled: false,
-                error: result.error_message
+                error: result?.error_message || 'Failed to use enrollment key'
             });
         }
 
@@ -270,7 +281,11 @@ router.post('/use-key', async (req, res) => {
 
     } catch (error) {
         console.error('Use enrollment key error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        fs.appendFileSync('enrollment_error.log', `[${new Date().toISOString()}] CATCH ERROR: ${error.message}\n${error.stack}\n`);
+        res.status(500).json({
+            error: 'Internal server error',
+            details: error.message
+        });
     }
 });
 

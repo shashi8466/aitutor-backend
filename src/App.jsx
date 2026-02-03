@@ -33,6 +33,7 @@ import CollegeAdvisor from './components/student/agents/CollegeAdvisor';
 import ParentConnect from './components/student/agents/ParentConnect';
 import PaymentSuccess from './components/student/PaymentSuccess';
 import PracticeTests from './components/student/PracticeTests';
+import DetailedTestReview from './components/student/DetailedTestReview';
 import SalesBot from './components/common/SalesBot';
 import TutorDashboard from './components/tutor/TutorDashboard';
 
@@ -58,6 +59,9 @@ console.log('📡 [API Connectivity]');
 console.log('  - Hostname:', window.location.hostname);
 console.log('  - Environment:', isLocal ? 'Local Development' : isFirebase ? 'Production (Firebase)' : 'Unknown');
 console.log('  - Backend URL:', BACKEND_URL || '(Relative Path / Proxy)');
+console.log('  - Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+console.log('  - Has Anon Key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+console.log('  - NODE_ENV:', import.meta.env.NODE_ENV);
 
 axios.defaults.baseURL = BACKEND_URL;
 axios.defaults.withCredentials = true;
@@ -160,6 +164,7 @@ function App() {
             <Route path="plan" element={<StudyPlanPage />} />
             <Route path="drills" element={<WeaknessDrills />} />
             <Route path="test-review" element={<TestReview />} />
+            <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
             <Route path="college" element={<CollegeAdvisor />} />
             <Route path="parent" element={<ParentConnect />} />
 

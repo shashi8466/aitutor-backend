@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
+import ReactMarkdown from 'react-markdown';
 
 const {
   FiFileText, FiLink, FiCpu, FiAlignLeft, FiEye, FiAlertCircle,
@@ -107,8 +108,29 @@ const SmartDocViewer = ({ file, url, textContent }) => {
             </div>
 
             {textContent ? (
-              <div className={`prose prose-lg max-w-none leading-8 font-serif whitespace-pre-wrap ${isDarkMode ? 'prose-invert text-gray-300' : 'text-gray-700'}`}>
-                {textContent}
+              <div className={`prose prose-lg max-w-none ${isDarkMode ? 'prose-invert' : ''}`}>
+                <ReactMarkdown
+                  components={{
+                    h1: ({ node, ...props }) => <h1 className="text-3xl font-extrabold mt-8 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700" {...props} />,
+                    h2: ({ node, ...props }) => <h2 className="text-2xl font-bold mt-8 mb-4 text-blue-600 dark:text-blue-400" {...props} />,
+                    h3: ({ node, ...props }) => <h3 className="text-xl font-bold mt-6 mb-3" {...props} />,
+                    p: ({ node, ...props }) => <p className="mb-4 leading-relaxed text-lg" {...props} />,
+                    ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-6 mb-4 space-y-2" {...props} />,
+                    ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-6 mb-4 space-y-2" {...props} />,
+                    li: ({ node, ...props }) => <li className="pl-1" {...props} />,
+                    blockquote: ({ node, ...props }) => (
+                      <blockquote className="border-l-4 border-blue-500 pl-4 py-1 my-4 bg-gray-50 dark:bg-gray-800/50 italic text-gray-700 dark:text-gray-300 rounded-r" {...props} />
+                    ),
+                    code: ({ node, inline, className, children, ...props }) => (
+                      inline
+                        ? <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono text-red-600 dark:text-red-400" {...props}>{children}</code>
+                        : <pre className="bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto my-4"><code className="font-mono text-sm" {...props}>{children}</code></pre>
+                    ),
+                    hr: ({ node, ...props }) => <hr className="my-8 border-gray-200 dark:border-gray-700" {...props} />,
+                  }}
+                >
+                  {textContent}
+                </ReactMarkdown>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-20 opacity-50">

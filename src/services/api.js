@@ -77,7 +77,7 @@ export const authService = {
       .from('profiles')
       .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
     return data;
   },
   updateRole: async (userId, role) => {
@@ -111,8 +111,8 @@ export const authService = {
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
-      .single();
+      .select('*')
+      .maybeSingle();
     if (error) throw error;
     return { data };
   },
@@ -462,7 +462,7 @@ export const planService = {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
   }
 };
 
@@ -564,6 +564,9 @@ export const gradingService = {
   getSubmission: async (id) => {
     return axios.get(`/api/grading/submission/${id}`);
   },
+  getAllMyScores: async () => {
+    return axios.get('/api/grading/all-my-scores');
+  },
   getMyScores: async (courseId) => {
     return axios.get(`/api/grading/my-scores/${courseId}`);
   },
@@ -602,6 +605,46 @@ export const tutorService = {
   getStudents: async (courseId = null) => {
     const url = courseId ? `/api/tutor/students?courseId=${courseId}` : '/api/tutor/students';
     return axios.get(url);
+  },
+  // New analytics endpoints
+  getGroupMembers: async (groupId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/members`);
+  },
+  getGroupAnalytics: async (groupId, startDate = null, endDate = null) => {
+    let url = `/api/tutor/groups/${groupId}/analytics`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const queryString = params.toString();
+    if (queryString) url += `?${queryString}`;
+    return axios.get(url);
+  },
+  compareGroups: async (groupIds) => {
+    // groupIds should be an array of group IDs
+    const idsString = Array.isArray(groupIds) ? groupIds.join(',') : groupIds;
+    return axios.get(`/api/tutor/groups/compare?groupIds=${idsString}`);
+  }
+};
+
+// --- ADMIN SERVICE (GROUP MANAGEMENT) ---
+export const adminService = {
+  getAllGroups: async () => {
+    return axios.get('/api/admin/groups');
+  },
+  getTutorGroups: async (tutorId) => {
+    return axios.get(`/api/admin/tutors/${tutorId}/groups`);
+  },
+  reassignGroup: async (groupId, tutorId) => {
+    return axios.post(`/api/admin/groups/${groupId}/assign-tutor`, { tutorId });
+  },
+  bulkAssignStudents: async (groupId, studentIds) => {
+    return axios.post(`/api/admin/groups/${groupId}/assign-students`, { studentIds });
+  },
+  getUnassignedStudents: async (courseId) => {
+    return axios.get(`/api/admin/unassigned-students?courseId=${courseId}`);
+  },
+  deleteGroup: async (groupId) => {
+    return axios.delete(`/api/admin/groups/${groupId}`);
   }
 };
 
@@ -611,5 +654,31 @@ export const leaderboardService = {
   },
   getCourseRankings: async (courseId) => {
     return await supabase.rpc('get_course_leaderboard', { target_course_id: courseId });
+  }
+};
+
+// --- CALENDAR SERVICE ---
+export const calendarService = {
+  getTasks: async (userId, month, year) => {
+    // Fetches tasks for a specific month/year
+    const start = new Date(year, month, 1).toISOString();
+    const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+
+    return await supabase
+      .from('study_tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('date', start.split('T')[0])
+      .lte('date', end.split('T')[0])
+      .order('date', { ascending: true });
+  },
+  createTask: async (taskData) => {
+    return await supabase.from('study_tasks').insert([taskData]).select().single();
+  },
+  updateTask: async (id, taskData) => {
+    return await supabase.from('study_tasks').update(taskData).eq('id', id).select().single();
+  },
+  deleteTask: async (id) => {
+    return await supabase.from('study_tasks').delete().eq('id', id);
   }
 };

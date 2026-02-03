@@ -35,7 +35,14 @@ const MathRenderer = ({ text, className = '' }) => {
     processedText = processedText.replace(/(^|[^\\])text(?=\{)/g, '$1\\text');
 
     // Remove empty text commands
+    // Remove empty text commands
     processedText = processedText.replace(/\\text\{\s*\}/g, '');
+
+    // FIX: Clean up spaces inside delimiters to help MathJax detection
+    // \(  x \) -> \(x\)
+    processedText = processedText.replace(/\\\(\s+/g, '\\(').replace(/\s+\\\)/g, '\\)');
+    // Fix: Ensure delimiters are not escaped (recovery)
+    processedText = processedText.replace(/\\\\(\(|\)|\[|\])/g, '\\$1');
 
     // ---------------------------------------------------------
     // 1. Basic Markdown Parsing (Bold, Italic, Tables)
@@ -88,6 +95,8 @@ const MathRenderer = ({ text, className = '' }) => {
         if (part.startsWith('<') && part.endsWith('>')) return part;
 
         let subText = part;
+        // Check if this part ALREADY contains math delimiters. 
+        // We match common delimiters and ALSO check if the part is already inside a split delimiter.
         const hasDelimiters = /\$|\\\(|\\\[/.test(subText);
 
         if (!hasDelimiters) {
@@ -97,36 +106,44 @@ const MathRenderer = ({ text, className = '' }) => {
           const simpleLatexPattern = /\\[a-zA-Z]+/g;
 
           // B. Detect Implicit Algebra (e.g. T=2h+18, C_f, q/r)
-          const implicitMathPattern = new RegExp("((?:[a-zA-Z0-9()]+[+\\-*/_^=][a-zA-Z0-9()+\\-*/_^=.]*)+)", "g");
+          // Simplified to avoid matching things that are just plain text with a dash or dot
+          const implicitMathPattern = /((?:[a-zA-Z\d()]+[+\-*/_^=][a-zA-Z\d()+\-*/_^=.]*)+)/g;
 
           subText = subText.replace(implicitMathPattern, (match) => {
             if (match.includes('http') || match.includes('@') || match.includes('www.')) return match;
             if (/^[a-zA-Z]+-[a-zA-Z]+$/.test(match)) return match;
-            if (new RegExp("^\\d{1,4}/\\d{1,2}/\\d{2,4}$").test(match)) return match;
+            if (/^\d{1,4}\/\d{1,2}\/\d{2,4}$/.test(match)) return match;
             if (/[+\-*/_^=]$/.test(match)) return match;
+            // Avoid matching plain numbers as math unless they have math symbols
+            if (/^\d+$/.test(match)) return match;
 
-            const hasMathSignal = /[=_^\\\d]/.test(match) || (new RegExp("[+\\-*/]").test(match) && match.length < 20);
+            const hasMathSignal = /[=_^\\\d]/.test(match) || (/[+\-*/]/.test(match) && match.length < 20);
             return hasMathSignal ? ` \\(${match}\\) ` : match;
           });
 
           // Apply complex LaTeX pattern first (commands with arguments)
           subText = subText.replace(latexPattern, (match) => {
-            if (match.trim().startsWith('\\(') || match.trim().startsWith('$')) return match;
-            return ` \\(${match.trim()}\\) `;
+            const m = match.trim();
+            // Final safety check: if it's just \text{...} and it's long, don't wrap it as math
+            if (m.startsWith('\\text{') && m.length > 30) return match;
+            return ` \\(${m}\\) `;
           });
 
           // Apply simple LaTeX pattern for remaining commands (like \pi)
           subText = subText.replace(simpleLatexPattern, (match) => {
             const trimmedMatch = match.trim();
-            if (trimmedMatch.startsWith('\\(') || trimmedMatch.startsWith('$')) return match;
 
-            // SKIP: These commands MUST have arguments. Wrapping them alone causes "Missing argument" errors
-            const needsBraces = ['\\text', '\\frac', '\\sqrt', '\\sqrt['];
-            if (needsBraces.includes(trimmedMatch)) return match;
+            // SKIP: Common words that might start with \ in some corrupted text but aren't math
+            // OR commands that MUST have arguments.
+            const skipList = ['\\text', '\\frac', '\\sqrt', '\\sqrt[', '\\textbf', '\\textit'];
+            if (skipList.includes(trimmedMatch)) return match;
 
-            // Check if already inside \(\)
-            if (subText.indexOf(`\\(${trimmedMatch}`) !== -1) return match;
-            return ` \\(${trimmedMatch}\\) `;
+            // Check if it's a known common Greek letter or math symbol
+            const mathSymbols = ['\\pi', '\\theta', '\\alpha', '\\beta', '\\gamma', '\\sigma', '\\tau', '\\mu', '\\delta', '\\Delta', '\\omega', '\\Omega', '\\phi', '\\lambda', '\\ge', '\\le', '\\ne', '\\approx', '\\pm', '\\times', '\\div'];
+            if (mathSymbols.includes(trimmedMatch) || trimmedMatch.length > 2) {
+              return ` \\(${trimmedMatch}\\) `;
+            }
+            return match;
           });
         }
         return subText;
@@ -157,7 +174,13 @@ const MathRenderer = ({ text, className = '' }) => {
     <span
       ref={nodeRef}
       className={`math-content ${className}`}
-      style={{ display: 'inline-block', maxWidth: '100%', verticalAlign: 'middle' }}
+      style={{
+        display: 'inline-block',
+        maxWidth: '100%',
+        verticalAlign: 'middle',
+        overflowWrap: 'break-word',
+        wordBreak: 'break-word'
+      }}
     />
   );
 };

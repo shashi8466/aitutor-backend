@@ -88,8 +88,8 @@ const StudentSettings = () => {
       setSuccess('Profile updated successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      console.error(err);
-      setError('Failed to update profile. Please try again.');
+      console.error('❌ Profile Update Error:', err);
+      setError(err?.message || 'Failed to update profile. Please try again.');
     } finally {
       setLoading(false);
     }

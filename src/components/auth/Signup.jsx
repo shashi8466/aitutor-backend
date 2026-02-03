@@ -161,13 +161,19 @@ const Signup = () => {
 
   const checkVerification = async () => {
     setCheckingVerification(true);
+    setResendStatus('');
     // Attempt to login to check if email is verified
     const result = await login({ email: formData.email, password: formData.password });
     if (result.success) {
       setRedirecting(true);
       await finalizeRegistration(formData.role);
     } else {
-      setResendStatus('Email not verified yet. Please check your inbox.');
+      const errMsg = (result.error || '').toLowerCase();
+      if (errMsg.includes('invalid login credentials') || errMsg.includes('invalid grant')) {
+        setResendStatus('This account already exists but the password you entered is incorrect. Please try a different password or reset it.');
+      } else {
+        setResendStatus('Email not verified yet or account does not exist. Please check your inbox.');
+      }
       setCheckingVerification(false);
     }
   };

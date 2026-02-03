@@ -121,6 +121,41 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
 
     if (loading && submissions.length === 0 && courses.length === 0) return <div className="p-8 text-center text-blue-600 font-bold animate-pulse">Loading grades and analysis...</div>;
 
+    const calculateRealScores = (details) => {
+        if (!details) return { math: 0, reading: 0, writing: 0 };
+
+        const normalizeSubject = (s) => {
+            if (!s) return 'Unknown';
+            const str = s.toLowerCase();
+            if (str.includes('math') || str.includes('algebra') || str.includes('geometry')) return 'Math';
+            if (str.includes('reading') || str.includes('literature')) return 'Reading';
+            if (str.includes('writing') || str.includes('grammar') || str.includes('english')) return 'Writing';
+            return 'Other';
+        };
+
+        const getSectionStats = (targetSection) => {
+            const correct = (details.correct_responses || [])
+                .filter(r => normalizeSubject(r.subject) === targetSection).length;
+            const incorrect = (details.incorrect_responses || [])
+                .filter(r => normalizeSubject(r.subject) === targetSection).length;
+            const total = correct + incorrect;
+
+            // Avoid NaN if no questions found for this section
+            if (total === 0) return 0;
+
+            // Linear scoring: 200 base + scaled performance
+            return Math.round(200 + (correct / total) * 600);
+        };
+
+        return {
+            math: getSectionStats('Math'),
+            reading: getSectionStats('Reading'),
+            writing: getSectionStats('Writing')
+        };
+    };
+
+    const realScores = submissionDetails ? calculateRealScores(submissionDetails) : { math: 0, reading: 0, writing: 0 };
+
     return (
         <div className={`space-y-6 ${adminMode ? 'p-0' : ''}`}>
             {!adminMode && (
@@ -175,29 +210,12 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
             {displayedSubmissions.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Avg. Scaled Score</p>
+                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Average Score</p>
                         <p className="text-3xl font-black text-blue-600">
-                            {Math.round(displayedSubmissions.reduce((acc, s) => acc + (s.scaled_score || 0), 0) / displayedSubmissions.length)}
+                            {Math.round(displayedSubmissions.reduce((acc, s) => acc + (s.raw_score_percentage || 0), 0) / (displayedSubmissions.length || 1))}%
                         </p>
                     </div>
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Avg. Math</p>
-                        <p className="text-3xl font-black text-indigo-600">
-                            {Math.round(displayedSubmissions.reduce((acc, s) => acc + (s.math_scaled_score || 0), 0) / displayedSubmissions.length)}
-                        </p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Avg. Reading</p>
-                        <p className="text-3xl font-black text-purple-600">
-                            {Math.round(displayedSubmissions.reduce((acc, s) => acc + (s.reading_scaled_score || 0), 0) / displayedSubmissions.length)}
-                        </p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Avg. Writing</p>
-                        <p className="text-3xl font-black text-pink-600">
-                            {Math.round(displayedSubmissions.reduce((acc, s) => acc + (s.writing_scaled_score || 0), 0) / displayedSubmissions.length)}
-                        </p>
-                    </div>
+
                 </div>
             )}
 
@@ -314,20 +332,22 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                 ) : submissionDetails ? (
                                     <>
                                         {/* Performance Section */}
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            {[
-                                                { label: 'Math Section', score: submissionDetails.math_scaled_score, color: 'from-blue-500 to-indigo-600' },
-                                                { label: 'Reading Section', score: submissionDetails.reading_scaled_score, color: 'from-purple-500 to-pink-600' },
-                                                { label: 'Writing Section', score: submissionDetails.writing_scaled_score, color: 'from-orange-500 to-red-600' }
-                                            ].map((s) => (
-                                                <div key={s.label} className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-100 dark:border-gray-700">
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">{s.label}</p>
-                                                    <div className="flex items-end justify-between">
-                                                        <span className="text-4xl font-black text-gray-900 dark:text-white">{s.score || '--'}</span>
-                                                        <div className={`w-12 h-2 rounded-full bg-gradient-to-r ${s.color}`} />
-                                                    </div>
-                                                </div>
-                                            ))}
+                                        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-8 rounded-2xl shadow-lg text-white flex justify-between items-center">
+                                            <div>
+                                                <p className="text-sm font-bold uppercase tracking-widest text-blue-100 mb-1">Total Score</p>
+                                                <h4 className="text-5xl font-black">
+                                                    {selectedSubmission.raw_score}/{selectedSubmission.total_questions}
+                                                    <span className="text-2xl ml-2 opacity-80">
+                                                        ({Math.round(selectedSubmission.raw_score_percentage || 0)}%)
+                                                    </span>
+                                                </h4>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-bold text-blue-100 uppercase tracking-widest mb-1">Test Level</p>
+                                                <span className="inline-block px-4 py-2 bg-white/20 backdrop-blur-sm rounded-lg text-xl font-bold capitalize">
+                                                    {selectedSubmission.level || 'Standard'}
+                                                </span>
+                                            </div>
                                         </div>
 
                                         {/* Accuracy Cards */}

@@ -11,10 +11,11 @@ import UploadManagement from './UploadManagement';
 import KnowledgeBase from './KnowledgeBase';
 import AdminSettings from './AdminSettings';
 import UserManagement from './UserManagement';
+import AdminGroupManagement from './AdminGroupManagement';
 import { courseService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
-const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut } = FiIcons;
+const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut, FiLayers } = FiIcons;
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalCourses: 0, totalQuestions: 0, totalUploads: 0, activeUsers: 0 });
@@ -56,6 +57,7 @@ const AdminDashboard = () => {
     { name: 'Overview', path: '/admin', icon: FiGrid },
     { name: 'Users', path: '/admin/users', icon: FiUsers },
     { name: 'Courses', path: '/admin/courses', icon: FiBook },
+    { name: 'Student Groups', path: '/admin/groups', icon: FiLayers },
     { name: 'Questions', path: '/admin/questions', icon: FiHelpCircle },
     { name: 'Knowledge Base', path: '/admin/knowledge-base', icon: FiDatabase },
     { name: 'Upload New', path: '/admin/upload', icon: FiUpload },
@@ -66,11 +68,11 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         {/* Header Area with Logout */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -78,8 +80,8 @@ const AdminDashboard = () => {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">Manage courses, questions, content, and settings</p>
             </div>
-            
-            <button 
+
+            <button
               onClick={handleLogout}
               className="flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium border border-red-200 self-start md:self-auto shadow-sm"
             >
@@ -91,19 +93,18 @@ const AdminDashboard = () => {
           {/* Navigation */}
           <div className="mt-6 flex space-x-1 bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto">
             {navLinks.map((link) => {
-              const isActive = link.path === '/admin' 
-                ? location.pathname === '/admin' 
+              const isActive = link.path === '/admin'
+                ? location.pathname === '/admin'
                 : location.pathname.startsWith(link.path);
-              
+
               return (
                 <Link
                   key={link.name}
                   to={link.path}
-                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${isActive
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                    }`}
                 >
                   <SafeIcon icon={link.icon} className="w-4 h-4 mr-2" />
                   {link.name}
@@ -118,6 +119,7 @@ const AdminDashboard = () => {
           <Route path="/users" element={<UserManagement />} />
           <Route path="/courses" element={<CourseManagement onStatsUpdate={loadStats} />} />
           <Route path="/course/:id" element={<AdminCourseDetail />} />
+          <Route path="/groups" element={<AdminGroupManagement />} />
           <Route path="/questions" element={<QuestionManagement />} />
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/upload" element={<FileUpload />} />
@@ -145,7 +147,7 @@ const DashboardHome = ({ stats, loading }) => {
         {statCards.map((stat, index) => (
           <motion.div
             key={stat.title}
-            initial={{ opacity: 0, y: 20 }} 
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
             className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-200 dark:border-gray-700"
@@ -175,6 +177,13 @@ const DashboardHome = ({ stats, loading }) => {
               <h3 className="font-bold dark:text-white">Manage Courses</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">Add or edit courses</p>
             </Link>
+            <Link to="/admin/groups" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
+              <div className="bg-indigo-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
+                <SafeIcon icon={FiLayers} />
+              </div>
+              <h3 className="font-bold dark:text-white">Student Groups</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Manage tutor groups</p>
+            </Link>
             <Link to="/admin/upload" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
               <div className="bg-green-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
                 <SafeIcon icon={FiUpload} />
@@ -188,6 +197,13 @@ const DashboardHome = ({ stats, loading }) => {
               </div>
               <h3 className="font-bold dark:text-white">Knowledge Base</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">Review extracted data</p>
+            </Link>
+            <Link to="/admin/users" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
+              <div className="bg-orange-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
+                <SafeIcon icon={FiUsers} />
+              </div>
+              <h3 className="font-bold dark:text-white">Manage Users</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">View all users</p>
             </Link>
             <Link to="/admin/settings" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
               <div className="bg-gray-700 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">

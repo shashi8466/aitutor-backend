@@ -702,4 +702,345 @@ router.delete('/groups/:groupId', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/tutor/groups/:groupId/members
+ * Get all members of a group with their performance data
+ */
+router.get('/groups/:groupId/members', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Verify group ownership
+        const { data: group } = await supabase
+            .from('student_groups')
+            .select('created_by, course_id')
+            .eq('id', groupId)
+            .single();
+
+        if (!group || group.created_by !== userId) {
+            return res.status(403).json({ error: 'Not authorized for this group' });
+        }
+
+        // Get group members with their profiles
+        const { data: members, error: membersError } = await supabase
+            .from('group_members')
+            .select(`
+                student_id,
+                created_at,
+                student:profiles!student_id(id, name, email)
+            `)
+            .eq('group_id', groupId);
+
+        if (membersError) {
+            console.error('Error fetching members:', membersError);
+            return res.status(500).json({ error: 'Failed to fetch members' });
+        }
+
+        // Get performance data for each member
+        const memberIds = members.map(m => m.student_id);
+
+        if (memberIds.length === 0) {
+            return res.json({ members: [] });
+        }
+
+        const { data: submissions } = await supabase
+            .from('test_submissions')
+            .select('user_id, raw_score, raw_score_percentage, scaled_score, created_at')
+            .eq('course_id', group.course_id)
+            .in('user_id', memberIds)
+            .order('created_at', { ascending: false });
+
+        // Aggregate performance data
+        const membersWithPerformance = members.map(member => {
+            const studentSubmissions = submissions?.filter(s => s.user_id === member.student_id) || [];
+
+            const avgScore = studentSubmissions.length > 0
+                ? studentSubmissions.reduce((sum, s) => sum + (s.raw_score_percentage || 0), 0) / studentSubmissions.length
+                : 0;
+
+            const latestSubmission = studentSubmissions[0];
+
+            return {
+                id: member.student_id,
+                name: member.student?.name,
+                email: member.student?.email,
+                joined_at: member.created_at,
+                total_tests: studentSubmissions.length,
+                average_score: Math.round(avgScore * 10) / 10,
+                latest_score: latestSubmission?.raw_score_percentage || 0,
+                latest_scaled_score: latestSubmission?.scaled_score || 0,
+                last_test_date: latestSubmission?.created_at || null
+            };
+        });
+
+        res.json({ members: membersWithPerformance });
+
+    } catch (error) {
+        console.error('Get group members error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/tutor/groups/:groupId/analytics
+ * Get detailed analytics for a specific group
+ */
+router.get('/groups/:groupId/analytics', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        const { startDate, endDate } = req.query;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Verify group ownership
+        const { data: group } = await supabase
+            .from('student_groups')
+            .select('created_by, course_id, name')
+            .eq('id', groupId)
+            .single();
+
+        if (!group || group.created_by !== userId) {
+            return res.status(403).json({ error: 'Not authorized for this group' });
+        }
+
+        // Get all group members
+        const { data: members } = await supabase
+            .from('group_members')
+            .select('student_id')
+            .eq('group_id', groupId);
+
+        const memberIds = members?.map(m => m.student_id) || [];
+
+        if (memberIds.length === 0) {
+            return res.json({
+                group_name: group.name,
+                total_students: 0,
+                average_score: 0,
+                top_performers: [],
+                low_performers: [],
+                subject_performance: {},
+                progress_trend: []
+            });
+        }
+
+        // Build query with optional date filtering
+        let submissionsQuery = supabase
+            .from('test_submissions')
+            .select('*')
+            .eq('course_id', group.course_id)
+            .in('user_id', memberIds);
+
+        if (startDate) {
+            submissionsQuery = submissionsQuery.gte('created_at', startDate);
+        }
+        if (endDate) {
+            submissionsQuery = submissionsQuery.lte('created_at', endDate);
+        }
+
+        const { data: submissions } = await submissionsQuery.order('created_at', { ascending: false });
+
+        // Calculate overall statistics
+        const totalTests = submissions?.length || 0;
+        const avgScore = totalTests > 0
+            ? submissions.reduce((sum, s) => sum + (s.raw_score_percentage || 0), 0) / totalTests
+            : 0;
+
+        // Calculate per-student averages for ranking
+        const studentScores = {};
+        memberIds.forEach(id => {
+            const studentSubs = submissions?.filter(s => s.user_id === id) || [];
+            if (studentSubs.length > 0) {
+                studentScores[id] = {
+                    avg: studentSubs.reduce((sum, s) => sum + (s.raw_score_percentage || 0), 0) / studentSubs.length,
+                    count: studentSubs.length
+                };
+            }
+        });
+
+        // Get student names
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name, email')
+            .in('id', memberIds);
+
+        const profileMap = {};
+        profiles?.forEach(p => {
+            profileMap[p.id] = p;
+        });
+
+        // Top and low performers
+        const rankedStudents = Object.entries(studentScores)
+            .map(([id, data]) => ({
+                id,
+                name: profileMap[id]?.name || 'Unknown',
+                email: profileMap[id]?.email,
+                average_score: Math.round(data.avg * 10) / 10,
+                total_tests: data.count
+            }))
+            .sort((a, b) => b.average_score - a.average_score);
+
+        const topPerformers = rankedStudents.slice(0, 3);
+        const lowPerformers = rankedStudents.slice(-3).reverse();
+
+        // Subject-wise performance
+        const subjectPerformance = {
+            math: { total: 0, correct: 0, count: 0 },
+            reading: { total: 0, correct: 0, count: 0 },
+            writing: { total: 0, correct: 0, count: 0 }
+        };
+
+        submissions?.forEach(sub => {
+            if (sub.math_total_questions > 0) {
+                subjectPerformance.math.total += sub.math_total_questions;
+                subjectPerformance.math.correct += sub.math_raw_score || 0;
+                subjectPerformance.math.count++;
+            }
+            if (sub.reading_total_questions > 0) {
+                subjectPerformance.reading.total += sub.reading_total_questions;
+                subjectPerformance.reading.correct += sub.reading_raw_score || 0;
+                subjectPerformance.reading.count++;
+            }
+            if (sub.writing_total_questions > 0) {
+                subjectPerformance.writing.total += sub.writing_total_questions;
+                subjectPerformance.writing.correct += sub.writing_raw_score || 0;
+                subjectPerformance.writing.count++;
+            }
+        });
+
+        const subjectStats = {};
+        Object.keys(subjectPerformance).forEach(subject => {
+            const data = subjectPerformance[subject];
+            subjectStats[subject] = {
+                average_percentage: data.total > 0 ? Math.round((data.correct / data.total) * 100 * 10) / 10 : 0,
+                total_questions: data.total,
+                total_tests: data.count
+            };
+        });
+
+        // Progress trend (weekly)
+        const progressTrend = [];
+        if (submissions && submissions.length > 0) {
+            const weeklyData = {};
+            submissions.forEach(sub => {
+                const weekStart = new Date(sub.created_at);
+                weekStart.setHours(0, 0, 0, 0);
+                weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+                const weekKey = weekStart.toISOString().split('T')[0];
+
+                if (!weeklyData[weekKey]) {
+                    weeklyData[weekKey] = { scores: [], date: weekKey };
+                }
+                weeklyData[weekKey].scores.push(sub.raw_score_percentage || 0);
+            });
+
+            Object.values(weeklyData).forEach(week => {
+                progressTrend.push({
+                    week: week.date,
+                    average_score: Math.round((week.scores.reduce((a, b) => a + b, 0) / week.scores.length) * 10) / 10,
+                    test_count: week.scores.length
+                });
+            });
+
+            progressTrend.sort((a, b) => new Date(a.week) - new Date(b.week));
+        }
+
+        res.json({
+            group_name: group.name,
+            total_students: memberIds.length,
+            total_tests: totalTests,
+            average_score: Math.round(avgScore * 10) / 10,
+            top_performers: topPerformers,
+            low_performers: lowPerformers,
+            subject_performance: subjectStats,
+            progress_trend: progressTrend
+        });
+
+    } catch (error) {
+        console.error('Get group analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/tutor/groups/compare
+ * Compare performance between multiple groups
+ */
+router.get('/groups/compare', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupIds } = req.query; // Comma-separated group IDs
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        if (!groupIds) {
+            return res.status(400).json({ error: 'Group IDs required' });
+        }
+
+        const groupIdArray = groupIds.split(',').map(id => parseInt(id));
+
+        // Verify all groups belong to the tutor
+        const { data: groups } = await supabase
+            .from('student_groups')
+            .select('id, name, course_id')
+            .in('id', groupIdArray)
+            .eq('created_by', userId);
+
+        if (!groups || groups.length === 0) {
+            return res.status(404).json({ error: 'No groups found' });
+        }
+
+        const comparison = [];
+
+        for (const group of groups) {
+            // Get members
+            const { data: members } = await supabase
+                .from('group_members')
+                .select('student_id')
+                .eq('group_id', group.id);
+
+            const memberIds = members?.map(m => m.student_id) || [];
+
+            // Get submissions
+            const { data: submissions } = await supabase
+                .from('test_submissions')
+                .select('raw_score_percentage, scaled_score')
+                .eq('course_id', group.course_id)
+                .in('user_id', memberIds);
+
+            const avgScore = submissions && submissions.length > 0
+                ? submissions.reduce((sum, s) => sum + (s.raw_score_percentage || 0), 0) / submissions.length
+                : 0;
+
+            const avgScaledScore = submissions && submissions.length > 0
+                ? submissions.reduce((sum, s) => sum + (s.scaled_score || 0), 0) / submissions.length
+                : 0;
+
+            comparison.push({
+                group_id: group.id,
+                group_name: group.name,
+                student_count: memberIds.length,
+                total_tests: submissions?.length || 0,
+                average_score: Math.round(avgScore * 10) / 10,
+                average_scaled_score: Math.round(avgScaledScore)
+            });
+        }
+
+        res.json({ comparison });
+
+    } catch (error) {
+        console.error('Compare groups error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 export default router;

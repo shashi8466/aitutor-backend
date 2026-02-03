@@ -89,6 +89,10 @@ router.get('/submission/:submissionId', async (req, res) => {
             return res.status(500).json({ error: 'Submission not found' });
         }
 
+        // Add alias for frontend compatibility
+        submission.duration = submission.test_duration_seconds || 0;
+
+
         // Verify access (own submission, or admin, or tutor)
         if (submission.user_id !== userId) {
             const { data: profile } = await supabase
@@ -122,7 +126,7 @@ router.get('/submission/:submissionId', async (req, res) => {
             .select(`
                 selected_answer,
                 is_correct,
-                question:questions(id, question, correct_answer, explanation)
+                question:questions(id, question, correct_answer, explanation, topic)
             `)
             .eq('submission_id', sid);
 
@@ -138,7 +142,10 @@ router.get('/submission/:submissionId', async (req, res) => {
                     selected_answer: r.selected_answer,
                     question_text: r.question?.question,
                     correct_answer: r.question?.correct_answer,
-                    explanation: r.question?.explanation
+                    explanation: r.question?.explanation,
+                    subject: r.question?.topic,
+                    topic: r.question?.topic,
+                    question: r.question // Keep full question object for frontend
                 }));
 
             submission.correct_responses = responses
@@ -147,9 +154,15 @@ router.get('/submission/:submissionId', async (req, res) => {
                     selected_answer: r.selected_answer,
                     question_text: r.question?.question,
                     correct_answer: r.question?.correct_answer,
-                    explanation: r.question?.explanation
+                    explanation: r.question?.explanation,
+                    subject: r.question?.topic,
+                    topic: r.question?.topic,
+                    question: r.question // Keep full question object for frontend
                 }));
+        } else if (responsesError) {
+            console.error(`❌ [GRADING] Error fetching responses for sub ${sid}:`, responsesError);
         }
+
 
         // 2. Supplement/Fallback: If any responses are missing, fetch from questions table
         const missingIncorrect = (submission.incorrect_questions?.length || 0) > submission.incorrect_responses.length;
@@ -165,7 +178,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                 if (missingIds.length > 0) {
                     const { data: fallback } = await supabase
                         .from('questions')
-                        .select('id, question, correct_answer, explanation')
+                        .select('id, question, correct_answer, explanation, topic')
                         .in('id', missingIds);
 
                     if (fallback) {
@@ -175,7 +188,8 @@ router.get('/submission/:submissionId', async (req, res) => {
                                 selected_answer: 'Not recorded',
                                 question_text: q.question,
                                 correct_answer: q.correct_answer,
-                                explanation: q.explanation
+                                explanation: q.explanation,
+                                subject: q.topic
                             }))
                         ];
                     }
@@ -189,7 +203,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                 if (missingIds.length > 0) {
                     const { data: fallback } = await supabase
                         .from('questions')
-                        .select('id, question, correct_answer, explanation')
+                        .select('id, question, correct_answer, explanation, topic')
                         .in('id', missingIds);
 
                     if (fallback) {
@@ -199,7 +213,8 @@ router.get('/submission/:submissionId', async (req, res) => {
                                 selected_answer: q.correct_answer, // Since it's correct, selected must be correct_answer
                                 question_text: q.question,
                                 correct_answer: q.correct_answer,
-                                explanation: q.explanation
+                                explanation: q.explanation,
+                                subject: q.topic
                             }))
                         ];
                     }
@@ -211,6 +226,37 @@ router.get('/submission/:submissionId', async (req, res) => {
 
     } catch (error) {
         console.error('Get submission error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/all-my-scores
+ * Get all test submissions for the current user
+ */
+router.get('/all-my-scores', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { data: submissions, error } = await supabase
+            .from('test_submissions')
+            .select('*, course:courses(name)')
+            .eq('user_id', userId)
+            .order('test_date', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching all scores:', error);
+            return res.status(500).json({ error: 'Failed to fetch scores' });
+        }
+
+        res.json({ submissions: submissions || [] });
+
+    } catch (error) {
+        console.error('Get all scores error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

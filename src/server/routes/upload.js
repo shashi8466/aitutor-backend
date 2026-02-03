@@ -88,6 +88,7 @@ router.get('/test', async (req, res) => {
 
 router.post('/', upload.single('file'), async (req, res) => {
   console.log('\n📤 [UPLOAD] New upload request received');
+  console.log('✨ [DEBUG] Using UPDATED upload handler with topic support! ✨');
   console.log(' - Time:', new Date().toISOString());
   console.log(' - File present:', !!req.file);
 
@@ -185,10 +186,10 @@ router.post('/', upload.single('file'), async (req, res) => {
       if (fullError.message && fullError.message.includes("Could not find the 'status' column")) {
         // This is a schema cache issue, try to work around it by refreshing the connection
         console.log('🔄 Detected schema cache issue for status column, attempting workaround...');
-        
+
         // Create a new supabase client instance to bypass cache
         const freshSupabase = getSupabase(req.headers.authorization);
-        
+
         // Try a minimal insert with only the absolutely required fields
         const minimalData = {
           course_id: parseInt(courseId),
@@ -206,16 +207,16 @@ router.post('/', upload.single('file'), async (req, res) => {
         if (insertWithoutStatusError) {
           // If even this fails, there might be other schema issues
           console.error('❌ [UPLOAD] Even minimal insert failed:', insertWithoutStatusError.message);
-          
+
           // Last resort: try to ensure the uploads table has the status column via a separate approach
           // In this case, the user will need to manually run the migration in Supabase SQL Editor
           throw new Error(`Database error: ${insertWithoutStatusError.message}. Schema may need manual refresh in Supabase dashboard.`);
         }
-        
+
         // Now try to update the record with the status value
         const { error: updateError } = await freshSupabase
           .from('uploads')
-          .update({ 
+          .update({
             status: (parse === 'true' || category === 'quiz_document') ? 'processing' : 'completed',
             questions_count: 0,
             category: category,
@@ -236,7 +237,7 @@ router.post('/', upload.single('file'), async (req, res) => {
             .select()
             .eq('id', insertWithoutStatus.id)
             .single();
-            
+
           if (fetchError) {
             console.warn('⚠️ [UPLOAD] Could not fetch updated record, using original insert:', fetchError.message);
             initialUpload = insertWithoutStatus;
@@ -340,26 +341,32 @@ router.post('/', upload.single('file'), async (req, res) => {
 
             const imageRegex = /\[IMAGE:\s*([^\]]+)\]/g;
 
-            // Replace in Question
-            processedQuestion = processedQuestion.replace(imageRegex, (match, fullId) => {
-              const imageId = fullId.split('.')[0];
-              if (imageMap[imageId]) {
-                const url = imageMap[imageId];
-                if (!mainImage) mainImage = url;
-                return `<div class="question-image" style="margin:15px 0; text-align:center;"><img src="${url}" alt="Diagram" style="max-width:100%; height:auto; border-radius:8px;" /></div>`;
-              }
-              return '';
+            // Create a case-insensitive map
+            const ciImageMap = {};
+            Object.keys(imageMap).forEach(key => {
+              ciImageMap[key.toLowerCase()] = imageMap[key];
             });
 
-            // Replace in Explanation
-            processedExplanation = processedExplanation.replace(imageRegex, (match, fullId) => {
-              const imageId = fullId.split('.')[0];
-              if (imageMap[imageId]) {
-                const url = imageMap[imageId];
-                return `<div class="explanation-image" style="margin:10px 0; text-align:center;"><img src="${url}" alt="Solution Step" style="max-width:100%; height:auto; border-radius:4px;" /></div>`;
-              }
-              return '';
-            });
+            // Helper to replace image placeholders with HTML
+            const replaceImages = (text, isExplanation = false) => {
+              if (!text) return text;
+              return text.replace(imageRegex, (match, fullId) => {
+                const imageId = fullId.split('.')[0].toLowerCase();
+                if (ciImageMap[imageId]) {
+                  const url = ciImageMap[imageId];
+                  if (!mainImage && !isExplanation) mainImage = url;
+                  const className = isExplanation ? "explanation-image" : "question-image";
+                  const style = isExplanation ? "margin:10px 0; text-align:center;" : "margin:15px 0; text-align:center;";
+                  const imgStyle = isExplanation ? "max-width:100%; height:auto; border-radius:8px;" : "max-width:100%; height:auto; border-radius:8px;";
+                  return `<div class="${className}" style="${style}"><img src="${url}" alt="Diagram" style="${imgStyle}" /></div>`;
+                }
+                return match; // Keep the placeholder if image not found, don't delete it
+              });
+            };
+
+            processedQuestion = replaceImages(processedQuestion);
+            processedExplanation = replaceImages(processedExplanation, true);
+            const processedOptions = (q.options || []).map(opt => replaceImages(opt));
 
             let questionLevel;
             if (level === 'All') {
@@ -374,11 +381,12 @@ router.post('/', upload.single('file'), async (req, res) => {
               level: normalizedLevel,
               type: (q.options && q.options.length >= 2) ? 'mcq' : 'short_answer',
               question: processedQuestion,
-              options: q.options || [],
+              options: processedOptions,
               correct_answer: q.correctAnswer || '',
               explanation: processedExplanation,
               upload_id: uploadId,
-              image: mainImage
+              image: mainImage,
+              topic: q.topic || null
             };
           });
 

@@ -7,7 +7,7 @@ const { FiFileText, FiDownload, FiSearch, FiFilter, FiFolder } = FiIcons;
 
 const Worksheets = () => {
   const [filter, setFilter] = useState('');
-  
+
   // Mock Data
   const worksheets = [
     { id: 1, title: 'Algebra II Practice Set', topic: 'Math', level: 'Hard', size: '2.4 MB' },
@@ -29,9 +29,9 @@ const Worksheets = () => {
           </div>
           <div className="relative w-full md:w-80">
             <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-gray-400 w-4 h-4" />
-            <input 
-              type="text" 
-              placeholder="Search worksheets..." 
+            <input
+              type="text"
+              placeholder="Search worksheets..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#E53935] outline-none shadow-sm"
@@ -41,7 +41,7 @@ const Worksheets = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((item, idx) => (
-            <motion.div 
+            <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -52,19 +52,18 @@ const Worksheets = () => {
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-[#E53935]">
                   <SafeIcon icon={FiFileText} className="w-6 h-6" />
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                  item.level === 'Hard' ? 'bg-red-50 text-red-700 border-red-100' : 
-                  item.level === 'Medium' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                  'bg-green-50 text-green-700 border-green-100'
-                }`}>
+                <span className={`text-[10px] font-bold px-2 py-1 rounded border ${item.level === 'Hard' ? 'bg-red-50 text-red-700 border-red-100' :
+                    item.level === 'Medium' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                      'bg-green-50 text-green-700 border-green-100'
+                  }`}>
                   {item.level}
                 </span>
               </div>
               <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-1">{item.title}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{item.topic} • {item.size}</p>
-              
+
               <button className="w-full py-3 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600 rounded-xl font-bold text-sm hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all flex items-center justify-center gap-2 group-hover:border-transparent">
-                <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
+                <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Only
               </button>
             </motion.div>
           ))}

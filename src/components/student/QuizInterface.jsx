@@ -243,7 +243,7 @@ const QuizInterface = () => {
           parseInt(courseId),
           level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
           Math.round(rawPercentage),
-          rawPercentage >= 40
+          rawPercentage >= 15
         );
         console.log("✅ [QUIZ] Progress synced to student_progress table");
       } catch (syncErr) {
@@ -266,7 +266,7 @@ const QuizInterface = () => {
           parseInt(courseId),
           level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
           percentage,
-          percentage >= 40
+          percentage >= 15
         );
         setResultMessage("Saved to progress (fallback)");
         setShowResults(true);
@@ -291,7 +291,7 @@ const QuizInterface = () => {
     const res = submissionResult;
     const percentage = res ? Math.round(res.percentage) : 0;
     const scaledScore = res?.scaledScore || Math.round(200 + (percentage / 100) * 600);
-    const isPassed = percentage >= 40;
+    const isPassed = percentage >= 15;
 
     return (
       <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-950 flex flex-col items-center justify-center p-4 transition-colors">
@@ -478,6 +478,16 @@ const QuizInterface = () => {
             <div className="bg-[#E53935] h-1.5 transition-all" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
           </div>
           <div className="p-8 md:p-10">
+            {/* Topic Badge - Display on first line if topic exists */}
+            {currentQuestion.topic && (
+              <div className="mb-6">
+                <span className="inline-block px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-base font-bold rounded-lg border border-blue-100 dark:border-blue-900/30">
+                  {currentQuestion.topic}
+                </span>
+              </div>
+            )}
+
+            {/* Question - Starts on new line */}
             <div className="flex items-start gap-4 mb-6">
               <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 text-[#E53935] font-extrabold text-sm flex-shrink-0 border border-red-100 dark:border-red-900/50">
                 {currentQuestionIndex + 1}

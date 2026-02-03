@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
 import MathRenderer from '../../../common/MathRenderer';
+import ReactMarkdown from 'react-markdown';
 import { aiService } from '../../../services/api';
 import axios from 'axios';
 
@@ -586,8 +587,20 @@ const SmartAIPanel = ({ content, summary }) => {
                     <div className="p-2 bg-red-50 rounded-lg text-[#E53935]"><SafeIcon icon={FiFileText} className="w-5 h-5" /></div>
                     Executive Summary
                   </h3>
-                  <div className="prose prose-lg text-gray-700 leading-relaxed whitespace-pre-wrap">
-                    {dataCache.summary?.summary || "Summary not available."}
+                  <div className="prose prose-lg text-gray-700 leading-relaxed">
+                    <ReactMarkdown
+                      components={{
+                        h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
+                        h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-4 mb-2 text-gray-900" {...props} />,
+                        p: ({ node, ...props }) => <p className="mb-3" {...props} />,
+                        ul: ({ node, ...props }) => <ul className="list-disc list-outside ml-5 mb-3 space-y-1" {...props} />,
+                        ol: ({ node, ...props }) => <ol className="list-decimal list-outside ml-5 mb-3 space-y-1" {...props} />,
+                        li: ({ node, ...props }) => <li className="pl-1" {...props} />,
+                        strong: ({ node, ...props }) => <strong className="font-bold text-gray-900" {...props} />,
+                      }}
+                    >
+                      {dataCache.summary?.summary || "Summary not available."}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}
