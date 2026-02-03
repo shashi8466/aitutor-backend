@@ -194,13 +194,17 @@ const extractDocxWithMath = async (buffer) => {
           return "";
         }
         if (tagName === 'oMath' || tagName === 'oMathPara') {
-          // Check if this "equation" is actually just a sentence typed in Equation Editor
-          // Heuristic: If it has > 4 spaces and > 20 characters, it's likely text.
           const rawText = node.textContent || "";
           const spaceCount = (rawText.match(/\s/g) || []).length;
-          if (rawText.length > 30 && spaceCount > 4) {
+          const hasMathOperators = /[=+\-*/^]/.test(rawText);
+          const letterCount = (rawText.match(/[a-zA-Z]/g) || []).length;
+
+          // Heuristic: If it has spaces, OR if it has many letters but no math symbols,
+          // it's almost certainly text typed in the equation editor.
+          if (spaceCount >= 1 || (letterCount > 10 && !hasMathOperators)) {
             return " " + rawText + " ";
           }
+
           try { return convertToLatex(node); } catch (e) { return " [Equation] "; }
         }
         if (tagName === 't') return node.textContent || "";

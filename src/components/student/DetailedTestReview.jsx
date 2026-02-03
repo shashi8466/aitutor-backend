@@ -130,10 +130,17 @@ const DetailedTestReview = () => {
                     <div>
                         <div className="flex items-center gap-2 mb-2">
                             <SafeIcon icon={FiAward} className="w-5 h-5 opacity-80" />
-                            <p className="text-blue-100 text-sm font-bold">Score</p>
+                            <p className="text-blue-100 text-sm font-bold">Total Score</p>
                         </div>
-                        <p className="text-3xl font-bold">{submission.scaled_score || 0}</p>
-                        <p className="text-sm text-blue-100">{submission.raw_score_percentage || 0}% Raw</p>
+                        <p className="text-3xl font-black">
+                            {correctCount}/{totalQuestions}
+                            <span className="text-xl ml-2 opacity-80">
+                                ({accuracy}%)
+                            </span>
+                        </p>
+                        <p className="text-xs text-blue-100 font-bold uppercase tracking-wider mt-1">
+                            Performance Level: {submission.level || 'Standard'}
+                        </p>
                     </div>
                 </div>
             </div>
