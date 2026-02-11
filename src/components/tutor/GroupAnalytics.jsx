@@ -159,7 +159,7 @@ const GroupAnalytics = ({ groupId, groupName, onBack, adminMode = false }) => {
                     </div>
                 </div>
                 <button
-                    onClick={downloadReport}
+                    onClick={handleDownloadReport}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-2 font-bold shadow-lg shadow-blue-200 dark:shadow-none transition-all"
                 >
                     <SafeIcon icon={FiDownload} />
