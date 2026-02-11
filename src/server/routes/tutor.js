@@ -123,13 +123,19 @@ router.get('/dashboard', async (req, res) => {
             } else {
                 courses = data || [];
 
-                // Fetch enrollment counts for each course separately to be safe
+                // Optimized: Fetch enrollment counts for all courses in one go
+                const { data: enrollmentCounts } = await supabase
+                    .from('enrollments')
+                    .select('course_id')
+                    .in('course_id', assignedCourses);
+
+                const countMap = (enrollmentCounts || []).reduce((acc, curr) => {
+                    acc[curr.course_id] = (acc[curr.course_id] || 0) + 1;
+                    return acc;
+                }, {});
+
                 for (let course of courses) {
-                    const { count } = await supabase
-                        .from('enrollments')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('course_id', course.id);
-                    course.enrolled_count = count || 0;
+                    course.enrolled_count = countMap[course.id] || 0;
                 }
             }
         }
@@ -242,29 +248,42 @@ router.get('/students', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Fetch tutor profile to get assigned courses
+        // Fetch tutor profile to get assigned courses and check role
         const { data: profile } = await supabase
             .from('profiles')
-            .select('assigned_courses')
+            .select('assigned_courses, role')
             .eq('id', userId)
             .single();
 
-        let rawAssigned = profile?.assigned_courses || [];
-        if (typeof rawAssigned === 'string') {
-            try { rawAssigned = JSON.parse(rawAssigned); } catch (e) { rawAssigned = []; }
-        }
-        const assignedCourses = Array.isArray(rawAssigned) ? rawAssigned.map(Number) : [];
+        const isAdmin = profile?.role === 'admin';
 
-        // Direct query to get students for assigned courses
-        const { data: students, error } = await supabase
+        let assignedCourses = [];
+        if (!isAdmin) {
+            let rawAssigned = profile?.assigned_courses || [];
+            if (typeof rawAssigned === 'string') {
+                try { rawAssigned = JSON.parse(rawAssigned); } catch (e) { rawAssigned = []; }
+            }
+            assignedCourses = Array.isArray(rawAssigned) ? rawAssigned.map(Number) : [];
+        }
+
+        // Direct query to get students
+        let query = supabase
             .from('profiles')
             .select(`
                 id, name, email,
                 enrollments!inner(course_id, enrolled_at),
                 student_progress(count)
             `)
-            .eq('role', 'student')
-            .in('enrollments.course_id', assignedCourses);
+            .eq('role', 'student');
+
+        // Apply course filter if tutor, or if courseId provided for admin
+        if (!isAdmin) {
+            query = query.in('enrollments.course_id', assignedCourses);
+        } else if (courseId) {
+            query = query.eq('enrollments.course_id', courseId);
+        }
+
+        const { data: students, error } = await query;
 
         if (error) {
             console.error('❌ [STUDENTS] Error fetching tutor students:', error);
@@ -380,7 +399,7 @@ router.get('/student-progress/:studentId', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Verify tutor has access to this student
+        // Verify user profile
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('assigned_courses, role')
@@ -388,20 +407,23 @@ router.get('/student-progress/:studentId', async (req, res) => {
             .single();
 
         if (profileError || !profile) {
-            return res.status(404).json({ error: 'Tutor profile not found' });
+            return res.status(404).json({ error: 'User profile not found' });
         }
 
+        const isAdmin = profile.role === 'admin';
         const assignedCourses = getAssignedCourses(profile);
 
-        // Check if student is in any of tutor's courses
-        const { data: studentEnrollments } = await supabase
-            .from('enrollments')
-            .select('course_id')
-            .eq('user_id', studentId)
-            .in('course_id', assignedCourses);
+        if (!isAdmin) {
+            // Check if student is in any of tutor's courses
+            const { data: studentEnrollments } = await supabase
+                .from('enrollments')
+                .select('course_id')
+                .eq('user_id', studentId)
+                .in('course_id', assignedCourses);
 
-        if (!studentEnrollments || studentEnrollments.length === 0) {
-            return res.status(403).json({ error: 'Not authorized for this student' });
+            if (!studentEnrollments || studentEnrollments.length === 0) {
+                return res.status(403).json({ error: 'Not authorized for this student' });
+            }
         }
 
         // Get student info
@@ -411,13 +433,18 @@ router.get('/student-progress/:studentId', async (req, res) => {
             .eq('id', studentId)
             .single();
 
-        // Get test submissions
-        const { data: submissions } = await supabase
+        // Get test submissions (only those with scores/attempts)
+        let query = supabase
             .from('test_submissions')
-            .select('*')
+            .select('*, course:courses(name)')
             .eq('user_id', studentId)
-            .in('course_id', assignedCourses)
-            .order('test_date', { ascending: false });
+            .not('raw_score_percentage', 'is', null);
+
+        if (!isAdmin) {
+            query = query.in('course_id', assignedCourses);
+        }
+
+        const { data: submissions } = await query.order('created_at', { ascending: false });
 
         // Get progress records
         const { data: progress } = await supabase
@@ -640,14 +667,23 @@ router.delete('/groups/:groupId/members/:studentId', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Verify group belongs to tutor
+        // Verify group belongs to tutor or user is admin
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
         const { data: group } = await supabase
             .from('student_groups')
             .select('created_by')
             .eq('id', groupId)
             .single();
 
-        if (!group || group.created_by !== userId) {
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group?.created_by === userId;
+
+        if (!group || (!isAdmin && !isOwner)) {
             return res.status(403).json({ error: 'Not authorized for this group' });
         }
 
@@ -715,14 +751,36 @@ router.get('/groups/:groupId/members', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Verify group ownership
-        const { data: group } = await supabase
+        // Verify group ownership or admin role
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        if (profileError || !profile) {
+            console.error(`❌ [AUTH] Profile error for user ${userId}:`, profileError);
+            return res.status(403).json({ error: 'User profile not found or role missing' });
+        }
+
+        const { data: group, error: groupError } = await supabase
             .from('student_groups')
             .select('created_by, course_id')
             .eq('id', groupId)
             .single();
 
-        if (!group || group.created_by !== userId) {
+        if (groupError || !group) {
+            console.error(`❌ [AUTH] Group error for ID ${groupId}:`, groupError);
+            return res.status(404).json({ error: 'Group not found' });
+        }
+
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group.created_by === userId;
+
+        console.log(`🔐 [AUTH] Group Access - User: ${userId}, Role: ${profile?.role}, Group Owner: ${group.created_by}, isAdmin: ${isAdmin}, isOwner: ${isOwner}`);
+
+        if (!isAdmin && !isOwner) {
+            console.warn(`🚫 [AUTH] Access Denied - User ${userId} (${profile?.role}) tried to access group ${groupId} owned by ${group.created_by}`);
             return res.status(403).json({ error: 'Not authorized for this group' });
         }
 
@@ -732,7 +790,12 @@ router.get('/groups/:groupId/members', async (req, res) => {
             .select(`
                 student_id,
                 created_at,
-                student:profiles!student_id(id, name, email)
+                student:profiles!student_id(
+                    id, 
+                    name, 
+                    email,
+                    student_progress(count)
+                )
             `)
             .eq('group_id', groupId);
 
@@ -774,7 +837,8 @@ router.get('/groups/:groupId/members', async (req, res) => {
                 average_score: Math.round(avgScore * 10) / 10,
                 latest_score: latestSubmission?.raw_score_percentage || 0,
                 latest_scaled_score: latestSubmission?.scaled_score || 0,
-                last_test_date: latestSubmission?.created_at || null
+                last_test_date: latestSubmission?.created_at || null,
+                progress_count: member.student?.student_progress?.[0]?.count || 0
             };
         });
 
@@ -800,14 +864,36 @@ router.get('/groups/:groupId/analytics', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Verify group ownership
-        const { data: group } = await supabase
+        // Verify group ownership or admin role
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        if (profileError || !profile) {
+            console.error(`❌ [AUTH] Analytics Profile error for user ${userId}:`, profileError);
+            return res.status(403).json({ error: 'User profile not found or role missing' });
+        }
+
+        const { data: group, error: groupError } = await supabase
             .from('student_groups')
             .select('created_by, course_id, name')
             .eq('id', groupId)
             .single();
 
-        if (!group || group.created_by !== userId) {
+        if (groupError || !group) {
+            console.error(`❌ [AUTH] Analytics Group error for ID ${groupId}:`, groupError);
+            return res.status(404).json({ error: 'Group not found' });
+        }
+
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group.created_by === userId;
+
+        console.log(`🔐 [AUTH] Analytics Access - User: ${userId}, Role: ${profile?.role}, Group Owner: ${group.created_by}, isAdmin: ${isAdmin}, isOwner: ${isOwner}`);
+
+        if (!isAdmin && !isOwner) {
+            console.warn(`🚫 [AUTH] Access Denied - User ${userId} (${profile?.role}) tried to access group analytics ${groupId} owned by ${group.created_by}`);
             return res.status(403).json({ error: 'Not authorized for this group' });
         }
 
@@ -954,6 +1040,7 @@ router.get('/groups/:groupId/analytics', async (req, res) => {
 
         res.json({
             group_name: group.name,
+            course_id: group.course_id,
             total_students: memberIds.length,
             total_tests: totalTests,
             average_score: Math.round(avgScore * 10) / 10,

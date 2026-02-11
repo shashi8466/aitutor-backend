@@ -370,7 +370,11 @@ export const enrollmentService = {
 
   getCourseStudents: async (courseId) => {
     const response = await axios.get(`/api/enrollment/course-students/${courseId}`);
-    return { data: response.data.students || [], error: null };
+    const flattened = (response.data.students || []).map(s => ({
+      ...(s.profiles || {}),
+      enrolled_at: s.enrolled_at
+    })).filter(s => s.id); // Ensure we have valid profiles
+    return { data: flattened, error: null };
   },
 
   validateKeyLength: (keyCode) => {
@@ -623,11 +627,17 @@ export const tutorService = {
     // groupIds should be an array of group IDs
     const idsString = Array.isArray(groupIds) ? groupIds.join(',') : groupIds;
     return axios.get(`/api/tutor/groups/compare?groupIds=${idsString}`);
+  },
+  getStudentProgress: async (studentId) => {
+    return axios.get(`/api/tutor/student-progress/${studentId}`);
   }
 };
 
 // --- ADMIN SERVICE (GROUP MANAGEMENT) ---
 export const adminService = {
+  getAllTutors: async () => {
+    return axios.get('/api/admin/tutors');
+  },
   getAllGroups: async () => {
     return axios.get('/api/admin/groups');
   },
@@ -645,6 +655,12 @@ export const adminService = {
   },
   deleteGroup: async (groupId) => {
     return axios.delete(`/api/admin/groups/${groupId}`);
+  },
+  getGroupMembers: async (groupId) => {
+    return axios.get(`/api/admin/groups/${groupId}/members`);
+  },
+  getGroupAnalytics: async (groupId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics`);
   }
 };
 

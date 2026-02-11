@@ -9,6 +9,34 @@ import supabase from '../../supabase/supabaseAdmin.js';
 const router = express.Router();
 
 /**
+ * GET /api/admin/tutors
+ * Get all available tutors
+ */
+router.get('/tutors', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Verify admin role
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+        const { data: tutors, error } = await supabase
+            .from('profiles')
+            .select('id, name, email, role')
+            .eq('role', 'tutor')
+            .order('name');
+
+        if (error) throw error;
+        res.json({ tutors: tutors || [] });
+    } catch (error) {
+        console.error('get tutors error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * GET /api/admin/groups
  * Get all groups across all tutors
  */
@@ -48,12 +76,23 @@ router.get('/groups', async (req, res) => {
         }
 
         // Format groups
-        const formattedGroups = (groups || []).map(g => ({
-            ...g,
-            member_count: g.member_count?.[0]?.count || 0,
-            tutor_name: g.creator?.name || 'Unknown',
-            tutor_email: g.creator?.email
-        }));
+        const formattedGroups = (groups || []).map(g => {
+            let count = 0;
+            if (Array.isArray(g.member_count)) {
+                count = g.member_count[0]?.count || 0;
+            } else if (typeof g.member_count === 'object' && g.member_count !== null) {
+                count = g.member_count.count || 0;
+            } else if (typeof g.member_count === 'number') {
+                count = g.member_count;
+            }
+
+            return {
+                ...g,
+                member_count: Number(count),
+                tutor_name: g.creator?.name || 'Unknown',
+                tutor_email: g.creator?.email
+            };
+        });
 
         res.json({ groups: formattedGroups });
 
@@ -222,6 +261,194 @@ router.post('/groups/:groupId/assign-students', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/groups/:groupId/members
+ * Get group members with performance (Admin version)
+ */
+router.get('/groups/:groupId/members', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Verify admin
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+        const { data: group } = await supabase.from('student_groups').select('course_id').eq('id', groupId).single();
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const { data: members, error: membersError } = await supabase
+            .from('group_members')
+            .select(`
+                student_id,
+                created_at,
+                student:profiles(
+                    id, name, email,
+                    student_progress(count)
+                )
+            `)
+            .eq('group_id', groupId);
+
+        if (membersError) throw membersError;
+
+        const memberIds = members.map(m => m.student_id);
+        if (memberIds.length === 0) return res.json({ members: [] });
+
+        const { data: submissions } = await supabase
+            .from('test_submissions')
+            .select('user_id, raw_score_percentage, scaled_score, created_at')
+            .eq('course_id', group.course_id)
+            .in('user_id', memberIds)
+            .order('created_at', { ascending: false });
+
+        const membersWithPerformance = members.map(member => {
+            const stuSubs = submissions?.filter(s => s.user_id === member.student_id) || [];
+            const avg = stuSubs.length > 0 ? stuSubs.reduce((sum, s) => sum + (s.raw_score_percentage || 0), 0) / stuSubs.length : 0;
+            const latest = stuSubs[0];
+
+            return {
+                id: member.student_id,
+                name: member.student?.name,
+                email: member.student?.email,
+                joined_at: member.created_at,
+                total_tests: stuSubs.length,
+                average_score: Math.round(avg * 10) / 10,
+                latest_score: latest?.raw_score_percentage || 0,
+                latest_scaled_score: latest?.scaled_score || 0,
+                last_test_date: latest?.created_at || null,
+                progress_count: member.student?.student_progress?.[0]?.count || 0
+            };
+        });
+
+        res.json({ members: membersWithPerformance });
+    } catch (error) {
+        console.error('Admin get group members error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/admin/groups/:groupId/analytics
+ * Get group analytics (Admin version)
+ */
+router.get('/groups/:groupId/analytics', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        const { startDate, endDate } = req.query;
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+        const { data: group } = await supabase.from('student_groups').select('course_id, name').eq('id', groupId).single();
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const { data: membersRes } = await supabase.from('group_members').select('student_id').eq('group_id', groupId);
+        const memberIds = membersRes?.map(m => m.student_id) || [];
+
+        if (memberIds.length === 0) {
+            return res.json({
+                group_name: group.name,
+                total_students: 0,
+                average_score: 0,
+                total_tests: 0,
+                top_performers: [],
+                low_performers: [],
+                subject_performance: {},
+                progress_trend: []
+            });
+        }
+
+        // Submissions query
+        let q = supabase.from('test_submissions').select('*').eq('course_id', group.course_id).in('user_id', memberIds);
+        if (startDate) q = q.gte('created_at', startDate);
+        if (endDate) q = q.lte('created_at', endDate);
+        const { data: submissions } = await q.order('created_at', { ascending: false });
+
+        const totalTests = submissions?.length || 0;
+        const avgScore = totalTests > 0 ? submissions.reduce((sum, s) => sum + (s.raw_score_percentage || 0), 0) / totalTests : 0;
+
+        // Performers
+        const studentStats = {};
+        memberIds.forEach(id => {
+            const stuSubs = submissions?.filter(s => s.user_id === id) || [];
+            if (stuSubs.length > 0) {
+                studentStats[id] = {
+                    avg: stuSubs.reduce((sum, s) => sum + (s.raw_score_percentage || 0), 0) / stuSubs.length,
+                    count: stuSubs.length
+                };
+            }
+        });
+
+        const { data: profiles } = await supabase.from('profiles').select('id, name, email').in('id', memberIds);
+        const profMap = {};
+        profiles?.forEach(p => profMap[p.id] = p);
+
+        const ranked = Object.entries(studentStats).map(([id, d]) => ({
+            id,
+            name: profMap[id]?.name || 'Unknown',
+            email: profMap[id]?.email,
+            average_score: Math.round(d.avg * 10) / 10,
+            total_tests: d.count
+        })).sort((a, b) => b.average_score - a.average_score);
+
+        // Subject performance
+        const subjects = {
+            math: { total: 0, correct: 0, count: 0 },
+            reading: { total: 0, correct: 0, count: 0 },
+            writing: { total: 0, correct: 0, count: 0 }
+        };
+
+        submissions?.forEach(s => {
+            if (s.math_total_questions > 0) {
+                subjects.math.total += s.math_total_questions;
+                subjects.math.correct += s.math_raw_score || 0;
+                subjects.math.count++;
+            }
+            if (s.reading_total_questions > 0) {
+                subjects.reading.total += s.reading_total_questions;
+                subjects.reading.correct += s.reading_raw_score || 0;
+                subjects.reading.count++;
+            }
+            if (s.writing_total_questions > 0) {
+                subjects.writing.total += s.writing_total_questions;
+                subjects.writing.correct += s.writing_raw_score || 0;
+                subjects.writing.count++;
+            }
+        });
+
+        const subjectScores = {};
+        Object.entries(subjects).forEach(([sub, data]) => {
+            if (data.count > 0) {
+                subjectScores[sub] = {
+                    average_percentage: Math.round((data.correct / data.total) * 100),
+                    total_questions: data.total,
+                    correct_answers: data.correct
+                };
+            }
+        });
+
+        res.json({
+            group_name: group.name,
+            course_id: group.course_id,
+            total_students: memberIds.length,
+            average_score: Math.round(avgScore),
+            total_tests: totalTests,
+            top_performers: ranked.slice(0, 5),
+            low_performers: ranked.slice(-5).reverse(),
+            subject_performance: subjectScores,
+            progress_trend: []
+        });
+    } catch (error) {
+        console.error('Admin analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * GET /api/admin/unassigned-students
  * Get students not assigned to any group for a specific course
  */
@@ -249,38 +476,44 @@ router.get('/unassigned-students', async (req, res) => {
             return res.status(400).json({ error: 'Course ID required' });
         }
 
-        // Get all students enrolled in the course
-        const { data: enrolledStudents } = await supabase
-            .from('enrollments')
-            .select('user_id, profiles!inner(id, name, email)')
-            .eq('course_id', courseId);
+        // Use a more robust query: Find all students enrolled in this course
+        // then filter out those who are already in ANY group for this course
 
-        // Get all students already in groups for this course
-        const { data: groups } = await supabase
+        // 1. Get IDs of all students already in groups for this course
+        const { data: groupIds } = await supabase
             .from('student_groups')
             .select('id')
             .eq('course_id', courseId);
 
-        const groupIds = groups?.map(g => g.id) || [];
-
+        const ids = groupIds?.map(g => g.id) || [];
         let assignedStudentIds = [];
-        if (groupIds.length > 0) {
+        if (ids.length > 0) {
             const { data: members } = await supabase
                 .from('group_members')
                 .select('student_id')
-                .in('group_id', groupIds);
-
+                .in('group_id', ids);
             assignedStudentIds = members?.map(m => m.student_id) || [];
         }
 
-        // Filter unassigned students
-        const unassignedStudents = enrolledStudents
-            ?.filter(e => !assignedStudentIds.includes(e.user_id))
-            .map(e => ({
-                id: e.user_id,
-                name: e.profiles?.name,
-                email: e.profiles?.email
-            })) || [];
+        // 2. Get profiles of students enrolled in this course who aren't in those groups
+        const { data: students, error: sError } = await supabase
+            .from('profiles')
+            .select(`
+                id, name, email,
+                enrollments!inner(course_id)
+            `)
+            .eq('role', 'student')
+            .eq('enrollments.course_id', courseId);
+
+        if (sError) throw sError;
+
+        const unassignedStudents = (students || [])
+            .filter(s => !assignedStudentIds.includes(s.id))
+            .map(s => ({
+                id: s.id,
+                name: s.name,
+                email: s.email
+            }));
 
         res.json({ students: unassignedStudents });
 

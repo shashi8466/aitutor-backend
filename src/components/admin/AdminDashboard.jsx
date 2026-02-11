@@ -25,8 +25,10 @@ const AdminDashboard = () => {
   const { logout } = useAuth();
 
   useEffect(() => {
-    loadStats();
-  }, [location.pathname]);
+    if (location.pathname === '/admin') {
+      loadStats();
+    }
+  }, [location.pathname]); // Only trigger on dashboard index
 
   const loadStats = async () => {
     try {

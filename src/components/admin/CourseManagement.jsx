@@ -109,7 +109,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
       </motion.div>
 
       {/* Courses Grid */}
-      {loading ? (
+      {(loading && (!courses || courses.length === 0)) ? (
         <div className="text-center py-12">
           <SafeIcon icon={FiRefreshCw} className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
           <p className="mt-2 text-gray-500">Loading courses...</p>

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { tutorService } from '../../services/api';
+import { tutorService, adminService } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell
@@ -10,17 +11,20 @@ import {
 
 const {
     FiUsers, FiTrendingUp, FiTrendingDown, FiAward,
-    FiAlertCircle, FiCalendar, FiDownload, FiArrowLeft
+    FiAlertCircle, FiCalendar, FiDownload, FiArrowLeft, FiChevronRight, FiBarChart2
 } = FiIcons;
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
 
-const GroupAnalytics = ({ groupId, groupName, onBack }) => {
+const GroupAnalytics = ({ groupId, groupName, onBack, adminMode = false }) => {
+    const navigate = useNavigate();
     const [analytics, setAnalytics] = useState(null);
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [error, setError] = useState('');
+
+    const service = adminMode ? adminService : tutorService;
 
     useEffect(() => {
         loadAnalytics();
@@ -29,7 +33,7 @@ const GroupAnalytics = ({ groupId, groupName, onBack }) => {
 
     const loadAnalytics = async () => {
         try {
-            const response = await tutorService.getGroupAnalytics(
+            const response = await service.getGroupAnalytics(
                 groupId,
                 dateRange.start || null,
                 dateRange.end || null
@@ -44,7 +48,7 @@ const GroupAnalytics = ({ groupId, groupName, onBack }) => {
     const loadMembers = async () => {
         setLoading(true);
         try {
-            const response = await tutorService.getGroupMembers(groupId);
+            const response = await service.getGroupMembers(groupId);
             setMembers(response.data.members || []);
         } catch (err) {
             console.error('Error loading members:', err);
@@ -54,14 +58,30 @@ const GroupAnalytics = ({ groupId, groupName, onBack }) => {
         }
     };
 
-    const downloadReport = () => {
-        // Generate CSV report
-        const csvContent = generateCSVReport();
+    const handleDownloadReport = () => {
+        if (!analytics || members.length === 0) return;
+
+        const headers = ['Name', 'Email', 'Tests Taken', 'Average Score', 'Latest Score %', 'Latest Scaled Score', 'Last Test Date'];
+        const rows = members.map(m => [
+            m.name,
+            m.email,
+            m.total_tests,
+            `${m.average_score}%`,
+            `${m.latest_score}%`,
+            m.latest_scaled_score || '--',
+            m.last_test_date ? new Date(m.last_test_date).toLocaleDateString() : 'N/A'
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(r => r.join(','))
+        ].join('\n');
+
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
         link.setAttribute('href', url);
-        link.setAttribute('download', `${groupName}_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `${groupName}_Analytics_Report.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -356,8 +376,10 @@ const GroupAnalytics = ({ groupId, groupName, onBack }) => {
                                 <th className="text-left py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Email</th>
                                 <th className="text-center py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Tests</th>
                                 <th className="text-center py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Avg Score</th>
-                                <th className="text-center py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Latest</th>
+                                <th className="text-center py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Latest (%)</th>
+                                <th className="text-center py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Scaled</th>
                                 <th className="text-left py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Last Test</th>
+                                <th className="text-center py-3 px-4 text-sm font-bold text-gray-600 dark:text-gray-400">Analysis</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -373,14 +395,31 @@ const GroupAnalytics = ({ groupId, groupName, onBack }) => {
                                             </span>
                                         </td>
                                         <td className="py-3 px-4 text-center text-gray-900 dark:text-white">{member.latest_score}%</td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className="font-black text-blue-600 dark:text-blue-400">
+                                                {member.latest_scaled_score || '--'}
+                                            </span>
+                                        </td>
                                         <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                                             {member.last_test_date ? new Date(member.last_test_date).toLocaleDateString() : 'N/A'}
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                            <button
+                                                onClick={() => {
+                                                    const path = adminMode ? '/admin/grades' : '/tutor/grades';
+                                                    navigate(`${path}?courseId=${analytics?.course_id}&studentId=${member.id}`);
+                                                }}
+                                                className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-600 hover:text-white transition-all group"
+                                                title="View Detailed Test Analysis"
+                                            >
+                                                <SafeIcon icon={FiBarChart2} className="w-4 h-4" />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="py-12 text-center text-gray-500">
+                                    <td colSpan="8" className="py-12 text-center text-gray-500">
                                         No students in this group yet
                                     </td>
                                 </tr>

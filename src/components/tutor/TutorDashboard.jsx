@@ -82,7 +82,7 @@ const TutorDashboard = () => {
             window.removeEventListener('focus', handleFocus);
             document.body.style.overflow = 'unset';
         };
-    }, [location.pathname]); // Trigger on every navigation
+    }, [location.pathname === '/tutor']); // Only trigger on dashboard index
 
     const fetchDashboardData = async () => {
         try {

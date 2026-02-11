@@ -81,7 +81,7 @@ const UserManagement = () => {
     });
   };
 
-  if (loading) {
+  if (loading && users.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="flex flex-col items-center">
@@ -155,8 +155,8 @@ const UserManagement = () => {
                         onChange={(e) => handleUpdateUser(user.id, { role: e.target.value })}
                         disabled={updating[user.id]}
                         className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border-none focus:ring-2 focus:ring-blue-500 transition-all ${user.role === 'admin' ? 'bg-red-50 text-red-600 dark:bg-red-900/30' :
-                            user.role === 'tutor' ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30' :
-                              'bg-blue-50 text-blue-600 dark:bg-blue-900/30'
+                          user.role === 'tutor' ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30' :
+                            'bg-blue-50 text-blue-600 dark:bg-blue-900/30'
                           }`}
                       >
                         <option value="student">Student</option>
@@ -171,8 +171,8 @@ const UserManagement = () => {
                         onClick={() => handleUpdateUser(user.id, { tutor_approved: !user.tutor_approved })}
                         disabled={updating[user.id]}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${user.tutor_approved
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30'
-                            : 'bg-red-50 text-red-600 dark:bg-red-900/20'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30'
+                          : 'bg-red-50 text-red-600 dark:bg-red-900/20'
                           }`}
                       >
                         <SafeIcon icon={user.tutor_approved ? FiCheckCircle : FiAlertCircle} />
@@ -248,34 +248,50 @@ const UserManagement = () => {
 
                     <div>
                       <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Course Assignment Matrix</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                        {courses.map(course => {
-                          const isAssigned = (selectedUser.assigned_courses || []).includes(course.id);
-                          return (
-                            <button
-                              key={course.id}
-                              onClick={() => toggleCourseAssignment(course.id)}
-                              className={`p-4 rounded-[20px] transition-all flex items-center justify-between group border-2 ${isAssigned
+                      {/* Courses Grid */}
+                      {(loading && (!courses || courses.length === 0)) ? (
+                        <div className="text-center py-12">
+                          <SafeIcon icon={FiRefreshCw} className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
+                          <p className="mt-2 text-gray-500">Loading courses...</p>
+                        </div>
+                      ) : (!courses || courses.length === 0) ? (
+                        <div className="p-8 text-center bg-gray-50 dark:bg-gray-900 rounded-[32px] border-2 border-dashed border-gray-100 dark:border-gray-800">
+                          <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                            <SafeIcon icon={FiBook} className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <h4 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight">No Courses Available</h4>
+                          <p className="text-sm text-gray-500 font-medium mt-1">There are no courses to assign. Please create courses first.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                          {courses.map(course => {
+                            const isAssigned = (selectedUser.assigned_courses || []).includes(course.id);
+                            return (
+                              <button
+                                key={course.id}
+                                onClick={() => toggleCourseAssignment(course.id)}
+                                className={`p-4 rounded-[20px] transition-all flex items-center justify-between group border-2 ${isAssigned
                                   ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 shadow-sm'
                                   : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-gray-200'
-                                }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isAssigned ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:bg-gray-200'}`}>
-                                  <SafeIcon icon={FiBook} className="w-4 h-4" />
+                                  }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isAssigned ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:bg-gray-200'}`}>
+                                    <SafeIcon icon={FiBook} className="w-4 h-4" />
+                                  </div>
+                                  <div className="text-left">
+                                    <p className={`text-xs font-black uppercase tracking-tight ${isAssigned ? 'text-blue-900 dark:text-blue-100' : 'text-gray-700 dark:text-gray-300'}`}>{course.name}</p>
+                                    <p className="text-[9px] font-bold text-gray-400">ID: {course.id}</p>
+                                  </div>
                                 </div>
-                                <div className="text-left">
-                                  <p className={`text-xs font-black uppercase tracking-tight ${isAssigned ? 'text-blue-900 dark:text-blue-100' : 'text-gray-700 dark:text-gray-300'}`}>{course.name}</p>
-                                  <p className="text-[9px] font-bold text-gray-400">ID: {course.id}</p>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isAssigned ? 'bg-blue-500 scale-100' : 'bg-gray-100 dark:bg-gray-800 scale-90 opacity-0 group-hover:opacity-100'}`}>
+                                  <SafeIcon icon={FiCheck} className="text-white w-3 h-3" />
                                 </div>
-                              </div>
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isAssigned ? 'bg-blue-500 scale-100' : 'bg-gray-100 dark:bg-gray-800 scale-90 opacity-0 group-hover:opacity-100'}`}>
-                                <SafeIcon icon={FiCheck} className="text-white w-3 h-3" />
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -9,7 +9,7 @@ import GroupAnalytics from './GroupAnalytics';
 const {
     FiPlus, FiUsers, FiTrash2, FiEdit2, FiX, FiCheck,
     FiPlusCircle, FiUserPlus, FiUserMinus, FiInfo, FiSearch,
-    FiChevronRight, FiBarChart2
+    FiChevronRight, FiBarChart2, FiRefreshCw
 } = FiIcons;
 
 const GroupManager = () => {
@@ -21,6 +21,8 @@ const GroupManager = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [selectedGroup, setSelectedGroup] = useState(null);
+    const [currentMembers, setCurrentMembers] = useState([]);
+    const [loadingMembers, setLoadingMembers] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [error, setError] = useState('');
     const [showAnalytics, setShowAnalytics] = useState(false);
@@ -90,20 +92,44 @@ const GroupManager = () => {
 
     const handleAddMembers = async () => {
         if (!selectedGroup || selectedStudentIds.length === 0) return;
+        setLoadingMembers(true);
         try {
             await tutorService.addGroupMembers(selectedGroup.id, selectedStudentIds);
-            setShowAddMemberModal(false);
             setSelectedStudentIds([]);
+            await fetchGroupMembers(selectedGroup.id);
             loadData();
         } catch (error) {
             console.error('Error adding members:', error);
+            alert('Failed to add members');
+        } finally {
+            setLoadingMembers(false);
         }
+    };
+
+    const fetchGroupMembers = async (groupId) => {
+        setLoadingMembers(true);
+        try {
+            const res = await tutorService.getGroupMembers(groupId);
+            setCurrentMembers(res.data.members || []);
+        } catch (err) {
+            console.error('Error fetching group members:', err);
+        } finally {
+            setLoadingMembers(false);
+        }
+    };
+
+    const handleOpenManageMembers = async (group) => {
+        setSelectedGroup(group);
+        setSelectedStudentIds([]);
+        setShowAddMemberModal(true);
+        await fetchGroupMembers(group.id);
     };
 
     const handleRemoveMember = async (groupId, studentId) => {
         if (!window.confirm('Remove student from group?')) return;
         try {
             await tutorService.removeGroupMember(groupId, studentId);
+            await fetchGroupMembers(groupId);
             loadData();
         } catch (error) {
             console.error('Error removing member:', error);
@@ -137,7 +163,12 @@ const GroupManager = () => {
         );
     }
 
-    if (loading) return <div className="p-8 text-center text-blue-600">Loading groups...</div>;
+    if (loading && groups.length === 0) return (
+        <div className="flex flex-col items-center justify-center p-20 text-blue-600">
+            <SafeIcon icon={FiRefreshCw} className="w-8 h-8 animate-spin mb-4" />
+            <p className="font-bold">Loading groups...</p>
+        </div>
+    );
 
     return (
         <div className="space-y-6">
@@ -215,10 +246,7 @@ const GroupManager = () => {
                                             <SafeIcon icon={FiBarChart2} /> Analytics
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                setSelectedGroup(group);
-                                                setShowAddMemberModal(true);
-                                            }}
+                                            onClick={() => handleOpenManageMembers(group)}
                                             className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
                                         >
                                             <SafeIcon icon={FiUserPlus} /> Manage
@@ -354,38 +382,55 @@ const GroupManager = () => {
                                             className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl"
                                         />
                                     </div>
-                                    <div className="grid gap-2 max-h-60 overflow-y-auto pr-2">
-                                        {filteredStudents.length === 0 ? (
+                                    <div className="grid gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {loadingMembers ? (
+                                            <div className="text-center py-8 text-blue-600 font-bold">Loading members...</div>
+                                        ) : filteredStudents.length === 0 ? (
                                             <p className="text-center py-8 text-gray-500 text-sm">No students found matching your search.</p>
                                         ) : (
-                                            filteredStudents.map(student => (
-                                                <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900 rounded-xl">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs uppercase">
-                                                            {student.name?.charAt(0)}
+                                            filteredStudents.map(student => {
+                                                const isAlreadyMember = currentMembers.some(m => m.student_id === student.id);
+                                                return (
+                                                    <div key={student.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isAlreadyMember ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800' : 'bg-gray-50 dark:bg-gray-900 border-transparent'}`}>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase ${isAlreadyMember ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
+                                                                {student.name?.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                    {student.name}
+                                                                    {isAlreadyMember && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">IN BATCH</span>}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500">{student.email}</p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">{student.name}</p>
-                                                            <p className="text-xs text-gray-500">{student.email}</p>
-                                                        </div>
+                                                        {isAlreadyMember ? (
+                                                            <button
+                                                                onClick={() => handleRemoveMember(selectedGroup.id, student.id)}
+                                                                className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                                            >
+                                                                <SafeIcon icon={FiIcons.FiUserMinus} />
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (selectedStudentIds.includes(student.id)) {
+                                                                        setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                                                                    } else {
+                                                                        setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                                                    }
+                                                                }}
+                                                                className={`p-2 rounded-lg transition-all ${selectedStudentIds.includes(student.id)
+                                                                    ? 'bg-blue-600 text-white'
+                                                                    : 'bg-white dark:bg-gray-800 text-blue-600 border border-gray-100 dark:border-gray-700'
+                                                                    }`}
+                                                            >
+                                                                <SafeIcon icon={selectedStudentIds.includes(student.id) ? FiCheck : FiPlus} />
+                                                            </button>
+                                                        )}
                                                     </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (selectedStudentIds.includes(student.id)) {
-                                                                setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
-                                                            } else {
-                                                                setSelectedStudentIds([...selectedStudentIds, student.id]);
-                                                            }
-                                                        }}
-                                                        className={`p-2 rounded-lg transition-all ${selectedStudentIds.includes(student.id)
-                                                            ? 'bg-green-100 text-green-600'
-                                                            : 'bg-white dark:bg-gray-800 text-blue-600 border border-gray-100 dark:border-gray-700'
-                                                            }`}
-                                                    >
-                                                        <SafeIcon icon={selectedStudentIds.includes(student.id) ? FiCheck : FiPlus} />
-                                                    </button>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
                                 </div>
