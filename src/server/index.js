@@ -5,6 +5,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUserFromRequest } from './utils/authHelper.js';
 
+// Feature Routes
+import aiRoutes from './routes/ai.js';
+import uploadRoutes from './routes/upload.js';
+import paymentRoutes from './routes/payment.js';
+import contactRoutes from './routes/contact.js';
+import tutorRoutes from './routes/tutor.js';
+import enrollmentRoutes from './routes/enrollment.js';
+import invitationsRoutes from './routes/invitations.js';
+import gradingRoutes from './routes/grading.js';
+import adminGroupsRoutes from './routes/admin-groups.js';
+import authDebugRoutes from './routes/auth-debug.js';
+
 // 1. Load environment variables FIRST
 dotenv.config();
 
@@ -118,137 +130,32 @@ app.get('/api/debug/env', (req, res) => {
 
 console.log('✅ Core routes registered\n');
 
-// 9. Load feature routes
-console.log('🔗 Loading Feature Routes...\n');
+// Import routes statically
+import aiRoutes from './routes/ai.js';
+import uploadRoutes from './routes/upload.js';
+import paymentRoutes from './routes/payment.js';
+import contactRoutes from './routes/contact.js';
+import tutorRoutes from './routes/tutor.js';
+import enrollmentRoutes from './routes/enrollment.js';
+import invitationsRoutes from './routes/invitations.js';
+import gradingRoutes from './routes/grading.js';
+import adminGroupsRoutes from './routes/admin-groups.js';
+import authDebugRoutes from './routes/auth-debug.js';
 
-let routesLoaded = {
-  ai: false,
-  upload: false,
-  payment: false,
-  tutor: false,
-  enrollment: false,
-  invitations: false,
-  grading: false,
-  adminGroups: false
-};
+console.log('🔗 Mounting Feature Routes...');
 
-// AI Routes
-try {
-  const aiModule = await import('./routes/ai.js');
-  app.use('/api/ai', aiModule.default);
-  routesLoaded.ai = true;
-  console.log('✅ AI Routes mounted at /api/ai');
-} catch (error) {
-  console.error('❌ Failed to load AI Routes:', error.message);
-  app.use('/api/ai', (req, res) => {
-    res.status(503).json({
-      error: 'AI service unavailable',
-      details: error.message
-    });
-  });
-}
+app.use('/api/ai', aiRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/tutor', tutorRoutes);
+app.use('/api/enrollment', enrollmentRoutes);
+app.use('/api/invitations', invitationsRoutes);
+app.use('/api/grading', gradingRoutes);
+app.use('/api/admin', adminGroupsRoutes);
+app.use('/api/auth-debug', authDebugRoutes);
 
-// Upload Routes
-try {
-  const uploadModule = await import('./routes/upload.js');
-  app.use('/api/upload', uploadModule.default);
-  routesLoaded.upload = true;
-  console.log('✅ Upload Routes mounted at /api/upload');
-} catch (error) {
-  console.error('❌ Failed to load Upload Routes:', error.message);
-  console.error(error); // Add full stack trace
-  app.use('/api/upload', (req, res) => {
-    res.status(503).json({
-      error: 'Upload service unavailable',
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  });
-}
-
-// Payment Routes
-try {
-  const paymentModule = await import('./routes/payment.js');
-  app.use('/api/payment', paymentModule.default);
-  routesLoaded.payment = true;
-  console.log('✅ Payment Routes mounted at /api/payment');
-} catch (error) {
-  console.error('❌ Failed to load Payment Routes:', error.message);
-  app.use('/api/payment', (req, res) => {
-    res.status(503).json({
-      error: 'Payment service unavailable',
-      details: error.message
-    });
-  });
-}
-
-// Contact Routes
-try {
-  const contactModule = await import('./routes/contact.js');
-  app.use('/api/contact', contactModule.default);
-  console.log('✅ Contact Routes mounted at /api/contact');
-} catch (error) {
-  console.error('❌ Failed to load Contact Routes:', error.message);
-}
-
-// Tutor Routes
-try {
-  const tutorModule = await import('./routes/tutor.js');
-  app.use('/api/tutor', tutorModule.default);
-  routesLoaded.tutor = true;
-  console.log('✅ Tutor Routes mounted at /api/tutor');
-} catch (error) {
-  console.error('❌ Failed to load Tutor Routes:', error.message);
-}
-
-// Enrollment Routes
-try {
-  const enrollmentModule = await import('./routes/enrollment.js');
-  app.use('/api/enrollment', enrollmentModule.default);
-  routesLoaded.enrollment = true;
-  console.log('✅ Enrollment Routes mounted at /api/enrollment');
-} catch (error) {
-  console.error('❌ Failed to load Enrollment Routes:', error.message);
-}
-
-// Invitation Routes
-try {
-  const invitationsModule = await import('./routes/invitations.js');
-  app.use('/api/invitations', invitationsModule.default);
-  routesLoaded.invitations = true;
-  console.log('✅ Invitation Routes mounted at /api/invitations');
-} catch (error) {
-  console.error('❌ Failed to load Invitation Routes:', error.message);
-}
-
-// Auth Debug Route (For manual verification)
-try {
-  const authDebugModule = await import('./routes/auth-debug.js');
-  app.use('/api/auth-debug', authDebugModule.default);
-  console.log('🔧 Auth Debug Route mounted at /api/auth-debug');
-} catch (error) {
-  console.error('❌ Failed to load Auth Debug Route:', error.message);
-}
-
-// Grading Routes
-try {
-  const gradingModule = await import('./routes/grading.js');
-  app.use('/api/grading', gradingModule.default);
-  routesLoaded.grading = true;
-  console.log('✅ Grading Routes mounted at /api/grading');
-} catch (error) {
-  console.error('❌ Failed to load Grading Routes:', error.message);
-}
-
-// Admin Groups Routes
-try {
-  const adminGroupsModule = await import('./routes/admin-groups.js');
-  app.use('/api/admin', adminGroupsModule.default);
-  routesLoaded.adminGroups = true;
-  console.log('✅ Admin Groups Routes mounted at /api/admin');
-} catch (error) {
-  console.error('❌ Failed to load Admin Groups Routes:', error.message);
-}
+console.log('✅ All routes mounted successfully');
 
 console.log('');
 
@@ -280,7 +187,7 @@ app.get('/api/debug/routes', (req, res) => {
 
   res.json({
     message: 'Registered API Routes',
-    routesLoaded,
+    status: 'all_mounted_statically',
     routes,
     totalRoutes: routes.length
   });
@@ -315,26 +222,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('📡 Server Address: http://0.0.0.0:' + PORT);
   console.log('🌐 API Base URL: http://localhost:' + PORT + '/api');
   console.log('');
-  console.log('📊 Service Status:');
-  console.log(`  - AI Routes: ${routesLoaded.ai ? '✅' : '❌'}`);
-  console.log(`  - Upload Routes: ${routesLoaded.upload ? '✅' : '❌'}`);
-  console.log(`  - Payment Routes: ${routesLoaded.payment ? '✅' : '❌'}`);
-  console.log(`  - Tutor Routes: ${routesLoaded.tutor ? '✅' : '❌'}`);
-  console.log(`  - Enrollment Routes: ${routesLoaded.enrollment ? '✅' : '❌'}`);
-  console.log(`  - Invitation Routes: ${routesLoaded.invitations ? '✅' : '❌'}`);
-  console.log(`  - Grading Routes: ${routesLoaded.grading ? '✅' : '❌'}`);
-  console.log(`  - Admin Groups Routes: ${routesLoaded.adminGroups ? '✅' : '❌'}`);
-  console.log('');
-  console.log('🔍 Debug Tools:');
-  console.log(`  - Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`  - Route List: http://localhost:${PORT}/api/debug/routes`);
-  console.log(`  - Upload Test: http://localhost:${PORT}/api/upload/test`);
-  console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-  if (!routesLoaded.ai || !routesLoaded.upload) {
-    console.error('⚠️⚠️⚠️ WARNING ⚠️⚠️⚠️');
-    console.error('Some routes failed to load. Check errors above.');
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-  }
 });
