@@ -130,17 +130,6 @@ app.get('/api/debug/env', (req, res) => {
 
 console.log('✅ Core routes registered\n');
 
-// Import routes statically
-import aiRoutes from './routes/ai.js';
-import uploadRoutes from './routes/upload.js';
-import paymentRoutes from './routes/payment.js';
-import contactRoutes from './routes/contact.js';
-import tutorRoutes from './routes/tutor.js';
-import enrollmentRoutes from './routes/enrollment.js';
-import invitationsRoutes from './routes/invitations.js';
-import gradingRoutes from './routes/grading.js';
-import adminGroupsRoutes from './routes/admin-groups.js';
-import authDebugRoutes from './routes/auth-debug.js';
 
 console.log('🔗 Mounting Feature Routes...');
 

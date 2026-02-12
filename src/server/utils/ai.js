@@ -7,92 +7,101 @@ console.log('🔧 Initializing AI Utils...');
 let openai = null;
 let genAI = null;
 
-const getAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-  if (!apiKey) return { apiKey: null };
+const getAIClient = (provider = 'auto') => {
+  const openaiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+  const googleKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
-  const isGoogleKey = apiKey.startsWith('AIza');
-
-  if (isGoogleKey) {
-    if (!genAI) {
-      console.log('🤖 Initializing Google Gemini Client...');
-      genAI = new GoogleGenerativeAI(apiKey);
+  if (provider === 'google' || (provider === 'auto' && googleKey && !openaiKey)) {
+    if (!googleKey) return { apiKey: null };
+    // Re-initialize if key changed
+    if (!genAI || genAI.apiKey !== googleKey) {
+      console.log('🤖 Initialising Google Gemini Client...');
+      genAI = new GoogleGenerativeAI(googleKey);
+      genAI.apiKey = googleKey;
     }
-    return { apiKey, isGoogleKey, client: genAI };
+    return { apiKey: googleKey, type: 'google', client: genAI };
   } else {
-    if (!openai) {
-      console.log('🤖 Initializing OpenAI Client...');
-      openai = new OpenAI({ apiKey });
+    if (!openaiKey) return { apiKey: null };
+    // Re-initialize if key changed
+    if (!openai || openai.apiKey !== openaiKey) {
+      console.log('🤖 Initialising OpenAI Client...');
+      openai = new OpenAI({ apiKey: openaiKey });
     }
-    return { apiKey, isGoogleKey, client: openai };
+    return { apiKey: openaiKey, type: 'openai', client: openai };
   }
 };
 
 export const generateAIResponse = async (messages, jsonMode = false, temperature = 0.7, fastMode = false) => {
-  const { apiKey, isGoogleKey, client } = getAIClient();
-
-  if (!apiKey) {
-    throw new Error("AI API Key is missing. Please add OPENAI_API_KEY to your environment variables.");
-  }
-
-  const MAX_RETRIES = fastMode ? 1 : 3; // Fewer retries for fast mode
+  const MAX_RETRIES = fastMode ? 1 : 2;
   let lastError;
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      if (!fastMode) console.log(`🔄 [AI] Attempt ${attempt}/${MAX_RETRIES} (Mode: ${jsonMode ? "JSON" : "Text"}, Temp: ${temperature})`);
+  // Potential providers to try
+  const providers = ['openai'];
 
-      if (isGoogleKey) {
-        if (!client) throw new Error("Google AI client not initialized");
-        // Use flash model for speed
-        const model = client.getGenerativeModel({
-          model: "gemini-1.5-flash",
-          generationConfig: {
-            responseMimeType: jsonMode ? "application/json" : "text/plain",
+  for (const provider of providers) {
+    const { apiKey, type, client } = getAIClient(provider);
+    if (!apiKey) continue;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (!fastMode) console.log(`🔄 [AI] Attempting ${type.toUpperCase()} (Attempt ${attempt}/${MAX_RETRIES}, JSON: ${jsonMode})`);
+
+        if (type === 'google') {
+          const model = client.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            generationConfig: {
+              responseMimeType: jsonMode ? "application/json" : "text/plain",
+              temperature: temperature,
+              maxOutputTokens: fastMode ? 500 : 2000
+            }
+          });
+
+          let prompt = messages.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n\n');
+          if (jsonMode) prompt += "\n\nCRITICAL: Return ONLY valid JSON.";
+
+          const result = await model.generateContent(prompt);
+          return result.response.text();
+        } else {
+          const completion = await client.chat.completions.create({
+            model: fastMode ? "gpt-4o-mini" : "gpt-4o",
+            messages: messages,
             temperature: temperature,
-            maxOutputTokens: fastMode ? 500 : 2000 // Shorter responses in fast mode
-          }
-        });
+            max_tokens: fastMode ? 500 : 2000,
+            response_format: jsonMode ? { type: "json_object" } : undefined
+          });
+          return completion.choices[0].message.content.trim();
+        }
+      } catch (error) {
+        lastError = error;
+        const status = error.status || error.response?.status;
 
-        let prompt = messages.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n\n');
-        if (jsonMode) prompt += "\n\nCRITICAL: Return ONLY valid JSON.";
+        console.warn(`⚠️ [AI] ${type.toUpperCase()} failed: ${error.message}`);
 
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-      } else {
-        if (!client) throw new Error("OpenAI client not initialized");
-        // Use gpt-4o-mini for fast mode, gpt-4o for full mode
-        const completion = await client.chat.completions.create({
-          model: fastMode ? "gpt-4o-mini" : "gpt-4o",
-          messages: messages,
-          temperature: temperature,
-          max_tokens: fastMode ? 500 : 2000, // Shorter responses in fast mode
-          response_format: jsonMode ? { type: "json_object" } : undefined
-        });
-        return completion.choices[0].message.content.trim();
-      }
-    } catch (error) {
-      lastError = error;
-      const status = error.status || error.response?.status;
+        // If it's a quota error (429), break inner loop and try next provider
+        if (status === 429) {
+          console.error(`🔴 [AI] ${type.toUpperCase()} Quota Exceeded. Trying next provider...`);
+          break;
+        }
 
-      // If it's a permanent error (Auth/Model not found), don't retry
-      if (status === 401 || status === 404) break;
-
-      console.warn(`⚠️ [AI] Attempt ${attempt} failed: ${error.message}`);
-
-      // Wait before retrying (Exponential backoff: 1s, 2s)
-      if (attempt < MAX_RETRIES) {
-        await new Promise(res => setTimeout(res, attempt * 1000));
+        // For other errors, maybe retry if we have attempts left
+        if (attempt < MAX_RETRIES && status !== 401 && status !== 404) {
+          await new Promise(res => setTimeout(res, attempt * 1000));
+        } else {
+          break; // Stop retrying this provider
+        }
       }
     }
+
+    // If we successfully returned above, we won't reach here. 
+    // If we reach here, it means the current provider failed.
   }
 
-  // If we're here, all retries failed
-  console.error('❌ [AI] All attempts failed');
-  if (lastError.message.includes('ENOTFOUND') || lastError.message.includes('ETIMEDOUT') || lastError.message.includes('DNS')) {
-    throw new Error("AI Service is temporarily unreachable (Network/DNS Error). Please check your internet connection or try again in a minute.");
+  // All providers/attempts failed
+  console.error('❌ [AI] All AI services failed or exceeded quota');
+  if (lastError?.message?.includes('quota') || lastError?.status === 429) {
+    throw new Error("AI Quota Exceeded. Please check your API billing or add a backup GEMINI_API_KEY to your .env file.");
   }
-  throw new Error(lastError.message || "AI Service Failed after multiple attempts");
+  throw new Error(lastError?.message || "AI Service failed after trying all options.");
 };
 
 /**

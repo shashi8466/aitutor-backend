@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const apiKey = process.env.OPENAI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY;
 
 console.log('🧪 Testing Google Gemini API Connection...\n');
 
@@ -28,10 +28,10 @@ console.log('🔑 Key prefix:', apiKey.substring(0, 20) + '...\n');
 async function testConnection() {
   try {
     console.log('📡 Sending test request to Google Gemini...\n');
-    
+
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
+
     const result = await model.generateContent("Say 'Hello, I am working!' if you can read this.");
     const response = result.response;
     const text = response.text();
@@ -39,10 +39,10 @@ async function testConnection() {
     console.log('✅ SUCCESS! Google Gemini API is working correctly.\n');
     console.log('📩 Response:', text);
     console.log('\n✅ Your API key is valid and the service is operational.');
-    
+
   } catch (error) {
     console.error('❌ ERROR:', error.message);
-    
+
     if (error.status === 404) {
       console.error('\n🔍 404 Error Diagnosis:');
       console.error('- The API endpoint might be incorrect');
@@ -53,7 +53,7 @@ async function testConnection() {
       console.error('- Check if you have enabled the Gemini API in Google Cloud Console');
       console.error('- Verify billing is set up: https://console.cloud.google.com/billing');
     }
-    
+
     process.exit(1);
   }
 }
