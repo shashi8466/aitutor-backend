@@ -6,14 +6,18 @@ import { questionService, courseService } from '../../services/api';
 import QuestionCard from './QuestionCard';
 import QuestionForm from './QuestionForm';
 
-const { FiFilter, FiEdit, FiTrash2, FiHelpCircle, FiSearch, FiPlus, FiRefreshCw, FiAlertTriangle } = FiIcons;
+const { FiFilter, FiEdit, FiTrash2, FiHelpCircle, FiSearch, FiPlus, FiRefreshCw, FiAlertTriangle, FiChevronLeft, FiChevronRight } = FiIcons;
 
 const QuestionManagement = () => {
   const [questions, setQuestions] = useState([]);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchingQuestions, setFetchingQuestions] = useState(false);
-  
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50); // Limit to 50 items per page to prevent lag
+
   // Filters state
   const [filters, setFilters] = useState({
     courseId: '',
@@ -32,6 +36,7 @@ const QuestionManagement = () => {
 
   // 2. Fetch Questions whenever filters change
   useEffect(() => {
+    setCurrentPage(1); // Reset to first page when filters change
     loadQuestions();
   }, [filters]);
 
@@ -55,12 +60,12 @@ const QuestionManagement = () => {
       if (filters.type) params.type = filters.type;
 
       const response = await questionService.getAll(params);
-      let filteredQuestions = response.data;
-      
+      let filteredQuestions = response.data || [];
+
       // Client-side search (since API might not support fuzzy search efficiently yet)
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
-        filteredQuestions = filteredQuestions.filter(q => 
+        filteredQuestions = filteredQuestions.filter(q =>
           (q.question && q.question.toLowerCase().includes(searchLower))
         );
       }
@@ -91,9 +96,10 @@ const QuestionManagement = () => {
     }
 
     const confirmMsg = `Are you sure you want to delete ALL displayed questions (${questions.length})? This cannot be undone.`;
-    
+
     if (window.confirm(confirmMsg)) {
       try {
+        setLoading(true);
         // Process in batches of 10 to avoid overwhelming API if many
         const idsToDelete = questions.map(q => q.id);
         for (const id of idsToDelete) {
@@ -105,6 +111,8 @@ const QuestionManagement = () => {
         console.error("Bulk delete failed", err);
         alert("Some questions failed to delete.");
         loadQuestions();
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -121,6 +129,20 @@ const QuestionManagement = () => {
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentQuestions = questions.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(questions.length / itemsPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
   return (
@@ -152,7 +174,7 @@ const QuestionManagement = () => {
       </div>
 
       {/* Filters */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
@@ -162,7 +184,7 @@ const QuestionManagement = () => {
             <SafeIcon icon={FiFilter} className="w-5 h-5 text-gray-600" />
             <h3 className="font-medium text-gray-900">Filters</h3>
           </div>
-          <button 
+          <button
             onClick={loadQuestions}
             className="text-blue-600 hover:text-blue-700 text-sm flex items-center"
           >
@@ -170,7 +192,7 @@ const QuestionManagement = () => {
             Refresh
           </button>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
@@ -236,7 +258,7 @@ const QuestionManagement = () => {
           />
         </div>
       ) : questions.length === 0 ? (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center py-12 bg-white rounded-xl shadow-lg border border-gray-200"
@@ -244,7 +266,7 @@ const QuestionManagement = () => {
           <SafeIcon icon={FiHelpCircle} className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No questions found</h3>
           <p className="text-gray-600 mb-4">Try adjusting your filters or add a new question.</p>
-          <button 
+          <button
             onClick={handleCreateQuestion}
             className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
           >
@@ -253,28 +275,78 @@ const QuestionManagement = () => {
         </motion.div>
       ) : (
         <div className="space-y-4">
-          <div className="flex justify-between items-center text-sm text-gray-500 mb-2">
-            <span>Showing {questions.length} question{questions.length !== 1 && 's'}</span>
-            {filters.courseId && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-200 flex items-center gap-1"><SafeIcon icon={FiAlertTriangle} className="w-3 h-3"/> Use 'Delete All' to clear duplicates</span>}
+          <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center text-sm text-gray-500 mb-2 gap-2">
+            <span>Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, questions.length)} of {questions.length} question{questions.length !== 1 && 's'}</span>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-lg border border-gray-200">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
+                  className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <SafeIcon icon={FiChevronLeft} className="w-5 h-5 text-gray-700" />
+                </button>
+                <span className="font-medium text-gray-700">Page {currentPage} of {totalPages}</span>
+                <button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <SafeIcon icon={FiChevronRight} className="w-5 h-5 text-gray-700" />
+                </button>
+              </div>
+            )}
+
+            {filters.courseId && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded border border-yellow-200 flex items-center gap-1"><SafeIcon icon={FiAlertTriangle} className="w-3 h-3" /> Use 'Delete All' to clear duplicates</span>}
           </div>
-          {questions.map((question, index) => (
-            <QuestionCard 
-              key={question.id} 
-              question={question} 
+
+          {currentQuestions.map((question, index) => (
+            <QuestionCard
+              key={question.id}
+              question={question}
               courses={courses}
-              index={index}
+              index={indexOfFirstItem + index}
               onEdit={handleEditQuestion}
               onDelete={handleDeleteQuestion}
             />
           ))}
+
+          {/* Bottom Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-6">
+              <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
+                  className="flex items-center px-2 py-1 text-sm font-medium text-gray-700 rounded hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  <SafeIcon icon={FiChevronLeft} className="w-4 h-4 mr-1" />
+                  Prev
+                </button>
+                <span className="font-medium text-gray-700 bg-gray-50 px-3 py-1 rounded">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  className="flex items-center px-2 py-1 text-sm font-medium text-gray-700 rounded hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                >
+                  Next
+                  <SafeIcon icon={FiChevronRight} className="w-4 h-4 ml-1" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {showForm && (
-        <QuestionForm 
-          question={editingQuestion} 
-          courses={courses} 
-          onClose={() => setShowForm(false)} 
+        <QuestionForm
+          question={editingQuestion}
+          courses={courses}
+          onClose={() => setShowForm(false)}
           onSave={loadQuestions}
         />
       )}

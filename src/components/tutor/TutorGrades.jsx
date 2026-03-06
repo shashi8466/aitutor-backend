@@ -9,6 +9,9 @@ import supabase from '../../supabase/supabase';
 import { gradingService, tutorService, courseService } from '../../services/api';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import {
+    LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer
+} from 'recharts';
 
 const {
     FiBarChart2, FiUser, FiBook, FiCalendar, FiClock,
@@ -206,16 +209,37 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                 </div>
             )}
 
-            {/* Performance Overview */}
+            {/* Performance Overview & Analysis */}
             {displayedSubmissions.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center">
                         <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Average Score</p>
-                        <p className="text-3xl font-black text-blue-600">
+                        <p className="text-4xl font-black text-blue-600">
                             {Math.round(displayedSubmissions.reduce((acc, s) => acc + (s.raw_score_percentage || 0), 0) / (displayedSubmissions.length || 1))}%
                         </p>
+                        <p className="text-xs text-gray-500 mt-2">Based on {displayedSubmissions.length} tests</p>
                     </div>
-
+                    {studentIdParam && displayedSubmissions.length > 1 && (
+                        <div className="md:col-span-3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 h-64">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Performance Trend</h3>
+                            <ResponsiveContainer width="100%" height="80%">
+                                <LineChart data={[...displayedSubmissions].reverse().map((sub, i) => ({
+                                    name: `T${i + 1}`,
+                                    score: Math.round(sub.raw_score_percentage || 0),
+                                    date: new Date(sub.test_date || sub.created_at).toLocaleDateString()
+                                }))}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                    <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} />
+                                    <YAxis stroke="#9CA3AF" fontSize={12} domain={[0, 100]} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '8px' }}
+                                        labelStyle={{ color: '#F3F4F6' }}
+                                    />
+                                    <Line type="monotone" dataKey="score" stroke="#3B82F6" strokeWidth={3} name="Score %" dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -258,8 +282,12 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                                            {new Date(sub.test_date || sub.created_at).toLocaleDateString()}
+                                            <div className="flex flex-col">
+                                                <span>{new Date(sub.test_date || sub.created_at).toLocaleDateString()}</span>
+                                                <span className="text-xs opacity-75">{new Date(sub.test_date || sub.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
                                         </td>
+
                                         <td className="px-6 py-4">
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-bold text-gray-900 dark:text-white">

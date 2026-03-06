@@ -1,90 +1,99 @@
 import { createClient } from '@supabase/supabase-js';
 
-const getSupabase = (userId) => {
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env['Project-URL'] || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-  const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env['anon-public'];
-  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SERVICE_ROLE_KEY || process.env['service_role'];
-
-  if (!SUPABASE_KEY) {
-    throw new Error('SUPABASE_KEY is required.');
-  }
-
-  return createClient(SUPABASE_URL, SUPABASE_KEY, {
-    global: {
-      headers: SERVICE_ROLE_KEY ? { Authorization: `Bearer ${SERVICE_ROLE_KEY}` } : {}
-    }
-  });
+const getSupabase = () => {
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+  const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!SUPABASE_KEY) throw new Error('SUPABASE_KEY is required.');
+  return createClient(SUPABASE_URL, SUPABASE_KEY);
 };
 
+// ── In-memory fallback (used when DB write fails) ──
+const memoryStore = new Map();
+
+const defaultState = () => ({
+  current_state: 'Start Session',
+  preferences: {},
+  practice_module: { active: false, quiz_data: null },
+  teaching_module: { active: false, step: 'INIT', topic: '' },
+  seen_question_texts: [],
+  session_log: [],
+  error_patterns: {},
+  baseline: null,
+});
+
 export const getStudentState = async (userId) => {
-  const supabase = getSupabase(userId);
+  // Always return in-memory first if we have it (faster, avoids DB race)
+  if (memoryStore.has(userId)) return memoryStore.get(userId);
 
-  // Try to get from a specific student_state table if it exists
-  const { data: stateData, error } = await supabase
-    .from('student_states')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('student_states')
+      .select('state_data')
+      .eq('user_id', userId)
+      .maybeSingle();         // maybeSingle() — no error if row missing
 
-  if (stateData) return stateData;
+    if (!error && data?.state_data) {
+      const state = { ...defaultState(), ...data.state_data, user_id: userId };
+      memoryStore.set(userId, state);
+      return state;
+    }
+  } catch (err) {
+    console.warn('⚠️ [State] DB read failed, using in-memory:', err.message);
+  }
 
-  // If table doesn't exist or no record, return default state
-  return {
-    user_id: userId,
-    goal: null,
-    baseline: null,
-    mastery: {},
-    timing: {},
-    error_patterns: {},
-    preferences: {},
-    session_log: [],
-    current_state: 'START' // State machine start
-  };
+  const freshState = { ...defaultState(), user_id: userId };
+  memoryStore.set(userId, freshState);
+  return freshState;
 };
 
 export const updateStudentState = async (userId, newState) => {
-  const supabase = getSupabase(userId);
-
-  // Check if we should update or insert
-  const { data: existing } = await supabase
-    .from('student_states')
-    .select('id')
-    .eq('user_id', userId)
-    .single();
-
-  // Ensure user_id is set
   newState.user_id = userId;
   newState.updated_at = new Date().toISOString();
 
-  if (existing) {
-    const { data, error } = await supabase
-      .from('student_states')
-      .update(newState)
-      .eq('user_id', userId)
-      .select()
-      .single();
-    if (error) {
-      console.error("Error updating student state:", error);
-      // Fallback: If table likely doesn't exist, we might just log it 
-      // but since we are simulating the backend upgrade on an existing codebase, 
-      // we might need to rely on 'profiles' metadata if 'student_states' table is missing.
-      // However, the instructions say "Student State Model (Perfect – Use As-Is) ... Store it in Supabase (JSONB)".
-      // I'll assume for this task that I can try to use it. 
-      // If it fails, I'll return the state as is for the session (in-memory).
-      return newState;
-    }
-    return data;
-  } else {
-    const { data, error } = await supabase
-      .from('student_states')
-      .insert([newState])
-      .select()
-      .single();
+  // Always keep in memory (authoritative during session)
+  memoryStore.set(userId, newState);
 
-    if (error) {
-      console.error("Error creating student state:", error);
-      return newState;
+  // ── Persist only the tutor session blob to state_data (JSONB) ──
+  const stateBlob = {
+    current_state: newState.current_state,
+    preferences: newState.preferences,
+    practice_module: newState.practice_module,
+    teaching_module: newState.teaching_module,
+    seen_question_texts: newState.seen_question_texts,
+    error_patterns: newState.error_patterns,
+    baseline: newState.baseline,
+    // Trim session log to last 20 entries to keep DB size manageable
+    session_log: (newState.session_log || []).slice(-20),
+  };
+
+  try {
+    const supabase = getSupabase();
+
+    // Check if row exists
+    const { data: existing } = await supabase
+      .from('student_states')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('student_states')
+        .update({ state_data: stateBlob, updated_at: newState.updated_at })
+        .eq('user_id', userId);
+    } else {
+      await supabase
+        .from('student_states')
+        .insert([{ user_id: userId, state_data: stateBlob, updated_at: newState.updated_at }]);
     }
-    return data;
+  } catch (err) {
+    console.warn('⚠️ [State] DB write failed, state kept in memory:', err.message);
   }
+
+  return newState;
 };
+
+
+

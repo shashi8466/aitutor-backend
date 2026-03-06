@@ -66,7 +66,7 @@ export const generateAIResponse = async (messages, jsonMode = false, temperature
             model: fastMode ? "gpt-4o-mini" : "gpt-4o",
             messages: messages,
             temperature: temperature,
-            max_tokens: fastMode ? 500 : 2000,
+            max_tokens: fastMode ? 500 : 4000,
             response_format: jsonMode ? { type: "json_object" } : undefined
           });
           return completion.choices[0].message.content.trim();

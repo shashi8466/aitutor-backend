@@ -10,14 +10,14 @@ import { courseService, enrollmentService, progressService, planService } from '
 import { useAuth } from '../../contexts/AuthContext';
 import { calculateStudentScore } from '../../utils/scoreCalculator';
 
-const { 
-  FiBook, FiCheckSquare, FiFileText, FiActivity, FiArrowLeft, FiPlay 
+const {
+  FiBook, FiCheckSquare, FiFileText, FiActivity, FiArrowLeft, FiPlay
 } = FiIcons;
 
 const StudentDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   // State
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState({
@@ -46,14 +46,14 @@ const StudentDashboard = () => {
       const planData = planRes.data?.generated_plan || null;
       const diagnosticData = planRes.data?.diagnostic_data || null;
       const progress = progressRes.data || [];
-      
+
       const calculatedScores = calculateStudentScore(progress, diagnosticData);
 
       // 2. Calculate Counts
       const passedLevels = progress.filter(p => p.passed).length;
-      const lessonsCount = Math.min(50, passedLevels * 3 + 5); 
+      const lessonsCount = Math.min(50, passedLevels * 3 + 5);
       const testsTaken = progress.length; // Each progress entry is a quiz result
-      
+
       // 3. Enrollments
       const enrollments = enrollmentsRes.data || [];
 
@@ -76,7 +76,9 @@ const StudentDashboard = () => {
           worksheets: 30,
           sessions: 24
         },
-        enrollments: enrollments.map(e => e.courses),
+        enrollments: enrollments
+          .filter(e => !e.courses?.is_practice)
+          .map(e => e.courses),
         plan: planData
       });
 
@@ -104,7 +106,7 @@ const StudentDashboard = () => {
   return (
     <div className="min-h-screen bg-[#FAFAFA] pb-12 font-sans text-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         {/* 1. Header */}
         <div className="mb-8">
           <div>
@@ -137,16 +139,16 @@ const StudentDashboard = () => {
 
         {/* 3. Main Dashboard Content (No Tabs) */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          
+
           {/* Top Row: Score & Progress */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
+
             {/* Score Summary Card */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold text-lg text-gray-800">Score Performance</h3>
-                <button 
-                  onClick={() => navigate('/student/test-review')} 
+                <button
+                  onClick={() => navigate('/student/test-review')}
                   className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Review Tests
@@ -156,12 +158,12 @@ const StudentDashboard = () => {
               <div className="flex flex-col md:flex-row items-center gap-8">
                 {/* Circular Progress */}
                 <div className="flex flex-col items-center">
-                  <CircularProgress 
-                    value={scores.total} 
-                    max={1600} 
-                    size={140} 
-                    strokeWidth={12} 
-                    color="#3B82F6" 
+                  <CircularProgress
+                    value={scores.total}
+                    max={1600}
+                    size={140}
+                    strokeWidth={12}
+                    color="#3B82F6"
                   />
                   <div className="mt-4 text-center">
                     <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Current Score</p>
@@ -183,9 +185,9 @@ const StudentDashboard = () => {
                           <span className="text-gray-900">{scores.math}/800</span>
                         </div>
                         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }} 
-                            animate={{ width: `${(scores.math / 800) * 100}%` }} 
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(scores.math / 800) * 100}%` }}
                             className="h-full bg-blue-500 rounded-full"
                           />
                         </div>
@@ -197,9 +199,9 @@ const StudentDashboard = () => {
                           <span className="text-gray-900">{scores.rw}/800</span>
                         </div>
                         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }} 
-                            animate={{ width: `${(scores.rw / 800) * 100}%` }} 
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(scores.rw / 800) * 100}%` }}
                             className="h-full bg-green-500 rounded-full"
                           />
                         </div>
@@ -219,9 +221,9 @@ const StudentDashboard = () => {
                       </div>
                     </div>
                     <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }} 
-                        animate={{ width: `${progressPercent}%` }} 
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progressPercent}%` }}
                         className="h-full bg-purple-500 rounded-full"
                       />
                     </div>
@@ -235,22 +237,22 @@ const StudentDashboard = () => {
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col">
               <h3 className="font-bold text-lg text-gray-800 mb-6">Learning Activity</h3>
               <div className="flex-1 flex flex-col justify-center space-y-8">
-                
-                <ProgressRow 
-                  icon={FiBook} color="text-blue-500" bg="bg-blue-500" 
-                  label="Lessons Completed" count={counts.lessons} max={maxCounts.lessons} 
+
+                <ProgressRow
+                  icon={FiBook} color="text-blue-500" bg="bg-blue-500"
+                  label="Lessons Completed" count={counts.lessons} max={maxCounts.lessons}
                 />
-                <ProgressRow 
-                  icon={FiCheckSquare} color="text-purple-500" bg="bg-purple-500" 
-                  label="Quizzes Taken" count={counts.tests} max={maxCounts.tests} 
+                <ProgressRow
+                  icon={FiCheckSquare} color="text-purple-500" bg="bg-purple-500"
+                  label="Quizzes Taken" count={counts.tests} max={maxCounts.tests}
                 />
-                <ProgressRow 
-                  icon={FiFileText} color="text-yellow-500" bg="bg-yellow-500" 
-                  label="Worksheets Done" count={counts.worksheets} max={maxCounts.worksheets} 
+                <ProgressRow
+                  icon={FiFileText} color="text-yellow-500" bg="bg-yellow-500"
+                  label="Worksheets Done" count={counts.worksheets} max={maxCounts.worksheets}
                 />
-                <ProgressRow 
-                  icon={FiActivity} color="text-orange-500" bg="bg-orange-500" 
-                  label="Active Sessions" count={counts.sessions} max={maxCounts.sessions} 
+                <ProgressRow
+                  icon={FiActivity} color="text-orange-500" bg="bg-orange-500"
+                  label="Active Sessions" count={counts.sessions} max={maxCounts.sessions}
                 />
 
               </div>
@@ -263,7 +265,7 @@ const StudentDashboard = () => {
               <h3 className="font-bold text-lg text-gray-800">Continue Learning</h3>
               <button onClick={() => navigate('/student/courses')} className="text-blue-600 text-sm font-bold hover:underline">View All Courses</button>
             </div>
-            
+
             {enrollments.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {enrollments.slice(0, 3).map(course => (
@@ -311,7 +313,7 @@ const Badge = ({ label, value, color }) => (
 
 const ProgressRow = ({ icon, color, bg, label, count, max }) => {
   const percent = Math.min(100, (count / max) * 100);
-  
+
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
@@ -322,9 +324,9 @@ const ProgressRow = ({ icon, color, bg, label, count, max }) => {
         <span className="text-xs font-bold text-gray-500">{count}/{max}</span>
       </div>
       <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-        <motion.div 
-          initial={{ width: 0 }} 
-          animate={{ width: `${percent}%` }} 
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${percent}%` }}
           className={`h-full rounded-full ${bg}`}
         />
       </div>

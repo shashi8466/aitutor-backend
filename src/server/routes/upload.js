@@ -110,7 +110,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     });
 
     // 2. Extract metadata
-    const { courseId, category = 'source_document', level = 'All', parse = 'false' } = req.body;
+    const { courseId, category = 'source_document', level = 'All', parse = 'false', is_practice = 'false' } = req.body;
 
     if (!courseId) {
       console.error('❌ [UPLOAD] No courseId provided');
@@ -170,7 +170,8 @@ router.post('/', upload.single('file'), async (req, res) => {
       category: category,
       level: level,
       file_type: fileExt,
-      file_url: fileUrl
+      file_url: fileUrl,
+      is_practice: is_practice === 'true' || is_practice === true
     };
 
     const { data: fullUpload, error: fullError } = await supabase

@@ -244,6 +244,9 @@ export const uploadService = {
       .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile', { count: 'exact', head: true })
 
     return { uploadsCount, usersCount };
+  },
+  update: async (id, updates) => {
+    return await supabase.from('uploads').update(updates).eq('id', id);
   }
 };
 
@@ -294,6 +297,11 @@ export const aiService = {
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
     return axios.post('/api/ai/chat', { message, context, history, difficulty }, { headers });
   },
+  tutorChat: async (message, difficulty = 'Medium') => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+    return axios.post('/api/ai/tutor', { message, difficulty }, { headers });
+  },
   getExplanation: async (question, userAnswer, correctAnswer) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
@@ -314,6 +322,7 @@ export const aiService = {
   summarizeContent: async (ctx) => axios.post('/api/ai/summarize', { context: ctx }),
   generateFlashcards: async (ctx) => axios.post('/api/ai/flashcards', { context: ctx }),
   generateQuizFromContent: async (ctx) => axios.post('/api/ai/quiz-from-content', { context: ctx }),
+  generateExam: async (ctx, difficulty, count) => axios.post('/api/ai/generate-exam', { context: ctx, difficulty, count }),
   generateChapters: async (ctx) => axios.post('/api/ai/chapters', { context: ctx }),
   generatePodcastScript: async (ctx) => axios.post('/api/ai/podcast', { context: ctx }),
 

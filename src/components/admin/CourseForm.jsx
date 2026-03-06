@@ -5,7 +5,7 @@ import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService } from '../../services/api';
 import axios from 'axios';
 
-const { FiX, FiSave, FiUpload, FiFile, FiVideo, FiBook, FiCheck, FiTrash2, FiLoader, FiAlertCircle, FiDollarSign, FiUsers, FiAlertTriangle, FiKey, FiCopy, FiClock } = FiIcons;
+const { FiX, FiSave, FiUpload, FiFile, FiVideo, FiBook, FiCheck, FiTrash2, FiLoader, FiAlertCircle, FiDollarSign, FiUsers, FiAlertTriangle, FiKey, FiCopy, FiClock, FiActivity } = FiIcons;
 
 const CourseForm = ({ course, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -17,7 +17,8 @@ const CourseForm = ({ course, onClose, onSave }) => {
     manual_enrollment_count: course?.manual_enrollment_count || '',
     price_section_a: course?.price_section_a || '',
     price_section_b: course?.price_section_b || '',
-    start_date: course?.start_date ? new Date(course.start_date).toISOString().slice(0, 16) : ''
+    start_date: course?.start_date ? new Date(course.start_date).toISOString().slice(0, 16) : '',
+    is_practice: course?.is_practice || false
   });
 
   const [newFiles, setNewFiles] = useState({});
@@ -43,6 +44,13 @@ const CourseForm = ({ course, onClose, onSave }) => {
       loadExistingUploads();
     }
   }, [course]);
+
+  // Auto-enable key generation for new practice courses
+  useEffect(() => {
+    if (formData.is_practice && !course?.id && !generateKey) {
+      setGenerateKey(true);
+    }
+  }, [formData.is_practice]);
 
   const loadExistingUploads = async () => {
     setFetchingUploads(true);
@@ -143,6 +151,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
         currency: 'INR',
         is_free: Number(formData.price_full) === 0,
         start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
+        is_practice: formData.is_practice
       };
 
       let savedCourse;
@@ -408,6 +417,26 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-white"
                   />
                   <p className="text-xs text-gray-500 mt-1">Set to 0 for "Free".</p>
+                </div>
+
+                <div className="flex items-start gap-4 col-span-2 mt-4 p-4 bg-red-50 rounded-xl border border-red-100 shadow-sm">
+                  <input
+                    type="checkbox"
+                    id="is_practice"
+                    name="is_practice"
+                    checked={formData.is_practice}
+                    onChange={(e) => setFormData({ ...formData, is_practice: e.target.checked })}
+                    className="mt-1 w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="is_practice" className="text-sm font-extrabold text-[#E53935] cursor-pointer flex items-center gap-2">
+                      <SafeIcon icon={FiActivity} className="w-5 h-5" />
+                      Mark as Official Practice Course
+                    </label>
+                    <p className="text-xs text-red-700 mt-1 font-medium italic">
+                      Special: All material uploaded to this course will be categorized as "Practice Tests" for students.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

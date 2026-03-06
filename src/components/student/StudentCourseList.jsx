@@ -91,10 +91,16 @@ const StudentCourseList = () => {
     }
   };
 
-  const filteredCourses = allCourses.filter(c =>
-    c.name.toLowerCase().includes(filter.toLowerCase()) ||
-    c.description?.toLowerCase().includes(filter.toLowerCase())
-  );
+  const filteredCourses = allCourses.filter(c => {
+    // 1. Must NOT be an official practice course (those go to Practice section)
+    if (c.is_practice) return false;
+
+    // 2. Search match
+    return (
+      c.name.toLowerCase().includes(filter.toLowerCase()) ||
+      c.description?.toLowerCase().includes(filter.toLowerCase())
+    );
+  });
 
   const enrolledCourses = filteredCourses.filter(c => enrolledIds.has(c.id));
   const availableCourses = filteredCourses.filter(c => !enrolledIds.has(c.id));

@@ -36,6 +36,17 @@ const UploadManagement = () => {
     }
   };
 
+  const handleTogglePractice = async (uploadId, currentStatus) => {
+    try {
+      const { error } = await uploadService.update(uploadId, { is_practice: !currentStatus });
+      if (error) throw error;
+      setUploads(prev => prev.map(u => u.id === uploadId ? { ...u, is_practice: !currentStatus } : u));
+    } catch (error) {
+      console.error('Error updating practice status:', error);
+      alert('Failed to update practice status. Make sure the database column exists.');
+    }
+  };
+
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed': return FiCheck;
@@ -134,7 +145,7 @@ const UploadManagement = () => {
             <SafeIcon icon={FiRefreshCw} className="w-4 h-4 mr-1" /> Refresh
           </button>
         </div>
-        
+
         {uploads.length === 0 ? (
           <div className="text-center py-12">
             <SafeIcon icon={FiFile} className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -159,13 +170,13 @@ const UploadManagement = () => {
                         {upload.status}
                       </span>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
                       <span className="font-medium text-gray-800">{upload.courseName}</span>
                       <span className="text-gray-400">•</span>
                       <span>{new Date(upload.created_at).toLocaleDateString()} {new Date(upload.created_at).toLocaleTimeString()}</span>
                     </div>
-                    
+
                     {upload.status === 'completed' && (
                       <div className="flex items-center space-x-4 text-sm">
                         <span className="text-green-600 font-medium">
@@ -174,8 +185,20 @@ const UploadManagement = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="flex items-center space-x-2 ml-4">
+                    <button
+                      onClick={() => handleTogglePractice(upload.id, upload.is_practice)}
+                      className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${upload.is_practice
+                        ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      title={upload.is_practice ? "Marked as Practice Test" : "Add to Practice Tests"}
+                    >
+                      <SafeIcon icon={FiCheck} className={`w-3 h-3 mr-1 ${upload.is_practice ? 'block' : 'hidden'}`} />
+                      {upload.is_practice ? 'Practice Test ✅' : 'Mark as Practice'}
+                    </button>
+
                     <button
                       onClick={() => handleDeleteUpload(upload.id)}
                       className="p-2 text-gray-400 hover:text-red-600 transition-colors"

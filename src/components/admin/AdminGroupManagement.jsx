@@ -82,9 +82,11 @@ const AdminGroupManagement = () => {
     };
 
     const filteredGroups = groups.filter(group => {
-        const matchesSearch = group.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            group.tutor_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            group.course?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+        const search = searchQuery.toLowerCase();
+        const matchesSearch =
+            (group.name?.toLowerCase() || '').includes(search) ||
+            (group.tutor_name?.toLowerCase() || '').includes(search) ||
+            (group.course?.name?.toLowerCase() || '').includes(search);
 
         const matchesTutor = filterTutor === 'all' || group.created_by === filterTutor;
 

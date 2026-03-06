@@ -17,9 +17,10 @@ const FileUpload = () => {
   const [uploadResults, setUploadResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [serverOnline, setServerOnline] = useState(false);
-  
+
   // New Upload Options
   const [parseAsQuiz, setParseAsQuiz] = useState(false);
+  const [isPracticeTest, setIsPracticeTest] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState('All');
 
   const navigate = useNavigate();
@@ -70,7 +71,7 @@ const FileUpload = () => {
       const validTypes = ['.pdf', '.docx', '.txt', '.zip', '.mp4', '.mov', '.webm', '.avi', '.mkv'];
       const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
       const isValidType = validTypes.includes(fileExtension);
-      
+
       // INCREASED LIMIT TO 3GB
       const MAX_SIZE = 3 * 1024 * 1024 * 1024; // 3GB
       const isValidSize = file.size <= MAX_SIZE;
@@ -114,21 +115,22 @@ const FileUpload = () => {
     for (const fileItem of files) {
       try {
         setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'uploading' } : f));
-        
+
         const metadata = {
           category: getCategory(fileItem.file),
           level: selectedLevel,
-          parse: parseAsQuiz ? 'true' : 'false'
+          parse: parseAsQuiz ? 'true' : 'false',
+          is_practice: isPracticeTest ? 'true' : 'false'
         };
 
         // Use real upload service with Metadata
         const response = await courseService.uploadFile(selectedCourse, fileItem.file, metadata);
-        
+
         setUploadResults(prev => [...prev, {
           fileName: fileItem.file.name,
           status: 'success',
-          message: response.data.count > 0 
-            ? `Successfully imported ${response.data.count} questions` 
+          message: response.data.count > 0
+            ? `Successfully imported ${response.data.count} questions`
             : parseAsQuiz ? "Uploaded, but no questions found." : "File uploaded successfully"
         }]);
 
@@ -150,7 +152,7 @@ const FileUpload = () => {
     switch (status) {
       case 'completed': return FiCheck;
       case 'error': return FiX;
-      case 'uploading': 
+      case 'uploading':
       case 'processing': return FiLoader;
       default: return FiFile;
     }
@@ -160,7 +162,7 @@ const FileUpload = () => {
     switch (status) {
       case 'completed': return 'text-green-600';
       case 'error': return 'text-red-600';
-      case 'uploading': 
+      case 'uploading':
       case 'processing': return 'text-blue-600 animate-spin';
       default: return 'text-gray-600';
     }
@@ -222,7 +224,7 @@ const FileUpload = () => {
               ))}
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
             <div className="flex items-center h-[42px] px-3 border border-gray-300 rounded-lg bg-gray-50">
@@ -240,10 +242,26 @@ const FileUpload = () => {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Practice Test</label>
+            <div className="flex items-center h-[42px] px-3 border border-gray-300 rounded-lg bg-gray-50">
+              <input
+                type="checkbox"
+                id="isPracticeTest"
+                checked={isPracticeTest}
+                onChange={(e) => setIsPracticeTest(e.target.checked)}
+                className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+              />
+              <label htmlFor="isPracticeTest" className="ml-2 text-sm text-gray-700 cursor-pointer select-none">
+                Mark as Practice Test
+              </label>
+            </div>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Content Level</label>
             <select
               value={selectedLevel}
-              onChange={(e) => setSelectedLevel(e.target.value)}
+              onChange={(e) => setSelectedLevel(e.target.checked)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="All">Mixed / All Levels</option>
@@ -267,9 +285,8 @@ const FileUpload = () => {
         className={`bg-white rounded-xl shadow-lg border border-gray-200 p-6 ${!serverOnline ? 'opacity-50 pointer-events-none grayscale' : ''}`}
       >
         <div
-          className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-            dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
-          }`}
+          className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+            }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
@@ -315,7 +332,7 @@ const FileUpload = () => {
                 </div>
               ))}
             </div>
-            
+
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

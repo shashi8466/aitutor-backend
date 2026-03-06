@@ -29,6 +29,7 @@ router.get('/routes', (req, res) => {
       'POST /api/ai/podcast',
       'POST /api/ai/extract',
       'POST /api/ai/sales-chat',
+      'POST /api/ai/generate-exam',
       'GET /api/ai/test',
       'GET /api/ai/routes'
     ]
@@ -62,6 +63,27 @@ router.post('/chat', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// 1b. Dedicated Personal AI Tutor endpoint
+router.post('/tutor', async (req, res) => {
+  try {
+    const { message, difficulty } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required for Personal AI Tutor." });
+    }
+    console.log(`🎓 [Tutor Route] User: ${user.id} | Difficulty: ${difficulty} | Message: "${message.substring(0, 80)}"`);
+    const tutorRes = await handleTutorRequest(user.id, message, "Expert SAT Tutor", difficulty);
+    res.json({ reply: tutorRes.reply });
+  } catch (error) {
+    console.error("❌ [Tutor Route] Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // 2. Explain
 router.post('/explain', async (req, res) => {
@@ -406,12 +428,21 @@ router.post('/quiz-from-content', async (req, res) => {
     if (!context || typeof context !== 'string') {
       return res.status(400).json({ error: 'Missing or invalid context parameter' });
     }
-    const prompt = `Create a 5-question multiple choice quiz based on this text: ${context.substring(0, 3000)}. 
+    const prompt = `You are a Senior SAT Content Creator.
+    TASK: Create EXACTLY 10 multiple choice questions based on the provided text.
+    TEXT CONTENT: "${context.substring(0, 4000)}"
+    
+    REQUIREMENTS:
+    1. Use LaTeX for ALL math formulas and variables (e.g., \\\\( x^2 \\\\)).
+    2. Provide 4 clear options (A, B, C, D).
+    3. Provide a detailed step-by-step explanation for the correct answer.
+    4. Ensure questions are challenging and directly related to the text.
+
     Return JSON ONLY: {"quiz": [{
-  "question": "The actual question text using LaTeX",
-  "options": ["Option A", "Option B", "Option C", "Option D"],
+  "question": "...",
+  "options": ["A", "B", "C", "D"],
   "correctAnswer": "A",
-  "explanation": "Step-by-step solution",
+  "explanation": "...",
   "concept": "Topic name"
 }]}
 
@@ -440,6 +471,61 @@ Return ONLY this JSON object.`;
     res.json({ quiz: sanitizedQuiz });
   } catch (error) {
     console.error('❌ Quiz-from-content Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/generate-exam', async (req, res) => {
+  try {
+    const { context, difficulty, count = 10 } = req.body;
+    if (!context || typeof context !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid context parameter' });
+    }
+
+    const prompt = `You are a Senior SAT Content Creator.
+TASK: Create EXACTLY ${count} multiple choice questions based on the provided text. Do not return more or less than ${count} questions.
+DIFFICULTY: ${difficulty} (STRICT ADHERENCE REQUIRED)
+
+SPECIFICATIONS FOR ${difficulty.toUpperCase()}:
+${difficulty === 'Easy' ? '- 1-2 step basic problems. Clear, direct language. Foundational concepts.' :
+        difficulty === 'Medium' ? '- 2-3 step problems. Real-world modeling. Context-dependent vocabulary.' :
+          '- 4-6 step abstract problems. Complex punctuation, high-level vocabulary, and synthesis across passages.'}
+
+TEXT CONTENT: "${context.substring(0, 4000)}"
+
+REQUIREMENTS:
+1. Every question must be ${difficulty} difficulty.
+2. Use LaTeX for ALL math formulas and variables (e.g., \\\\( x^2 \\\\)).
+3. Provide 4 clear options (A, B, C, D).
+4. Provide a detailed step-by-step explanation for the correct answer.
+
+OUTPUT FORMAT (JSON ONLY):
+{
+  "questions": [
+    {
+      "question": "...",
+      "options": ["A", "B", "C", "D"],
+      "correctAnswer": "A",
+      "explanation": "...",
+      "difficulty": "${difficulty}",
+      "concept": "..."
+    }
+  ]
+}
+
+Return ONLY this JSON object.`;
+
+    // Use a higher max_tokens call if possible, or just generate 10 at a time.
+    const text = await generateAIResponse([{ role: "user", content: prompt }], true, 0.7);
+    let parsed = extractJSON(text);
+
+    if (!parsed || !Array.isArray(parsed.questions)) {
+      throw new Error("AI failed to generate a valid exam structure.");
+    }
+
+    res.json({ questions: parsed.questions });
+  } catch (error) {
+    console.error('❌ Generate-exam Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -587,5 +673,6 @@ console.log('  POST /api/ai/chapters');
 console.log('  POST /api/ai/podcast');
 console.log('  POST /api/ai/extract');
 console.log('  POST /api/ai/sales-chat');
+console.log('  POST /api/ai/generate-exam');
 
 export default router;
