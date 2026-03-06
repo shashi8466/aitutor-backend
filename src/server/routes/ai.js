@@ -659,6 +659,29 @@ RESPONSE FORMAT: Keep responses concise (2-4 sentences) followed by a helpful qu
   }
 });
 
+// 14. Personal AI Tutor Agent
+router.post('/tutor', async (req, res) => {
+  try {
+    const { message, context, difficulty } = req.body;
+    const user = await getUserFromRequest(req);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized. Please login to use the AI Tutor.' });
+    }
+
+    if (!message || message.trim().length === 0) {
+      return res.json({ reply: "I'm your AI Tutor. How can I help you today?" });
+    }
+
+    console.log(`🤖 [Tutor Agent] Routing request for User: ${user.id}, Difficulty: ${difficulty}`);
+    const result = await handleTutorRequest(user.id, message, context, difficulty);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Tutor Route Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Log all registered routes for debugging
 console.log('✅ AI Routes Registered:');
 console.log('  POST /api/ai/chat');
@@ -674,5 +697,6 @@ console.log('  POST /api/ai/podcast');
 console.log('  POST /api/ai/extract');
 console.log('  POST /api/ai/sales-chat');
 console.log('  POST /api/ai/generate-exam');
+console.log('  POST /api/ai/tutor');
 
 export default router;

@@ -182,42 +182,65 @@ const SmartAIPanel = ({ content, summary }) => {
     let currentLoaded = dataCache.exam[difficulty]?.length || 0;
 
     setExamProgress({ current: currentLoaded, total: targetCount });
-    setError(null);
+    // Don't clear global error here, as we want to handle errors locally
+    // setError(null); 
 
     try {
       let attempts = 0;
-      const maxAttempts = 8;
+      const maxAttempts = 10; // Increased attempts
 
       while (currentLoaded < targetCount && attempts < maxAttempts) {
         attempts++;
         const needed = targetCount - currentLoaded;
         const currentBatchSize = Math.min(needed, batchSize);
 
-        console.log(`Generating ${difficulty} batch: ${currentLoaded}/${targetCount}`);
-        const res = await aiService.generateExam(safeContent, difficulty, currentBatchSize);
-        const newQuestions = res.data?.questions || [];
+        console.log(`Generating ${difficulty} batch: ${currentLoaded}/${targetCount} (Attempt ${attempts})`);
 
-        if (newQuestions.length > 0) {
-          currentLoaded += newQuestions.length;
-          setDataCache(prev => ({
-            ...prev,
-            exam: {
-              ...prev.exam,
-              [difficulty]: [...prev.exam[difficulty], ...newQuestions]
-            }
-          }));
+        try {
+          const res = await aiService.generateExam(safeContent, difficulty, currentBatchSize);
+          const newQuestions = res.data?.questions || [];
 
-          setExamProgress(prev => ({
-            ...prev,
-            current: currentLoaded
-          }));
-        } else {
-          if (attempts > 4) break;
+          if (newQuestions.length > 0) {
+            currentLoaded += newQuestions.length;
+            setDataCache(prev => ({
+              ...prev,
+              exam: {
+                ...prev.exam,
+                [difficulty]: [...prev.exam[difficulty], ...newQuestions]
+              }
+            }));
+
+            setExamProgress(prev => ({
+              ...prev,
+              current: currentLoaded
+            }));
+
+            // If successful, reset local error if we had one
+            setError(null);
+          } else {
+            // Small delay before retry
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        } catch (batchErr) {
+          console.error(`Batch ${attempts} failed for ${difficulty}:`, batchErr);
+          // If this was the last attempt and we still don't have enough, we'll hit the outer catch or loop end
+          if (attempts >= maxAttempts && currentLoaded < targetCount) {
+            throw new Error(`${difficulty} generation reached max attempts. Only ${currentLoaded} questions loaded.`);
+          }
+          // Delay before retry
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
     } catch (err) {
-      console.error(`${difficulty} exam generation failed:`, err);
-      setError(`${difficulty} generation stopped. Click button to resume.`);
+      console.error(`${difficulty} exam generation fully failed:`, err);
+      // Instead of breaking the whole tab, we can alert or show a local error
+      // But for now, let's just make sure we don't break the whole panel if some questions exist
+      if (currentLoaded === 0) {
+        setError(`${difficulty} generation failed. Please check your connection and try again.`);
+      } else {
+        // Just log it, the user sees the current count is < 20
+        console.warn(`${difficulty} stopped at ${currentLoaded} questions.`);
+      }
     } finally {
       setExamLoading(false);
     }
@@ -336,7 +359,7 @@ const SmartAIPanel = ({ content, summary }) => {
         <AnimatePresence mode="wait">
           {loading && activeTab !== 'chat' ? (
             <div className="h-full" key="loading">{renderLoading()}</div>
-          ) : error ? (
+          ) : error && activeTab !== 'exam' ? (
             <div className="h-full" key="error">{renderError()}</div>
           ) : (
             <motion.div
