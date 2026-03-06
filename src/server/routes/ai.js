@@ -17,19 +17,11 @@ router.get('/routes', (req, res) => {
   res.json({
     message: 'Available AI Routes',
     routes: [
-      'POST /api/ai/chat',
-      'POST /api/ai/explain',
-      'POST /api/ai/generate-similar',
-      'POST /api/ai/generate-plan',
-      'POST /api/ai/review-test',
-      'POST /api/ai/quiz-from-content',
-      'POST /api/ai/summarize',
-      'POST /api/ai/flashcards',
-      'POST /api/ai/chapters',
       'POST /api/ai/podcast',
       'POST /api/ai/extract',
       'POST /api/ai/sales-chat',
       'POST /api/ai/generate-exam',
+      'POST /api/ai/personal-tutor',
       'GET /api/ai/test',
       'GET /api/ai/routes'
     ]
@@ -660,7 +652,7 @@ RESPONSE FORMAT: Keep responses concise (2-4 sentences) followed by a helpful qu
 });
 
 // 14. Personal AI Tutor Agent
-router.post('/tutor', async (req, res) => {
+router.post('/personal-tutor', async (req, res) => {
   try {
     const { message, context, difficulty } = req.body;
     const user = await getUserFromRequest(req);
@@ -697,6 +689,6 @@ console.log('  POST /api/ai/podcast');
 console.log('  POST /api/ai/extract');
 console.log('  POST /api/ai/sales-chat');
 console.log('  POST /api/ai/generate-exam');
-console.log('  POST /api/ai/tutor');
+console.log('  POST /api/ai/personal-tutor');
 
 export default router;

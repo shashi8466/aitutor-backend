@@ -300,7 +300,7 @@ export const aiService = {
   tutorChat: async (message, difficulty = 'Medium') => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-    return axios.post('/api/ai/tutor', { message, difficulty }, { headers });
+    return axios.post('/api/ai/personal-tutor', { message, difficulty }, { headers });
   },
   getExplanation: async (question, userAnswer, correctAnswer) => {
     const { data: { session } } = await supabase.auth.getSession();
