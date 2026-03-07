@@ -6,14 +6,23 @@ import SafeIcon from '../../../common/SafeIcon';
 const { FiCalendar, FiX, FiCheckCircle, FiFlag, FiAlertCircle, FiRefreshCw } = FiIcons;
 
 const FullScheduleModal = ({ plan, onClose }) => {
-  // Robust check: ensure plan and weeks exist
-  const hasWeeks = plan && plan.weeks && Array.isArray(plan.weeks) && plan.weeks.length > 0;
+  // Robust check: handle different AI formats (studyPlan, weeks, schedule)
+  const rawWeeks = plan?.weeks || plan?.studyPlan || plan?.schedule || [];
+
+  const normalizedWeeks = Array.isArray(rawWeeks) ? rawWeeks.map((w, idx) => ({
+    week: w.week || w.month || idx + 1,
+    focus: w.focus || w.mathFocus || w.topic || "General Focus",
+    goals: Array.isArray(w.goals) ? w.goals : (w.englishFocus ? [w.englishFocus] : []),
+    action_item: w.action_item || w.description || "Review weekly concepts"
+  })) : [];
+
+  const hasWeeks = normalizedWeeks.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ scale: 0.95, opacity: 0 }} 
-        animate={{ scale: 1, opacity: 1 }} 
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
         className="bg-white dark:bg-gray-800 rounded-3xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden shadow-2xl"
       >
         {/* Header */}
@@ -47,8 +56,8 @@ const FullScheduleModal = ({ plan, onClose }) => {
             </div>
           ) : (
             <div className="space-y-6">
-              {plan.weeks.map((week, idx) => (
-                <motion.div 
+              {normalizedWeeks.map((week, idx) => (
+                <motion.div
                   key={idx}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}

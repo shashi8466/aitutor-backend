@@ -19,21 +19,21 @@ const SCORING_CONFIG = {
 };
 
 export const calculateStudentScore = (progressData, diagnosticData) => {
-  // 1. Establish Baselines
-  let baseMath = 400;
-  let baseRW = 400;
+  // 1. Establish Goals
   let target = 1500;
-
-  if (diagnosticData) {
-    baseMath = parseInt(diagnosticData.mathScore) || 400;
-    baseRW = parseInt(diagnosticData.rwScore) || 400;
+  if (diagnosticData && diagnosticData.targetScore) {
     target = parseInt(diagnosticData.targetScore) || 1500;
   }
 
-  let bestMath = baseMath;
-  let bestRW = baseRW;
+  // 2. Initialize Section Scores with SAT Minimums (200)
+  // These will grow based on actual performance (progressData)
+  let bestMath = 200;
+  let bestRW = 200;
 
-  // 2. Helper to get category
+  // 3. Establish Historical Baselines (Floors) from Diagnostic
+  // Defensively parse and cap at 800 to prevent corrupted strings
+  const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 200) : 200;
+  const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 200) : 200;
   const getCategory = (item) => {
     const type = (item.courses?.tutor_type || '').toLowerCase();
     const name = (item.courses?.name || '').toLowerCase();
@@ -77,9 +77,14 @@ export const calculateStudentScore = (progressData, diagnosticData) => {
     });
   }
 
-  // 5. Capping (Just in case)
-  bestMath = Math.min(800, bestMath);
-  bestRW = Math.min(800, bestRW);
+  // 5. Apply Sane Section Floors
+  // If performance-based score is less than baseline, use baseline (but cap baseline at 800)
+  const mathFloor = !isNaN(baselineMath) ? Math.min(800, baselineMath) : 200;
+  const rwFloor = !isNaN(baselineRW) ? Math.min(800, baselineRW) : 200;
+
+  if (bestMath < mathFloor) bestMath = mathFloor;
+  if (bestRW < rwFloor) bestRW = rwFloor;
+
   const total = bestMath + bestRW;
 
   return {
@@ -88,8 +93,8 @@ export const calculateStudentScore = (progressData, diagnosticData) => {
     rw: bestRW,
     target: target,
     gap: Math.max(0, target - total),
-    mathImprovement: Math.max(0, bestMath - baseMath),
-    rwImprovement: Math.max(0, bestRW - baseRW),
+    mathImprovement: Math.max(0, bestMath - mathFloor),
+    rwImprovement: Math.max(0, bestRW - rwFloor),
     isMathMaxed: bestMath >= 800,
     isRWMaxed: bestRW >= 800
   };

@@ -11,20 +11,29 @@ const StudyPlanWidget = ({ plan }) => {
 
   if (!plan) return null;
 
-  // Safety check: Ensure weeks exist
-  const hasWeeks = plan.weeks && Array.isArray(plan.weeks) && plan.weeks.length > 0;
-  const currentWeek = hasWeeks ? plan.weeks[0] : null;
+  // Robust check: handle different AI formats (studyPlan, weeks, schedule)
+  const weeksData = plan.weeks || plan.studyPlan || plan.schedule || [];
+
+  // Normalize weeks for display
+  const normalizedWeeks = Array.isArray(weeksData) ? weeksData.map((w, i) => ({
+    week: w.week || w.month || i + 1,
+    focus: w.focus || w.mathFocus || w.topic || "General Focus",
+    goals: Array.isArray(w.goals) ? w.goals : (w.englishFocus ? [w.englishFocus] : [])
+  })) : [];
+
+  const hasWeeks = normalizedWeeks.length > 0;
+  const currentWeek = hasWeeks ? normalizedWeeks[0] : null;
 
   return (
     <>
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 relative overflow-hidden group hover:shadow-2xl transition-all"
       >
         {/* Background Decor */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-700 dark:to-gray-800 rounded-bl-full opacity-50"></div>
-        
+
         <div className="flex justify-between items-start mb-6 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -64,7 +73,7 @@ const StudyPlanWidget = ({ plan }) => {
         )}
 
         {hasWeeks && (
-          <button 
+          <button
             onClick={() => setShowFull(true)}
             className="w-full py-3 border-2 border-gray-100 dark:border-gray-700 rounded-xl font-bold text-gray-600 dark:text-gray-300 hover:border-black dark:hover:border-white hover:text-black dark:hover:text-white transition-all"
           >

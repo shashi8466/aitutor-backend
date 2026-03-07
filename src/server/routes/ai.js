@@ -272,7 +272,38 @@ OUTPUT FORMAT (JSON ONLY):
 router.post('/generate-plan', async (req, res) => {
   try {
     const { diagnosticData } = req.body;
-    const prompt = `Study plan for: ${JSON.stringify(diagnosticData)}. Return JSON.`;
+    const prompt = `
+      PERSONA: Expert SAT Study Planner.
+      TASK: Create a comprehensive weekly study plan for a student preparing for the Digital SAT.
+      DATA: ${JSON.stringify(diagnosticData)}
+
+      OUTPUT FORMAT (JSON ONLY):
+      {
+        "summary": "A 1-2 sentence overview of the plan strategy based on the student's current level and goals.",
+        "predicted_score_range": "e.g., 1450-1550",
+        "prediction": "Single value like 1500+",
+        "weeks": [
+          {
+            "week": 1,
+            "focus": "Main focus area (e.g., Linear Equations or Punctuation)",
+            "goals": ["Goal 1", "Goal 2", "Goal 3"],
+            "description": "Short explanation of the week's priority"
+          },
+          {
+            "week": 2,
+            "focus": "...",
+            "goals": ["...", "...", "..."],
+            "description": "..."
+          }
+        ]
+      }
+
+      CRITICAL: 
+      1. Return ONLY the JSON object. No markdown, no extra text.
+      2. Ensure exactly 4-6 weeks of content are provided.
+      3. Focus on both Math and Reading & Writing sections based on the score gap.
+      4. Use specific SAT topic names (e.g. 'Standard English Conventions', 'Problem Solving and Data Analysis').
+    `;
     const text = await generateAIResponse([{ role: "user", content: prompt }], true);
     res.json(extractJSON(text));
   } catch (error) {
@@ -416,29 +447,27 @@ CRITICAL: Return ONLY the JSON object. No markdown, no extra text.`;
 
 router.post('/quiz-from-content', async (req, res) => {
   try {
-    const { context } = req.body;
+    const { context, count = 10, concise = false } = req.body;
     if (!context || typeof context !== 'string') {
       return res.status(400).json({ error: 'Missing or invalid context parameter' });
     }
-    const prompt = `You are a Senior SAT Content Creator.
-    TASK: Create EXACTLY 10 multiple choice questions based on the provided text.
-    TEXT CONTENT: "${context.substring(0, 4000)}"
+    const prompt = `You are a Senior Digital SAT Content Creator specialized in College Board standards.
+    TASK: Create EXACTLY ${count} high-quality Multiple Choice Questions (MCQs) for the topic: "${context}".
     
-    REQUIREMENTS:
-    1. Use LaTeX for ALL math formulas and variables (e.g., \\\\( x^2 \\\\)).
-    2. Provide 4 clear options (A, B, C, D).
-    3. Provide a detailed step-by-step explanation for the correct answer.
-    4. Ensure questions are challenging and directly related to the text.
+    STANDARDS:
+    1. DIFFICULTY: Match Digital SAT levels (Easy, Medium, or Hard depending on context).
+    2. MATH: Use precise LaTeX for ALL mathematical expressions (e.g., \\\\( ax^2 + bx + c = 0 \\\\)).
+    3. OPTIONS: Provide exactly 4 distinct options (A, B, C, D).
+    4. EXPLANATION: Include a structured, logical explanation for why the correct answer is right.
+    5. STYLE: ${concise ? 'Extremely CONCISE and direct.' : 'Detailed and thorough.'}
 
     Return JSON ONLY: {"quiz": [{
-  "question": "...",
-  "options": ["A", "B", "C", "D"],
-  "correctAnswer": "A",
-  "explanation": "...",
-  "concept": "Topic name"
-}]}
-
-Return ONLY this JSON object.`;
+      "question": "...",
+      "options": ["...", "...", "...", "..."],
+      "correctAnswer": "A",
+      "explanation": "...",
+      "concept": "SAT Topic"
+    }]}`;
 
     const text = await generateAIResponse([{ role: "user", content: prompt }], true);
     let parsed = extractJSON(text);

@@ -321,7 +321,7 @@ export const aiService = {
   salesChat: async (msg, hist) => axios.post('/api/ai/sales-chat', { message: msg, history: hist }),
   summarizeContent: async (ctx) => axios.post('/api/ai/summarize', { context: ctx }),
   generateFlashcards: async (ctx) => axios.post('/api/ai/flashcards', { context: ctx }),
-  generateQuizFromContent: async (ctx) => axios.post('/api/ai/quiz-from-content', { context: ctx }),
+  generateQuizFromContent: async (ctx, count = 10, concise = false) => axios.post('/api/ai/quiz-from-content', { context: ctx, count, concise }),
   generateExam: async (ctx, difficulty, count) => axios.post('/api/ai/generate-exam', { context: ctx, difficulty, count }),
   generateChapters: async (ctx) => axios.post('/api/ai/chapters', { context: ctx }),
   generatePodcastScript: async (ctx) => axios.post('/api/ai/podcast', { context: ctx }),
@@ -591,6 +591,9 @@ export const gradingService = {
   },
   getScales: async (courseId) => {
     return axios.get(`/api/grading/scales/${courseId}`);
+  },
+  getWeakTopics: async () => {
+    return axios.get('/api/grading/weak-topics');
   }
 };
 
