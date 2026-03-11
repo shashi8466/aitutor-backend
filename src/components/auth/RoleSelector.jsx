@@ -22,6 +22,16 @@ const RoleSelector = () => {
             path: '/login/student'
         },
         {
+            id: 'parent',
+            title: 'Parent',
+            description: "Monitor your child's academic progress and performance",
+            icon: FiUsers,
+            color: 'from-amber-500 to-orange-600',
+            borderColor: 'border-amber-500',
+            hoverColor: 'hover:border-amber-600',
+            path: '/login/parent'
+        },
+        {
             id: 'tutor',
             title: 'Tutor',
             description: 'Manage students, create enrollment keys, and track performance',

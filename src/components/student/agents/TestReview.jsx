@@ -73,8 +73,8 @@ const TestReview = () => {
                       {sub.course?.name || 'General Test'}
                     </h3>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${sub.level === 'Hard' ? 'bg-red-100 text-red-700' :
-                        sub.level === 'Medium' ? 'bg-orange-100 text-orange-700' :
-                          'bg-green-100 text-green-700'
+                      sub.level === 'Medium' ? 'bg-orange-100 text-orange-700' :
+                        'bg-green-100 text-green-700'
                       }`}>
                       {sub.level || 'Practice'}
                     </span>
@@ -95,7 +95,7 @@ const TestReview = () => {
               <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-4 md:pt-0">
                 <div className="text-center">
                   <p className="text-[10px] text-gray-400 font-black uppercase">Score</p>
-                  <p className="text-2xl font-black text-blue-600">{sub.scaled_score || 0}</p>
+                  <p className="text-2xl font-black text-blue-600">{sub.scaled_score || Math.round(200 + ((sub.raw_score_percentage || 0) / 100) * 600)}</p>
                 </div>
                 <button
                   onClick={() => navigate(`/student/detailed-review/${sub.id}`)}

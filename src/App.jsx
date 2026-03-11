@@ -1,41 +1,50 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/layout/Navbar';
 import supabase from './supabase/supabase';
-import HomePage from './components/layout/HomePage';
-import Login from './components/auth/Login';
-import Signup from './components/auth/Signup';
-import RoleSelector from './components/auth/RoleSelector';
-import AdminLogin from './components/auth/AdminLogin';
-import TutorLogin from './components/auth/TutorLogin';
-import StudentLogin from './components/auth/StudentLogin';
-import StudentDashboard from './components/student/StudentDashboard';
-import StudentCourseList from './components/student/StudentCourseList';
-import CourseView from './components/student/CourseView';
-import LevelDashboard from './components/student/LevelDashboard';
-import VideoPlayer from './components/student/VideoPlayer';
-import QuizInterface from './components/student/QuizInterface';
-import AdminDashboard from './components/admin/AdminDashboard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import StudentLayout from './components/layout/StudentLayout';
-import ContactPage from './components/layout/ContactPage';
-import Leaderboard from './components/student/Leaderboard';
-import StudentSettings from './components/student/StudentSettings';
-import Support from './components/student/Support';
-import StudentCalendar from './components/student/StudentCalendar';
-import EnrollmentKeyInput from './components/student/EnrollmentKeyInput';
-import AITutorAgent from './components/student/agents/AITutorAgent';
-import StudyPlanPage from './components/student/agents/StudyPlanPage';
-import WeaknessDrills from './components/student/agents/WeaknessDrills';
-import TestReview from './components/student/agents/TestReview';
-import CollegeAdvisor from './components/student/agents/CollegeAdvisor';
-import ParentConnect from './components/student/agents/ParentConnect';
-import PaymentSuccess from './components/student/PaymentSuccess';
-import PracticeTests from './components/student/PracticeTests';
-import DetailedTestReview from './components/student/DetailedTestReview';
-import SalesBot from './components/common/SalesBot';
-import TutorDashboard from './components/tutor/TutorDashboard';
+import LoadingSpinner from './components/common/LoadingSpinner';
+
+// Lazy imports for pages
+const HomePage = lazy(() => import('./components/layout/HomePage'));
+const RoleSelector = lazy(() => import('./components/auth/RoleSelector'));
+const AdminLogin = lazy(() => import('./components/auth/AdminLogin'));
+const TutorLogin = lazy(() => import('./components/auth/TutorLogin'));
+const StudentLogin = lazy(() => import('./components/auth/StudentLogin'));
+const ParentLogin = lazy(() => import('./components/auth/ParentLogin'));
+const Signup = lazy(() => import('./components/auth/Signup'));
+const ContactPage = lazy(() => import('./components/layout/ContactPage'));
+
+// Student Pages
+const StudentDashboard = lazy(() => import('./components/student/StudentDashboard'));
+const StudentCourseList = lazy(() => import('./components/student/StudentCourseList'));
+const CourseView = lazy(() => import('./components/student/CourseView'));
+const LevelDashboard = lazy(() => import('./components/student/LevelDashboard'));
+const VideoPlayer = lazy(() => import('./components/student/VideoPlayer'));
+const QuizInterface = lazy(() => import('./components/student/QuizInterface'));
+const Leaderboard = lazy(() => import('./components/student/Leaderboard'));
+const StudentSettings = lazy(() => import('./components/student/StudentSettings'));
+const Support = lazy(() => import('./components/student/Support'));
+const StudentCalendar = lazy(() => import('./components/student/StudentCalendar'));
+const EnrollmentKeyInput = lazy(() => import('./components/student/EnrollmentKeyInput'));
+const AITutorAgent = lazy(() => import('./components/student/agents/AITutorAgent'));
+const StudyPlanPage = lazy(() => import('./components/student/agents/StudyPlanPage'));
+const WeaknessDrills = lazy(() => import('./components/student/agents/WeaknessDrills'));
+const TestReview = lazy(() => import('./components/student/agents/TestReview'));
+const CollegeAdvisor = lazy(() => import('./components/student/agents/CollegeAdvisor'));
+const ParentConnect = lazy(() => import('./components/student/agents/ParentConnect'));
+const PaymentSuccess = lazy(() => import('./components/student/PaymentSuccess'));
+const PracticeTests = lazy(() => import('./components/student/PracticeTests'));
+const DetailedTestReview = lazy(() => import('./components/student/DetailedTestReview'));
+const SalesBot = lazy(() => import('./components/common/SalesBot'));
+
+// Dashboards
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const TutorDashboard = lazy(() => import('./components/tutor/TutorDashboard'));
+const ParentDashboard = lazy(() => import('./components/parent/ParentDashboard'));
+
 
 //============================================
 // CRITICAL: Configure Axios Base URL
@@ -53,7 +62,8 @@ const isFirebase =
 
 const PROD_URL = 'https://aitutor-backend-u7h3.onrender.com';
 
-const BACKEND_URL = (isFirebase || !isLocal) ? PROD_URL : (import.meta.env.VITE_BACKEND_URL || '');
+// Priority: 1. Environment Variable, 2. Production URL (if on Firebase), 3. Relative path (Local)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ((isFirebase || !isLocal) ? PROD_URL : '');
 
 console.log('📡 [API Connectivity]');
 console.log('  - Hostname:', window.location.hostname);
@@ -123,77 +133,92 @@ function App() {
     <div className="app-container">
       {showNavbar && <Navbar />}
       <AnimatePresence mode="wait">
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes location={location} key={location.pathname}>
+            {/* Public Routes */}
+            <Route path="/" element={<HomePage />} />
 
-          {/* Authentication Routes */}
-          <Route path="/login" element={<RoleSelector />} />
-          <Route path="/login/admin" element={<AdminLogin />} />
-          <Route path="/login/tutor" element={<TutorLogin />} />
-          <Route path="/login/student" element={<StudentLogin />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/contact" element={<ContactPage />} />
+            {/* Authentication Routes */}
+            <Route path="/login" element={<RoleSelector />} />
+            <Route path="/login/admin" element={<AdminLogin />} />
+            <Route path="/login/tutor" element={<TutorLogin />} />
+            <Route path="/login/student" element={<StudentLogin />} />
+            <Route path="/login/parent" element={<ParentLogin />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/contact" element={<ContactPage />} />
 
-          {/* Student Routes */}
-          <Route
-            path="/student"
-            element={
-              <ProtectedRoute role="student">
-                <StudentLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<StudentDashboard />} />
-            <Route path="courses" element={<StudentCourseList />} />
-            <Route path="enroll" element={<EnrollmentKeyInput />} />
-            <Route path="course/:courseId" element={<CourseView />} />
-            <Route path="course/:courseId/level/:level" element={<LevelDashboard />} />
-            <Route path="course/:courseId/level/:level/video" element={<VideoPlayer />} />
-            <Route path="course/:courseId/level/:level/quiz" element={<QuizInterface />} />
+            {/* Student Routes */}
+            <Route
+              path="/student"
+              element={
+                <ProtectedRoute role="student">
+                  <StudentLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<StudentDashboard />} />
+              <Route path="courses" element={<StudentCourseList />} />
+              <Route path="enroll" element={<EnrollmentKeyInput />} />
+              <Route path="course/:courseId" element={<CourseView />} />
+              <Route path="course/:courseId/level/:level" element={<LevelDashboard />} />
+              <Route path="course/:courseId/level/:level/video" element={<VideoPlayer />} />
+              <Route path="course/:courseId/level/:level/quiz" element={<QuizInterface />} />
 
-            {/* New Sidebar Features */}
-            <Route path="calendar" element={<StudentCalendar />} />
-            <Route path="practice-tests" element={<PracticeTests />} />
-            <Route path="leaderboard" element={<Leaderboard />} />
-            <Route path="settings" element={<StudentSettings />} />
-            <Route path="support" element={<Support />} />
+              {/* New Sidebar Features */}
+              <Route path="calendar" element={<StudentCalendar />} />
+              <Route path="practice-tests" element={<PracticeTests />} />
+              <Route path="leaderboard" element={<Leaderboard />} />
+              <Route path="settings" element={<StudentSettings />} />
+              <Route path="support" element={<Support />} />
 
-            {/* AI Agents */}
-            <Route path="tutor" element={<AITutorAgent />} />
-            <Route path="plan" element={<StudyPlanPage />} />
-            <Route path="drills" element={<WeaknessDrills />} />
-            <Route path="test-review" element={<TestReview />} />
-            <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
-            <Route path="college" element={<CollegeAdvisor />} />
-            <Route path="parent" element={<ParentConnect />} />
+              {/* AI Agents */}
+              <Route path="tutor" element={<AITutorAgent />} />
+              <Route path="plan" element={<StudyPlanPage />} />
+              <Route path="drills" element={<WeaknessDrills />} />
+              <Route path="test-review" element={<TestReview />} />
+              <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
+              <Route path="college" element={<CollegeAdvisor />} />
+              <Route path="parent" element={<ParentConnect />} />
 
-            {/* Payment */}
-            <Route path="payment-success" element={<PaymentSuccess />} />
-          </Route>
+              {/* Payment */}
+              <Route path="payment-success" element={<PaymentSuccess />} />
+            </Route>
 
-          {/* Tutor Routes */}
-          <Route
-            path="/tutor/*"
-            element={
-              <ProtectedRoute role="tutor">
-                <TutorDashboard />
-              </ProtectedRoute>
-            }
-          />
+            {/* Tutor Routes */}
+            <Route
+              path="/tutor/*"
+              element={
+                <ProtectedRoute role="tutor">
+                  <TutorDashboard />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Admin Routes */}
-          <Route
-            path="/admin/*"
-            element={
-              <ProtectedRoute role="admin">
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+            {/* Parent Routes */}
+            <Route
+              path="/parent/*"
+              element={
+                <ProtectedRoute role="parent">
+                  <ParentDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Routes */}
+            <Route
+              path="/admin/*"
+              element={
+                <ProtectedRoute role="admin">
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Suspense>
       </AnimatePresence>
-      {!isAdminRoute && !isStudentRoute && <SalesBot />}
+      <Suspense fallback={null}>
+        {!isAdminRoute && !isStudentRoute && !isTutorRoute && !location.pathname.startsWith('/parent') && <SalesBot />}
+      </Suspense>
     </div>
   );
 }

@@ -1,17 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import CourseManagement from './CourseManagement';
-import AdminCourseDetail from './AdminCourseDetail';
-import QuestionManagement from './QuestionManagement';
-import FileUpload from './FileUpload';
-import UploadManagement from './UploadManagement';
-import KnowledgeBase from './KnowledgeBase';
-import AdminSettings from './AdminSettings';
-import UserManagement from './UserManagement';
-import AdminGroupManagement from './AdminGroupManagement';
+import LoadingSpinner from '../common/LoadingSpinner';
+import Skeleton from '../common/Skeleton';
+
+// Lazy load admin sections
+const CourseManagement = lazy(() => import('./CourseManagement'));
+const AdminCourseDetail = lazy(() => import('./AdminCourseDetail'));
+const QuestionManagement = lazy(() => import('./QuestionManagement'));
+const FileUpload = lazy(() => import('./FileUpload'));
+const UploadManagement = lazy(() => import('./UploadManagement'));
+const KnowledgeBase = lazy(() => import('./KnowledgeBase'));
+const AdminSettings = lazy(() => import('./AdminSettings'));
+const UserManagement = lazy(() => import('./UserManagement'));
+const AdminGroupManagement = lazy(() => import('./AdminGroupManagement'));
+const AdminParentManagement = lazy(() => import('./AdminParentManagement'));
+
 import { courseService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -58,6 +64,7 @@ const AdminDashboard = () => {
   const navLinks = [
     { name: 'Overview', path: '/admin', icon: FiGrid },
     { name: 'Users', path: '/admin/users', icon: FiUsers },
+    { name: 'Parents', path: '/admin/parents', icon: FiUsers },
     { name: 'Courses', path: '/admin/courses', icon: FiBook },
     { name: 'Student Groups', path: '/admin/groups', icon: FiLayers },
     { name: 'Questions', path: '/admin/questions', icon: FiHelpCircle },
@@ -116,18 +123,21 @@ const AdminDashboard = () => {
           </div>
         </motion.div>
 
-        <Routes>
-          <Route path="/" element={<DashboardHome stats={stats} loading={loading} />} />
-          <Route path="/users" element={<UserManagement />} />
-          <Route path="/courses" element={<CourseManagement onStatsUpdate={loadStats} />} />
-          <Route path="/course/:id" element={<AdminCourseDetail />} />
-          <Route path="/groups" element={<AdminGroupManagement />} />
-          <Route path="/questions" element={<QuestionManagement />} />
-          <Route path="/knowledge-base" element={<KnowledgeBase />} />
-          <Route path="/upload" element={<FileUpload />} />
-          <Route path="/uploads" element={<UploadManagement />} />
-          <Route path="/settings" element={<AdminSettings />} />
-        </Routes>
+        <Suspense fallback={<LoadingSpinner fullPage={false} />}>
+          <Routes>
+            <Route path="/" element={<DashboardHome stats={stats} loading={loading} />} />
+            <Route path="/users" element={<UserManagement />} />
+            <Route path="/courses" element={<CourseManagement onStatsUpdate={loadStats} />} />
+            <Route path="/course/:id" element={<AdminCourseDetail />} />
+            <Route path="/groups" element={<AdminGroupManagement />} />
+            <Route path="/parents" element={<AdminParentManagement />} />
+            <Route path="/questions" element={<QuestionManagement />} />
+            <Route path="/knowledge-base" element={<KnowledgeBase />} />
+            <Route path="/upload" element={<FileUpload />} />
+            <Route path="/uploads" element={<UploadManagement />} />
+            <Route path="/settings" element={<AdminSettings />} />
+          </Routes>
+        </Suspense>
       </div>
     </div>
   );
@@ -140,8 +150,6 @@ const DashboardHome = ({ stats, loading }) => {
     { title: 'Total Uploads', value: stats.totalUploads, icon: FiUpload, color: 'bg-purple-500' },
     { title: 'Active Users', value: stats.activeUsers, icon: FiUsers, color: 'bg-orange-500' }
   ];
-
-  if (loading) return <div className="flex justify-center h-64 items-center dark:text-white">Loading...</div>;
 
   return (
     <div className="space-y-8">
@@ -163,7 +171,11 @@ const DashboardHome = ({ stats, loading }) => {
               </span>
             </div>
             <p className="text-gray-600 dark:text-gray-400 text-sm">{stat.title}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+            {loading ? (
+              <Skeleton className="h-8 w-16 mt-1" />
+            ) : (
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+            )}
           </motion.div>
         ))}
       </div>
@@ -206,6 +218,13 @@ const DashboardHome = ({ stats, loading }) => {
               </div>
               <h3 className="font-bold dark:text-white">Manage Users</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">View all users</p>
+            </Link>
+            <Link to="/admin/parents" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
+              <div className="bg-amber-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
+                <SafeIcon icon={FiUsers} />
+              </div>
+              <h3 className="font-bold dark:text-white">Parents</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Create & link parents</p>
             </Link>
             <Link to="/admin/settings" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
               <div className="bg-gray-700 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">

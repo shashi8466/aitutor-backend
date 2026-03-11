@@ -64,6 +64,9 @@ BEGIN
     
     ALTER TABLE questions ADD COLUMN IF NOT EXISTS upload_id bigint REFERENCES uploads(id) ON DELETE CASCADE;
     ALTER TABLE questions ADD COLUMN IF NOT EXISTS image text;
+    
+    -- 4. ADD LINKED STUDENTS FOR PARENT ROLES
+    ALTER TABLE profiles ADD COLUMN IF NOT EXISTS linked_students UUID[] DEFAULT '{}';
 END $$;
 `;
 

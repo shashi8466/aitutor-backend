@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import AITutorModal from './AITutorModal';
-import SmartContentModal from './SmartContentModal'; // Import New Modal
 import { uploadService } from '../../services/api';
+
+// Lazy load complex modals
+const AITutorModal = lazy(() => import('./AITutorModal'));
+const SmartContentModal = lazy(() => import('./SmartContentModal'));
 
 const { FiBook, FiVideo, FiMessageCircle, FiAward, FiArrowLeft, FiFileText, FiDownload, FiEye, FiX, FiExternalLink, FiCpu } = FiIcons;
 
@@ -174,14 +176,16 @@ const LevelDashboard = () => {
         </div>
 
         {/* OLD AI Modal (Preserved for other calls if any) */}
-        {showAI && (
-          <AITutorModal question={genericQuestion} userAnswer="" correctAnswer="" onClose={() => setShowAI(false)} />
-        )}
+        <Suspense fallback={null}>
+          {showAI && (
+            <AITutorModal question={genericQuestion} userAnswer="" correctAnswer="" onClose={() => setShowAI(false)} />
+          )}
 
-        {/* NEW SMART CONTENT MODAL */}
-        {showSmartContent && (
-          <SmartContentModal onClose={() => setShowSmartContent(false)} />
-        )}
+          {/* NEW SMART CONTENT MODAL */}
+          {showSmartContent && (
+            <SmartContentModal onClose={() => setShowSmartContent(false)} />
+          )}
+        </Suspense>
 
       </div>
     </div>

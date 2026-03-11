@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
@@ -6,6 +6,7 @@ import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { tutorService } from '../../services/api';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 import {
     FiHome, FiBook, FiUsers, FiKey, FiMail, FiBarChart2,
@@ -13,15 +14,18 @@ import {
     FiTrendingUp, FiCheckCircle, FiLayers
 } from 'react-icons/fi';
 
-// Import tutor components
-import GroupManager from './GroupManager';
-import TutorGrades from './TutorGrades';
-import TutorCourses from './TutorCourses';
-import TutorStudents from './TutorStudents';
-import TutorEnrollmentKeys from './TutorEnrollmentKeys';
-import TutorInvitations from './TutorInvitations';
+// Lazy load tutor components
+const GroupManager = lazy(() => import('./GroupManager'));
+const TutorGrades = lazy(() => import('./TutorGrades'));
+const TutorCourses = lazy(() => import('./TutorCourses'));
+const TutorStudents = lazy(() => import('./TutorStudents'));
+const TutorEnrollmentKeys = lazy(() => import('./TutorEnrollmentKeys'));
+const TutorInvitations = lazy(() => import('./TutorInvitations'));
+const TutorSettings = lazy(() => import('./TutorSettings'));
 
-const TutorOverview = ({ dashboardData }) => (
+import Skeleton from '../common/Skeleton';
+
+const TutorOverview = ({ dashboardData, loading }) => (
     <div className="p-6">
         <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h2>
@@ -30,19 +34,31 @@ const TutorOverview = ({ dashboardData }) => (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">My Courses</p>
-                <p className="text-3xl font-black text-blue-600">{dashboardData?.courses?.length || 0}</p>
+                {loading ? (
+                    <Skeleton className="h-10 w-12 mt-1" />
+                ) : (
+                    <p className="text-3xl font-black text-blue-600">{dashboardData?.courses?.length || 0}</p>
+                )}
             </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Active Students</p>
-                <p className="text-3xl font-black text-indigo-600">
-                    {typeof dashboardData?.total_students === 'object' ? (dashboardData?.total_students?.count || 0) : (dashboardData?.total_students || 0)}
-                </p>
+                {loading ? (
+                    <Skeleton className="h-10 w-12 mt-1" />
+                ) : (
+                    <p className="text-3xl font-black text-indigo-600">
+                        {typeof dashboardData?.total_students === 'object' ? (dashboardData?.total_students?.count || 0) : (dashboardData?.total_students || 0)}
+                    </p>
+                )}
             </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Enrollments</p>
-                <p className="text-3xl font-black text-purple-600">
-                    {typeof dashboardData?.total_enrollments === 'object' ? (dashboardData?.total_enrollments?.count || 0) : (dashboardData?.total_enrollments || 0)}
-                </p>
+                {loading ? (
+                    <Skeleton className="h-10 w-12 mt-1" />
+                ) : (
+                    <p className="text-3xl font-black text-purple-600">
+                        {typeof dashboardData?.total_enrollments === 'object' ? (dashboardData?.total_enrollments?.count || 0) : (dashboardData?.total_enrollments || 0)}
+                    </p>
+                )}
             </div>
         </div>
         <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-2xl border border-blue-100 dark:border-blue-800">
@@ -51,8 +67,6 @@ const TutorOverview = ({ dashboardData }) => (
         </div>
     </div>
 );
-
-import TutorSettings from './TutorSettings';
 
 // Removed TutorSettingsPage placeholder component
 
@@ -270,16 +284,18 @@ const TutorDashboard = () => {
 
                 {/* Page Content */}
                 <main className="flex-1 p-6 overflow-auto">
-                    <Routes>
-                        <Route index element={<TutorOverview dashboardData={dashboardData} />} />
-                        <Route path="courses" element={<TutorCourses />} />
-                        <Route path="students" element={<TutorStudents />} />
-                        <Route path="groups" element={<GroupManager />} />
-                        <Route path="enrollment-keys" element={<TutorEnrollmentKeys />} />
-                        <Route path="invitations" element={<TutorInvitations />} />
-                        <Route path="grades" element={<TutorGrades />} />
-                        <Route path="settings" element={<TutorSettings />} />
-                    </Routes>
+                    <Suspense fallback={<LoadingSpinner fullPage={false} />}>
+                        <Routes>
+                            <Route index element={<TutorOverview dashboardData={dashboardData} loading={loading} />} />
+                            <Route path="courses" element={<TutorCourses />} />
+                            <Route path="students" element={<TutorStudents />} />
+                            <Route path="groups" element={<GroupManager />} />
+                            <Route path="enrollment-keys" element={<TutorEnrollmentKeys />} />
+                            <Route path="invitations" element={<TutorInvitations />} />
+                            <Route path="grades" element={<TutorGrades />} />
+                            <Route path="settings" element={<TutorSettings />} />
+                        </Routes>
+                    </Suspense>
                 </main>
             </div>
 

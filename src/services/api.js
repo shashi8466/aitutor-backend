@@ -75,7 +75,7 @@ export const authService = {
   getDbProfile: async (userId) => {
     const { data } = await supabase
       .from('profiles')
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
       .eq('id', userId)
       .maybeSingle();
     return data;
@@ -85,7 +85,7 @@ export const authService = {
       .from('profiles')
       .update({ role })
       .eq('id', userId)
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
       .single();
     if (error) throw error;
     return { data };
@@ -93,7 +93,7 @@ export const authService = {
   getAllProfiles: async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return { data };
@@ -673,6 +673,12 @@ export const adminService = {
   },
   getGroupAnalytics: async (groupId) => {
     return axios.get(`/api/admin/groups/${groupId}/analytics`);
+  },
+  createParent: async (parentData) => {
+    return axios.post('/api/admin/parents', parentData);
+  },
+  updateParent: async (parentId, parentData) => {
+    return axios.put(`/api/admin/parents/${parentId}`, parentData);
   }
 };
 
@@ -708,5 +714,12 @@ export const calendarService = {
   },
   deleteTask: async (id) => {
     return await supabase.from('study_tasks').delete().eq('id', id);
+  }
+};
+
+// --- PARENT SERVICE ---
+export const parentService = {
+  getStudentReports: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/submissions`);
   }
 };

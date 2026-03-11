@@ -565,4 +565,145 @@ router.delete('/groups/:groupId', async (req, res) => {
     }
 });
 
+/**
+ * POST /api/admin/parents
+ * Admin create parent account
+ */
+router.post('/parents', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { name, email, password, studentIds } = req.body;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Verify admin role
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        if (!profile || profile.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        if (!name || !email || !password || !studentIds || !Array.isArray(studentIds)) {
+            return res.status(400).json({ error: 'Invalid parent creation data' });
+        }
+
+        // 1. Create the Auth User using the Service Role Key (Admin Auth API)
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email: email,
+            password: password,
+            email_confirm: true,
+            user_metadata: {
+                name: name,
+                role: 'parent',
+                linked_students: studentIds
+            }
+        });
+
+        if (authError) {
+            console.error('Create Parent Auth Error:', authError);
+            return res.status(400).json({ error: authError.message });
+        }
+
+        const newUserId = authData.user.id;
+
+        // 2. The database trigger likely created a profile. We must now update it with the linked students.
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+                role: 'parent',
+                name: name,
+                linked_students: studentIds // Needs array column in DB!
+            })
+            .eq('id', newUserId);
+
+        if (profileError) {
+            console.error('Update Parent Profile Error:', profileError);
+            // We won't block the return since user was created, but log error
+        }
+
+        res.json({ success: true, user: authData.user, message: 'Parent account established successfully' });
+
+    } catch (error) {
+        console.error('Admin setup parent error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * PUT /api/admin/parents/:id
+ * Admin update parent account
+ */
+router.put('/parents/:id', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const parentId = req.params.id;
+        const { name, email, password, studentIds } = req.body;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Verify admin role
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        if (!profile || profile.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        if (!parentId || !name || !email || !studentIds || !Array.isArray(studentIds)) {
+            return res.status(400).json({ error: 'Invalid parent update data' });
+        }
+
+        // 1. Update the Auth User using the Service Role Key
+        const updates = {
+            email: email,
+            user_metadata: {
+                name: name,
+                role: 'parent',
+                linked_students: studentIds
+            }
+        };
+
+        if (password && password.length >= 6) {
+            updates.password = password;
+        }
+
+        const { data: authData, error: authError } = await supabase.auth.admin.updateUserById(parentId, updates);
+
+        if (authError) {
+            console.error('Update Parent Auth Error:', authError);
+            return res.status(400).json({ error: authError.message });
+        }
+
+        // 2. Update their profile
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+                name: name,
+                linked_students: studentIds
+            })
+            .eq('id', parentId);
+
+        if (profileError) {
+            console.error('Update Parent Profile Error:', profileError);
+        }
+
+        res.json({ success: true, message: 'Parent account updated successfully' });
+
+    } catch (error) {
+        console.error('Admin update parent error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 export default router;

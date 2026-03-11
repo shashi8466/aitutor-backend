@@ -18,6 +18,22 @@ const SCORING_CONFIG = {
   }
 };
 
+// Core Score Calculation Helper
+export const calculateSessionScore = (category, levelName, percentageScore) => {
+  const config = SCORING_CONFIG[category];
+  // Default to Medium if unknown level
+  const levelStats = config.LEVELS[levelName] || config.LEVELS['Medium'];
+
+  const ratio = (percentageScore || 0) / 100;
+  const levelMax = levelStats.max;
+  const levelMin = levelStats.min;
+
+  // Formula: Level_Min + (Correct_Ratio * (Level_Max - Level_Min))
+  const finalScore = levelMin + (ratio * (levelMax - levelMin));
+
+  return Math.round(finalScore);
+};
+
 export const calculateStudentScore = (progressData, diagnosticData) => {
   // 1. Establish Goals
   let target = 1500;
@@ -41,23 +57,6 @@ export const calculateStudentScore = (progressData, diagnosticData) => {
     if (type.includes('math') || type.includes('quant') || name.includes('math') || name.includes('algebra')) return 'MATH';
     if (type.includes('reading') || type.includes('writing') || name.includes('english')) return 'RW';
     return 'RW'; // Default fallback
-  };
-
-  // 3. Helper: The Core User Formula Implementation
-  const calculateSessionScore = (category, levelName, percentageScore) => {
-    const config = SCORING_CONFIG[category];
-    // Default to Medium if unknown level
-    const levelStats = config.LEVELS[levelName] || config.LEVELS['Medium'];
-
-    const ratio = (percentageScore || 0) / 100;
-    const levelMax = levelStats.max;
-    const levelMin = levelStats.min;
-
-    // Direct mapping to the level's score range
-    // Formula: Level_Min + (Correct_Ratio * (Level_Max - Level_Min))
-    const finalScore = levelMin + (ratio * (levelMax - levelMin));
-
-    return Math.round(finalScore);
   };
 
   // 4. Process Progress to find BEST demonstrated performance

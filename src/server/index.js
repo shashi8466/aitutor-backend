@@ -145,7 +145,12 @@ app.use('/api/admin', adminGroupsRoutes);
 app.use('/api/auth-debug', authDebugRoutes);
 
 console.log('✅ All routes mounted successfully');
-
+app._router.stack.forEach(m => {
+  if (m.name === 'router') {
+    const path = m.regexp.source.replace('\\/?(?=\\/|$)', '').replace(/\\\//g, '/').replace('^', '');
+    console.log(`   - Mounted Router at: ${path}`);
+  }
+});
 console.log('');
 
 // 10. Debug routes endpoint

@@ -4,11 +4,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import CircularProgress from '../../components/common/CircularProgress';
+import Skeleton from '../../components/common/Skeleton';
 
 // Services
 import { courseService, enrollmentService, progressService, planService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { calculateStudentScore } from '../../utils/scoreCalculator';
+import { calculateStudentScore, calculateSessionScore } from '../../utils/scoreCalculator';
 
 const {
   FiBook, FiCheckSquare, FiFileText, FiActivity, FiArrowLeft, FiPlay
@@ -42,20 +43,42 @@ const StudentDashboard = () => {
         planService.getPlan(user.id)
       ]);
 
-      // 1. Calculate Scores
       const planData = planRes.data?.generated_plan || null;
       const diagnosticData = planRes.data?.diagnostic_data || null;
       const progress = progressRes.data || [];
-
       const calculatedScores = calculateStudentScore(progress, diagnosticData);
-
-      // 2. Calculate Counts
       const passedLevels = progress.filter(p => p.passed).length;
       const lessonsCount = Math.min(50, passedLevels * 3 + 5);
-      const testsTaken = progress.length; // Each progress entry is a quiz result
-
-      // 3. Enrollments
+      const testsTaken = progress.length;
       const enrollments = enrollmentsRes.data || [];
+
+      // Organize scores by level for each enrollment
+      const enrollmentProgress = enrollments.map(e => {
+        const courseProgress = progress.filter(p => p.course_id === e.course_id);
+        const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
+        const levelScaled = { Easy: 0, Medium: 0, Hard: 0 };
+
+        const type = (e.courses?.tutor_type || '').toLowerCase();
+        const name = (e.courses?.name || '').toLowerCase();
+        const category = (type.includes('math') || type.includes('quant') || name.includes('math') || name.includes('algebra')) ? 'MATH' : 'RW';
+
+        courseProgress.forEach(p => {
+          const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
+          if (p.score > levelScores[lvl]) {
+            levelScores[lvl] = p.score;
+            levelScaled[lvl] = calculateSessionScore(category, lvl, p.score);
+          }
+        });
+
+        const bestScaled = Math.max(levelScaled.Easy, levelScaled.Medium, levelScaled.Hard, 200);
+
+        return {
+          ...e.courses,
+          levelScores,
+          levelScaled,
+          courseScaledScore: bestScaled
+        };
+      });
 
       setDashboardData({
         scores: {
@@ -67,38 +90,20 @@ const StudentDashboard = () => {
         counts: {
           lessons: lessonsCount,
           tests: testsTaken,
-          worksheets: 14, // Mock for now
+          worksheets: 14,
           sessions: Math.floor(lessonsCount / 2)
         },
-        maxCounts: {
-          lessons: 50,
-          tests: 20,
-          worksheets: 30,
-          sessions: 24
-        },
-        enrollments: enrollments
-          .filter(e => !e.courses?.is_practice)
-          .map(e => e.courses),
+        maxCounts: { lessons: 50, tests: 20, worksheets: 30, sessions: 24 },
+        enrollments: enrollmentProgress.filter(e => !e.is_practice),
+        progress: progress,
         plan: planData
       });
-
     } catch (error) {
       console.error("Dashboard Load Error:", error);
     } finally {
       setLoading(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-500 font-medium">Loading Dashboard...</p>
-        </div>
-      </div>
-    );
-  }
 
   const { scores, counts, maxCounts, enrollments } = dashboardData;
   const progressPercent = Math.min(100, Math.round((scores.total / scores.target) * 100));
@@ -110,7 +115,9 @@ const StudentDashboard = () => {
         {/* 1. Header */}
         <div className="mb-8">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900">Welcome back, {user.name?.split(' ')[0] || 'Student'}!</h1>
+            <h1 className="text-3xl font-extrabold text-gray-900">
+              Welcome back, {user.name?.split(' ')[0] || 'Student'}!
+            </h1>
             <p className="text-gray-500 mt-1">Here is your daily progress overview.</p>
           </div>
         </div>
@@ -137,8 +144,8 @@ const StudentDashboard = () => {
           </div>
         </div>
 
-        {/* 3. Main Dashboard Content (No Tabs) */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        {/* 3. Main Dashboard Content */}
+        <div className="space-y-6">
 
           {/* Top Row: Score & Progress */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -155,106 +162,121 @@ const StudentDashboard = () => {
                 </button>
               </div>
 
-              <div className="flex flex-col md:flex-row items-center gap-8">
-                {/* Circular Progress */}
-                <div className="flex flex-col items-center">
-                  <CircularProgress
-                    value={scores.total}
-                    max={1600}
-                    size={140}
-                    strokeWidth={12}
-                    color="#3B82F6"
-                  />
-                  <div className="mt-4 text-center">
-                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Current Score</p>
-                    <p className="text-2xl font-extrabold text-gray-900">{scores.total}</p>
-                    <p className="text-xs text-green-500 font-bold">+{(scores.total - 800) > 0 ? scores.total - 800 : 0} pts gained</p>
+              {loading ? (
+                <div className="flex flex-col md:flex-row items-center gap-8 animate-pulse">
+                  <Skeleton className="w-[140px] h-[140px]" variant="circle" />
+                  <div className="flex-1 w-full space-y-6">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
                   </div>
                 </div>
-
-                {/* Bars Breakdown */}
-                <div className="flex-1 w-full space-y-6">
-                  {/* Section Scores */}
-                  <div>
-                    <p className="text-xs font-bold text-gray-400 uppercase mb-3">Section Scores</p>
-                    <div className="space-y-4">
-                      {/* Math */}
-                      <div>
-                        <div className="flex justify-between text-sm font-bold mb-1">
-                          <span className="text-gray-700">SAT Math</span>
-                          <span className="text-gray-900">{scores.math}/800</span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(scores.math / 800) * 100}%` }}
-                            className="h-full bg-blue-500 rounded-full"
-                          />
-                        </div>
-                      </div>
-                      {/* RW */}
-                      <div>
-                        <div className="flex justify-between text-sm font-bold mb-1">
-                          <span className="text-gray-700">Reading & Writing</span>
-                          <span className="text-gray-900">{scores.rw}/800</span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(scores.rw / 800) * 100}%` }}
-                            className="h-full bg-green-500 rounded-full"
-                          />
-                        </div>
-                      </div>
+              ) : (
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                  {/* Circular Progress */}
+                  <div className="flex flex-col items-center">
+                    <CircularProgress
+                      value={scores.total}
+                      max={1600}
+                      size={140}
+                      strokeWidth={12}
+                      color="#3B82F6"
+                    />
+                    <div className="mt-4 text-center">
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Current Score</p>
+                      <p className="text-2xl font-extrabold text-gray-900">{scores.total}</p>
+                      <p className="text-xs text-green-500 font-bold">+{(scores.total - 800) > 0 ? scores.total - 800 : 0} pts gained</p>
                     </div>
                   </div>
 
-                  {/* Target Progress */}
-                  <div>
-                    <div className="flex justify-between items-end mb-2">
-                      <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase">Goal Progress</p>
-                        <p className="text-2xl font-bold text-purple-600">{scores.target}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-gray-500">{scores.total}/{scores.target}</span>
+                  {/* Bars Breakdown */}
+                  <div className="flex-1 w-full space-y-6">
+                    {/* Section Scores */}
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-3">Section Scores</p>
+                      <div className="space-y-4">
+                        {/* Math */}
+                        <div>
+                          <div className="flex justify-between text-sm font-bold mb-1">
+                            <span className="text-gray-700">SAT Math</span>
+                            <span className="text-gray-900">{scores.math}/800</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${(scores.math / 800) * 100}%` }}
+                              className="h-full bg-blue-500 rounded-full"
+                            />
+                          </div>
+                        </div>
+                        {/* RW */}
+                        <div>
+                          <div className="flex justify-between text-sm font-bold mb-1">
+                            <span className="text-gray-700">Reading & Writing</span>
+                            <span className="text-gray-900">{scores.rw}/800</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${(scores.rw / 800) * 100}%` }}
+                              className="h-full bg-green-500 rounded-full"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progressPercent}%` }}
-                        className="h-full bg-purple-500 rounded-full"
-                      />
+
+                    {/* Target Progress */}
+                    <div>
+                      <div className="flex justify-between items-end mb-2">
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 uppercase">Goal Progress</p>
+                          <p className="text-2xl font-bold text-purple-600">{scores.target}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-gray-500">{scores.total}/{scores.target}</span>
+                        </div>
+                      </div>
+                      <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progressPercent}%` }}
+                          className="h-full bg-purple-500 rounded-full"
+                        />
+                      </div>
+                      <p className="text-right text-[10px] text-gray-400 mt-1">{Math.max(0, scores.target - scores.total)} points to goal</p>
                     </div>
-                    <p className="text-right text-[10px] text-gray-400 mt-1">{Math.max(0, scores.target - scores.total)} points to goal</p>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Course Activity Stats */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col">
               <h3 className="font-bold text-lg text-gray-800 mb-6">Learning Activity</h3>
               <div className="flex-1 flex flex-col justify-center space-y-8">
-
-                <ProgressRow
-                  icon={FiBook} color="text-blue-500" bg="bg-blue-500"
-                  label="Lessons Completed" count={counts.lessons} max={maxCounts.lessons}
-                />
-                <ProgressRow
-                  icon={FiCheckSquare} color="text-purple-500" bg="bg-purple-500"
-                  label="Quizzes Taken" count={counts.tests} max={maxCounts.tests}
-                />
-                <ProgressRow
-                  icon={FiFileText} color="text-yellow-500" bg="bg-yellow-500"
-                  label="Worksheets Done" count={counts.worksheets} max={maxCounts.worksheets}
-                />
-                <ProgressRow
-                  icon={FiActivity} color="text-orange-500" bg="bg-orange-500"
-                  label="Active Sessions" count={counts.sessions} max={maxCounts.sessions}
-                />
-
+                {loading ? (
+                  Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
+                ) : (
+                  <>
+                    <ProgressRow
+                      icon={FiBook} color="text-blue-500" bg="bg-blue-500"
+                      label="Lessons Completed" count={counts.lessons} max={maxCounts.lessons}
+                    />
+                    <ProgressRow
+                      icon={FiCheckSquare} color="text-purple-500" bg="bg-purple-500"
+                      label="Quizzes Taken" count={counts.tests} max={maxCounts.tests}
+                    />
+                    <ProgressRow
+                      icon={FiFileText} color="text-yellow-500" bg="bg-yellow-500"
+                      label="Worksheets Done" count={counts.worksheets} max={maxCounts.worksheets}
+                    />
+                    <ProgressRow
+                      icon={FiActivity} color="text-orange-500" bg="bg-orange-500"
+                      label="Active Sessions" count={counts.sessions} max={maxCounts.sessions}
+                    />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -266,27 +288,60 @@ const StudentDashboard = () => {
               <button onClick={() => navigate('/student/courses')} className="text-blue-600 text-sm font-bold hover:underline">View All Courses</button>
             </div>
 
-            {enrollments.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {enrollments.slice(0, 3).map(course => (
-                  <div key={course.id} className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition-shadow group cursor-pointer" onClick={() => navigate(`/student/course/${course.id}`)}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <SafeIcon icon={FiBook} className="w-5 h-5" />
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-2xl" />)}
+              </div>
+            ) : enrollments.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {enrollments.slice(0, 3).map(course => {
+                  const maxLevelScore = Math.max(course.levelScores?.Easy || 0, course.levelScores?.Medium || 0, course.levelScores?.Hard || 0);
+                  const courseType = (course.tutor_type || '').toLowerCase().includes('math') ? 'MATH' : 'RW';
+
+                  return (
+                    <div key={course.id} className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-xl hover:border-blue-100 transition-all group flex flex-col h-full">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${courseType === 'MATH' ? 'bg-blue-50 text-blue-600 group-hover:bg-blue-600' : 'bg-green-50 text-green-600 group-hover:bg-green-600'} group-hover:text-white`}>
+                            <SafeIcon icon={FiBook} className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h4 className="font-extrabold text-gray-900 leading-tight">{course.name}</h4>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{courseType === 'MATH' ? 'Quant Section' : 'Verbal Section'}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-gray-400 block mb-0.5">EST. SCORE</span>
+                          <span className={`text-lg font-black ${courseType === 'MATH' ? 'text-blue-600' : 'text-green-600'}`}>
+                            {course.courseScaledScore}
+                          </span>
+                        </div>
                       </div>
-                      <div className="overflow-hidden">
-                        <h4 className="font-bold text-gray-900 truncate">{course.name}</h4>
-                        <p className="text-xs text-gray-500">{course.tutor_type || 'General'}</p>
+
+                      {/* Level Breakdown */}
+                      <div className="flex-1 space-y-3 mb-6">
+                        <LevelScore label="Easy" score={course.levelScores?.Easy} color={courseType === 'MATH' ? 'bg-blue-400' : 'bg-green-400'} />
+                        <LevelScore label="Medium" score={course.levelScores?.Medium} color={courseType === 'MATH' ? 'bg-blue-500' : 'bg-green-500'} />
+                        <LevelScore label="Hard" score={course.levelScores?.Hard} color={courseType === 'MATH' ? 'bg-blue-600' : 'bg-green-600'} />
+                      </div>
+
+                      {/* Footer */}
+                      <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                          <span className="text-[10px] font-bold text-gray-500 uppercase">Resume Study</span>
+                        </div>
+                        <button
+                          onClick={() => navigate(`/student/course/${course.id}`)}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${courseType === 'MATH' ? 'bg-blue-50 text-blue-600 hover:bg-blue-600' : 'bg-green-50 text-green-600 hover:bg-green-600'} hover:text-white`}
+                        >
+                          <SafeIcon icon={FiPlay} className="w-3.5 h-3.5 ml-0.5" />
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs font-bold text-gray-400">Resume</span>
-                      <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <SafeIcon icon={FiPlay} className="w-3 h-3 ml-0.5" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
@@ -295,8 +350,7 @@ const StudentDashboard = () => {
               </div>
             )}
           </div>
-        </motion.div>
-
+        </div>
       </div>
     </div>
   );
@@ -333,5 +387,21 @@ const ProgressRow = ({ icon, color, bg, label, count, max }) => {
     </div>
   );
 };
+
+const LevelScore = ({ label, score, color }) => (
+  <div>
+    <div className="flex justify-between items-center mb-1">
+      <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-tighter">{label}</span>
+      <span className="text-xs font-black text-gray-900">{score || 0}%</span>
+    </div>
+    <div className="h-1.5 bg-gray-50 rounded-full overflow-hidden">
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${score || 0}%` }}
+        className={`h-full rounded-full ${color}`}
+      />
+    </div>
+  </div>
+);
 
 export default StudentDashboard;

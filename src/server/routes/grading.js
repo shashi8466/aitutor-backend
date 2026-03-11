@@ -9,6 +9,70 @@ import supabase from '../../supabase/supabaseAdmin.js';
 const router = express.Router();
 
 /**
+ * GET /api/grading/parent/student/:studentId/submissions
+ * Get submissions for a linked student (parent only)
+ */
+router.get('/parent/student/:studentId/submissions', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+
+        if (!userId) {
+            console.warn('⚠️ [ParentReport] Unauthorized: No userId in request');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // 1. Verify user is a parent and has THIS student linked
+        const { data: parentProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('role, linked_students')
+            .eq('id', userId)
+            .single();
+
+        if (profileError) {
+            console.error(`❌ [ParentReport] Profile error for parent ${userId}:`, profileError);
+            return res.status(500).json({ error: 'Failed to verify parent profile' });
+        }
+
+        if (!parentProfile || parentProfile.role !== 'parent') {
+            console.warn(`⚠️ [ParentReport] Unauthorized access: User ${userId} is not a parent (Role: ${parentProfile?.role})`);
+            return res.status(403).json({ error: 'Only parents can access this endpoint' });
+        }
+
+        const linked = parentProfile.linked_students || [];
+        // Use a more robust check for IDs (trim and handle string/UUID mismatch)
+        const isLinked = linked.some(id => String(id).trim() === String(studentId).trim());
+
+        if (!isLinked) {
+            console.warn(`⚠️ [ParentReport] Parent ${userId} tried to access unlinked student ${studentId}. Linked:`, linked);
+            return res.status(403).json({ error: 'You are not authorized to view this student\'s reports' });
+        }
+
+        console.log(`📡 [ParentReport] Fetching submissions for student ${studentId} (Requested by parent ${userId})`);
+
+        // 2. Fetch submissions for the student (using admin client to bypass RLS)
+        const { data: submissions, error } = await supabase
+            .from('test_submissions')
+            .select('*, courses:courses(id, name, is_practice)')
+            .eq('user_id', studentId)
+            .order('test_date', { ascending: false });
+
+        if (error) {
+            console.error(`❌ [ParentReport] Error fetching submissions for student ${studentId}:`, error);
+            return res.status(500).json({ error: 'Failed to fetch student scores' });
+        }
+
+        console.log(`✅ [ParentReport] Found ${submissions?.length || 0} submissions for student ${studentId}`);
+        res.json({ submissions: submissions || [] });
+
+    } catch (error) {
+        console.error('Parent get student scores error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+/**
  * POST /api/grading/submit-test
  * Submit and grade a test
  */
@@ -93,11 +157,11 @@ router.get('/submission/:submissionId', async (req, res) => {
         submission.duration = submission.test_duration_seconds || 0;
 
 
-        // Verify access (own submission, or admin, or tutor)
+        // Verify access (own submission, or admin, or tutor, or parent)
         if (submission.user_id !== userId) {
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('role, assigned_courses, tutor_approved')
+                .select('role, assigned_courses, tutor_approved, linked_students')
                 .eq('id', userId)
                 .single();
 
@@ -112,7 +176,10 @@ router.get('/submission/:submissionId', async (req, res) => {
                 profile?.tutor_approved &&
                 assigned.includes(Number(submission.course_id));
 
-            if (!isAdmin && !isTutorWithAccess) {
+            const isParentWithAccess = profile?.role === 'parent' &&
+                (profile?.linked_students || []).includes(submission.user_id);
+
+            if (!isAdmin && !isTutorWithAccess && !isParentWithAccess) {
                 return res.status(403).json({ error: 'Not authorized' });
             }
         }
@@ -728,4 +795,7 @@ function classifySubject(section, topic, courseName) {
     return 'Other Subjects';
 }
 
+
+
 export default router;
+
