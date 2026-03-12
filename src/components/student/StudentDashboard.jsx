@@ -101,12 +101,68 @@ const StudentDashboard = () => {
         };
       });
 
+      // 3. Build Synchronized Accuracies for GLOBAL Total Score
+      // This ensures the big circle (e.g. 1195) matches the cards and history
+      const globalMathAcc = { Easy: 0, Medium: 0, Hard: 0 };
+      const globalRWAcc = { Easy: 0, Medium: 0, Hard: 0 };
+
+      // Map progress items to their categories for faster lookup
+      const progressWithCats = progress.map(p => ({
+        ...p,
+        category: (p.courses?.tutor_type?.toLowerCase().includes('math') || 
+                   p.courses?.name?.toLowerCase().includes('math')) ? 'MATH' : 'RW'
+      }));
+
+      // Use SUBMISSIONS to update accuracies (prioritize real test results)
+      submissions.forEach(sub => {
+        const type = (sub.courses?.tutor_type || '').toLowerCase();
+        const name = (sub.courses?.name || '').toLowerCase();
+        const cat = (type.includes('math') || name.includes('math')) ? 'MATH' : 'RW';
+        const lvl = sub.level ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase() : 'Medium';
+        const rawPct = Math.round(sub.raw_score_percentage || 0);
+
+        if (cat === 'MATH') {
+          if (rawPct > globalMathAcc[lvl]) globalMathAcc[lvl] = rawPct;
+        } else {
+          if (rawPct > globalRWAcc[lvl]) globalRWAcc[lvl] = rawPct;
+        }
+      });
+
+      // Fill gaps with student_progress if no submissions for a level
+      progressWithCats.forEach(p => {
+        const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
+        if (p.category === 'MATH') {
+          if (p.score > globalMathAcc[lvl]) globalMathAcc[lvl] = p.score;
+        } else {
+          if (p.score > globalRWAcc[lvl]) globalRWAcc[lvl] = p.score;
+        }
+      });
+
+      // Calculate Total/Section scores using weighted formula (unifying logic)
+      const weightedMathAcc = (globalMathAcc.Easy * 0.2 + globalMathAcc.Medium * 0.35 + globalMathAcc.Hard * 0.45);
+      const weightedRWAcc = (globalRWAcc.Easy * 0.2 + globalRWAcc.Medium * 0.35 + globalRWAcc.Hard * 0.45);
+
+      let bestMath = Math.max(200, Math.round(200 + (weightedMathAcc * 6)));
+      let bestRW = Math.max(200, Math.round(200 + (weightedRWAcc * 6)));
+
+      // Add Baselines from Diagnostic
+      const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 200) : 200;
+      const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 200) : 200;
+      if (bestMath < baselineMath) bestMath = baselineMath;
+      if (bestRW < baselineRW) bestRW = baselineRW;
+
+      const totalScore = bestMath + bestRW;
+      const targetScore = diagnosticData?.targetScore ? parseInt(diagnosticData.targetScore) : 1500;
+
+      // Build per-course level data from real test_submissions
+      // ... (already updated enrollmentProgress logic) ...
+
       setDashboardData({
         scores: {
-          total: calculatedScores.current,
-          math: calculatedScores.math,
-          rw: calculatedScores.rw,
-          target: calculatedScores.target
+          total: totalScore,
+          math: bestMath,
+          rw: bestRW,
+          target: targetScore
         },
         counts: {
           lessons: lessonsCount,
