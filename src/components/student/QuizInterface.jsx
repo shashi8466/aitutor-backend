@@ -15,6 +15,35 @@ const {
   FiTrendingUp, FiChevronLeft, FiChevronRight, FiGrid
 } = FiIcons;
 
+// Helper to get clean question text (removes duplicate images already in the image column)
+const getCleanQuestionText = (text, imageUrl) => {
+  if (!text) return '';
+  if (!imageUrl) return text;
+  
+  let cleaned = text;
+  try {
+    // Escape URL for regex
+    const escapedUrl = imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // 1. Remove <img> tags that reference this image
+    const imgTagRegex = new RegExp(`<img[^>]+src=["']${escapedUrl}["'][^>]*>`, 'gi');
+    cleaned = cleaned.replace(imgTagRegex, '');
+    
+    // 2. Remove raw markdown-style images if present e.g. ![](url)
+    const mdImgRegex = new RegExp(`!\\[.*?\\]\\(${escapedUrl}\\)`, 'gi');
+    cleaned = cleaned.replace(mdImgRegex, '');
+
+    // 3. Remove raw URL references if they are just floating in the text on their own line
+    // This often happens in SAT OCR exports
+    const rawUrlRegex = new RegExp(`(^|\\n)${escapedUrl}(\\n|$)`, 'gi');
+    cleaned = cleaned.replace(rawUrlRegex, '$1$2');
+  } catch (e) {
+    console.warn("Error cleaning question text:", e);
+  }
+  
+  return cleaned.trim();
+};
+
 const QuizInterface = () => {
   const { courseId, level } = useParams();
   const { user } = useAuth();
@@ -473,29 +502,42 @@ const QuizInterface = () => {
           </div>
         </div>
 
-        <motion.div key={currentQuestionIndex + (currentQuestion.id || 'temp')} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <motion.div key={currentQuestionIndex + (currentQuestion.id || 'temp')} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800">
           <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5">
             <div className="bg-[#E53935] h-1.5 transition-all" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
           </div>
           <div className="p-8 md:p-10">
-            {/* Topic Badge - Display on first line if topic exists */}
-            {currentQuestion.topic && (
-              <div className="mb-6">
-                <span className="inline-block px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-base font-bold rounded-lg border border-blue-100 dark:border-blue-900/30">
-                  {currentQuestion.topic}
-                </span>
+            {/* Q.1) Topic Name - Premium Header */}
+            <div className="mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                  <span className="text-[#E53935]">Q.{currentQuestionIndex + 1})</span>
+                  <span className="text-gray-400 font-bold text-base md:text-lg uppercase tracking-wider">{currentQuestion.topic || 'General'}</span>
+                </h1>
               </div>
-            )}
+            </div>
 
-            {/* Question - Starts on new line */}
-            <div className="flex items-start gap-4 mb-6">
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 text-[#E53935] font-extrabold text-sm flex-shrink-0 border border-red-100 dark:border-red-900/50">
-                {currentQuestionIndex + 1}
-              </span>
+            {/* Question Text */}
+            <div className="mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-black dark:text-white leading-relaxed">
-                <MathRenderer text={currentQuestion.question || ''} />
+                <MathRenderer text={getCleanQuestionText(currentQuestion.question || '', currentQuestion.image)} />
               </h2>
             </div>
+
+            {/* Question Image/Visual */}
+            {currentQuestion.image && (
+              <div className="mb-8 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm max-w-[80%] md:max-w-[60%] lg:max-w-[50%] hover:shadow-md transition-shadow">
+                <img 
+                  src={currentQuestion.image} 
+                  alt="Question diagram" 
+                  className="w-full h-auto max-h-[400px] object-contain bg-white block"
+                  onError={(e) => {
+                    console.warn("Failed to load question image:", currentQuestion.image);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
 
             {isMCQ && (
               <div className="space-y-3">
@@ -546,28 +588,63 @@ const QuizInterface = () => {
             )}
 
             {submitted && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 space-y-4">
-                <div className={`p-4 rounded-xl border flex items-center gap-3 ${isCorrectAnswer() ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
-                  <SafeIcon icon={isCorrectAnswer() ? FiCheck : FiX} className="w-6 h-6" />
-                  <span className="font-bold text-lg">{isCorrectAnswer() ? "Correct!" : "Incorrect"}</span>
-                </div>
-                {!isCorrectAnswer() && (
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                    <span className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Correct Answer</span>
-                    <div className="text-black dark:text-white font-bold text-lg">
-                      <MathRenderer text={getDisplayAnswer(currentQuestion)} />
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="mt-10">
+                {/* Unified Result & Explanation Section */}
+                <div className={`p-6 md:p-8 rounded-2xl border-2 transition-all shadow-sm ${isCorrectAnswer() ? 'bg-green-50/40 border-green-100 text-green-900' : 'bg-red-50/40 border-red-100 text-red-900'}`}>
+                  
+                  {/* Status Indicator */}
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm ${isCorrectAnswer() ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                      <SafeIcon icon={isCorrectAnswer() ? FiCheck : FiX} className="w-6 h-6" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#E53935]/60 mb-0.5">Quiz Status</span>
+                      <span className="font-black text-xl uppercase tracking-wider">{isCorrectAnswer() ? "Correct Answer" : "Incorrect Answer"}</span>
                     </div>
                   </div>
-                )}
-                {currentQuestion.explanation && currentQuestion.explanation.trim() !== '' && (
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-900/30">
+
+                  {/* Explicit Correct Answer for wrong attempts */}
+                  {!isCorrectAnswer() && (
+                    <div className="mb-8 p-4 bg-white/60 dark:bg-gray-800/60 rounded-xl border border-red-100/50 dark:border-red-900/30">
+                      <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Verified Correct Answer</span>
+                      <div className="text-xl font-bold text-black dark:text-white">
+                        <MathRenderer text={getDisplayAnswer(currentQuestion)} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* The Explanation - Main Content */}
+                  <div className="space-y-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <SafeIcon icon={FiInfo} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      <span className="text-sm font-bold text-blue-700 dark:text-blue-300 uppercase">Explanation</span>
+                       <span className="text-xs font-black text-[#E53935] uppercase tracking-widest">Detailed Solution & Explanation</span>
                     </div>
-                    <div className="text-blue-900 dark:text-blue-200 leading-relaxed font-medium"><MathRenderer text={currentQuestion.explanation} /></div>
+                    
+                    <div className="text-gray-900 dark:text-gray-100 font-medium leading-relaxed max-w-full overflow-x-auto whitespace-pre-line break-words clear-both">
+                      {currentQuestion.explanation && currentQuestion.explanation.trim() !== '' ? (
+                        <MathRenderer text={currentQuestion.explanation} />
+                      ) : (
+                        <p className="text-sm italic text-gray-500 font-bold bg-white/40 p-4 rounded-lg border border-dashed border-gray-300">
+                          No solution provided for this problem. You can ask our AI tutor for a step-by-step breakdown.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                )}
+
+                  {/* AI Tutor Call to Action */}
+                  <div className="mt-10 pt-6 border-t border-gray-200/50 dark:border-gray-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-tighter">
+                      <SafeIcon icon={FiShield} className="w-3.5 h-3.5" />
+                      <span>Analysis Verified by AI Scoring Engine</span>
+                    </div>
+                    <button 
+                      onClick={() => setShowAITutor(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-[#E53935] hover:text-[#E53935] transition-all shadow-sm"
+                    >
+                      <SafeIcon icon={FiMessageCircle} className="w-4 h-4" />
+                      Ask AI for Deep Analysis
+                    </button>
+                  </div>
+                </div>
               </motion.div>
             )}
           </div>

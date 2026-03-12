@@ -105,7 +105,7 @@ const AIQuestionCard = ({ data, onComplete }) => {
               <SafeIcon icon={isCorrect ? FiCheck : FiAlertCircle} className="w-4 h-4" />
               {isCorrect ? "Correct! Great job." : "Not quite right."}
             </p>
-            <p className="text-gray-700 dark:text-gray-300 mt-2 border-t border-black/5 dark:border-white/5 pt-2">
+            <p className="text-gray-700 dark:text-gray-300 mt-2 border-t border-black/5 dark:border-white/5 pt-2 overflow-x-auto whitespace-pre-line break-words max-w-full">
               <strong>Explanation:</strong> <MathRenderer text={data.explanation || "No explanation provided."} />
             </p>
           </div>

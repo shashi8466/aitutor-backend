@@ -35,17 +35,24 @@ const DiagnosticWizard = ({ user, onClose, onPlanCreated }) => {
         const progress = progressRes.data || [];
         const courses = coursesRes.data || [];
 
-        // 1. Calculate approximate current scores based on progress
-        // (Simple heuristic: Base 200 + points for passed levels)
-        let calcMath = 200;
-        let calcRW = 200;
+        // 1. Calculate approximate current scores based on weighted progress
+        const mathAcc = { Easy: 0, Medium: 0, Hard: 0 };
+        const rwAcc = { Easy: 0, Medium: 0, Hard: 0 };
 
         const detectedWeaknesses = [];
 
         progress.forEach(p => {
           const course = courses.find(c => c.id === p.course_id);
           const courseName = course?.name || 'General';
-          const isMath = course?.tutor_type?.includes('Math') || courseName.includes('Math') || courseName.includes('Algebra');
+          const isMath = course?.tutor_type?.toLowerCase().includes('math') || courseName.toLowerCase().includes('math') || courseName.toLowerCase().includes('algebra');
+
+          // Track best accuracy per level
+          const level = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
+          if (isMath) {
+            if (p.score > mathAcc[level]) mathAcc[level] = p.score;
+          } else {
+            if (p.score > rwAcc[level]) rwAcc[level] = p.score;
+          }
 
           // Detect Weakness: Failed levels or low scores (< 60%)
           if (!p.passed || p.score < 60) {
@@ -56,14 +63,11 @@ const DiagnosticWizard = ({ user, onClose, onPlanCreated }) => {
               issue: !p.passed ? "Failed Level" : "Low Accuracy"
             });
           }
-
-          // Add to score if passed
-          if (p.passed) {
-            const points = p.level === 'Hard' ? 50 : p.level === 'Medium' ? 30 : 20;
-            if (isMath) calcMath += points;
-            else calcRW += points;
-          }
         });
+
+        // Apply Formula: 200 + (WeightedAccuracy * 6)
+        const calcMath = Math.max(200, Math.round(200 + ((mathAcc.Easy * 0.2 + mathAcc.Medium * 0.35 + mathAcc.Hard * 0.45) * 6)));
+        const calcRW = Math.max(200, Math.round(200 + ((rwAcc.Easy * 0.2 + rwAcc.Medium * 0.35 + rwAcc.Hard * 0.45) * 6)));
 
         // Update Form Data with detected insights
         setFormData(prev => ({

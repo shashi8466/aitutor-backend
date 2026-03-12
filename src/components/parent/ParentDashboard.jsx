@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Skeleton from '../common/Skeleton';
 import supabase from '../../supabase/supabase';
 import { parentService, gradingService, planService } from '../../services/api';
-import { calculateStudentScore, calculateSessionScore } from '../../utils/scoreCalculator';
+import { calculateStudentScore, calculateSessionScore, getCategory } from '../../utils/scoreCalculator';
 import CircularProgress from '../common/CircularProgress';
 
 const { FiUsers, FiLogOut, FiHome, FiChevronRight, FiFileText, FiBarChart2, FiPieChart, FiActivity, FiArrowLeft, FiCheckCircle, FiXCircle, FiMinusCircle, FiBook, FiCheckSquare, FiPlay } = FiIcons;
@@ -183,7 +183,7 @@ const ChildCoursesReport = () => {
     const [childName, setChildName] = useState("");
     const [loading, setLoading] = useState(true);
     const [overallStats, setOverallStats] = useState({
-        scores: { total: 0, math: 0, rw: 0, target: 1400 },
+        scores: { total: 0, math: 0, rw: 0, target: 1500 },
         counts: { lessons: 0, tests: 0, worksheets: 14, sessions: 0 }
     });
 
@@ -191,24 +191,25 @@ const ChildCoursesReport = () => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const { data: profile } = await supabase.from('profiles').select('name').eq('id', studentId).single();
-                setChildName(profile?.name || 'Student');
-
-                const response = await parentService.getStudentReports(studentId);
-                const submissions = response.data?.submissions || [];
-
-                const planRes = await planService.getPlan(studentId);
-                const diagnosticData = planRes.data?.diagnostic_data || null;
+                // 1. Fetch ALL data in one optimized request
+                const response = await parentService.getDashboardData(studentId);
+                const { studentName, submissions, plan } = response.data;
+                
+                setChildName(studentName);
+                const diagnosticData = plan?.diagnostic_data || null;
 
                 const mappedSubmissions = submissions.map(s => ({
                     ...s,
-                    score: s.total_questions > 0 ? (s.raw_score / s.total_questions) * 100 : 0,
+                    score: s.total_questions > 0
+                        ? Math.round((s.raw_score / s.total_questions) * 100)
+                        : Math.round(s.raw_score_percentage || 0),
                     courses: s.courses || { name: 'Practice', tutor_type: 'RW' }
                 }));
 
                 const overall = calculateStudentScore(mappedSubmissions, diagnosticData);
                 const passedCount = submissions.filter(s => s.is_passed).length;
 
+                const lessonsCount = Math.min(50, (passedCount * 3 + 5));
                 setOverallStats({
                     scores: {
                         total: overall.current,
@@ -217,10 +218,10 @@ const ChildCoursesReport = () => {
                         target: overall.target
                     },
                     counts: {
-                        lessons: Math.min(50, (passedCount * 3 + 5)),
+                        lessons: lessonsCount,
                         tests: submissions.length,
                         worksheets: 14,
-                        sessions: Math.floor(passedCount * 1.5)
+                        sessions: Math.floor(lessonsCount / 2)
                     }
                 });
 
@@ -230,8 +231,7 @@ const ChildCoursesReport = () => {
                         const cId = sub.course_id;
                         if (!courseMap[cId]) {
                             const courseName = sub.courses?.name || `Course ${cId}`;
-                            const type = (sub.courses?.tutor_type || '').toLowerCase();
-                            const category = (courseName.toLowerCase().includes('math') || type.includes('math')) ? 'MATH' : 'RW';
+                            const category = getCategory(sub);
 
                             courseMap[cId] = {
                                 id: cId,
@@ -254,8 +254,9 @@ const ChildCoursesReport = () => {
                     });
 
                     const formattedCourses = Object.values(courseMap).map(c => {
-                        const bestScaled = Math.max(c.levelScaled.Easy, c.levelScaled.Medium, c.levelScaled.Hard, 200);
-                        return { ...c, courseScaledScore: bestScaled };
+                        const weightedCourseAcc = (c.levelScores.Easy * 0.2 + c.levelScores.Medium * 0.35 + c.levelScores.Hard * 0.45);
+                        const courseScaledScore = Math.max(200, Math.round(200 + (weightedCourseAcc * 6)));
+                        return { ...c, courseScaledScore };
                     });
                     setCourses(formattedCourses);
                 } else {
@@ -563,9 +564,9 @@ const DetailedTestReport = () => {
                 const sub = response.data?.submission;
                 if (sub) {
                     const subLevel = sub.level?.charAt(0).toUpperCase() + sub.level?.slice(1).toLowerCase();
-                    const subPct = (sub.raw_score / sub.total_questions) * 100;
+                    const subPct = Math.round((sub.raw_score / sub.total_questions) * 100);
                     const courseName = sub.course?.name || sub.courses?.name || 'Test Report';
-                    const cat = courseName.toLowerCase().includes('math') ? 'MATH' : 'RW';
+                    const cat = getCategory(sub);
                     const calcScale = sub.scaled_score || calculateSessionScore(cat, subLevel, subPct);
                     setDetails({
                         id: sub.id,
@@ -760,7 +761,7 @@ const ChildTestHistory = () => {
                                     <div className="flex items-center gap-10 mt-4 md:mt-0">
                                         <div className="text-right">
                                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Score</p>
-                                            <p className="text-2xl font-bold text-blue-600 leading-none">{calculateSessionScore(test.courseName.toLowerCase().includes('math') ? 'MATH' : 'RW', test.level, test.accuracy)}</p>
+                                            <p className="text-2xl font-bold text-blue-600 leading-none">{calculateSessionScore(getCategory(test), test.level, test.accuracy)}</p>
                                         </div>
                                         <button
                                             onClick={() => navigate(`/parent/child/${studentId}/course/${test.courseId}/difficulty/${test.difficultyId}/test/${test.id}`)}

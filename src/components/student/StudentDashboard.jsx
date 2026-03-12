@@ -70,13 +70,15 @@ const StudentDashboard = () => {
           }
         });
 
-        const bestScaled = Math.max(levelScaled.Easy, levelScaled.Medium, levelScaled.Hard, 200);
+        // 🟢 FIX: Weighted logic for course score consistency
+        const weightedCourseAcc = (levelScores.Easy * 0.2 + levelScores.Medium * 0.35 + levelScores.Hard * 0.45);
+        const courseScaledScore = Math.max(200, Math.round(200 + (weightedCourseAcc * 6)));
 
         return {
           ...e.courses,
           levelScores,
           levelScaled,
-          courseScaledScore: bestScaled
+          courseScaledScore
         };
       });
 

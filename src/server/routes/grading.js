@@ -5,6 +5,7 @@
 
 import express from 'express';
 import supabase from '../../supabase/supabaseAdmin.js';
+import { calculateSessionScore, getCategory, calculateTotalSATScore } from '../utils/scoreCalculator.js';
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ router.get('/parent/student/:studentId/submissions', async (req, res) => {
         // 2. Fetch submissions for the student (using admin client to bypass RLS)
         const { data: submissions, error } = await supabase
             .from('test_submissions')
-            .select('*, courses:courses(id, name, is_practice)')
+            .select('*, courses:courses(id, name, is_practice, tutor_type)')
             .eq('user_id', studentId)
             .order('test_date', { ascending: false });
 
@@ -67,6 +68,87 @@ router.get('/parent/student/:studentId/submissions', async (req, res) => {
 
     } catch (error) {
         console.error('Parent get student scores error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+/**
+ * GET /api/grading/parent/student/:studentId/dashboard-data
+ * Optimized endpoint to fetch all data needed for the parent student dashboard in one go
+ */
+router.get('/parent/student/:studentId/dashboard-data', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+
+        if (!userId) {
+            console.warn('⚠️ [ParentDashboard] Unauthorized: No userId in request');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // 1. Verify user is a parent and has THIS student linked
+        const { data: parentProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, name, role, linked_students')
+            .eq('id', userId)
+            .single();
+
+        if (profileError) {
+            console.error(`❌ [ParentDashboard] Profile error for parent ${userId}:`, profileError);
+            return res.status(500).json({ error: 'Failed to find parent profile' });
+        }
+
+        if (!parentProfile || parentProfile.role !== 'parent') {
+            console.warn(`⚠️ [ParentDashboard] Unauthorized: User ${userId} is not a parent (Role: ${parentProfile?.role})`);
+            return res.status(403).json({ error: 'Only parents can access this endpoint' });
+        }
+
+        // Trim and normalize IDs for the linkage check
+        const linked = parentProfile.linked_students || [];
+        const isLinked = linked.some(id => String(id).trim() === String(studentId).trim());
+
+        if (!isLinked) {
+            console.warn(`⚠️ [ParentDashboard] Linkage fail: Student ${studentId} NOT in parent ${userId}'s linked list:`, linked);
+            return res.status(403).json({ error: 'You are not authorized to view this student\'s reports' });
+        }
+
+        console.log(`✅ [ParentDashboard] Verification passed for student ${studentId} (Parent: ${userId}). Starting parallel fetch...`);
+
+        // 2. Fetch all data in parallel
+        const [profileRes, submissionsRes, planRes] = await Promise.all([
+            supabase.from('profiles').select('name').eq('id', studentId).single(),
+            supabase
+                .from('test_submissions')
+                .select('*, courses:courses(id, name, is_practice, tutor_type)')
+                .eq('user_id', studentId)
+                .order('test_date', { ascending: false }),
+            supabase
+                .from('student_plans')
+                .select('*')
+                .eq('user_id', studentId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+        ]);
+
+        if (profileRes.error) {
+            console.error(`❌ [ParentDashboard] Error fetching student profile:`, profileRes.error);
+        }
+        if (submissionsRes.error) {
+            console.error(`❌ [ParentDashboard] Error fetching submissions:`, submissionsRes.error);
+        }
+
+        console.log(`✅ [ParentDashboard] Data fetched: Submissions: ${submissionsRes.data?.length || 0}, Plan: ${planRes.data ? 'Yes' : 'No'}`);
+
+        res.json({
+            studentName: profileRes.data?.name || 'Student',
+            submissions: submissionsRes.data || [],
+            plan: planRes.data || null
+        });
+
+    } catch (error) {
+        console.error('💥 [ParentDashboard] CRITICAL ERROR:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -110,6 +192,26 @@ router.post('/submit-test', async (req, res) => {
         }
 
         const result = data[0];
+
+        // 🟢 FIX: Ensure student_progress stores LATEST score, not GREATEST
+        // This makes sure dashboards and leaderboards are consistent with latest attempts
+        try {
+            await supabase
+                .from('student_progress')
+                .upsert({
+                    user_id: userId,
+                    course_id: courseId,
+                    level: level,
+                    score: result.raw_percentage,
+                    passed: (result.raw_percentage >= 40),
+                    created_at: new Date().toISOString()
+                }, {
+                    onConflict: 'user_id,course_id,level'
+                });
+            console.log(`✅ [Sync] Updated student_progress with latest score (${result.raw_percentage}%) for user ${userId}`);
+        } catch (syncError) {
+            console.warn('⚠️ [Sync] Failed to update latest score in student_progress:', syncError.message);
+        }
 
         res.json({
             submissionId: result.submission_id,
@@ -588,6 +690,179 @@ router.post('/configure-scale', async (req, res) => {
 
     } catch (error) {
         console.error('Configure scale error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/leaderboard/:courseId
+ * Get course-specific leaderboard based on BEST weighted score per student
+ */
+router.get('/leaderboard/:courseId', async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const currentUserId = req.user?.id;
+        console.log(`📡 [Leaderboard] Fetching best weighted scores for course ${courseId}`);
+
+        // 1. Fetch course details
+        const { data: course } = await supabase.from('courses').select('name, tutor_type').eq('id', courseId).single();
+        const category = getCategory(course?.name, course?.tutor_type);
+        const maxScore = (course?.name?.toUpperCase().includes('ENGLISH') || course?.name?.toUpperCase().includes('MATH') || course?.name?.toUpperCase().includes('RW')) ? 800 : 1600;
+
+        // 2. Fetch ALL progress for this course
+        const { data: allProgress, error: progressError } = await supabase
+            .from('student_progress')
+            .select(`
+                user_id,
+                score,
+                level,
+                profiles!user_id(id, name)
+            `)
+            .eq('course_id', courseId);
+
+        if (progressError) {
+            console.error('Leaderboard fetch error:', progressError);
+            return res.status(500).json({ error: 'Failed to fetch leaderboard' });
+        }
+
+        // 3. Group by user and calculate WEIGHTED aggregate score
+        const studentMap = new Map();
+        allProgress.forEach(p => {
+            const userId = p.user_id;
+            const level = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
+            
+            if (!studentMap.has(userId)) {
+                studentMap.set(userId, {
+                    user_id: userId,
+                    name: p.profiles?.name || 'Anonymous Student',
+                    accuracies: { Easy: 0, Medium: 0, Hard: 0 },
+                    levels_completed: 0
+                });
+            }
+            
+            const existing = studentMap.get(userId);
+            if (p.score > existing.accuracies[level]) {
+                existing.accuracies[level] = p.score;
+                existing.levels_completed++;
+            }
+        });
+
+        // Calculate final weighted score for each student
+        const allRankings = Array.from(studentMap.values()).map(s => {
+            const weightedAcc = s.accuracies.Easy * 0.2 + s.accuracies.Medium * 0.35 + s.accuracies.Hard * 0.45;
+            const weightedScore = Math.max(200, Math.round(200 + (weightedAcc * 6)));
+            return {
+                user_id: s.user_id,
+                name: s.name,
+                score: weightedScore,
+                levels_completed: s.levels_completed
+            };
+        }).sort((a, b) => b.score - a.score);
+
+        // 5. Format results
+        const leaderboard = allRankings.slice(0, 50).map(s => ({
+            ...s,
+            scoreDisplay: `${s.score}`
+        }));
+
+        let myRank = null;
+        if (currentUserId) {
+            const myIndex = allRankings.findIndex(s => s.user_id === currentUserId);
+            if (myIndex !== -1) {
+                const myData = allRankings[myIndex];
+                myRank = {
+                    rank: myIndex + 1,
+                    score: myData.score,
+                    scoreDisplay: `${myData.score}`,
+                    name: myData.name,
+                    levels_completed: myData.levels_completed
+                };
+            }
+        }
+
+        console.log(`✅ [Leaderboard] Return ${leaderboard.length} rankings for course ${courseId}. My Rank: ${myRank?.rank || 'N/A'}`);
+        res.json({ leaderboard, myRank });
+
+    } catch (error) {
+        console.error('Leaderboard processing error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/global-leaderboard
+ * Global Rankings based on total SAT score (Math + RW)
+ */
+router.get('/global-leaderboard', async (req, res) => {
+    try {
+        const currentUserId = req.user?.id;
+        console.log(`📡 [GlobalLeaderboard] Calculating total SAT scores for all students...`);
+
+        // 1. Fetch all students' progress and course info
+        const { data: allProgress, error } = await supabase
+            .from('student_progress')
+            .select(`
+                user_id,
+                score,
+                level,
+                courses(name, tutor_type),
+                profiles!user_id(id, name)
+            `)
+            .eq('profiles.role', 'student');
+
+        if (error) {
+            console.error('Global leaderboard fetch error:', error);
+            return res.status(500).json({ error: 'Failed to fetch global rankings' });
+        }
+
+        // 2. Group by user
+        const userGroups = {};
+        allProgress.forEach(p => {
+            const uid = p.user_id;
+            if (!userGroups[uid]) {
+                userGroups[uid] = {
+                    user_id: uid,
+                    name: p.profiles?.name || 'Anonymous Student',
+                    entries: []
+                };
+            }
+            userGroups[uid].entries.push(p);
+        });
+
+        // 3. Calculate scores for each user
+        const allRankings = Object.values(userGroups).map(u => {
+            const scores = calculateTotalSATScore(u.entries);
+            return {
+                user_id: u.user_id,
+                name: u.name,
+                total_points: scores.total, // frontend expects total_points
+                scoreDisplay: `${scores.total}`,
+                levels_completed: u.entries.length
+            };
+        }).sort((a, b) => b.total_points - a.total_points);
+
+        // 4. Final format
+        const leaderboard = allRankings.slice(0, 50);
+
+        let myRank = null;
+        if (currentUserId) {
+            const myIndex = allRankings.findIndex(s => s.user_id === currentUserId);
+            if (myIndex !== -1) {
+                const myData = allRankings[myIndex];
+                myRank = {
+                    rank: myIndex + 1,
+                    score: myData.total_points,
+                    scoreDisplay: myData.scoreDisplay,
+                    name: myData.name,
+                    levels_completed: myData.levels_completed
+                };
+            }
+        }
+
+        res.json({ leaderboard, myRank });
+
+    } catch (error) {
+        console.error('Global leaderboard error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
