@@ -232,30 +232,36 @@ const ChildCoursesReport = () => {
                         if (!courseMap[cId]) {
                             const courseName = sub.courses?.name || `Course ${cId}`;
                             const category = getCategory(sub);
-
                             courseMap[cId] = {
                                 id: cId,
                                 name: courseName,
                                 category: category,
-                                levelScores: { Easy: 0, Medium: 0, Hard: 0 },
-                                levelScaled: { Easy: 0, Medium: 0, Hard: 0 }
+                                levelScores: { Easy: 0, Medium: 0, Hard: 0 },     // accuracy %
+                                levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 }  // actual scaled score
                             };
                         }
 
-                        if (sub.level && sub.raw_score !== undefined && sub.total_questions > 0) {
+                        if (sub.level) {
                             const lvl = sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase();
-                            const pct = Math.round((sub.raw_score / sub.total_questions) * 100);
-
-                            if (pct > courseMap[cId].levelScores[lvl]) {
-                                courseMap[cId].levelScores[lvl] = pct;
-                                courseMap[cId].levelScaled[lvl] = calculateSessionScore(courseMap[cId].category, lvl, pct);
+                            if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+                            // Use the real raw_score_percentage and scaled_score (same as Test History)
+                            const rawPct = Math.round(sub.raw_score_percentage || 0);
+                            const scaled = sub.scaled_score || 0;
+                            if (scaled > courseMap[cId].levelScaledBest[lvl]) {
+                                courseMap[cId].levelScores[lvl] = rawPct;
+                                courseMap[cId].levelScaledBest[lvl] = scaled;
                             }
                         }
                     });
 
                     const formattedCourses = Object.values(courseMap).map(c => {
-                        const weightedCourseAcc = (c.levelScores.Easy * 0.2 + c.levelScores.Medium * 0.35 + c.levelScores.Hard * 0.45);
-                        const courseScaledScore = Math.max(200, Math.round(200 + (weightedCourseAcc * 6)));
+                        // EST. SCORE = best actual test scaled_score (matches Test History)
+                        const courseScaledScore = Math.max(
+                            c.levelScaledBest.Easy,
+                            c.levelScaledBest.Medium,
+                            c.levelScaledBest.Hard,
+                            200
+                        );
                         return { ...c, courseScaledScore };
                     });
                     setCourses(formattedCourses);

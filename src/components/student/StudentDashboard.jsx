@@ -7,9 +7,9 @@ import CircularProgress from '../../components/common/CircularProgress';
 import Skeleton from '../../components/common/Skeleton';
 
 // Services
-import { courseService, enrollmentService, progressService, planService } from '../../services/api';
+import { courseService, enrollmentService, progressService, planService, gradingService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { calculateStudentScore, calculateSessionScore } from '../../utils/scoreCalculator';
+import { calculateStudentScore } from '../../utils/scoreCalculator';
 
 const {
   FiBook, FiCheckSquare, FiFileText, FiActivity, FiArrowLeft, FiPlay
@@ -37,47 +37,66 @@ const StudentDashboard = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [enrollmentsRes, progressRes, planRes] = await Promise.all([
+      const [enrollmentsRes, progressRes, planRes, submissionsRes] = await Promise.all([
         enrollmentService.getStudentEnrollments(user.id),
         progressService.getAllUserProgress(user.id),
-        planService.getPlan(user.id)
+        planService.getPlan(user.id),
+        gradingService.getAllMyScores()
       ]);
 
       const planData = planRes.data?.generated_plan || null;
       const diagnosticData = planRes.data?.diagnostic_data || null;
       const progress = progressRes.data || [];
+      const submissions = submissionsRes.data?.submissions || [];
       const calculatedScores = calculateStudentScore(progress, diagnosticData);
       const passedLevels = progress.filter(p => p.passed).length;
       const lessonsCount = Math.min(50, passedLevels * 3 + 5);
-      const testsTaken = progress.length;
+      const testsTaken = submissions.length; // real count from submissions
       const enrollments = enrollmentsRes.data || [];
 
-      // Organize scores by level for each enrollment
+      // Build per-course level data from real test_submissions
+      // (same source as Test History & Review — ensures scores match exactly)
       const enrollmentProgress = enrollments.map(e => {
-        const courseProgress = progress.filter(p => p.course_id === e.course_id);
-        const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
-        const levelScaled = { Easy: 0, Medium: 0, Hard: 0 };
+        const courseId = e.course_id;
+        const courseSubmissions = submissions.filter(s => s.course_id === courseId);
 
-        const type = (e.courses?.tutor_type || '').toLowerCase();
-        const name = (e.courses?.name || '').toLowerCase();
-        const category = (type.includes('math') || type.includes('quant') || name.includes('math') || name.includes('algebra')) ? 'MATH' : 'RW';
+        // Track best (highest) scaled score per level
+        const levelScores = { Easy: 0, Medium: 0, Hard: 0 };      // accuracy %
+        const levelScaledBest = { Easy: 0, Medium: 0, Hard: 0 };  // scaled score
 
-        courseProgress.forEach(p => {
-          const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
-          if (p.score > levelScores[lvl]) {
-            levelScores[lvl] = p.score;
-            levelScaled[lvl] = calculateSessionScore(category, lvl, p.score);
+        courseSubmissions.forEach(sub => {
+          const lvl = sub.level
+            ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase()
+            : 'Medium';
+          if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+          const rawPct = Math.round(sub.raw_score_percentage || 0);
+          const scaled = sub.scaled_score || 0;
+          if (scaled > levelScaledBest[lvl]) {
+            levelScores[lvl] = rawPct;
+            levelScaledBest[lvl] = scaled;
           }
         });
 
-        // 🟢 FIX: Weighted logic for course score consistency
-        const weightedCourseAcc = (levelScores.Easy * 0.2 + levelScores.Medium * 0.35 + levelScores.Hard * 0.45);
-        const courseScaledScore = Math.max(200, Math.round(200 + (weightedCourseAcc * 6)));
+        // Fallback to student_progress if no submissions for this course
+        if (courseSubmissions.length === 0) {
+          const courseProgress = progress.filter(p => p.course_id === courseId);
+          courseProgress.forEach(p => {
+            const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
+            if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
+          });
+        }
+
+        // EST. SCORE = best individual test scaled score for this course
+        const courseScaledScore = Math.max(
+          levelScaledBest.Easy,
+          levelScaledBest.Medium,
+          levelScaledBest.Hard,
+          200
+        );
 
         return {
           ...e.courses,
           levelScores,
-          levelScaled,
           courseScaledScore
         };
       });
