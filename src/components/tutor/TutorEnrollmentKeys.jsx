@@ -5,26 +5,42 @@ import SafeIcon from '../../common/SafeIcon';
 import { enrollmentService, tutorService } from '../../services/api';
 import EnrollmentKeyManager from '../admin/EnrollmentKeyManager'; // Reuse existing logic
 
-const TutorEnrollmentKeys = () => {
-    const [courses, setCourses] = useState([]);
-    const [loading, setLoading] = useState(true);
+const TutorEnrollmentKeys = ({ dashboardData }) => {
+    const [courses, setCourses] = useState(dashboardData?.courses || []);
+    const [loading, setLoading] = useState(!dashboardData);
 
     useEffect(() => {
-        fetchCourses();
-    }, []);
+        if (dashboardData?.courses) {
+            setCourses(dashboardData.courses);
+            setLoading(false);
+        } else {
+            fetchCourses();
+        }
+    }, [dashboardData]);
 
     const fetchCourses = async () => {
+        if (!dashboardData) setLoading(true);
+        const timeoutId = setTimeout(() => {
+            if (loading) setLoading(false);
+        }, 10000);
+
         try {
             const response = await tutorService.getDashboard();
             setCourses(response.data.courses || []);
         } catch (error) {
             console.error('Error fetching courses:', error);
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-blue-600 font-bold animate-pulse">Loading enrollment system...</div>;
+    if (loading) return (
+        <div className="p-12 text-center flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-blue-600 font-bold">Loading enrollment system...</p>
+        </div>
+    );
 
     return (
         <div className="space-y-6">

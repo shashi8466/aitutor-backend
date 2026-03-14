@@ -1,6 +1,6 @@
 import React from 'react';
 
-const CircularProgress = ({ value, max, size = 120, strokeWidth = 10, color = "#3B82F6", label = "Score", subLabel = "" }) => {
+const CircularProgress = React.memo(({ value, max, size = 120, strokeWidth = 10, color = "#3B82F6", label = "Score", subLabel = "" }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const progress = Math.min(value / max, 1);
@@ -40,6 +40,6 @@ const CircularProgress = ({ value, max, size = 120, strokeWidth = 10, color = "#
       </div>
     </div>
   );
-};
+});
 
 export default CircularProgress;

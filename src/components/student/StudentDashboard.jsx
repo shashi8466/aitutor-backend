@@ -9,7 +9,7 @@ import Skeleton from '../../components/common/Skeleton';
 // Services
 import { courseService, enrollmentService, progressService, planService, gradingService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { calculateStudentScore, getCategory } from '../../utils/scoreCalculator';
+import { calculateStudentScore, getCategory, calculateSessionScore, calculateSatScore } from '../../utils/scoreCalculator';
 
 const {
   FiBook, FiCheckSquare, FiFileText, FiActivity, FiArrowLeft, FiPlay, FiAward
@@ -21,12 +21,11 @@ const StudentDashboard = () => {
 
   // State
   const [loading, setLoading] = useState(true);
-  const [dashboardData, setDashboardData] = useState({
-    scores: { total: 0, math: 0, rw: 0, target: 1500 },
-    counts: { lessons: 0, tests: 0, worksheets: 0, sessions: 0 },
-    maxCounts: { lessons: 50, tests: 20, worksheets: 30, sessions: 24 }, // Baselines
+  const [rawData, setRawData] = useState({
     enrollments: [],
-    plan: null
+    progress: [],
+    plan: null,
+    submissions: []
   });
 
   // Load Data
@@ -44,117 +43,11 @@ const StudentDashboard = () => {
         gradingService.getAllMyScores()
       ]);
 
-      const planData = planRes.data?.generated_plan || null;
-      const diagnosticData = planRes.data?.diagnostic_data || null;
-      const progress = progressRes.data || [];
-      const submissions = submissionsRes.data?.submissions || [];
-
-      // Centralized Synchronized Score Calculation
-      const calculatedScores = calculateStudentScore(progress, diagnosticData, submissions);
-      const passedLevels = progress.filter(p => p.passed).length;
-      const lessonsCount = Math.min(50, passedLevels * 3 + 5);
-      const testsTaken = submissions.length; // real count from submissions
-      const enrollments = enrollmentsRes.data || [];
-
-      // Build per-course level data from real test_submissions
-      // (same source as Test History & Review — ensures scores match exactly)
-      // Build per-course level data from real test_submissions + student_progress
-      const enrollmentProgress = enrollments.map(e => {
-        const courseId = e.course_id;
-        const courseSubmissions = submissions.filter(s => s.course_id === courseId);
-        const courseProgress = progress.filter(p => p.course_id === courseId);
-        const courseCategory = getCategory(e);
-        const courseType = courseCategory;
-
-        // Track best (highest) accuracy % per level
-        const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
-        // Track best (highest) scaled score per level (from real tests)
-        const levelScaledBest = { Easy: 0, Medium: 0, Hard: 0 };
-
-        // 1. Fill from submissions
-        courseSubmissions.forEach(sub => {
-          const lvl = sub.level
-            ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase()
-            : 'Medium';
-          if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
-          
-          const rawPct = Math.round(sub.raw_score_percentage || 0);
-          if (rawPct > levelScores[lvl]) levelScores[lvl] = rawPct;
-
-          // Build per-course level data from real test_submissions (Sync with Top Score)
-          let mathVal = sub.math_scaled_score || 0;
-          let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
-
-          if (sub.scaled_score > 800) {
-            if (!mathVal && rwVal) mathVal = sub.scaled_score - rwVal;
-            if (!rwVal && mathVal) rwVal = sub.scaled_score - mathVal;
-          } else if (sub.scaled_score > 0 && sub.scaled_score <= 800) {
-            if (!mathVal && !rwVal) {
-              if (courseCategory === 'MATH') mathVal = sub.scaled_score;
-              else rwVal = sub.scaled_score;
-            }
-          }
-
-          const sectionScaled = courseCategory === 'MATH' ? mathVal : rwVal;
-          
-          if (sectionScaled > levelScaledBest[lvl]) levelScaledBest[lvl] = sectionScaled;
-        });
-
-        // 2. Fill/Improve from student_progress (lessons)
-        courseProgress.forEach(p => {
-          const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
-          if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
-        });
-
-        // 3. Calculate Estimated Scaled Score for this course
-        // Formula: WeightedAccuracy * 6 + 200
-        const weightedAcc = (levelScores.Easy * 0.2 + levelScores.Medium * 0.35 + levelScores.Hard * 0.45);
-        let estimatedScaled = Math.max(200, Math.round(200 + (weightedAcc * 6)));
-        
-        // 4. Incorporate Baseline from Diagnostic (ensures matching with Top Score)
-        const baseline = courseType === 'MATH' 
-          ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
-          : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
-        
-        if (estimatedScaled < baseline) estimatedScaled = baseline;
-
-        // 5. Final Course Score = max of actual best test OR estimated baseline
-        const bestActualTest = Math.max(levelScaledBest.Easy, levelScaledBest.Medium, levelScaledBest.Hard);
-        const courseScaledScore = Math.max(bestActualTest, estimatedScaled);
-
-        return {
-          ...e.courses,
-          levelScores,
-          courseScaledScore
-        };
-      });
-
-      // Use the centralized scores calculated above
-      const totalScore = calculatedScores.current;
-      const bestMath = calculatedScores.math;
-      const bestRW = calculatedScores.rw;
-      const targetScore = calculatedScores.target;
-
-      // Build per-course level data from real test_submissions
-      // ... (already updated enrollmentProgress logic) ...
-
-      setDashboardData({
-        scores: {
-          total: totalScore,
-          math: bestMath,
-          rw: bestRW,
-          target: targetScore
-        },
-        counts: {
-          lessons: lessonsCount,
-          tests: testsTaken,
-          worksheets: 14,
-          sessions: Math.floor(lessonsCount / 2)
-        },
-        maxCounts: { lessons: 50, tests: 20, worksheets: 30, sessions: 24 },
-        enrollments: enrollmentProgress.filter(e => !e.is_practice),
-        progress: progress,
-        plan: planData
+      setRawData({
+        enrollments: enrollmentsRes.data || [],
+        progress: progressRes.data || [],
+        plan: planRes.data || null,
+        submissions: submissionsRes.data?.submissions || []
       });
     } catch (error) {
       console.error("Dashboard Load Error:", error);
@@ -162,6 +55,137 @@ const StudentDashboard = () => {
       setLoading(false);
     }
   };
+
+  // Memoized derived data
+  const dashboardData = React.useMemo(() => {
+    const { enrollments, progress, plan, submissions } = rawData;
+    
+    const planData = plan?.generated_plan || null;
+    const diagnosticData = plan?.diagnostic_data || null;
+
+    // Centralized Synchronized Score Calculation
+    const calculatedScores = calculateStudentScore(progress, diagnosticData, submissions);
+    const passedLevels = progress.filter(p => p.passed).length;
+    const lessonsCount = Math.min(50, passedLevels * 3 + 5);
+    const testsTaken = submissions.length;
+
+    const enrollmentProgress = enrollments.map(e => {
+      const courseId = e.course_id;
+      const courseSubmissions = submissions.filter(s => s.course_id === courseId);
+      const courseProgress = progress.filter(p => p.course_id === courseId);
+      const courseCategory = getCategory(e);
+      const courseType = courseCategory;
+
+      const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
+      const levelScaledBest = { Easy: 0, Medium: 0, Hard: 0 };
+      let latestTestScore = 0;
+      let latestTestDate = 0;
+
+      courseSubmissions.forEach(sub => {
+        const lvl = sub.level
+          ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase()
+          : 'Medium';
+        if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+        
+        const rawPct = Math.round(sub.raw_score_percentage || 0);
+        if (rawPct > levelScores[lvl]) levelScores[lvl] = rawPct;
+
+        // Use standard scaling for the specific test record
+        let mathVal = sub.math_scaled_score || 0;
+        let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
+
+        if (!mathVal && !rwVal) {
+          if (sub.scaled_score > 0) {
+            if (sub.scaled_score <= 800) {
+              if (courseCategory === 'MATH') mathVal = sub.scaled_score;
+              else rwVal = sub.scaled_score;
+            } else {
+               mathVal = Math.round(sub.scaled_score / 2);
+               rwVal = sub.scaled_score - mathVal;
+            }
+          } else {
+            const calc = calculateSessionScore(courseCategory, lvl, sub.raw_score_percentage);
+            if (courseCategory === 'MATH') mathVal = calc;
+            else rwVal = calc;
+          }
+        }
+
+        const sectionScaled = courseCategory === 'MATH' ? mathVal : rwVal;
+        const testDate = new Date(sub.test_date || sub.created_at).getTime();
+
+        if (sectionScaled > levelScaledBest[lvl]) levelScaledBest[lvl] = sectionScaled;
+        
+        // Track latest actual test attempt for THIS specific course
+        if (sectionScaled > 0 && testDate >= (latestTestDate || 0)) {
+           latestTestDate = testDate;
+           latestTestScore = sectionScaled;
+        }
+      });
+
+      courseProgress.forEach(p => {
+        const lvl = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
+        if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
+      });
+
+      // Always use calculateSatScore with weighted average of level scores when available
+      const hasLevelScores = levelScores.Easy > 0 || levelScores.Medium > 0 || levelScores.Hard > 0;
+      let courseScaledScore;
+      
+      if (hasLevelScores) {
+        // Use the new calculateSatScore function with weighted average
+        courseScaledScore = calculateSatScore(levelScores.Easy, levelScores.Medium, levelScores.Hard);
+      } else {
+        // Fallback to baseline if no level scores
+        const baseline = courseType === 'MATH' 
+          ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
+          : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
+        courseScaledScore = baseline;
+      }
+
+      return {
+        ...e.courses,
+        levelScores,
+        courseScaledScore,
+        isEstimated: !hasLevelScores // Only estimated if no level scores available
+      };
+    });
+
+    // Calculate main scores from actual course performance
+    const mathCourses = enrollmentProgress.filter(e => getCategory(e) === 'MATH');
+    const rwCourses = enrollmentProgress.filter(e => getCategory(e) === 'RW');
+    
+    // Get the best score from each section
+    const bestMathScore = mathCourses.length > 0 ? Math.max(...mathCourses.map(c => c.courseScaledScore)) : 200;
+    const bestRWScore = rwCourses.length > 0 ? Math.max(...rwCourses.map(c => c.courseScaledScore)) : 200;
+    
+    // Use diagnostic baseline if no courses
+    const baselineMath = diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200;
+    const baselineRW = diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200;
+    
+    const finalMathScore = mathCourses.length > 0 ? bestMathScore : baselineMath;
+    const finalRWScore = rwCourses.length > 0 ? bestRWScore : baselineRW;
+    const finalTotalScore = finalMathScore + finalRWScore;
+    const baselineTotal = baselineMath + baselineRW;
+    const totalImprovement = Math.max(0, finalTotalScore - baselineTotal);
+
+    return {
+      scores: {
+        total: finalTotalScore,
+        math: finalMathScore,
+        rw: finalRWScore,
+        target: 1600,
+        totalImprovement: totalImprovement
+      },
+      counts: {
+        lessons: lessonsCount,
+        tests: testsTaken,
+        worksheets: 14,
+        sessions: Math.floor(lessonsCount / 2)
+      },
+      maxCounts: { lessons: 50, tests: 20, worksheets: 30, sessions: 24 },
+      enrollments: enrollmentProgress.filter(e => !e.is_practice)
+    };
+  }, [rawData]);
 
   const { scores, counts, maxCounts, enrollments } = dashboardData;
   const progressPercent = Math.min(100, Math.round((scores.total / scores.target) * 100));
@@ -243,7 +267,7 @@ const StudentDashboard = () => {
                     <div className="mt-4 text-center">
                       <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Current Score</p>
                       <p className="text-2xl font-extrabold text-gray-900">{scores.total}</p>
-                      <p className="text-xs text-green-500 font-bold">+{(scores.total - 400) > 0 ? scores.total - 400 : 0} pts gained</p>
+                      <p className="text-xs text-green-500 font-bold">+{scores.totalImprovement} pts gained</p>
                     </div>
                   </div>
 
@@ -390,7 +414,7 @@ const StudentDashboard = () => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-bold text-gray-400 block mb-0.5">EST. SCORE</span>
+                          <span className="text-xs font-bold text-gray-400 block mb-0.5">{course.isEstimated ? 'EST. SCORE' : 'ACTUAL SCORE'}</span>
                           <span className={`text-lg font-black ${courseType === 'MATH' ? 'text-blue-600' : 'text-green-600'}`}>
                             {course.courseScaledScore}
                           </span>

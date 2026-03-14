@@ -95,6 +95,9 @@ const StudentCourseList = () => {
     // 1. Must NOT be an official practice course (those go to Practice section)
     if (c.is_practice) return false;
 
+    // 2. Must be active (if status column exists)
+    if (c.status && c.status !== 'active') return false;
+
     // 2. Search match
     return (
       c.name.toLowerCase().includes(filter.toLowerCase()) ||

@@ -60,6 +60,14 @@ export const calculateSessionScore = (category, levelName, percentageScore) => {
 };
 
 export const calculateTotalSATScore = (progressEntries) => {
+  // We strictly use TEST submissions for the leaderboard to ensure "Real" scores
+  // Note: progressEntries passed here currently come from student_progress table 
+  // but for the true "Test" leaderboard, we should be using the most recent 
+  // actual test records.
+
+  // If the entries are from student_progress, we still sum them but without 
+  // the weighted 'invented' estimate.
+  
   const mathAcc = { Easy: 0, Medium: 0, Hard: 0 };
   const rwAcc = { Easy: 0, Medium: 0, Hard: 0 };
 
@@ -75,15 +83,24 @@ export const calculateTotalSATScore = (progressEntries) => {
     }
   });
 
-  // Calculate Weighted Section Scores
-  // Formula: 200 + (WeightedAccuracy * 6)
-  // WeightedAccuracy = (Easy * 0.2 + Medium * 0.35 + Hard * 0.45)
-  // SAT Floor: 200, Max: 800
-  const weightedMathAcc = (mathAcc.Easy * 0.2 + mathAcc.Medium * 0.35 + mathAcc.Hard * 0.45);
-  const weightedRWAcc = (rwAcc.Easy * 0.2 + rwAcc.Medium * 0.35 + rwAcc.Hard * 0.45);
+  // Calculate scores based on the specific level accuracy
+  // Rule: We take the BEST single level performance as the section score
+  // instead of a weighted mix that "inflates" the score.
+  
+  const calcMath = Math.max(
+    calculateSessionScore('MATH', 'Easy', mathAcc.Easy),
+    calculateSessionScore('MATH', 'Medium', mathAcc.Medium),
+    calculateSessionScore('MATH', 'Hard', mathAcc.Hard)
+  );
 
-  const bestMath = Math.max(200, Math.round(200 + (weightedMathAcc * 6)));
-  const bestRW = Math.max(200, Math.round(200 + (weightedRWAcc * 6)));
+  const calcRW = Math.max(
+    calculateSessionScore('RW', 'Easy', rwAcc.Easy),
+    calculateSessionScore('RW', 'Medium', rwAcc.Medium),
+    calculateSessionScore('RW', 'Hard', rwAcc.Hard)
+  );
+
+  const bestMath = Math.max(200, calcMath);
+  const bestRW = Math.max(200, calcRW);
 
   return {
     math: bestMath,

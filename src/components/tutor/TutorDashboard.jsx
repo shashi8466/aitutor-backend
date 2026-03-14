@@ -80,14 +80,18 @@ const TutorDashboard = () => {
     const location = useLocation();
 
     useEffect(() => {
-        console.log('🏗️ [TutorDashboard] Mounted/Route Changed');
+        console.log('🏗️ [TutorDashboard] Mounted');
         fetchDashboardData();
 
         // Safety Catch: Always reset scroll lock when changing tabs
         document.body.style.overflow = 'unset';
 
         const handleFocus = () => {
-            console.log('👀 [TutorDashboard] Window Focused');
+            console.log('👀 [TutorDashboard] Window Focused - Refreshing stats');
+            // Background refresh without showing loading spinner
+            tutorService.getDashboard().then(res => {
+                if (res?.data) setDashboardData(res.data);
+            }).catch(() => { });
         };
 
         window.addEventListener('focus', handleFocus);
@@ -96,25 +100,38 @@ const TutorDashboard = () => {
             window.removeEventListener('focus', handleFocus);
             document.body.style.overflow = 'unset';
         };
-    }, [location.pathname === '/tutor']); // Only trigger on dashboard index
+    }, []); // Run once on mount
 
     const fetchDashboardData = async () => {
+        setLoading(true);
+        const timeoutId = setTimeout(() => {
+            if (loading) {
+                console.warn('Dashboard global fetch timed out');
+                setLoading(false);
+            }
+        }, 12000); // 12s timeout
+
         try {
             console.log('📡 [TutorDashboard] Fetching data...');
             const response = await tutorService.getDashboard();
-            setDashboardData(response.data);
-            console.log('✅ [TutorDashboard] Data loaded');
+            if (response?.data) {
+                setDashboardData(response.data);
+                console.log('✅ [TutorDashboard] Data loaded');
+            } else {
+                setDashboardData({ courses: [], profile: user });
+            }
         } catch (error) {
             console.error('❌ [TutorDashboard] Error:', error);
-            // Don't show generic "Failed to load" error to user unless critical
+            setDashboardData({ courses: [], profile: user });
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     };
 
     const handleLogout = async () => {
         await logout();
-        navigate('/login/tutor');
+        navigate('/login');
     };
 
     const menuItems = [
@@ -287,13 +304,13 @@ const TutorDashboard = () => {
                     <Suspense fallback={<LoadingSpinner fullPage={false} />}>
                         <Routes>
                             <Route index element={<TutorOverview dashboardData={dashboardData} loading={loading} />} />
-                            <Route path="courses" element={<TutorCourses />} />
-                            <Route path="students" element={<TutorStudents />} />
-                            <Route path="groups" element={<GroupManager />} />
-                            <Route path="enrollment-keys" element={<TutorEnrollmentKeys />} />
-                            <Route path="invitations" element={<TutorInvitations />} />
-                            <Route path="grades" element={<TutorGrades />} />
-                            <Route path="settings" element={<TutorSettings />} />
+                            <Route path="courses" element={<TutorCourses dashboardData={dashboardData} />} />
+                            <Route path="students" element={<TutorStudents dashboardData={dashboardData} />} />
+                            <Route path="groups" element={<GroupManager dashboardData={dashboardData} />} />
+                            <Route path="enrollment-keys" element={<TutorEnrollmentKeys dashboardData={dashboardData} />} />
+                            <Route path="invitations" element={<TutorInvitations dashboardData={dashboardData} />} />
+                            <Route path="grades" element={<TutorGrades dashboardData={dashboardData} />} />
+                            <Route path="settings" element={<TutorSettings dashboardData={dashboardData} />} />
                         </Routes>
                     </Suspense>
                 </main>

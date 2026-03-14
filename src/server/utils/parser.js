@@ -10,6 +10,9 @@ const SAT_TOPICS = [
   "Craft and Structure", "Information and Ideas", "Standard English Conventions",
   "Expression of Ideas", "Words in Context", "Command of Evidence", "Inferences",
   "Central Ideas and Details", "Text Structure", "Purpose", "Algebra", "Advanced Math",
+  "Rhetorical synthesis", "Text Structure and Purpose", "Transitions", "Boundaries",
+  "Form, Structure, and Sense", "Cross-Text Connections", "Textual Evidence",
+  "Command of textual evidence", "Command of quantitative evidence", "Quantitative evidence",
   "Linear equations in one variable", "Linear equations in two variables", "Linear functions",
   "Systems of two linear equations", "Linear inequalities", "Nonlinear functions",
   "Quadratic equations", "Exponential functions", "Polynomials", "Radicals",
@@ -20,11 +23,10 @@ const SAT_TOPICS = [
   "Geometry and Trigonometry", "Geometry & Trigonometry", "Area and volume",
   "Lines, angles, and triangles", "Right triangles and trigonometry", "Circles",
   "Equivalent expressions", "Nonlinear equations in one variable and systems of equations in two variables",
-  "in two variables", "in one variable",
   "Ratios rates proportional relationships and units", "Two-variable data: models and scatterplots",
   "Ratios, rates, proportional relationships and units",
   "Problem Solving & Data Analysis", "Systems of two linear equations in two variables",
-  "Lines angles and triangles", "in one or two variables"
+  "Lines angles and triangles"
 ];
 SAT_TOPICS.sort((a, b) => b.length - a.length);
 
@@ -194,33 +196,6 @@ const extractDocxWithMath = async (buffer) => {
           return "";
         }
         if (tagName === 'oMath' || tagName === 'oMathPara') {
-          // Extract text carefully - join nodes with space to capture natural spacing
-          const getTagName = (n) => n.nodeName.split(':').pop();
-          const getTextWithSpaces = (n) => {
-            if (n.nodeType === 3) return n.nodeValue;
-            if (getTagName(n) === 't') return n.textContent;
-            let t = "";
-            if (n.childNodes) {
-              for (let j = 0; j < n.childNodes.length; j++) {
-                t += getTextWithSpaces(n.childNodes[j]);
-              }
-            }
-            // Add space for container nodes that typically separate words (like runs)
-            const tag = getTagName(n);
-            if (['r', 'e', 'num', 'den'].includes(tag)) t += " ";
-            return t;
-          };
-
-          const rawText = getTextWithSpaces(node).replace(/\s+/g, ' ').trim();
-          const spaceCount = (rawText.match(/\s/g) || []).length;
-          const letterCount = (rawText.match(/[a-zA-Z]/g) || []).length;
-
-          // CRITICAL: If it has more than 1 space OR is long, it's a sentence or phrase.
-          // We return it as plain text and let the frontend MathRenderer detect math bits.
-          if (spaceCount >= 1 || letterCount > 15) {
-            return " " + rawText + " ";
-          }
-
           try { return convertToLatex(node); } catch (e) { return " [Equation] "; }
         }
         if (tagName === 't') return node.textContent || "";
@@ -414,16 +389,14 @@ const parseTextToQuestions = (text) => {
       }
 
       if (explanationMatch || choiceExpMatch) {
-        const expText = explanationMatch ? explanationMatch[2].trim() : line;
+        const expText = explanationMatch ? explanationMatch[2].trim() : line.trim();
 
-        // Filter out generic/unhelpful explanations
-        const isGenericExplanation = /^Choice\s+[A-E]\s+is\s+(incorrect|correct)\s+(and\s+may\s+result\s+from|This\s+is\s+the\s+value\s+of)/i.test(expText) ||
-          /^Choice\s+[A-E]\s+is\s+incorrect\.?$/i.test(expText) ||
-          (expText.length < 30 && /incorrect|correct/i.test(expText) && !/because|since|as|therefore|thus/i.test(expText));
-
-        if (!isGenericExplanation) {
-          if (currentQuestion.explanation === null) currentQuestion.explanation = expText;
-          else currentQuestion.explanation += ' ' + expText;
+        if (currentQuestion.explanation === null) {
+          currentQuestion.explanation = expText;
+        } else {
+          // If the explanation already has content, add a newline or space
+          const separator = (expText.startsWith('Choice') || expText.startsWith('Question')) ? '\n' : ' ';
+          currentQuestion.explanation += separator + expText;
         }
         continue;
       }
@@ -467,6 +440,25 @@ const extractAnswerFromExplanation = (explanation) => {
 
 const finalizeQuestion = (q) => {
   if (q.explanation === null) q.explanation = '';
+  
+  // Clean question text from any leaked prefixes
+  q.question = q.question
+    .replace(/^(\d+[.)\s]|Q\.?\d+[:.)]?|Question\s*\d+[:.)]?)\s*/i, '') // Remove Q.1) etc.
+    .replace(/^Topic:\s*(.*)/i, '$1') // Remove Topic: prefix
+    .replace(/^[,\s.:-]+/, '') // Remove leading punctuation
+    .trim();
+
+  // Try to extract topic from question text if topic is still null
+  if (!q.topic) {
+    for (const t of SAT_TOPICS) {
+       if (q.question.toLowerCase().startsWith(t.toLowerCase())) {
+          q.topic = t;
+          q.question = q.question.substring(t.length).replace(/^[,\s.:-]+/, '').trim();
+          break;
+       }
+    }
+  }
+
   q.options = (q.options || []).map(opt => opt.trim()).filter(opt => opt.length > 0);
   if (q.options.length > 4) {
     q.options = q.options.filter(opt => {
@@ -490,8 +482,8 @@ const finalizeQuestion = (q) => {
     q.options = [];
   }
   const text = (q.question + ' ' + q.explanation).toLowerCase();
-  if (['standard english', 'grammar', 'punctuation'].some(k => text.includes(k))) q.section = 'writing';
-  else if (['main purpose', 'summarizes', 'completes the text'].some(k => text.includes(k))) q.section = 'reading';
+  if (['standard english', 'grammar', 'punctuation', 'word', 'logical'].some(k => text.includes(k))) q.section = 'writing';
+  else if (['main purpose', 'summarizes', 'completes the text', 'author', 'passage'].some(k => text.includes(k))) q.section = 'reading';
   else q.section = 'math';
   return q;
 };

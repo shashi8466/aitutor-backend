@@ -684,10 +684,10 @@ export const adminService = {
 
 export const leaderboardService = {
   getTopStudents: async () => {
-    return await supabase.rpc('get_global_leaderboard');
+    return await axios.get('/api/grading/global-leaderboard');
   },
   getCourseRankings: async (courseId) => {
-    return await supabase.rpc('get_course_leaderboard', { target_course_id: courseId });
+    return await axios.get(`/api/grading/leaderboard/${courseId}`);
   }
 };
 
@@ -721,5 +721,8 @@ export const calendarService = {
 export const parentService = {
   getStudentReports: async (studentId) => {
     return axios.get(`/api/grading/parent/student/${studentId}/submissions`);
+  },
+  getDashboardData: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/dashboard-data`);
   }
 };

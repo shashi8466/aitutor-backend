@@ -3,9 +3,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { courseService, uploadService, progressService, enrollmentService, planService } from '../../services/api';
+import { courseService, uploadService, progressService, enrollmentService, planService, gradingService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { calculateStudentScore } from '../../utils/scoreCalculator';
+import { calculateStudentScore, getCategory } from '../../utils/scoreCalculator';
 
 const { FiArrowLeft, FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiTrendingUp, FiInfo, FiKey, FiAlertCircle, FiLoader } = FiIcons;
 
@@ -16,6 +16,7 @@ const CourseView = () => {
   const [course, setCourse] = useState(null);
   const [uploads, setUploads] = useState([]);
   const [courseProgress, setCourseProgress] = useState([]);
+  const [courseSubmissions, setCourseSubmissions] = useState([]);
   const [diagnostic, setDiagnostic] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
@@ -77,14 +78,15 @@ const CourseView = () => {
         return;
       }
 
-      const [coursesResponse, uploadsResponse, allProgressRes, planRes] = await Promise.all([
-        courseService.getAll(),
+      const [courseRes, uploadsResponse, allProgressRes, planRes, submissionsRes] = await Promise.all([
+        courseService.getById(courseId),
         uploadService.getAll({ courseId }),
         progressService.getAllUserProgress(user.id),
-        planService.getPlan(user.id)
+        planService.getPlan(user.id),
+        gradingService.getAllMyScores()
       ]);
 
-      const courseData = coursesResponse.data.find(c => c.id === parseInt(courseId));
+      const courseData = courseRes.data;
       // Scheduled release check
       if (courseData?.start_date) {
         const startDate = new Date(courseData.start_date);
@@ -99,8 +101,14 @@ const CourseView = () => {
       }
       setCourse(courseData);
       setUploads(uploadsResponse.data);
-      // Filter progress strictly for this course to ensure independent calculation logic within this view
-      setCourseProgress((allProgressRes.data || []).filter(p => p.course_id === parseInt(courseId)));
+      
+      const pData = allProgressRes.data || [];
+      const sData = submissionsRes.data?.submissions || [];
+
+      // Filter progress strictly for this course
+      setCourseProgress(pData.filter(p => p.course_id === parseInt(courseId)));
+      // Filter submissions strictly for this course
+      setCourseSubmissions(sData.filter(s => s.course_id === parseInt(courseId)));
 
       if (planRes.data && planRes.data.diagnostic_data) {
         setDiagnostic(planRes.data.diagnostic_data);
@@ -179,37 +187,21 @@ const CourseView = () => {
   const getScoreDisplay = () => {
     if (!course) return { score: 0, max: 1600, label: "Estimated Score" };
 
-    // Use ONLY this course's progress for calculation to ensure independence
-    // This ensures Math progress doesn't affect English score display inside the English course
-    const scores = calculateStudentScore(courseProgress, diagnostic);
+    // Use ONLY this course's results for calculation to ensure independent category display
+    const scores = calculateStudentScore(courseProgress, diagnostic, courseSubmissions);
 
     // FIX: Defensively handle null scores if calculator fails (though calculator is fixed now)
     if (!scores) {
       return { score: 0, max: 1600, label: "Estimated Score" };
     }
 
-    // Check for Math
-    const isMath = course.tutor_type?.toLowerCase().includes('math') ||
-      course.name?.toLowerCase().includes('math') ||
-      course.name?.toLowerCase().includes('algebra') ||
-      course.name?.toLowerCase().includes('geometry') ||
-      course.name?.toLowerCase().includes('quant');
-
-    // Check for Reading/Writing
-    const isRW = course.tutor_type?.toLowerCase().includes('reading') ||
-      course.tutor_type?.toLowerCase().includes('writing') ||
-      course.name?.toLowerCase().includes('english') ||
-      course.name?.toLowerCase().includes('verbal');
-
-    if (isMath) {
-      // Return Math Section Score (max 800)
+    const category = getCategory(course.name, course.tutor_type);
+    
+    if (category === 'MATH') {
       return { score: scores.math, max: 800, label: "Math Section Score" };
-    } else if (isRW) {
-      // Return RW Section Score (max 800)
-      return { score: scores.rw, max: 800, label: "Reading & Writing Score" };
     } else {
-      // If it's a general/full course, return total (max 1600)
-      return { score: scores.current, max: 1600, label: "Total SAT Score" };
+      // Return RW Section Score (max 800) for RW or fallback
+      return { score: scores.rw, max: 800, label: "Reading & Writing Score" };
     }
   };
 

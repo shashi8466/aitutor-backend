@@ -70,7 +70,7 @@ const TestReview = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-bold text-lg text-gray-900 dark:text-white">
-                      {sub.course?.name || 'General Test'}
+                      {sub.courses?.name || 'General Test'}
                     </h3>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${sub.level === 'Hard' ? 'bg-red-100 text-red-700' :
                       sub.level === 'Medium' ? 'bg-orange-100 text-orange-700' :

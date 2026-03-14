@@ -2,7 +2,7 @@ import React from 'react';
 import * as FiIcons from 'react-icons/fi';
 import { FiAlertTriangle } from 'react-icons/fi';
 
-const SafeIcon = ({ icon, name, className, ...props }) => {
+const SafeIcon = React.memo(({ icon, name, className, ...props }) => {
   let IconComponent = FiAlertTriangle;
 
   try {
@@ -22,6 +22,6 @@ const SafeIcon = ({ icon, name, className, ...props }) => {
   }
 
   return <IconComponent className={className} {...props} />;
-};
+});
 
 export default SafeIcon;

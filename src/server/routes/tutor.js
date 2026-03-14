@@ -81,102 +81,116 @@ router.get('/dashboard', async (req, res) => {
         const assignedCourses = getAssignedCourses(profile);
         console.log(`📊 [TUTOR DASHBOARD] User: ${userId}, Role: ${profile.role}, Normalized Assigned Courses:`, assignedCourses);
 
-        // 1. Get total enrollments count
+        // 1. Get stats
         let totalEnrollments = 0;
         let uniqueStudentsCount = 0;
-
-        if (assignedCourses.length > 0) {
-            // Get total enrollments
-            const { count, error: enrollmentsError } = await supabase
-                .from('enrollments')
-                .select('*', { count: 'exact', head: true })
-                .in('course_id', assignedCourses);
-
-            if (enrollmentsError) console.error('❌ [TUTOR DASHBOARD] Enrollment count error:', enrollmentsError);
-            totalEnrollments = count || 0;
-
-            // Get unique students count
-            const { data: enrollmentData, error: uniqueError } = await supabase
-                .from('enrollments')
-                .select('user_id')
-                .in('course_id', assignedCourses);
-
-            if (!uniqueError && enrollmentData) {
-                const uniqueIds = new Set(enrollmentData.map(e => String(e.user_id)));
-                uniqueStudentsCount = uniqueIds.size;
-            }
-        }
-        console.log(`📊 [TUTOR DASHBOARD] Total Enrollments: ${totalEnrollments}, Unique Students: ${uniqueStudentsCount}`);
-
-        // 2. Get assigned courses
         let courses = [];
+        let recentSubmissions = [];
+
         if (assignedCourses.length > 0) {
-            const { data, error: coursesError } = await supabase
-                .from('courses')
-                .select(`
-                    id, name, description, tutor_type, created_at
-                `)
-                .in('id', assignedCourses);
+            try {
+                // Parallelize all data fetching
+                const [
+                    enrollmentsCountRes,
+                    enrollmentDataRes,
+                    coursesDataRes,
+                    enrollmentCountsRes,
+                    submissionsRes
+                ] = await Promise.all([
+                    // 1. Get total enrollments count
+                    supabase
+                        .from('enrollments')
+                        .select('*', { count: 'exact', head: true })
+                        .in('course_id', assignedCourses),
 
-            if (coursesError) {
-                console.error('❌ [TUTOR DASHBOARD] Courses fetch error:', coursesError);
-            } else {
-                courses = data || [];
+                    // 2. Get unique students data
+                    supabase
+                        .from('enrollments')
+                        .select('user_id')
+                        .in('course_id', assignedCourses),
 
-                // Optimized: Fetch enrollment counts for all courses in one go
-                const { data: enrollmentCounts } = await supabase
-                    .from('enrollments')
-                    .select('course_id')
-                    .in('course_id', assignedCourses);
+                    // 3. Get assigned courses details
+                    supabase
+                        .from('courses')
+                        .select('id, name, description, tutor_type, created_at')
+                        .in('id', assignedCourses),
 
-                const countMap = (enrollmentCounts || []).reduce((acc, curr) => {
-                    acc[curr.course_id] = (acc[curr.course_id] || 0) + 1;
-                    return acc;
-                }, {});
+                    // 4. Fetch enrollment counts for each course
+                    supabase
+                        .from('enrollments')
+                        .select('course_id')
+                        .in('course_id', assignedCourses),
 
-                for (let course of courses) {
-                    course.enrolled_count = countMap[course.id] || 0;
+                    // 5. Get recent activity (last 7 days)
+                    (async () => {
+                        const sevenDaysAgo = new Date();
+                        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                        return supabase
+                            .from('test_submissions')
+                            .select('*, user:profiles!user_id(name, email)')
+                            .in('course_id', assignedCourses)
+                            .gte('created_at', sevenDaysAgo.toISOString())
+                            .order('created_at', { ascending: false })
+                            .limit(10);
+                    })()
+                ]);
+
+                // Process Enrollments
+                if (enrollmentsCountRes.error) console.error('❌ [TUTOR DASHBOARD] Enrollment count error:', enrollmentsCountRes.error);
+                totalEnrollments = enrollmentsCountRes.count || 0;
+
+                // Process Unique Students
+                if (!enrollmentDataRes.error && enrollmentDataRes.data) {
+                    const uniqueIds = new Set(enrollmentDataRes.data.map(e => String(e.user_id)));
+                    uniqueStudentsCount = uniqueIds.size;
                 }
+
+                // Process Courses
+                if (coursesDataRes.error) {
+                    console.error('❌ [TUTOR DASHBOARD] Courses fetch error:', coursesDataRes.error);
+                } else {
+                    courses = coursesDataRes.data || [];
+
+                    const countMap = (enrollmentCountsRes.data || []).reduce((acc, curr) => {
+                        acc[curr.course_id] = (acc[curr.course_id] || 0) + 1;
+                        return acc;
+                    }, {});
+
+                    for (let course of courses) {
+                        course.enrolled_count = countMap[course.id] || 0;
+                    }
+                }
+
+                // Process Recent Activity
+                if (submissionsRes.error) {
+                    console.error('❌ [TUTOR DASHBOARD] Recent activity fetch error:', submissionsRes.error);
+                } else {
+                    recentSubmissions = submissionsRes.data || [];
+                }
+
+            } catch (innerError) {
+                console.error('❌ [TUTOR DASHBOARD] Inner query error:', innerError);
             }
         }
-        console.log(`📊 [TUTOR DASHBOARD] Found ${courses.length} courses`);
 
-        // 3. Get recent activity (last 7 days)
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const { data: recentSubmissions, error: submissionsError } = await supabase
-            .from('test_submissions')
-            .select('*, user:profiles!user_id(name, email)')
-            .in('course_id', assignedCourses)
-            .gte('created_at', sevenDaysAgo.toISOString())
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-        if (submissionsError) console.error('Error fetching recent activity:', submissionsError);
-
-        // Map courses to flatten the enrolled_count from the select query
-        const formattedCourses = (courses || []).map(c => ({
-            ...c,
-            enrolled_count: Number(c.enrolled_count || 0)
-        }));
+        console.log(`📊 [TUTOR DASHBOARD] Stats: ${courses.length} courses, ${totalEnrollments} enrollments, ${uniqueStudentsCount} students`);
 
         res.json({
             profile,
-            courses: formattedCourses,
+            courses: courses,
             total_students: uniqueStudentsCount,
             total_enrollments: totalEnrollments,
-            recentActivity: recentSubmissions || [],
+            recentActivity: recentSubmissions,
             stats: {
-                totalCourses: formattedCourses.length,
+                totalCourses: courses.length,
                 totalStudents: uniqueStudentsCount,
                 totalEnrollments: totalEnrollments,
-                recentTests: recentSubmissions?.length || 0
+                recentTests: recentSubmissions.length
             }
         });
 
     } catch (error) {
-        console.error('Tutor dashboard error:', error);
+        console.error('💥 [TUTOR DASHBOARD] Fatal error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

@@ -7,16 +7,22 @@ import { useLocation, Link } from 'react-router-dom';
 
 const { FiUsers, FiSearch, FiFilter, FiMail, FiBarChart2, FiCalendar, FiBook } = FiIcons;
 
-const TutorStudents = () => {
+const TutorStudents = ({ dashboardData }) => {
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
     const initialCourseFilter = queryParams.get('courseId') || '';
 
     const [students, setStudents] = useState([]);
-    const [courses, setCourses] = useState([]);
+    const [courses, setCourses] = useState(dashboardData?.courses || []);
     const [loading, setLoading] = useState(true);
     const [courseFilter, setCourseFilter] = useState(initialCourseFilter);
     const [searchQuery, setSearchQuery] = useState('');
+
+    useEffect(() => {
+        if (dashboardData?.courses) {
+            setCourses(dashboardData.courses);
+        }
+    }, [dashboardData]);
 
     useEffect(() => {
         loadData();
@@ -24,16 +30,30 @@ const TutorStudents = () => {
 
     const loadData = async () => {
         setLoading(true);
+        const timeoutId = setTimeout(() => {
+            if (loading) setLoading(false);
+        }, 10000);
+
         try {
-            const [studentsRes, dashboardRes] = await Promise.all([
-                tutorService.getStudents(courseFilter || null),
-                tutorService.getDashboard()
-            ]);
+            // We only need students now, as courses come from parent or dashboardRes fallback
+            const fetchers = [tutorService.getStudents(courseFilter || null)];
+
+            // If we don't have courses yet, fetch them as fallback
+            if (!dashboardData?.courses) {
+                fetchers.push(tutorService.getDashboard());
+            }
+
+            const results = await Promise.all(fetchers);
+            const studentsRes = results[0];
             setStudents(studentsRes.data.students || []);
-            setCourses(dashboardRes.data.courses || []);
+
+            if (results[1]) {
+                setCourses(results[1].data.courses || []);
+            }
         } catch (error) {
             console.error('Error loading students:', error);
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     };

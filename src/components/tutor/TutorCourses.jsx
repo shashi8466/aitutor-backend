@@ -8,26 +8,51 @@ import axios from 'axios';
 
 const { FiBook, FiUsers, FiClock, FiChevronRight, FiTrendingUp } = FiIcons;
 
-const TutorCourses = () => {
-    const [courses, setCourses] = useState([]);
-    const [loading, setLoading] = useState(true);
+const TutorCourses = ({ dashboardData }) => {
+    const [courses, setCourses] = useState(dashboardData?.courses || []);
+    const [loading, setLoading] = useState(!dashboardData);
 
     useEffect(() => {
-        fetchCourses();
-    }, []);
+        if (dashboardData?.courses) {
+            setCourses(dashboardData.courses);
+            setLoading(false);
+        } else {
+            fetchCourses();
+        }
+    }, [dashboardData]);
 
     const fetchCourses = async () => {
+        if (!dashboardData) setLoading(true);
+        const timeoutId = setTimeout(() => {
+            if (loading) {
+                console.warn('Dashboard fetch timed out');
+                setLoading(false);
+            }
+        }, 10000); // 10s timeout
+
         try {
             const response = await tutorService.getDashboard();
             setCourses(response.data.courses || []);
         } catch (error) {
             console.error('Error fetching courses:', error);
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-blue-600 font-bold animate-pulse">Loading assigned courses...</div>;
+    if (loading) return (
+        <div className="p-12 text-center flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-blue-600 font-bold">Loading assigned courses...</p>
+            <button
+                onClick={fetchCourses}
+                className="mt-4 text-xs text-gray-400 hover:text-blue-600 underline"
+            >
+                Taking too long? Click to retry
+            </button>
+        </div>
+    );
 
     return (
         <div className="space-y-6">

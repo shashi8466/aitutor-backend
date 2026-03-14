@@ -9,11 +9,7 @@ import LoadingSpinner from './components/common/LoadingSpinner';
 
 // Lazy imports for pages
 const HomePage = lazy(() => import('./components/layout/HomePage'));
-const RoleSelector = lazy(() => import('./components/auth/RoleSelector'));
-const AdminLogin = lazy(() => import('./components/auth/AdminLogin'));
-const TutorLogin = lazy(() => import('./components/auth/TutorLogin'));
-const StudentLogin = lazy(() => import('./components/auth/StudentLogin'));
-const ParentLogin = lazy(() => import('./components/auth/ParentLogin'));
+const UnifiedLogin = lazy(() => import('./components/auth/UnifiedLogin'));
 const Signup = lazy(() => import('./components/auth/Signup'));
 const ContactPage = lazy(() => import('./components/layout/ContactPage'));
 
@@ -138,12 +134,15 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<HomePage />} />
 
-            {/* Authentication Routes */}
-            <Route path="/login" element={<RoleSelector />} />
-            <Route path="/login/admin" element={<AdminLogin />} />
-            <Route path="/login/tutor" element={<TutorLogin />} />
-            <Route path="/login/student" element={<StudentLogin />} />
-            <Route path="/login/parent" element={<ParentLogin />} />
+            {/* Unified Authentication Route */}
+            <Route path="/login" element={<UnifiedLogin />} />
+
+            {/* Redirect legacy role-specific login paths to unified login */}
+            <Route path="/login/admin" element={<UnifiedLogin />} />
+            <Route path="/login/tutor" element={<UnifiedLogin />} />
+            <Route path="/login/student" element={<UnifiedLogin />} />
+            <Route path="/login/parent" element={<UnifiedLogin />} />
+
             <Route path="/signup" element={<Signup />} />
             <Route path="/contact" element={<ContactPage />} />
 

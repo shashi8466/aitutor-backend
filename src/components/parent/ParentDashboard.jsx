@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Skeleton from '../common/Skeleton';
 import supabase from '../../supabase/supabase';
 import { parentService, gradingService, planService } from '../../services/api';
-import { calculateStudentScore, calculateSessionScore, getCategory } from '../../utils/scoreCalculator';
+import { calculateStudentScore, calculateSessionScore, getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 import CircularProgress from '../common/CircularProgress';
 
 const { FiUsers, FiLogOut, FiHome, FiChevronRight, FiFileText, FiBarChart2, FiPieChart, FiActivity, FiArrowLeft, FiCheckCircle, FiXCircle, FiMinusCircle, FiBook, FiCheckSquare, FiPlay } = FiIcons;
@@ -234,7 +234,9 @@ const ChildCoursesReport = () => {
                             name: sub.courses?.name || `Course ${cId}`,
                             courses: sub.courses, // Pass the whole object for getCategory
                             levelScores: { Easy: 0, Medium: 0, Hard: 0 },
-                            levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 }
+                            levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 },
+                            latestTestScore: 0,
+                            latestTestDate: 0
                         };
                     }
 
@@ -245,24 +247,37 @@ const ChildCoursesReport = () => {
 
                         const category = getCategory(sub.courses?.name || courseMap[cId].name, sub.courses?.tutor_type);
 
-                        // Refined cross-section score extraction
+                        // Real scaling logic sync
                         let mathVal = sub.math_scaled_score || 0;
                         let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
 
-                        if (sub.scaled_score > 800) {
-                            if (!mathVal && rwVal) mathVal = sub.scaled_score - rwVal;
-                            if (!rwVal && mathVal) rwVal = sub.scaled_score - mathVal;
-                        } else if (sub.scaled_score > 0 && sub.scaled_score <= 800) {
-                            if (!mathVal && !rwVal) {
+                        if (!mathVal && !rwVal) {
+                          if (sub.scaled_score > 0) {
+                            if (sub.scaled_score <= 800) {
                                 if (category === 'MATH') mathVal = sub.scaled_score;
                                 else rwVal = sub.scaled_score;
+                            } else {
+                                mathVal = Math.round(sub.scaled_score / 2);
+                                rwVal = sub.scaled_score - mathVal;
                             }
+                          } else {
+                            const calced = calculateSessionScore(category, lvl, sub.raw_score_percentage);
+                            if (category === 'MATH') mathVal = calced;
+                            else rwVal = calced;
+                          }
                         }
 
                         const scaled = category === 'MATH' ? mathVal : rwVal;
+                        const testDate = new Date(sub.test_date || sub.created_at).getTime();
                         
                         if (rawPct > courseMap[cId].levelScores[lvl]) courseMap[cId].levelScores[lvl] = rawPct;
                         if (scaled > courseMap[cId].levelScaledBest[lvl]) courseMap[cId].levelScaledBest[lvl] = scaled;
+
+                        // Track latest for this course
+                        if (scaled > 0 && testDate >= (courseMap[cId].latestTestDate || 0)) {
+                            courseMap[cId].latestTestDate = testDate;
+                            courseMap[cId].latestTestScore = scaled;
+                        }
                     }
                 });
 
@@ -288,9 +303,18 @@ const ChildCoursesReport = () => {
                     const category = getCategory(c);
                     const isMath = category === 'MATH';
                     
-                    // EST. SCORE calculation (Weighted Estimate)
-                    const weightedAcc = (c.levelScores.Easy * 0.2 + c.levelScores.Medium * 0.35 + c.levelScores.Hard * 0.45);
-                    let estimatedScaled = Math.max(200, Math.round(200 + (weightedAcc * 6)));
+                    // Use calculateSatScore with weighted average of level scores
+                    const hasLevelScores = c.levelScores.Easy > 0 || c.levelScores.Medium > 0 || c.levelScores.Hard > 0;
+                    let estimatedScaled;
+                    
+                    if (hasLevelScores) {
+                        estimatedScaled = calculateSatScore(c.levelScores.Easy, c.levelScores.Medium, c.levelScores.Hard);
+                    } else {
+                        // Fallback to baseline if no level scores
+                        estimatedScaled = isMath 
+                            ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
+                            : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
+                    }
                     
                     // Incorporate Baseline from Diagnostic
                     const baseline = isMath 
@@ -299,14 +323,15 @@ const ChildCoursesReport = () => {
                     
                     if (estimatedScaled < baseline) estimatedScaled = baseline;
 
-                    // Final Course Score = max of actual best test OR estimated baseline
+                    // Final Score Selection: Latest Test > Max Test > Baseline
                     const bestActualTest = Math.max(c.levelScaledBest.Easy, c.levelScaledBest.Medium, c.levelScaledBest.Hard);
-                    const courseScaledScore = Math.max(bestActualTest, estimatedScaled);
+                    const courseScaledScore = c.latestTestScore || bestActualTest || estimatedScaled;
 
                     return { 
                         ...c, 
                         category,
-                        courseScaledScore 
+                        courseScaledScore,
+                        isEstimated: !c.latestTestScore && !bestActualTest
                     };
                 });
                 
@@ -445,7 +470,7 @@ const ChildCoursesReport = () => {
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5 tracking-wider">Score</span>
+                                                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5 tracking-wider">{course.isEstimated ? 'Est. Score' : 'Actual Score'}</span>
                                                 <span className={`text-xl font-bold ${themeColor}`}>{course.courseScaledScore}</span>
                                             </div>
                                         </div>

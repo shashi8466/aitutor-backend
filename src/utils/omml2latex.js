@@ -25,14 +25,14 @@ export const convertToLatex = (node) => {
   switch (tagName) {
     case 'oMath': // Inline Math Container
     case 'oMathPara': // Block Math Container
-      const inner = children.map(convertToLatex).join(' ').trim();
+      const inner = children.map(convertToLatex).join('').trim();
       // If it's already wrapped or contains math-specific LaTeX, keep it as math
       if (inner.startsWith('\\(') || inner.startsWith('$')) return ` ${inner} `;
 
       // Heuristic: If it has math-specific commands or symbols, wrap it.
       // Otherwise, return as plain text to allow standard wrapping and fonts.
-      const hasMathSignal = /[{}^_]|\\(?:frac|sqrt|left|right|times|sum|int|alpha|beta|gamma|theta)/.test(inner);
-      const isSimpleSymbol = inner.length === 1 && /[^a-zA-Z]/.test(inner);
+      const hasMathSignal = /[{}^_[\]]|\\(?:frac|sqrt|left|right|times|sum|int|alpha|beta|gamma|theta|sigma|tau|mu|delta|Delta|omega|Omega|phi|lambda|ge|le|ne|approx|pm|times|div|cdot|dots|angle|triangle|parallel|perp|degree)/.test(inner);
+      const isSimpleSymbol = inner.length === 1 && /[^a-zA-Z0-9\s]/.test(inner);
 
       if (hasMathSignal || isSimpleSymbol) {
         return ` \\(${inner}\\) `;

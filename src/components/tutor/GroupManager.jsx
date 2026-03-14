@@ -12,11 +12,11 @@ const {
     FiChevronRight, FiBarChart2, FiRefreshCw
 } = FiIcons;
 
-const GroupManager = () => {
+const GroupManager = ({ dashboardData }) => {
     const { user } = useAuth();
     const [groups, setGroups] = useState([]);
     const [students, setStudents] = useState([]);
-    const [courses, setCourses] = useState([]);
+    const [courses, setCourses] = useState(dashboardData?.courses || []);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
@@ -36,26 +36,45 @@ const GroupManager = () => {
     const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
     useEffect(() => {
+        if (dashboardData?.courses) {
+            setCourses(dashboardData.courses);
+        }
+    }, [dashboardData]);
+
+    useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
         setLoading(true);
-        try {
-            const [groupsRes, studentsRes, dashboardRes] = await Promise.all([
-                tutorService.getGroups(),
-                tutorService.getStudents(),
-                tutorService.getDashboard()
-            ]);
+        const timeoutId = setTimeout(() => {
+            if (loading) setLoading(false);
+        }, 12000);
 
-            setGroups(groupsRes.data.groups || []);
-            setStudents(studentsRes.data.students || []);
-            setCourses(dashboardRes.data.courses || []);
+        try {
+            const fetchers = [
+                tutorService.getGroups(),
+                tutorService.getStudents()
+            ];
+
+            if (!dashboardData?.courses) {
+                fetchers.push(tutorService.getDashboard());
+            }
+
+            const results = await Promise.all(fetchers);
+
+            setGroups(results[0].data.groups || []);
+            setStudents(results[1].data.students || []);
+
+            if (results[2]) {
+                setCourses(results[2].data.courses || []);
+            }
         } catch (err) {
             console.error('Error loading group data:', err);
             const errMsg = err.response?.data?.details || err.response?.data?.error || 'Failed to load group data';
             setError(errMsg);
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     };

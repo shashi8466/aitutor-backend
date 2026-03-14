@@ -81,14 +81,9 @@ const MathRenderer = ({ text, className = '' }) => {
       return `<table class="min-w-full border-collapse border border-gray-300 my-4 text-sm">${htmlRows}</table>`;
     });
 
-    // Convert Newlines -> <br /> (Only if not inside table)
-    // We do this by careful split or simple global replace IF we assume tables are handled block-style
-    // For now, simpler: just doing <br> replace might break table HTML, so we do it AFTER table replace but careful not to break tags
-    // Or simpler strategy: We already did table replace which outputs HTML. <br> inside table is okay?
-    // Let's rely on standard logic but keep checking.
-    // The previous code replaced \n with <br/> globally. We should avoid doing that inside the generated table code?
-    // Actually, `tableRegex` consumed the newlines of the table. So normal text newlines remain.
-    processedText = processedText.replace(/\n/g, '<br />');
+    // Convert Newlines -> <br /> (Universal handling for \r, \r\n, \n)
+    processedText = processedText.replace(/\r?\n/g, '<br />');
+    processedText = processedText.replace(/\r/g, '<br />');
 
     // ---------------------------------------------------------
     // 2. Smart Math Detection & Wrapping
@@ -124,7 +119,7 @@ const MathRenderer = ({ text, className = '' }) => {
             // Avoid matching plain numbers as math unless they have math symbols
             if (/^\d+$/.test(match)) return match;
 
-            const hasMathSignal = /[=_^\\\d]/.test(match) || (/[+\-*/]/.test(match) && match.length < 20);
+            const hasMathSignal = /[=_^\\\d<>~]/.test(match) || (/[+\-*/]/.test(match) && match.length < 20);
             return hasMathSignal ? ` \\(${match}\\) ` : match;
           });
 
@@ -146,7 +141,11 @@ const MathRenderer = ({ text, className = '' }) => {
             if (skipList.includes(trimmedMatch)) return match;
 
             // Check if it's a known common Greek letter or math symbol
-            const mathSymbols = ['\\pi', '\\theta', '\\alpha', '\\beta', '\\gamma', '\\sigma', '\\tau', '\\mu', '\\delta', '\\Delta', '\\omega', '\\Omega', '\\phi', '\\lambda', '\\ge', '\\le', '\\ne', '\\approx', '\\pm', '\\times', '\\div'];
+            const mathSymbols = [
+              '\\pi', '\\theta', '\\alpha', '\\beta', '\\gamma', '\\sigma', '\\tau', '\\mu', '\\delta', '\\Delta', '\\omega', '\\Omega', '\\phi', '\\lambda',
+              '\\ge', '\\le', '\\ne', '\\approx', '\\pm', '\\times', '\\div', '\\cdot', '\\degree', '\\angle', '\\triangle', '\\therefore', '\\implies',
+              '\\sin', '\\cos', '\\tan', '\\log', '\\ln'
+            ];
             if (mathSymbols.includes(trimmedMatch) || trimmedMatch.length > 2) {
               return ` \\(${trimmedMatch}\\) `;
             }
@@ -161,9 +160,11 @@ const MathRenderer = ({ text, className = '' }) => {
       // ---------------------------------------------------------
       // 3. Render & Typeset
       // ---------------------------------------------------------
+      // Clear previous math (if any) and typeset new content
+      // Explicitly clear to prevent ghosting or partial renders
+      nodeRef.current.innerHTML = '';
       nodeRef.current.innerHTML = processedText;
 
-      // Clear previous math (if any) and typeset new content
       // We use typesetPromise to avoid freezing UI
       window.MathJax.typesetPromise([nodeRef.current])
         .catch((err) => {
@@ -178,15 +179,14 @@ const MathRenderer = ({ text, className = '' }) => {
   }, [text]);
 
   return (
-    <span
+    <div
       ref={nodeRef}
-      className={`math-content ${className}`}
+      className={`math-content overflow-x-auto max-w-full ${className}`}
       style={{
-        display: 'inline',
-        maxWidth: '100%',
-        verticalAlign: 'middle',
+        display: 'inline-block',
+        verticalAlign: 'baseline',
         overflowWrap: 'anywhere',
-        wordBreak: 'normal',
+        wordBreak: 'break-word',
         whiteSpace: 'normal'
       }}
     />

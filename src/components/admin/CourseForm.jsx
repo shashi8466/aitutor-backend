@@ -151,7 +151,9 @@ const CourseForm = ({ course, onClose, onSave }) => {
         currency: 'INR',
         is_free: Number(formData.price_full) === 0,
         start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
-        is_practice: formData.is_practice
+        is_practice: formData.is_practice,
+        status: formData.status || 'active',
+        manual_enrollment_count: Number(formData.manual_enrollment_count) || 0
       };
 
       let savedCourse;
