@@ -116,13 +116,17 @@ router.get('/parent/student/:studentId/dashboard-data', async (req, res) => {
         console.log(`✅ [ParentDashboard] Verification passed for student ${studentId} (Parent: ${userId}). Starting parallel fetch...`);
 
         // 2. Fetch all data in parallel
-        const [profileRes, submissionsRes, planRes] = await Promise.all([
+        const [profileRes, submissionsRes, progressRes, planRes] = await Promise.all([
             supabase.from('profiles').select('name').eq('id', studentId).single(),
             supabase
                 .from('test_submissions')
-                .select('*, courses:courses(id, name, is_practice, tutor_type)')
+                .select('*, courses:courses(*)')
                 .eq('user_id', studentId)
                 .order('test_date', { ascending: false }),
+            supabase
+                .from('student_progress')
+                .select('*, courses:courses(*)')
+                .eq('user_id', studentId),
             supabase
                 .from('student_plans')
                 .select('*')
@@ -139,11 +143,12 @@ router.get('/parent/student/:studentId/dashboard-data', async (req, res) => {
             console.error(`❌ [ParentDashboard] Error fetching submissions:`, submissionsRes.error);
         }
 
-        console.log(`✅ [ParentDashboard] Data fetched: Submissions: ${submissionsRes.data?.length || 0}, Plan: ${planRes.data ? 'Yes' : 'No'}`);
+        console.log(`✅ [ParentDashboard] Data fetched: Submissions: ${submissionsRes.data?.length || 0}, Progress: ${progressRes.data?.length || 0}, Plan: ${planRes.data ? 'Yes' : 'No'}`);
 
         res.json({
             studentName: profileRes.data?.name || 'Student',
             submissions: submissionsRes.data || [],
+            progress: progressRes.data || [],
             plan: planRes.data || null
         });
 
@@ -413,7 +418,7 @@ router.get('/all-my-scores', async (req, res) => {
 
         const { data: submissions, error } = await supabase
             .from('test_submissions')
-            .select('*, course:courses(name)')
+            .select('*, courses(*)')
             .eq('user_id', userId)
             .order('test_date', { ascending: false });
 

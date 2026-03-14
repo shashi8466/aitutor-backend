@@ -193,21 +193,18 @@ const ChildCoursesReport = () => {
             try {
                 // 1. Fetch ALL data in one optimized request
                 const response = await parentService.getDashboardData(studentId);
-                const { studentName, submissions, plan } = response.data;
+                const { studentName, submissions, progress, plan } = response.data;
                 
                 setChildName(studentName);
                 const diagnosticData = plan?.diagnostic_data || null;
 
-                const mappedSubmissions = submissions.map(s => ({
+                const mappedSubmissions = (submissions || []).map(s => ({
                     ...s,
-                    score: s.total_questions > 0
-                        ? Math.round((s.raw_score / s.total_questions) * 100)
-                        : Math.round(s.raw_score_percentage || 0),
                     courses: s.courses || { name: 'Practice', tutor_type: 'RW' }
                 }));
 
-                const overall = calculateStudentScore(mappedSubmissions, diagnosticData);
-                const passedCount = submissions.filter(s => s.is_passed).length;
+                const overall = calculateStudentScore(progress || [], diagnosticData, submissions || []);
+                const passedCount = (progress || []).filter(p => p.passed).length;
 
                 const lessonsCount = Math.min(50, (passedCount * 3 + 5));
                 setOverallStats({
@@ -219,55 +216,101 @@ const ChildCoursesReport = () => {
                     },
                     counts: {
                         lessons: lessonsCount,
-                        tests: submissions.length,
+                        tests: (submissions || []).length,
                         worksheets: 14,
                         sessions: Math.floor(lessonsCount / 2)
                     }
                 });
 
-                if (submissions && submissions.length > 0) {
-                    const courseMap = {};
-                    submissions.forEach(sub => {
-                        const cId = sub.course_id;
-                        if (!courseMap[cId]) {
-                            const courseName = sub.courses?.name || `Course ${cId}`;
-                            const category = getCategory(sub);
-                            courseMap[cId] = {
-                                id: cId,
-                                name: courseName,
-                                category: category,
-                                levelScores: { Easy: 0, Medium: 0, Hard: 0 },     // accuracy %
-                                levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 }  // actual scaled score
-                            };
-                        }
+                // Build Course Breakdown (Sync with Student Dashboard)
+                const courseMap = {};
 
-                        if (sub.level) {
-                            const lvl = sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase();
-                            if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
-                            // Use the real raw_score_percentage and scaled_score (same as Test History)
-                            const rawPct = Math.round(sub.raw_score_percentage || 0);
-                            const scaled = sub.scaled_score || 0;
-                            if (scaled > courseMap[cId].levelScaledBest[lvl]) {
-                                courseMap[cId].levelScores[lvl] = rawPct;
-                                courseMap[cId].levelScaledBest[lvl] = scaled;
+                // A. Process Submissions
+                (submissions || []).forEach(sub => {
+                    const cId = sub.course_id;
+                    if (!courseMap[cId]) {
+                        courseMap[cId] = {
+                            id: cId,
+                            name: sub.courses?.name || `Course ${cId}`,
+                            courses: sub.courses, // Pass the whole object for getCategory
+                            levelScores: { Easy: 0, Medium: 0, Hard: 0 },
+                            levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 }
+                        };
+                    }
+
+                    if (sub.level) {
+                        const lvl = sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase();
+                        if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+                        const rawPct = Math.round(sub.raw_score_percentage || 0);
+
+                        const category = getCategory(sub.courses?.name || courseMap[cId].name, sub.courses?.tutor_type);
+
+                        // Refined cross-section score extraction
+                        let mathVal = sub.math_scaled_score || 0;
+                        let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
+
+                        if (sub.scaled_score > 800) {
+                            if (!mathVal && rwVal) mathVal = sub.scaled_score - rwVal;
+                            if (!rwVal && mathVal) rwVal = sub.scaled_score - mathVal;
+                        } else if (sub.scaled_score > 0 && sub.scaled_score <= 800) {
+                            if (!mathVal && !rwVal) {
+                                if (category === 'MATH') mathVal = sub.scaled_score;
+                                else rwVal = sub.scaled_score;
                             }
                         }
-                    });
 
-                    const formattedCourses = Object.values(courseMap).map(c => {
-                        // EST. SCORE = best actual test scaled_score (matches Test History)
-                        const courseScaledScore = Math.max(
-                            c.levelScaledBest.Easy,
-                            c.levelScaledBest.Medium,
-                            c.levelScaledBest.Hard,
-                            200
-                        );
-                        return { ...c, courseScaledScore };
-                    });
-                    setCourses(formattedCourses);
-                } else {
-                    setCourses([]);
-                }
+                        const scaled = category === 'MATH' ? mathVal : rwVal;
+                        
+                        if (rawPct > courseMap[cId].levelScores[lvl]) courseMap[cId].levelScores[lvl] = rawPct;
+                        if (scaled > courseMap[cId].levelScaledBest[lvl]) courseMap[cId].levelScaledBest[lvl] = scaled;
+                    }
+                });
+
+                // B. Process Progress (Lessons)
+                (progress || []).forEach(p => {
+                    const cId = p.course_id;
+                    if (!courseMap[cId]) {
+                        courseMap[cId] = {
+                            id: cId,
+                            name: p.courses?.name || `Course ${cId}`,
+                            courses: p.courses,
+                            levelScores: { Easy: 0, Medium: 0, Hard: 0 },
+                            levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 }
+                        };
+                    }
+                    const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
+                    if (['Easy', 'Medium', 'Hard'].includes(lvl) && p.score > courseMap[cId].levelScores[lvl]) {
+                        courseMap[cId].levelScores[lvl] = p.score;
+                    }
+                });
+
+                const formattedCourses = Object.values(courseMap).map(c => {
+                    const category = getCategory(c);
+                    const isMath = category === 'MATH';
+                    
+                    // EST. SCORE calculation (Weighted Estimate)
+                    const weightedAcc = (c.levelScores.Easy * 0.2 + c.levelScores.Medium * 0.35 + c.levelScores.Hard * 0.45);
+                    let estimatedScaled = Math.max(200, Math.round(200 + (weightedAcc * 6)));
+                    
+                    // Incorporate Baseline from Diagnostic
+                    const baseline = isMath 
+                      ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
+                      : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
+                    
+                    if (estimatedScaled < baseline) estimatedScaled = baseline;
+
+                    // Final Course Score = max of actual best test OR estimated baseline
+                    const bestActualTest = Math.max(c.levelScaledBest.Easy, c.levelScaledBest.Medium, c.levelScaledBest.Hard);
+                    const courseScaledScore = Math.max(bestActualTest, estimatedScaled);
+
+                    return { 
+                        ...c, 
+                        category,
+                        courseScaledScore 
+                    };
+                });
+                
+                setCourses(formattedCourses);
             } catch (err) {
                 console.error(err);
                 setCourses([]);

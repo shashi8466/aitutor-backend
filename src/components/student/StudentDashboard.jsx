@@ -9,10 +9,10 @@ import Skeleton from '../../components/common/Skeleton';
 // Services
 import { courseService, enrollmentService, progressService, planService, gradingService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { calculateStudentScore } from '../../utils/scoreCalculator';
+import { calculateStudentScore, getCategory } from '../../utils/scoreCalculator';
 
 const {
-  FiBook, FiCheckSquare, FiFileText, FiActivity, FiArrowLeft, FiPlay
+  FiBook, FiCheckSquare, FiFileText, FiActivity, FiArrowLeft, FiPlay, FiAward
 } = FiIcons;
 
 const StudentDashboard = () => {
@@ -48,7 +48,9 @@ const StudentDashboard = () => {
       const diagnosticData = planRes.data?.diagnostic_data || null;
       const progress = progressRes.data || [];
       const submissions = submissionsRes.data?.submissions || [];
-      const calculatedScores = calculateStudentScore(progress, diagnosticData);
+
+      // Centralized Synchronized Score Calculation
+      const calculatedScores = calculateStudentScore(progress, diagnosticData, submissions);
       const passedLevels = progress.filter(p => p.passed).length;
       const lessonsCount = Math.min(50, passedLevels * 3 + 5);
       const testsTaken = submissions.length; // real count from submissions
@@ -56,43 +58,69 @@ const StudentDashboard = () => {
 
       // Build per-course level data from real test_submissions
       // (same source as Test History & Review — ensures scores match exactly)
+      // Build per-course level data from real test_submissions + student_progress
       const enrollmentProgress = enrollments.map(e => {
         const courseId = e.course_id;
         const courseSubmissions = submissions.filter(s => s.course_id === courseId);
+        const courseProgress = progress.filter(p => p.course_id === courseId);
+        const courseCategory = getCategory(e);
+        const courseType = courseCategory;
 
-        // Track best (highest) scaled score per level
-        const levelScores = { Easy: 0, Medium: 0, Hard: 0 };      // accuracy %
-        const levelScaledBest = { Easy: 0, Medium: 0, Hard: 0 };  // scaled score
+        // Track best (highest) accuracy % per level
+        const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
+        // Track best (highest) scaled score per level (from real tests)
+        const levelScaledBest = { Easy: 0, Medium: 0, Hard: 0 };
 
+        // 1. Fill from submissions
         courseSubmissions.forEach(sub => {
           const lvl = sub.level
             ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase()
             : 'Medium';
           if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+          
           const rawPct = Math.round(sub.raw_score_percentage || 0);
-          const scaled = sub.scaled_score || 0;
-          if (scaled > levelScaledBest[lvl]) {
-            levelScores[lvl] = rawPct;
-            levelScaledBest[lvl] = scaled;
+          if (rawPct > levelScores[lvl]) levelScores[lvl] = rawPct;
+
+          // Build per-course level data from real test_submissions (Sync with Top Score)
+          let mathVal = sub.math_scaled_score || 0;
+          let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
+
+          if (sub.scaled_score > 800) {
+            if (!mathVal && rwVal) mathVal = sub.scaled_score - rwVal;
+            if (!rwVal && mathVal) rwVal = sub.scaled_score - mathVal;
+          } else if (sub.scaled_score > 0 && sub.scaled_score <= 800) {
+            if (!mathVal && !rwVal) {
+              if (courseCategory === 'MATH') mathVal = sub.scaled_score;
+              else rwVal = sub.scaled_score;
+            }
           }
+
+          const sectionScaled = courseCategory === 'MATH' ? mathVal : rwVal;
+          
+          if (sectionScaled > levelScaledBest[lvl]) levelScaledBest[lvl] = sectionScaled;
         });
 
-        // Fallback to student_progress if no submissions for this course
-        if (courseSubmissions.length === 0) {
-          const courseProgress = progress.filter(p => p.course_id === courseId);
-          courseProgress.forEach(p => {
-            const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
-            if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
-          });
-        }
+        // 2. Fill/Improve from student_progress (lessons)
+        courseProgress.forEach(p => {
+          const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
+          if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
+        });
 
-        // EST. SCORE = best individual test scaled score for this course
-        const courseScaledScore = Math.max(
-          levelScaledBest.Easy,
-          levelScaledBest.Medium,
-          levelScaledBest.Hard,
-          200
-        );
+        // 3. Calculate Estimated Scaled Score for this course
+        // Formula: WeightedAccuracy * 6 + 200
+        const weightedAcc = (levelScores.Easy * 0.2 + levelScores.Medium * 0.35 + levelScores.Hard * 0.45);
+        let estimatedScaled = Math.max(200, Math.round(200 + (weightedAcc * 6)));
+        
+        // 4. Incorporate Baseline from Diagnostic (ensures matching with Top Score)
+        const baseline = courseType === 'MATH' 
+          ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
+          : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
+        
+        if (estimatedScaled < baseline) estimatedScaled = baseline;
+
+        // 5. Final Course Score = max of actual best test OR estimated baseline
+        const bestActualTest = Math.max(levelScaledBest.Easy, levelScaledBest.Medium, levelScaledBest.Hard);
+        const courseScaledScore = Math.max(bestActualTest, estimatedScaled);
 
         return {
           ...e.courses,
@@ -101,58 +129,11 @@ const StudentDashboard = () => {
         };
       });
 
-      // 3. Build Synchronized Accuracies for GLOBAL Total Score
-      // This ensures the big circle (e.g. 1195) matches the cards and history
-      const globalMathAcc = { Easy: 0, Medium: 0, Hard: 0 };
-      const globalRWAcc = { Easy: 0, Medium: 0, Hard: 0 };
-
-      // Map progress items to their categories for faster lookup
-      const progressWithCats = progress.map(p => ({
-        ...p,
-        category: (p.courses?.tutor_type?.toLowerCase().includes('math') || 
-                   p.courses?.name?.toLowerCase().includes('math')) ? 'MATH' : 'RW'
-      }));
-
-      // Use SUBMISSIONS to update accuracies (prioritize real test results)
-      submissions.forEach(sub => {
-        const type = (sub.courses?.tutor_type || '').toLowerCase();
-        const name = (sub.courses?.name || '').toLowerCase();
-        const cat = (type.includes('math') || name.includes('math')) ? 'MATH' : 'RW';
-        const lvl = sub.level ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase() : 'Medium';
-        const rawPct = Math.round(sub.raw_score_percentage || 0);
-
-        if (cat === 'MATH') {
-          if (rawPct > globalMathAcc[lvl]) globalMathAcc[lvl] = rawPct;
-        } else {
-          if (rawPct > globalRWAcc[lvl]) globalRWAcc[lvl] = rawPct;
-        }
-      });
-
-      // Fill gaps with student_progress if no submissions for a level
-      progressWithCats.forEach(p => {
-        const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
-        if (p.category === 'MATH') {
-          if (p.score > globalMathAcc[lvl]) globalMathAcc[lvl] = p.score;
-        } else {
-          if (p.score > globalRWAcc[lvl]) globalRWAcc[lvl] = p.score;
-        }
-      });
-
-      // Calculate Total/Section scores using weighted formula (unifying logic)
-      const weightedMathAcc = (globalMathAcc.Easy * 0.2 + globalMathAcc.Medium * 0.35 + globalMathAcc.Hard * 0.45);
-      const weightedRWAcc = (globalRWAcc.Easy * 0.2 + globalRWAcc.Medium * 0.35 + globalRWAcc.Hard * 0.45);
-
-      let bestMath = Math.max(200, Math.round(200 + (weightedMathAcc * 6)));
-      let bestRW = Math.max(200, Math.round(200 + (weightedRWAcc * 6)));
-
-      // Add Baselines from Diagnostic
-      const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 200) : 200;
-      const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 200) : 200;
-      if (bestMath < baselineMath) bestMath = baselineMath;
-      if (bestRW < baselineRW) bestRW = baselineRW;
-
-      const totalScore = bestMath + bestRW;
-      const targetScore = diagnosticData?.targetScore ? parseInt(diagnosticData.targetScore) : 1500;
+      // Use the centralized scores calculated above
+      const totalScore = calculatedScores.current;
+      const bestMath = calculatedScores.math;
+      const bestRW = calculatedScores.rw;
+      const targetScore = calculatedScores.target;
 
       // Build per-course level data from real test_submissions
       // ... (already updated enrollmentProgress logic) ...
@@ -262,7 +243,7 @@ const StudentDashboard = () => {
                     <div className="mt-4 text-center">
                       <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Current Score</p>
                       <p className="text-2xl font-extrabold text-gray-900">{scores.total}</p>
-                      <p className="text-xs text-green-500 font-bold">+{(scores.total - 800) > 0 ? scores.total - 800 : 0} pts gained</p>
+                      <p className="text-xs text-green-500 font-bold">+{(scores.total - 400) > 0 ? scores.total - 400 : 0} pts gained</p>
                     </div>
                   </div>
 
@@ -270,34 +251,54 @@ const StudentDashboard = () => {
                   <div className="flex-1 w-full space-y-6">
                     {/* Section Scores */}
                     <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase mb-3">Section Scores</p>
-                      <div className="space-y-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Section Scores</p>
+                        <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1">
+                          <span className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></span>
+                          Latest Attempt
+                        </span>
+                      </div>
+                      <div className="space-y-6">
                         {/* Math */}
                         <div>
-                          <div className="flex justify-between text-sm font-bold mb-1">
-                            <span className="text-gray-700">SAT Math</span>
-                            <span className="text-gray-900">{scores.math}/800</span>
+                          <div className="flex justify-between text-sm font-bold mb-1.5 px-0.5">
+                            <span className="text-gray-700 flex items-center gap-2">
+                              <SafeIcon icon={FiAward} className="w-3.5 h-3.5 text-blue-500" />
+                              SAT Math
+                            </span>
+                            <span className="text-gray-900 font-black">{scores.math}/800</span>
                           </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden shadow-inner">
                             <motion.div
                               initial={{ width: 0 }}
-                              animate={{ width: `${(scores.math / 800) * 100}%` }}
-                              className="h-full bg-blue-500 rounded-full"
+                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.math) - 200) / 600) * 100)}%` }}
+                              transition={{ duration: 1, ease: 'easeOut' }}
+                              className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full shadow-sm"
                             />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-gray-300 font-bold mt-1 px-1 tracking-tighter">
+                            <span>200</span><span>500</span><span>800</span>
                           </div>
                         </div>
                         {/* RW */}
                         <div>
-                          <div className="flex justify-between text-sm font-bold mb-1">
-                            <span className="text-gray-700">Reading & Writing</span>
-                            <span className="text-gray-900">{scores.rw}/800</span>
+                          <div className="flex justify-between text-sm font-bold mb-1.5 px-0.5">
+                            <span className="text-gray-700 flex items-center gap-2">
+                              <SafeIcon icon={FiAward} className="w-3.5 h-3.5 text-green-500" />
+                              Reading & Writing
+                            </span>
+                            <span className="text-gray-900 font-black">{scores.rw}/800</span>
                           </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden shadow-inner">
                             <motion.div
                               initial={{ width: 0 }}
-                              animate={{ width: `${(scores.rw / 800) * 100}%` }}
-                              className="h-full bg-green-500 rounded-full"
+                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.rw) - 200) / 600) * 100)}%` }}
+                              transition={{ duration: 1, ease: 'easeOut', delay: 0.1 }}
+                              className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full shadow-sm"
                             />
+                          </div>
+                          <div className="flex justify-between text-[10px] text-gray-300 font-bold mt-1 px-1 tracking-tighter">
+                            <span>200</span><span>500</span><span>800</span>
                           </div>
                         </div>
                       </div>

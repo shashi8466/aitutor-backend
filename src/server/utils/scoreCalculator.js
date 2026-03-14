@@ -22,8 +22,24 @@ export const getCategory = (courseName, tutorType) => {
   const type = (tutorType || '').toLowerCase();
   const name = (courseName || '').toLowerCase();
 
-  if (type.includes('math') || type.includes('quant') || name.includes('math') || name.includes('algebra')) return 'MATH';
-  if (type.includes('reading') || type.includes('writing') || name.includes('english')) return 'RW';
+  // RW Keywords - CHECK THESE FIRST
+  if (
+    type.includes('reading') || type.includes('writing') || 
+    type.includes('verbal') || type.includes('rw') ||
+    name.includes('english') || name.includes('reading') || 
+    name.includes('writing') || name.includes('verbal') || 
+    name.includes('grammar') || name.includes('r & d') || 
+    name.includes('r&d') || name.includes('literacy')
+  ) return 'RW';
+
+  // Math Keywords
+  if (
+    type.includes('math') || type.includes('quant') || 
+    name.includes('math') || name.includes('algebra') ||
+    name.includes('geometry') || name.includes('calc') ||
+    name.includes('quant')
+  ) return 'MATH';
+
   return 'RW'; // Default fallback
 };
 
@@ -48,7 +64,7 @@ export const calculateTotalSATScore = (progressEntries) => {
   const rwAcc = { Easy: 0, Medium: 0, Hard: 0 };
 
   progressEntries.forEach(p => {
-    const cat = getCategory(p.courses?.name, p.courses?.tutor_type);
+    const cat = getCategory(p.courses?.name || p.name, p.courses?.tutor_type || p.tutor_type);
     const level = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
     const score = p.score || 0;
 
