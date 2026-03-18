@@ -5,7 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService, progressService, enrollmentService, planService, gradingService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { calculateStudentScore, getCategory } from '../../utils/scoreCalculator';
+import { getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 
 const { FiArrowLeft, FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiTrendingUp, FiInfo, FiKey, FiAlertCircle, FiLoader } = FiIcons;
 
@@ -20,12 +20,12 @@ const CourseView = () => {
   const [diagnostic, setDiagnostic] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [showEnrollmentKey, setShowEnrollmentKey] = useState(false); // NEW: State to show enrollment key input
-  const [keyCode, setKeyCode] = useState(''); // NEW: State for enrollment key
-  const [enrollmentLoading, setEnrollmentLoading] = useState(false); // NEW: Loading state for enrollment
-  const [enrollmentError, setEnrollmentError] = useState(''); // NEW: Error state for enrollment
-  const [enrollmentSuccess, setEnrollmentSuccess] = useState(false); // NEW: Success state
-  const [lockMessage, setLockMessage] = useState(''); // NEW: Message for scheduled lock
+  const [showEnrollmentKey, setShowEnrollmentKey] = useState(false);
+  const [keyCode, setKeyCode] = useState('');
+  const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+  const [enrollmentError, setEnrollmentError] = useState('');
+  const [enrollmentSuccess, setEnrollmentSuccess] = useState(false);
+  const [lockMessage, setLockMessage] = useState('');
 
   useEffect(() => {
     if (user?.id && courseId) {
@@ -38,40 +38,28 @@ const CourseView = () => {
     try {
       const isEnrolled = await enrollmentService.isEnrolled(user.id, parseInt(courseId));
       if (!isEnrolled) {
-        // Check if this course requires an enrollment key by trying to initiate enrollment
         try {
           const response = await enrollmentService.initiateEnrollment(user.id, parseInt(courseId));
-          if (response.data?.requiresKey) {
-            // Course requires enrollment key - show the enrollment key input
-            setAccessDenied(true);
-            setShowEnrollmentKey(true);
-            setLoading(false);
-            return;
-          } else if (response.data?.error && response.data.error.includes('key')) {
-            // Course requires enrollment key - show the enrollment key input
+          if (response.data?.requiresKey || (response.data?.error && response.data.error.includes('key'))) {
             setAccessDenied(true);
             setShowEnrollmentKey(true);
             setLoading(false);
             return;
           }
         } catch (enrollmentError) {
-          // If there's an error initiating enrollment, check if it's key-related
           if (enrollmentError.response?.data?.error && enrollmentError.response.data.error.includes('key')) {
             setAccessDenied(true);
             setShowEnrollmentKey(true);
             setLoading(false);
             return;
           } else if (enrollmentError.response?.status === 500) {
-            // If there's a 500 error, it might be due to database not being set up
-            // In this case, show a generic message instead of crashing
             setAccessDenied(true);
-            setShowEnrollmentKey(false); // Don't show enrollment key if there's a server error
+            setShowEnrollmentKey(false);
             setLoading(false);
             return;
           }
         }
 
-        // If no enrollment key is required but user is not enrolled, show access denied
         setAccessDenied(true);
         setLoading(false);
         setTimeout(() => navigate('/student'), 3000);
@@ -87,7 +75,6 @@ const CourseView = () => {
       ]);
 
       const courseData = courseRes.data;
-      // Scheduled release check
       if (courseData?.start_date) {
         const startDate = new Date(courseData.start_date);
         const now = new Date();
@@ -101,21 +88,18 @@ const CourseView = () => {
       }
       setCourse(courseData);
       setUploads(uploadsResponse.data);
-      
+
       const pData = allProgressRes.data || [];
       const sData = submissionsRes.data?.submissions || [];
 
-      // Filter progress strictly for this course
-      setCourseProgress(pData.filter(p => p.course_id === parseInt(courseId)));
-      // Filter submissions strictly for this course
-      setCourseSubmissions(sData.filter(s => s.course_id === parseInt(courseId)));
+      setCourseProgress(pData.filter(p => Number(p.course_id) === Number(courseId)));
+      setCourseSubmissions(sData.filter(s => Number(s.course_id) === Number(courseId)));
 
       if (planRes.data && planRes.data.diagnostic_data) {
         setDiagnostic(planRes.data.diagnostic_data);
       }
     } catch (error) {
       console.error('Error loading course data:', error);
-      // If there's a server error, handle it gracefully
       if (error.response?.status === 500) {
         setAccessDenied(true);
         setShowEnrollmentKey(false);
@@ -127,7 +111,6 @@ const CourseView = () => {
     }
   };
 
-  // NEW: Handle enrollment with key
   const handleEnrollmentWithKey = async () => {
     if (!keyCode.trim()) {
       setEnrollmentError('Please enter an enrollment key');
@@ -142,9 +125,8 @@ const CourseView = () => {
 
       if (response.data.enrolled) {
         setEnrollmentSuccess(true);
-        // Refresh the course data after successful enrollment
         setTimeout(() => {
-          window.location.reload(); // Simple way to refresh the page after enrollment
+          window.location.reload();
         }, 1500);
       }
     } catch (error) {
@@ -160,19 +142,19 @@ const CourseView = () => {
 
   const getTopicsForLevel = (level) => {
     const files = uploads.filter(u => u.level === level && u.category === 'study_material');
-    if (files.length === 0) return ["General Concepts"];
-    return files.map(f => f.file_name.replace(/\.[^/.]+$/, ""));
+    if (files.length === 0) return ['General Concepts'];
+    return files.map(f => f.file_name.replace(/\.[^/.]+$/, ''));
   };
 
   const isLevelUnlocked = (level) => {
     if (level === 'Easy') return true;
     if (level === 'Medium') {
       const easy = courseProgress.find(p => p.level === 'Easy');
-      return easy && easy.passed;
+      return !!(easy && easy.passed);
     }
     if (level === 'Hard') {
       const medium = courseProgress.find(p => p.level === 'Medium');
-      return medium && medium.passed;
+      return !!(medium && medium.passed);
     }
     return false;
   };
@@ -183,32 +165,42 @@ const CourseView = () => {
     return { passed: p.passed, score: p.score };
   };
 
-  // Determine Course Type and Calculate INDEPENDENT Score Display
+  // Course-level SAT section score using the weighted Easy/Medium/Hard formula.
   const getScoreDisplay = () => {
-    if (!course) return { score: 0, max: 1600, label: "Estimated Score" };
+    if (!course) return { score: 0, max: 800, label: 'Estimated Score' };
 
-    // Use ONLY this course's results for calculation to ensure independent category display
-    const scores = calculateStudentScore(courseProgress, diagnostic, courseSubmissions);
+    const category = getCategory(course);
+    const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
 
-    // FIX: Defensively handle null scores if calculator fails (though calculator is fixed now)
-    if (!scores) {
-      return { score: 0, max: 1600, label: "Estimated Score" };
-    }
+    // Prefer submissions for level accuracies, but also consider progress scores.
+    (courseSubmissions || []).forEach(sub => {
+      const lvl = (sub.level || 'Medium').charAt(0).toUpperCase() + (sub.level || 'Medium').slice(1).toLowerCase();
+      if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+      const pct = Math.round(sub.raw_score_percentage || 0);
+      if (pct > levelScores[lvl]) levelScores[lvl] = pct;
+    });
 
-    const category = getCategory(course.name, course.tutor_type);
-    
-    if (category === 'MATH') {
-      return { score: scores.math, max: 800, label: "Math Section Score" };
-    } else {
-      // Return RW Section Score (max 800) for RW or fallback
-      return { score: scores.rw, max: 800, label: "Reading & Writing Score" };
-    }
+    courseProgress.forEach(p => {
+      const lvl = (p.level || 'Medium').charAt(0).toUpperCase() + (p.level || 'Medium').slice(1).toLowerCase();
+      if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+      const pct = Math.round(p.score || 0);
+      if (pct > levelScores[lvl]) levelScores[lvl] = pct;
+    });
+
+    const hasLevelScores = levelScores.Easy > 0 || levelScores.Medium > 0 || levelScores.Hard > 0;
+    const sectionScore = hasLevelScores
+      ? calculateSatScore(levelScores.Easy, levelScores.Medium, levelScores.Hard)
+      : (category === 'MATH'
+        ? (diagnostic ? parseInt(diagnostic.mathScore) || 200 : 200)
+        : (diagnostic ? parseInt(diagnostic.rwScore) || 200 : 200));
+
+    const label = category === 'MATH' ? 'Math Section Score' : 'Reading & Writing Score';
+    return { score: sectionScore || 0, max: 800, label };
   };
 
   const levels = ['Easy', 'Medium', 'Hard'];
   const passedLevels = courseProgress.filter(p => levels.includes(p.level) && p.passed);
   const uniquePassed = new Set(passedLevels.map(p => p.level));
-  // Course is completed if all 3 levels are passed
   const isCourseCompleted = uniquePassed.size === 3;
 
   const scoreData = getScoreDisplay();
@@ -228,7 +220,6 @@ const CourseView = () => {
               <Link to="/student" className="text-[#E53935] hover:text-[#b71c1c] font-bold block text-center">Return to Dashboard Now</Link>
             </>
           ) : (
-            // NEW: Enrollment Key Input Form
             <div className="space-y-6">
               <div className="text-center">
                 <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4">
@@ -317,7 +308,6 @@ const CourseView = () => {
           </p>
         </div>
 
-        {/* Score Card - Shows Specific Section Score or Total depending on course */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -358,13 +348,12 @@ const CourseView = () => {
           </div>
         </motion.div>
 
-        {/* Scoring Guide Section */}
         <div className="mb-10 bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-blue-50 rounded-lg">
               <SafeIcon icon={FiInfo} className="w-5 h-5 text-blue-600" />
             </div>
-            <h3 className="text-xl font-extrabold text-black">Understanding Your Score</h3>
+            <h3 className="text-xl font-extrabold text_black">Understanding Your Score</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -425,7 +414,6 @@ const CourseView = () => {
           </div>
         </div>
 
-        {/* Levels Grid */}
         <div className="space-y-6">
           {['Easy', 'Medium', 'Hard'].map((level, index) => {
             const topics = getTopicsForLevel(level);
@@ -438,7 +426,7 @@ const CourseView = () => {
               Hard: { bg: 'bg-white', border: 'border-red-200', numberBg: 'bg-[#E53935]', btn: 'bg-black text-white hover:bg-gray-800' }
             };
             const theme = styles[level];
-            const lockedClass = !unlocked ? "opacity-60 grayscale cursor-not-allowed" : "";
+            const lockedClass = !unlocked ? 'opacity-60 grayscale cursor-not-allowed' : '';
 
             return (
               <motion.div
@@ -456,7 +444,6 @@ const CourseView = () => {
                   </div>
                 )}
 
-                {/* Passed Badge - Responsive positioning */}
                 {passed && (
                   <div className="flex flex-wrap items-center gap-2 mb-4 md:absolute md:top-6 md:right-6 md:mb-0 z-10">
                     <span className="text-sm font-bold text-gray-500">Best: {score}%</span>
@@ -467,7 +454,6 @@ const CourseView = () => {
                 )}
 
                 <div className="flex flex-col gap-4 md:gap-6">
-                  {/* Level header and topics */}
                   <div className="flex-1">
                     <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
                       <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-bold text-white text-lg sm:text-xl shadow-md flex-shrink-0 ${theme.numberBg}`}>
@@ -488,7 +474,6 @@ const CourseView = () => {
                     </div>
                   </div>
 
-                  {/* Action Button - Full width on mobile */}
                   <div className="flex flex-col gap-2 w-full md:w-auto md:self-end">
                     <button
                       onClick={() => unlocked && navigate(`/student/course/${courseId}/level/${level}`)}
@@ -521,3 +506,4 @@ const CourseView = () => {
 };
 
 export default CourseView;
+

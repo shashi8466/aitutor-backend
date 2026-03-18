@@ -203,25 +203,6 @@ const ChildCoursesReport = () => {
                     courses: s.courses || { name: 'Practice', tutor_type: 'RW' }
                 }));
 
-                const overall = calculateStudentScore(progress || [], diagnosticData, submissions || []);
-                const passedCount = (progress || []).filter(p => p.passed).length;
-
-                const lessonsCount = Math.min(50, (passedCount * 3 + 5));
-                setOverallStats({
-                    scores: {
-                        total: overall.current,
-                        math: overall.math,
-                        rw: overall.rw,
-                        target: overall.target
-                    },
-                    counts: {
-                        lessons: lessonsCount,
-                        tests: (submissions || []).length,
-                        worksheets: 14,
-                        sessions: Math.floor(lessonsCount / 2)
-                    }
-                });
-
                 // Build Course Breakdown (Sync with Student Dashboard)
                 const courseMap = {};
 
@@ -302,40 +283,74 @@ const ChildCoursesReport = () => {
                 const formattedCourses = Object.values(courseMap).map(c => {
                     const category = getCategory(c);
                     const isMath = category === 'MATH';
-                    
-                    // Use calculateSatScore with weighted average of level scores
-                    const hasLevelScores = c.levelScores.Easy > 0 || c.levelScores.Medium > 0 || c.levelScores.Hard > 0;
-                    let estimatedScaled;
-                    
+
+                    // Use the same SAT-style weighted model as StudentDashboard
+                    const hasLevelScores =
+                        c.levelScores.Easy > 0 ||
+                        c.levelScores.Medium > 0 ||
+                        c.levelScores.Hard > 0;
+
+                    let courseScaledScore;
                     if (hasLevelScores) {
-                        estimatedScaled = calculateSatScore(c.levelScores.Easy, c.levelScores.Medium, c.levelScores.Hard);
+                        courseScaledScore = calculateSatScore(
+                            c.levelScores.Easy,
+                            c.levelScores.Medium,
+                            c.levelScores.Hard
+                        );
                     } else {
-                        // Fallback to baseline if no level scores
-                        estimatedScaled = isMath 
+                        // Fallback to diagnostic baseline if no level data yet
+                        courseScaledScore = isMath
                             ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
                             : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
                     }
-                    
-                    // Incorporate Baseline from Diagnostic
-                    const baseline = isMath 
-                      ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
-                      : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
-                    
-                    if (estimatedScaled < baseline) estimatedScaled = baseline;
 
-                    // Final Score Selection: Latest Test > Max Test > Baseline
-                    const bestActualTest = Math.max(c.levelScaledBest.Easy, c.levelScaledBest.Medium, c.levelScaledBest.Hard);
-                    const courseScaledScore = c.latestTestScore || bestActualTest || estimatedScaled;
-
-                    return { 
-                        ...c, 
+                    return {
+                        ...c,
                         category,
                         courseScaledScore,
-                        isEstimated: !c.latestTestScore && !bestActualTest
+                        isEstimated: !hasLevelScores
                     };
                 });
                 
                 setCourses(formattedCourses);
+
+                // --- Compute overall SAT scores using SAME aggregation as StudentDashboard ---
+                const mathCourses = formattedCourses.filter(c => c.category === 'MATH');
+                const rwCourses = formattedCourses.filter(c => c.category === 'RW');
+
+                const bestMathScore = mathCourses.length > 0
+                  ? Math.max(...mathCourses.map(c => c.courseScaledScore))
+                  : 0;
+                const bestRWScore = rwCourses.length > 0
+                  ? Math.max(...rwCourses.map(c => c.courseScaledScore))
+                  : 0;
+
+                const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 0) : 0;
+                const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 0) : 0;
+
+                const finalMathScore = mathCourses.length > 0 ? bestMathScore : baselineMath;
+                const finalRWScore = rwCourses.length > 0 ? bestRWScore : baselineRW;
+                const finalTotalScore = finalMathScore + finalRWScore;
+
+                const passedCount = (progress || []).filter(p => p.passed).length;
+                const lessonsCount = Math.min(50, (passedCount * 3 + 5));
+
+                setOverallStats({
+                    scores: {
+                        total: finalTotalScore,
+                        math: finalMathScore,
+                        rw: finalRWScore,
+                        target: diagnosticData && diagnosticData.targetScore
+                          ? (parseInt(diagnosticData.targetScore) || 1500)
+                          : 1500
+                    },
+                    counts: {
+                        lessons: lessonsCount,
+                        tests: (submissions || []).length,
+                        worksheets: 14,
+                        sessions: Math.floor(lessonsCount / 2)
+                    }
+                });
             } catch (err) {
                 console.error(err);
                 setCourses([]);

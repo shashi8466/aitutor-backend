@@ -17,6 +17,8 @@ const AdminSettings = lazy(() => import('./AdminSettings'));
 const UserManagement = lazy(() => import('./UserManagement'));
 const AdminGroupManagement = lazy(() => import('./AdminGroupManagement'));
 const AdminParentManagement = lazy(() => import('./AdminParentManagement'));
+const AdminNotificationManager = lazy(() => import('./AdminNotificationManager'));
+const AdminParentNotificationManager = lazy(() => import('./AdminParentNotificationManager'));
 
 import { courseService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -65,6 +67,8 @@ const AdminDashboard = () => {
     { name: 'Overview', path: '/admin', icon: FiGrid },
     { name: 'Users', path: '/admin/users', icon: FiUsers },
     { name: 'Parents', path: '/admin/parents', icon: FiUsers },
+    { name: 'Notifications', path: '/admin/notifications', icon: FiBook },
+    { name: 'Parent Notifications', path: '/admin/parent-notifications', icon: FiUsers },
     { name: 'Courses', path: '/admin/courses', icon: FiBook },
     { name: 'Student Groups', path: '/admin/groups', icon: FiLayers },
     { name: 'Questions', path: '/admin/questions', icon: FiHelpCircle },
@@ -131,6 +135,8 @@ const AdminDashboard = () => {
             <Route path="/course/:id" element={<AdminCourseDetail />} />
             <Route path="/groups" element={<AdminGroupManagement />} />
             <Route path="/parents" element={<AdminParentManagement />} />
+            <Route path="/notifications" element={<AdminNotificationManager />} />
+            <Route path="/parent-notifications" element={<AdminParentNotificationManager />} />
             <Route path="/questions" element={<QuestionManagement />} />
             <Route path="/knowledge-base" element={<KnowledgeBase />} />
             <Route path="/upload" element={<FileUpload />} />
@@ -225,6 +231,13 @@ const DashboardHome = ({ stats, loading }) => {
               </div>
               <h3 className="font-bold dark:text-white">Parents</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">Create & link parents</p>
+            </Link>
+            <Link to="/admin/notifications" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
+              <div className="bg-teal-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
+                <SafeIcon icon={FiBook} />
+              </div>
+              <h3 className="font-bold dark:text-white">Notifications</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Manage student notifications</p>
             </Link>
             <Link to="/admin/settings" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
               <div className="bg-gray-700 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">

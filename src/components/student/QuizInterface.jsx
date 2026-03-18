@@ -319,7 +319,11 @@ const QuizInterface = () => {
   if (showResults) {
     const res = submissionResult;
     const percentage = res ? Math.round(res.percentage) : 0;
-    const scaledScore = res?.scaledScore || Math.round(200 + (percentage / 100) * 600);
+    // Use scaled score from API response (should always be provided by backend now)
+    // Fallback only if API returns null/undefined/0 (shouldn't happen with fixed backend)
+    const scaledScore = res?.scaledScore && res.scaledScore > 0 
+      ? res.scaledScore 
+      : Math.round(200 + (percentage / 100) * 600);
     const isPassed = percentage >= 15;
 
     return (

@@ -5,7 +5,9 @@
 
 import express from 'express';
 import supabase from '../../supabase/supabaseAdmin.js';
-import { calculateSessionScore, getCategory, calculateTotalSATScore } from '../utils/scoreCalculator.js';
+import { calculateSessionScore, getCategory, calculateTotalSATScore, calculateSatScore } from '../utils/scoreCalculator.js';
+import { enqueueNotification, processOutboxOnce } from '../utils/notificationOutbox.js';
+import notificationMiddleware from '../middleware/notificationMiddleware.js';
 
 const router = express.Router();
 
@@ -163,7 +165,7 @@ router.get('/parent/student/:studentId/dashboard-data', async (req, res) => {
  * POST /api/grading/submit-test
  * Submit and grade a test
  */
-router.post('/submit-test', async (req, res) => {
+router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotification, async (req, res) => {
     try {
         const userId = req.user?.id;
         const { courseId, level, questionIds, answers, duration } = req.body;
@@ -752,10 +754,9 @@ router.get('/leaderboard/:courseId', async (req, res) => {
             }
         });
 
-        // Calculate final weighted score for each student
+        // Calculate final weighted score for each student using SAT-style formula
         const allRankings = Array.from(studentMap.values()).map(s => {
-            const weightedAcc = s.accuracies.Easy * 0.2 + s.accuracies.Medium * 0.35 + s.accuracies.Hard * 0.45;
-            const weightedScore = Math.max(200, Math.round(200 + (weightedAcc * 6)));
+            const weightedScore = calculateSatScore(s.accuracies.Easy, s.accuracies.Medium, s.accuracies.Hard);
             return {
                 user_id: s.user_id,
                 name: s.name,

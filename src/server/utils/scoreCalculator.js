@@ -83,21 +83,10 @@ export const calculateTotalSATScore = (progressEntries) => {
     }
   });
 
-  // Calculate scores based on the specific level accuracy
-  // Rule: We take the BEST single level performance as the section score
-  // instead of a weighted mix that "inflates" the score.
-  
-  const calcMath = Math.max(
-    calculateSessionScore('MATH', 'Easy', mathAcc.Easy),
-    calculateSessionScore('MATH', 'Medium', mathAcc.Medium),
-    calculateSessionScore('MATH', 'Hard', mathAcc.Hard)
-  );
-
-  const calcRW = Math.max(
-    calculateSessionScore('RW', 'Easy', rwAcc.Easy),
-    calculateSessionScore('RW', 'Medium', rwAcc.Medium),
-    calculateSessionScore('RW', 'Hard', rwAcc.Hard)
-  );
+  // Calculate SAT-style section scores using weighted average across levels
+  // This matches the frontend calculateSatScore() function
+  const calcMath = calculateSatScore(mathAcc.Easy, mathAcc.Medium, mathAcc.Hard);
+  const calcRW = calculateSatScore(rwAcc.Easy, rwAcc.Medium, rwAcc.Hard);
 
   const bestMath = Math.max(200, calcMath);
   const bestRW = Math.max(200, calcRW);
@@ -107,4 +96,20 @@ export const calculateTotalSATScore = (progressEntries) => {
     rw: bestRW,
     total: bestMath + bestRW
   };
+};
+
+// SAT-style weighted scoring model - matches frontend calculateSatScore
+export const calculateSatScore = (easy, medium, hard) => {
+  // SAT-style weighted model across levels:
+  // Easy 20%, Medium 35%, Hard 45%, scaled directly to 0–800.
+  const e = Number(easy) || 0;
+  const m = Number(medium) || 0;
+  const h = Number(hard) || 0;
+
+  const weightedAccuracy = (e * 0.20) + (m * 0.35) + (h * 0.45); // 0–100 range
+  const rawScore = (weightedAccuracy / 100) * 800;
+
+  // Clamp defensively to valid SAT section bounds
+  const finalScore = Math.min(800, Math.max(0, rawScore));
+  return Math.round(finalScore);
 };

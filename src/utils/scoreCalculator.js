@@ -63,13 +63,18 @@ export const calculateSessionScore = (category, levelName, percentageScore) => {
 };
 
 export const calculateSatScore = (easy, medium, hard) => {
-  const weightedAccuracy =
-    (easy * 0.20) +
-    (medium * 0.35) +
-    (hard * 0.45);
+  // SAT-style weighted model across levels:
+  // Easy 20%, Medium 35%, Hard 45%, then mapped to SAT 200–800.
+  const e = Number(easy) || 0;
+  const m = Number(medium) || 0;
+  const h = Number(hard) || 0;
 
-  const finalScore = 200 + (weightedAccuracy / 100) * 600;
+  const weightedAccuracy = (e * 0.20) + (m * 0.35) + (h * 0.45); // 0–100 range
+  // Map 0–100 → 200–800 (200 floor, 800 ceiling)
+  const rawScore = 200 + (weightedAccuracy / 100) * 600;
 
+  // Clamp defensively to valid SAT section bounds
+  const finalScore = Math.min(800, Math.max(200, rawScore));
   return Math.round(finalScore);
 };
 
@@ -84,73 +89,59 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
   const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 200) : 200;
   const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 200) : 200;
 
-  // 3. Track REAL Test Performance (Ignore Lessons/Quizzes for main score)
-  // We need the LATEST and BEST actual recorded test results
-  let latestMathTest = 0;
-  let latestMathDate = 0;
-  let maxMathTest = 0;
+  // 3. Aggregate BEST accuracy per level (Easy/Medium/Hard) across all courses
+  // for each category (MATH, RW). This powers the weighted SAT formula.
+  const levelAccuracies = {
+    MATH: { Easy: 0, Medium: 0, Hard: 0 },
+    RW: { Easy: 0, Medium: 0, Hard: 0 }
+  };
 
-  let latestRWTest = 0;
-  let latestRWDate = 0;
-  let maxRWTest = 0;
+  const updateLevelAccuracy = (item, rawPercentage) => {
+    const cat = getCategory(item);
+    const levelRaw = item.level || 'Medium';
+    const level = levelRaw.charAt(0).toUpperCase() + levelRaw.slice(1).toLowerCase();
+    if (!['Easy', 'Medium', 'Hard'].includes(level)) return;
+    const pct = Math.round(rawPercentage || 0);
+    if (pct > levelAccuracies[cat][level]) {
+      levelAccuracies[cat][level] = pct;
+    }
+  };
 
+  // A. From submissions (authoritative test data)
   if (Array.isArray(submissionsData)) {
     submissionsData.forEach(sub => {
-      const cat = getCategory(sub);
-      const level = sub.level ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase() : 'Medium';
-      const testDate = new Date(sub.test_date || sub.created_at).getTime();
-      
-      // Get the REAL scaled score from this test record
-      let mathVal = sub.math_scaled_score || 0;
-      let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
+      updateLevelAccuracy(sub, sub.raw_score_percentage);
+    });
+  }
 
-      // Fallback: If no scaled score is saved in DB, calculate it DIRECTLY from this test's accuracy
-      // Rule: Simple Linear Scaling (ACC% * 600 + 200 floor) - This is an "Actual" representation of this test.
-      if (!mathVal && !rwVal) {
-        if (sub.scaled_score > 0) {
-           // If combined scaled score exists
-           if (sub.scaled_score <= 800) {
-              if (cat === 'MATH') mathVal = sub.scaled_score;
-              else rwVal = sub.scaled_score;
-           } else {
-              // Full test: Split 50/50 if not specified (Emergency fallback)
-              mathVal = Math.round(sub.scaled_score / 2);
-              rwVal = sub.scaled_score - mathVal;
-           }
-        } else {
-           // No scaled score at all: Calculate from accuracy of THIS SPECIFIC TEST only
-           const calculated = calculateSessionScore(cat, level, sub.raw_score_percentage);
-           if (cat === 'MATH') mathVal = calculated;
-           else rwVal = calculated;
-        }
-      }
-
-      // Track Max (Record Highs)
-      if (mathVal > maxMathTest) maxMathTest = mathVal;
-      if (rwVal > maxRWTest) maxRWTest = rwVal;
-
-      // Track Latest (Dashboard Priority)
-      if (mathVal > 0 && testDate >= latestMathDate) {
-        latestMathDate = testDate;
-        latestMathTest = mathVal;
-      }
-      if (rwVal > 0 && testDate >= latestRWDate) {
-        latestRWDate = testDate;
-        latestRWTest = rwVal;
+  // B. From progress table (fallback / supplement)
+  if (Array.isArray(progressData)) {
+    progressData.forEach(p => {
+      if (typeof p.score === 'number') {
+        updateLevelAccuracy(p, p.score);
       }
     });
   }
 
-  // 4. FINAL SCORE SELECTION (PRIORITIZE ACTUAL TEST RECORDS)
-  // Rule: LATEST TEST > BEST TEST > DIAGNOSTIC BASELINE
-  // We NEVER use "Estimated Accuracy" from cross-course progress anymore.
-  
-  let displayMath = latestMathTest || maxMathTest || baselineMath;
-  let displayRW = latestRWTest || maxRWTest || baselineRW;
+  // 4. Compute SAT-style section scores from aggregated level accuracies
+  const mathLevels = levelAccuracies.MATH;
+  const rwLevels = levelAccuracies.RW;
 
-  // Sanity check SAT bounds
-  displayMath = Math.min(800, Math.max(200, displayMath));
-  displayRW = Math.min(800, Math.max(200, displayRW));
+  const hasMathLevels = mathLevels.Easy > 0 || mathLevels.Medium > 0 || mathLevels.Hard > 0;
+  const hasRWLevels = rwLevels.Easy > 0 || rwLevels.Medium > 0 || rwLevels.Hard > 0;
+
+  const satMath = hasMathLevels
+    ? calculateSatScore(mathLevels.Easy, mathLevels.Medium, mathLevels.Hard)
+    : baselineMath;
+
+  const satRW = hasRWLevels
+    ? calculateSatScore(rwLevels.Easy, rwLevels.Medium, rwLevels.Hard)
+    : baselineRW;
+
+  // 5. Final section scores for dashboards: pure weighted SAT-style scores
+  // based on Easy/Medium/Hard performance (or diagnostic baselines).
+  const displayMath = Math.min(800, Math.max(200, satMath));
+  const displayRW = Math.min(800, Math.max(200, satRW));
 
   const total = displayMath + displayRW;
   const baselineTotal = baselineMath + baselineRW;
@@ -159,10 +150,13 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     current: total,
     math: displayMath,
     rw: displayRW,
-    bestMath: Math.max(displayMath, maxMathTest),
-    bestRW: Math.max(displayRW, maxRWTest),
-    latestMath: latestMathTest,
-    latestRW: latestRWTest,
+    // For now, best/latest are the same weighted scores (can be extended later)
+    weightedMath: displayMath,
+    weightedRW: displayRW,
+    bestMath: displayMath,
+    bestRW: displayRW,
+    latestMath: displayMath,
+    latestRW: displayRW,
     target: target,
     gap: Math.max(0, target - total),
     baselineTotal: baselineTotal,

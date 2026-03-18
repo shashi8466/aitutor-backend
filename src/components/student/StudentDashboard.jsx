@@ -63,118 +63,110 @@ const StudentDashboard = () => {
     const planData = plan?.generated_plan || null;
     const diagnosticData = plan?.diagnostic_data || null;
 
-    // Centralized Synchronized Score Calculation
-    const calculatedScores = calculateStudentScore(progress, diagnosticData, submissions);
     const passedLevels = progress.filter(p => p.passed).length;
     const lessonsCount = Math.min(50, passedLevels * 3 + 5);
     const testsTaken = submissions.length;
 
     const enrollmentProgress = enrollments.map(e => {
       const courseId = e.course_id;
-      const courseSubmissions = submissions.filter(s => s.course_id === courseId);
-      const courseProgress = progress.filter(p => p.course_id === courseId);
+      // Supabase may return bigint IDs as strings in some contexts; normalize comparisons.
+      const courseSubmissions = submissions.filter(s => Number(s.course_id) === Number(courseId));
+      const courseProgress = progress.filter(p => Number(p.course_id) === Number(courseId));
       const courseCategory = getCategory(e);
-      const courseType = courseCategory;
 
-      const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
-      const levelScaledBest = { Easy: 0, Medium: 0, Hard: 0 };
-      let latestTestScore = 0;
+      // Find the LATEST test submission for this course
+      let latestSubmission = null;
       let latestTestDate = 0;
-
+      
       courseSubmissions.forEach(sub => {
-        const lvl = sub.level
-          ? sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase()
-          : 'Medium';
-        if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
-        
-        const rawPct = Math.round(sub.raw_score_percentage || 0);
-        if (rawPct > levelScores[lvl]) levelScores[lvl] = rawPct;
-
-        // Use standard scaling for the specific test record
-        let mathVal = sub.math_scaled_score || 0;
-        let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
-
-        if (!mathVal && !rwVal) {
-          if (sub.scaled_score > 0) {
-            if (sub.scaled_score <= 800) {
-              if (courseCategory === 'MATH') mathVal = sub.scaled_score;
-              else rwVal = sub.scaled_score;
-            } else {
-               mathVal = Math.round(sub.scaled_score / 2);
-               rwVal = sub.scaled_score - mathVal;
-            }
-          } else {
-            const calc = calculateSessionScore(courseCategory, lvl, sub.raw_score_percentage);
-            if (courseCategory === 'MATH') mathVal = calc;
-            else rwVal = calc;
-          }
-        }
-
-        const sectionScaled = courseCategory === 'MATH' ? mathVal : rwVal;
-        const testDate = new Date(sub.test_date || sub.created_at).getTime();
-
-        if (sectionScaled > levelScaledBest[lvl]) levelScaledBest[lvl] = sectionScaled;
-        
-        // Track latest actual test attempt for THIS specific course
-        if (sectionScaled > 0 && testDate >= (latestTestDate || 0)) {
-           latestTestDate = testDate;
-           latestTestScore = sectionScaled;
+        const testDate = new Date(sub.test_date || sub.created_at || 0).getTime();
+        if (testDate > latestTestDate) {
+          latestTestDate = testDate;
+          latestSubmission = sub;
         }
       });
 
+      // Use the LATEST submission's actual scaled score if available
+      let courseScaledScore = 0;
+      let isEstimated = false;
+
+      if (latestSubmission && latestSubmission.scaled_score) {
+        // Use the ACTUAL scaled score from the latest test attempt
+        courseScaledScore = latestSubmission.scaled_score;
+        isEstimated = false;
+      } else if (latestSubmission && latestSubmission.raw_score_percentage !== undefined) {
+        // If no scaled_score stored, calculate it from the raw percentage
+        const levelName = latestSubmission.level 
+          ? latestSubmission.level.charAt(0).toUpperCase() + latestSubmission.level.slice(1).toLowerCase()
+          : 'Medium';
+        courseScaledScore = calculateSessionScore(
+          courseCategory,
+          levelName,
+          Math.round(latestSubmission.raw_score_percentage || 0)
+        );
+        isEstimated = false;
+      } else {
+        // Fallback: Use aggregated level scores if no submissions exist
+        const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
+        
+        courseProgress.forEach(p => {
+          const lvl = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
+          if (['Easy', 'Medium', 'Hard'].includes(lvl) && typeof p.score === 'number') {
+            if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
+          }
+        });
+
+        const hasLevelScores = levelScores.Easy > 0 || levelScores.Medium > 0 || levelScores.Hard > 0;
+        
+        if (hasLevelScores) {
+          courseScaledScore = calculateSatScore(
+            levelScores.Easy,
+            levelScores.Medium,
+            levelScores.Hard
+          );
+          isEstimated = true;
+        } else {
+          // Last resort: diagnostic baseline
+          const baseline = courseCategory === 'MATH'
+            ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
+            : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
+          courseScaledScore = baseline;
+          isEstimated = true;
+        }
+      }
+
+      // Build level scores for display purposes (not for score calculation)
+      const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
       courseProgress.forEach(p => {
         const lvl = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
-        if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
+        if (['Easy', 'Medium', 'Hard'].includes(lvl) && typeof p.score === 'number') {
+          if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
+        }
       });
-
-      // Always use calculateSatScore with weighted average of level scores when available
-      const hasLevelScores = levelScores.Easy > 0 || levelScores.Medium > 0 || levelScores.Hard > 0;
-      let courseScaledScore;
-      
-      if (hasLevelScores) {
-        // Use the new calculateSatScore function with weighted average
-        courseScaledScore = calculateSatScore(levelScores.Easy, levelScores.Medium, levelScores.Hard);
-      } else {
-        // Fallback to baseline if no level scores
-        const baseline = courseType === 'MATH' 
-          ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
-          : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
-        courseScaledScore = baseline;
-      }
 
       return {
         ...e.courses,
         levelScores,
         courseScaledScore,
-        isEstimated: !hasLevelScores // Only estimated if no level scores available
+        latestSubmission,
+        isEstimated
       };
     });
 
-    // Calculate main scores from actual course performance
-    const mathCourses = enrollmentProgress.filter(e => getCategory(e) === 'MATH');
-    const rwCourses = enrollmentProgress.filter(e => getCategory(e) === 'RW');
-    
-    // Get the best score from each section
-    const bestMathScore = mathCourses.length > 0 ? Math.max(...mathCourses.map(c => c.courseScaledScore)) : 200;
-    const bestRWScore = rwCourses.length > 0 ? Math.max(...rwCourses.map(c => c.courseScaledScore)) : 200;
-    
-    // Use diagnostic baseline if no courses
-    const baselineMath = diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200;
-    const baselineRW = diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200;
-    
-    const finalMathScore = mathCourses.length > 0 ? bestMathScore : baselineMath;
-    const finalRWScore = rwCourses.length > 0 ? bestRWScore : baselineRW;
-    const finalTotalScore = finalMathScore + finalRWScore;
-    const baselineTotal = baselineMath + baselineRW;
-    const totalImprovement = Math.max(0, finalTotalScore - baselineTotal);
+    // Overall SAT scores – centralized logic shared with parent dashboard.
+    // These are already calculated using the weighted Easy/Medium/Hard model.
+    const overallScores = calculateStudentScore(progress, diagnosticData, submissions);
 
     return {
       scores: {
-        total: finalTotalScore,
-        math: finalMathScore,
-        rw: finalRWScore,
-        target: 1600,
-        totalImprovement: totalImprovement
+        total: overallScores.current,
+        math: overallScores.math,
+        rw: overallScores.rw,
+        // For now, "Latest Attempt" == weighted SAT-style scores
+        latestMath: overallScores.latestMath || overallScores.math,
+        latestRw: overallScores.latestRW || overallScores.rw,
+        target: overallScores.target,
+        totalImprovement: overallScores.totalImprovement
       },
       counts: {
         lessons: lessonsCount,
@@ -290,12 +282,12 @@ const StudentDashboard = () => {
                               <SafeIcon icon={FiAward} className="w-3.5 h-3.5 text-blue-500" />
                               SAT Math
                             </span>
-                            <span className="text-gray-900 font-black">{scores.math}/800</span>
+                            <span className="text-gray-900 font-black">{scores.latestMath}/800</span>
                           </div>
                           <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden shadow-inner">
                             <motion.div
                               initial={{ width: 0 }}
-                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.math) - 200) / 600) * 100)}%` }}
+                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.latestMath) - 200) / 600) * 100)}%` }}
                               transition={{ duration: 1, ease: 'easeOut' }}
                               className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full shadow-sm"
                             />
@@ -311,12 +303,12 @@ const StudentDashboard = () => {
                               <SafeIcon icon={FiAward} className="w-3.5 h-3.5 text-green-500" />
                               Reading & Writing
                             </span>
-                            <span className="text-gray-900 font-black">{scores.rw}/800</span>
+                            <span className="text-gray-900 font-black">{scores.latestRw}/800</span>
                           </div>
                           <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden shadow-inner">
                             <motion.div
                               initial={{ width: 0 }}
-                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.rw) - 200) / 600) * 100)}%` }}
+                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.latestRw) - 200) / 600) * 100)}%` }}
                               transition={{ duration: 1, ease: 'easeOut', delay: 0.1 }}
                               className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full shadow-sm"
                             />
@@ -399,6 +391,9 @@ const StudentDashboard = () => {
                 {enrollments.slice(0, 3).map(course => {
                   const maxLevelScore = Math.max(course.levelScores?.Easy || 0, course.levelScores?.Medium || 0, course.levelScores?.Hard || 0);
                   const courseType = (course.tutor_type || '').toLowerCase().includes('math') ? 'MATH' : 'RW';
+                  const latestDate = course.latestSubmission 
+                    ? new Date(course.latestSubmission.test_date || course.latestSubmission.created_at).toLocaleDateString()
+                    : null;
 
                   return (
                     <div key={course.id} className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-xl hover:border-blue-100 transition-all group flex flex-col h-full">
@@ -414,10 +409,17 @@ const StudentDashboard = () => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-bold text-gray-400 block mb-0.5">{course.isEstimated ? 'EST. SCORE' : 'ACTUAL SCORE'}</span>
+                          <span className="text-xs font-bold text-gray-400 block mb-0.5">
+                            {course.isEstimated ? 'ESTIMATED SCORE' : 'LATEST ATTEMPT'}
+                          </span>
                           <span className={`text-lg font-black ${courseType === 'MATH' ? 'text-blue-600' : 'text-green-600'}`}>
                             {course.courseScaledScore}
                           </span>
+                          {latestDate && !course.isEstimated && (
+                            <span className="text-[9px] font-bold text-gray-400 block mt-0.5">
+                              {latestDate}
+                            </span>
+                          )}
                         </div>
                       </div>
 

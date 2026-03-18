@@ -16,7 +16,10 @@ import enrollmentRoutes from './routes/enrollment.js';
 import invitationsRoutes from './routes/invitations.js';
 import gradingRoutes from './routes/grading.js';
 import adminGroupsRoutes from './routes/admin-groups.js';
-import authDebugRoutes from './routes/auth-debug.js';
+// import authDebugRoutes from './routes/auth-debug.js';
+import notificationsRoutes from './routes/notifications.js';
+import notificationMiddleware from './middleware/notificationMiddleware.js';
+import adminNotificationRoutes from './routes/admin-notifications.js';
 
 // 1. Load environment variables FIRST
 dotenv.config();
@@ -132,6 +135,22 @@ app.get('/api/debug/env', (req, res) => {
   });
 });
 
+// 🟦 Debug: Show exact Supabase project host (no secrets)
+app.get('/api/debug/supabase', (req, res) => {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  let host = '';
+  try {
+    host = url ? new URL(url).host : '';
+  } catch {
+    host = '';
+  }
+  res.json({
+    supabaseUrl: url || null,
+    supabaseHost: host || null,
+    hint: 'Compare supabaseHost with your Supabase dashboard project URL (the *.supabase.co subdomain must match).'
+  });
+});
+
 console.log('✅ Core routes registered\n');
 
 
@@ -144,9 +163,11 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/tutor', tutorRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/invitations', invitationsRoutes);
-app.use('/api/grading', gradingRoutes);
-app.use('/api/admin', adminGroupsRoutes);
-app.use('/api/auth-debug', authDebugRoutes);
+app.use('/api/grading', notificationMiddleware.triggerTestCompletionNotification, gradingRoutes);
+app.use('/api/admin/groups', adminGroupsRoutes);
+app.use('/api/admin', adminNotificationRoutes);
+// app.use('/api/auth-debug', authDebugRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 console.log('✅ All routes mounted successfully');
 app._router.stack.forEach(m => {
@@ -221,4 +242,12 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('🌐 API Base URL: http://localhost:' + PORT + '/api');
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  
+  // Initialize notification scheduler
+  try {
+    notificationMiddleware.initializeScheduler();
+    console.log('🔔 Notification scheduler initialized successfully');
+  } catch (error) {
+    console.error('❌ Failed to initialize notification scheduler:', error.message);
+  }
 });

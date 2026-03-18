@@ -12,6 +12,8 @@
     "lint:error": "eslint . --quiet",
     "preview": "vite preview",
     "start": "node src/server/index.js",
+    "worker:notifications": "node src/server/workers/notificationWorker.js",
+    "test:notifications": "node test-notifications.js",
     "check": "node check-backend-advanced.js",
     "verify": "node check-backend-advanced.js",
     "quick-start": "node check-backend-advanced.js && npm run dev"
@@ -33,6 +35,7 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.6.0",
     "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
     "nodemailer": "^7.0.12",
     "openai": "^4.28.0",
     "pdf-parse": "^1.1.1",
@@ -45,6 +48,7 @@
     "react-router-dom": "^6.22.3",
     "recharts": "^3.7.0",
     "stripe": "^20.1.2",
+    "twilio": "^5.13.0",
     "xmldom": "^0.6.0"
   },
   "devDependencies": {

@@ -36,8 +36,14 @@ const PracticeTests = lazy(() => import('./components/student/PracticeTests'));
 const DetailedTestReview = lazy(() => import('./components/student/DetailedTestReview'));
 const SalesBot = lazy(() => import('./components/common/SalesBot'));
 
+// Notification Components - ADMIN ONLY
+// const NotificationPreferences = lazy(() => import('./components/common/NotificationPreferences'));
+// const NotificationHistory = lazy(() => import('./components/common/NotificationHistory'));
+// Students cannot manage their own notifications - Admin controls all
+
 // Dashboards
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const AdminNotificationManager = lazy(() => import('./components/admin/AdminNotificationManager'));
 const TutorDashboard = lazy(() => import('./components/tutor/TutorDashboard'));
 const ParentDashboard = lazy(() => import('./components/parent/ParentDashboard'));
 

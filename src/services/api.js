@@ -93,7 +93,7 @@ export const authService = {
   getAllProfiles: async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at')
       .order('created_at', { ascending: false });
     if (error) throw error;
     return { data };
