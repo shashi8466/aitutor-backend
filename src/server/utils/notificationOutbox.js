@@ -213,9 +213,11 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
         channels: enabledChannels
       });
 
-      const ok = (enabledChannels.includes('email') ? results.email : true) &&
-        (enabledChannels.includes('sms') ? results.sms : true) &&
-        (enabledChannels.includes('whatsapp') ? results.whatsapp : true);
+      const ok = (
+        (enabledChannels.includes('email') ? results.email : true) &&
+        (enabledChannels.includes('sms') && phone && !phone.includes('12345') ? results.sms : true) &&
+        (enabledChannels.includes('whatsapp') && whatsappPhone && !whatsappPhone.includes('12345') ? results.whatsapp : true)
+      );
 
       await supabase
         .from('notification_outbox')

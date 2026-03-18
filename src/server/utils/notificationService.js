@@ -177,29 +177,43 @@ export async function sendWhatsApp({ to, message }) {
 export async function sendNotification({ email, phone, subject, emailHtml, smsMessage, channels }) {
     const enabledChannels = channels || ['email', 'sms', 'whatsapp'];
 
-    const results = { email: false, sms: false, whatsapp: false };
+    // Default to true for any channel not attempted or missing data
+    // (a missing phone number shouldn't count as a system "failure")
+    const results = { email: true, sms: true, whatsapp: true };
 
     const tasks = [];
 
-    if (enabledChannels.includes('email') && email) {
-        tasks.push(
-            sendEmail({ to: email, subject, html: emailHtml, text: smsMessage })
-                .then((ok) => { results.email = ok; })
-        );
+    if (enabledChannels.includes('email')) {
+        if (email) {
+            tasks.push(
+                sendEmail({ to: email, subject, html: emailHtml, text: smsMessage })
+                    .then((ok) => { results.email = ok; })
+            );
+        } else {
+            console.warn('⚠️ [Notification] Skip email: No address');
+        }
     }
 
-    if (enabledChannels.includes('sms') && phone) {
-        tasks.push(
-            sendSMS({ to: phone, message: smsMessage })
-                .then((ok) => { results.sms = ok; })
-        );
+    if (enabledChannels.includes('sms')) {
+        if (phone) {
+            tasks.push(
+                sendSMS({ to: phone, message: smsMessage })
+                    .then((ok) => { results.sms = ok; })
+            );
+        } else {
+            console.warn('⚠️ [Notification] Skip SMS: No phone');
+        }
     }
 
-    if (enabledChannels.includes('whatsapp') && phone) {
-        tasks.push(
-            sendWhatsApp({ to: phone, message: smsMessage })
-                .then((ok) => { results.whatsapp = ok; })
-        );
+    if (enabledChannels.includes('whatsapp')) {
+        if (phone) {
+            tasks.push(
+                sendWhatsApp({ to: phone, message: smsMessage })
+                    .then((ok) => { results.whatsapp = ok; })
+            );
+        } else {
+            console.warn('⚠️ [Notification] Skip WhatsApp: No phone');
+        }
     }
 
     await Promise.allSettled(tasks);
