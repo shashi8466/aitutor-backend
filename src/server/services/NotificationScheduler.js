@@ -21,13 +21,14 @@ class NotificationScheduler {
     // Outbox processor - Every minute
     cron.schedule('* * * * *', async () => {
       try {
-        const port = process.env.PORT || 3001;
-        await fetch(`http://localhost:${port}/api/notifications/process-outbox`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || '' }
-        });
+        console.log('🔄 [Cron] Processing notification outbox...');
+        const { processOutboxOnce } = await import('../utils/notificationOutbox.js');
+        const result = await processOutboxOnce({ limit: 20 });
+        if (result.processed > 0) {
+          console.log(`✅ [Cron] Processed ${result.processed} notifications`);
+        }
       } catch (e) {
-        console.error('Error processing outbox from cron:', e.message);
+        console.error('❌ [Cron] Error processing outbox:', e.message);
       }
     });
 

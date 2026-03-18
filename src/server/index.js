@@ -163,7 +163,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/tutor', tutorRoutes);
 app.use('/api/enrollment', enrollmentRoutes);
 app.use('/api/invitations', invitationsRoutes);
-app.use('/api/grading', notificationMiddleware.triggerTestCompletionNotification, gradingRoutes);
+app.use('/api/grading', notificationMiddleware.triggerTestCompletionNotification.bind(notificationMiddleware), gradingRoutes);
 app.use('/api/admin/groups', adminGroupsRoutes);
 app.use('/api/admin', adminNotificationRoutes);
 // app.use('/api/auth-debug', authDebugRoutes);

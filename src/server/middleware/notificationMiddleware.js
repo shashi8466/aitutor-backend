@@ -22,10 +22,11 @@ class NotificationMiddleware {
           const studentId = responseData.user_id || responseData.studentId || req.user?.id;
           
           if (submissionId && studentId) {
+            const self = this;
             // Trigger notification asynchronously (don't block the response)
             setTimeout(async () => {
               try {
-                await this.scheduler.triggerTestCompletionNotification(submissionId, studentId);
+                await self.scheduler.triggerTestCompletionNotification(submissionId, studentId);
               } catch (error) {
                 console.error('Error triggering test completion notification:', error);
               }
