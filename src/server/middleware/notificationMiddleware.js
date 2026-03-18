@@ -7,40 +7,10 @@ class NotificationMiddleware {
 
   /**
    * Middleware to trigger test completion notification after test submission
+   * DEPRECATED: Now handled explicitly in grading route for reliability.
    */
   async triggerTestCompletionNotification(req, res, next) {
-    const originalSend = res.send;
-    
-    res.send = async function(data) {
-      // Check if this is a successful test submission
-      if (res.statusCode === 200 || res.statusCode === 201) {
-        try {
-          const responseData = typeof data === 'string' ? JSON.parse(data) : data;
-          
-          // Look for submission ID or user ID in the response
-          const submissionId = responseData.submissionId || responseData.id || responseData._id;
-          const studentId = responseData.user_id || responseData.studentId || req.user?.id;
-          
-          if (submissionId && studentId) {
-            const self = this;
-            // Trigger notification asynchronously (don't block the response)
-            setTimeout(async () => {
-              try {
-                await self.scheduler.triggerTestCompletionNotification(submissionId, studentId);
-              } catch (error) {
-                console.error('Error triggering test completion notification:', error);
-              }
-            }, 1000);
-          }
-        } catch (error) {
-          console.error('Error parsing submission response for notification:', error);
-        }
-      }
-      
-      // Call original send
-      originalSend.call(this, data);
-    };
-    
+    // Logic moved to grading.js to avoid scoping and interception issues.
     next();
   }
 
@@ -48,32 +18,6 @@ class NotificationMiddleware {
    * Middleware to trigger notification when progress is updated
    */
   async triggerProgressNotification(req, res, next) {
-    const originalSend = res.send;
-    
-    res.send = async function(data) {
-      // Check if this is a successful progress update
-      if (res.statusCode === 200 || res.statusCode === 201) {
-        try {
-          const responseData = typeof data === 'string' ? JSON.parse(data) : data;
-          
-          // Check if this represents a significant achievement
-          if (responseData.passed || responseData.score >= 80) {
-            const studentId = responseData.user_id || responseData.studentId || req.user?.id;
-            
-            if (studentId) {
-              // Could trigger achievement notifications here
-              console.log(`Progress milestone achieved for student ${studentId}`);
-            }
-          }
-        } catch (error) {
-          console.error('Error parsing progress response for notification:', error);
-        }
-      }
-      
-      // Call original send
-      originalSend.call(this, data);
-    };
-    
     next();
   }
 
@@ -82,7 +26,7 @@ class NotificationMiddleware {
    */
   initializeScheduler() {
     this.scheduler.start();
-    console.log('Notification scheduler initialized');
+    console.log('🔔 Notification scheduler initialized');
   }
 
   /**
