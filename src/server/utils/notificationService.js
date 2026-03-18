@@ -14,7 +14,7 @@ function createEmailTransporter() {
     const user = process.env.EMAIL_USER;
     const pass = process.env.EMAIL_PASS;
     const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
-    const port = parseInt(process.env.EMAIL_PORT || '465');
+    const port = parseInt(process.env.EMAIL_PORT || '587'); // Switch to 587 for Render
 
     if (!user || !pass) {
         console.warn('⚠️ [Notifications] SMTP credentials missing – email notifications disabled.');
@@ -24,8 +24,11 @@ function createEmailTransporter() {
     return nodemailer.createTransport({
         host,
         port,
-        secure: port === 465,
-        auth: { user, pass }
+        secure: false, // false for 587
+        auth: { user, pass },
+        tls: {
+            rejectUnauthorized: false // Helps in cloud environments
+        }
     });
 }
 
