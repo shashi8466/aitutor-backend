@@ -220,6 +220,15 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
             console.warn('⚠️ [Sync] Failed to update latest score in student_progress:', syncError.message);
         }
 
+        // 🟢 TRIGGER NOTIFICATION
+        // Triggered explicitly for maximum reliability on Render
+        try {
+            console.log(`📬 [Trigger] Enqueuing notification for submission ${result.submission_id}`);
+            await notificationMiddleware.scheduler.triggerTestCompletionNotification(result.submission_id, userId);
+        } catch (noteError) {
+            console.error('⚠️ [Trigger] Failed to enqueue notification:', noteError.message);
+        }
+
         res.json({
             submissionId: result.submission_id,
             rawScore: result.raw_score,
