@@ -169,6 +169,39 @@ export async function sendEmail({ to, subject, html, text }) {
         return { ok: true };
     } catch (err) {
         const errorMsg = err.message || String(err);
+        console.warn(`⚠️ [Email] SMTP Primary Attempt Failed (${errorMsg})...`);
+        
+        // 🚀 SMART FALLBACK: If Port 465 (SSL) failed (common on cloud firewalls),
+        // try Port 587 (Explicit TLS/STARTTLS) as a last resort.
+        const transporterRaw = await createEmailTransporter(); // re-fetch config
+        const currentPort = transporterRaw?.options?.port;
+        
+        if (currentPort === 465 && (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || errorMsg.includes('timeout'))) {
+            console.log(`🔄 [Email] Port 465 seems blocked. Attempting Port 587 (TLS Fallback)...`);
+            try {
+                const fallbackTransporter = nodemailer.createTransport({
+                    ...transporterRaw.options,
+                    port: 587,
+                    secure: false, // STARTTLS
+                    connectionTimeout: 10000,
+                    greetingTimeout: 5000
+                });
+                
+                const fallbackInfo = await fallbackTransporter.sendMail({
+                    from: `"${appName}" <${fromEmail}>`,
+                    to,
+                    subject,
+                    text: text || '',
+                    html: html || text || ''
+                });
+                console.log(`✅ [Email] Sent via Port 587 Fallback to ${to} | MessageId: ${fallbackInfo.messageId}`);
+                return { ok: true };
+            } catch (fallbackErr) {
+                console.error(`❌ [Email] Port 587 Fallback also failed:`, fallbackErr.message);
+                return { ok: false, error: `${errorMsg} | Fallback Error: ${fallbackErr.message}` };
+            }
+        }
+
         console.error(`❌ [Email] Failed to send to ${to}:`, errorMsg);
         return { ok: false, error: errorMsg };
     }
