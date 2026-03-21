@@ -104,7 +104,7 @@ const AdminDashboard = () => {
           </div>
 
           {/* Navigation */}
-          <div className="mt-6 flex space-x-1 bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto">
+          <div className="mt-6 flex bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm horizontal-scroll-nav">
             {navLinks.map((link) => {
               const isActive = link.path === '/admin'
                 ? location.pathname === '/admin'

@@ -20,6 +20,7 @@ const AdminSettings = () => {
   // Public Settings State
   const [generalData, setGeneralData] = useState({
     appName: '',
+    appUrl: '',
     logoFile: null
   });
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -41,6 +42,7 @@ const AdminSettings = () => {
     if (settings) {
       setGeneralData({
         appName: settings.appName || '',
+        appUrl: settings.appUrl || '',
         logoFile: null
       });
       setPreviewUrl(settings.logoUrl);
@@ -95,12 +97,20 @@ const AdminSettings = () => {
     setStatus({ type: '', message: '' });
 
     try {
-      // 1. Update Public Settings
-      await updateSettings(generalData.appName, generalData.logoFile);
+        // 1. Update Public Settings (appName, logoFile)
+        await updateSettings(generalData.appName, generalData.logoFile);
 
-      // 2. Update Advanced Settings
-      const { error } = await settingsService.updateAdvanced(advancedData);
-      if (error) throw error;
+        // 2. Prepare advancedPayload including site_config with appUrl
+        const advancedPayload = {
+          ...advancedData,
+          site_config: {
+            ...advancedData.site_config,
+            appUrl: generalData.appUrl
+          }
+        };
+        // 3. Update Advanced Settings
+        const { error } = await settingsService.updateAdvanced(advancedPayload);
+        if (error) throw error;
 
       setStatus({ type: 'success', message: 'All settings updated successfully!' });
       setTimeout(() => setStatus({ type: '', message: '' }), 5000);
@@ -204,6 +214,19 @@ const AdminSettings = () => {
                         onChange={handleGeneralChange}
                         className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-bold text-gray-900 dark:text-white shadow-inner"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Production Website URL (for Emails)</label>
+                      <input
+                        type="url"
+                        name="appUrl"
+                        value={generalData.appUrl}
+                        onChange={(e) => setGeneralData({ ...generalData, appUrl: e.target.value })}
+                        placeholder="https://your-platform.com"
+                        className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-bold text-gray-900 dark:text-white shadow-inner"
+                      />
+                      <p className="text-xs text-gray-400 mt-2 ml-2">Used to build links in email notifications. No trailing slash (e.g., https://pundits.ai).</p>
                     </div>
 
                     <div>
@@ -360,6 +383,7 @@ const ConfigInput = ({ label, value, onChange, placeholder = '', type = 'text' }
     <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2">{label}</label>
     <input
       type={type}
+      autoComplete={type === 'password' ? 'new-password' : 'on'}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}

@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getInternalSettings } from './internalSettings.js';
 
 console.log('🔧 Initializing AI Utils...');
 
@@ -7,9 +8,12 @@ console.log('🔧 Initializing AI Utils...');
 let openai = null;
 let genAI = null;
 
-const getAIClient = (provider = 'auto') => {
-  const openaiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-  const googleKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const getAIClient = async (provider = 'auto') => {
+  const settings = await getInternalSettings();
+  const apiConfig = settings?.api_config || {};
+
+  const openaiKey = apiConfig.openai_key || process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+  const googleKey = apiConfig.gemini_key || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
 
   if (provider === 'google' || (provider === 'auto' && googleKey && !openaiKey)) {
     if (!googleKey) return { apiKey: null };
@@ -36,10 +40,10 @@ export const generateAIResponse = async (messages, jsonMode = false, temperature
   let lastError;
 
   // Potential providers to try
-  const providers = ['openai'];
+  const providers = ['openai', 'google'];
 
   for (const provider of providers) {
-    const { apiKey, type, client } = getAIClient(provider);
+    const { apiKey, type, client } = await getAIClient(provider);
     if (!apiKey) continue;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {

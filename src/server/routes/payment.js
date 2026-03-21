@@ -1,6 +1,7 @@
 import express from 'express';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { getInternalSettings } from '../utils/internalSettings.js';
 
 const router = express.Router();
 
@@ -10,11 +11,23 @@ console.log('🔧 Initializing Payment Routes (Stripe)...');
 let stripeTest = null;
 let stripeLive = null;
 
-const getStripe = (useTestMode = true) => {
-  // Determine which key to use
-  const stripeKey = useTestMode
-    ? (process.env.STRIPE_TEST_SECRET_KEY || process.env.STRIPE_SECRET_KEY)
-    : (process.env.STRIPE_LIVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY);
+const getStripe = async (useTestMode = true) => {
+  // 1. Try DB settings first
+  const settings = await getInternalSettings();
+  const paymentConfig = settings?.payment_config || {};
+
+  let stripeKey;
+
+  if (paymentConfig.enabled && paymentConfig.secret_key) {
+      // Note: AdminSettings.jsx has secret_key. If they didn't separate test/live 
+      // in the UI, we'll use that one.
+      stripeKey = paymentConfig.secret_key;
+  } else {
+      // 2. Fallback to process.env
+      stripeKey = useTestMode
+        ? (process.env.STRIPE_TEST_SECRET_KEY || process.env.STRIPE_SECRET_KEY)
+        : (process.env.STRIPE_LIVE_SECRET_KEY || process.env.STRIPE_SECRET_KEY);
+  }
 
   if (!stripeKey) {
     throw new Error(`Stripe ${useTestMode ? 'test' : 'live'} key is not configured`);
@@ -22,13 +35,13 @@ const getStripe = (useTestMode = true) => {
 
   // Use cached instance or create new
   if (useTestMode) {
-    if (!stripeTest) {
+    if (!stripeTest || stripeTest.apiKey !== stripeKey) {
       stripeTest = new Stripe(stripeKey, { apiVersion: '2023-10-16' });
       console.log('✅ Stripe Test Mode initialized');
     }
     return stripeTest;
   } else {
-    if (!stripeLive) {
+    if (!stripeLive || stripeLive.apiKey !== stripeKey) {
       stripeLive = new Stripe(stripeKey, { apiVersion: '2023-10-16' });
       console.log('✅ Stripe Live Mode initialized');
     }
@@ -182,7 +195,7 @@ router.post('/create-checkout-session', async (req, res) => {
     console.log(`💳 [Payment] Using ${useTestMode ? 'TEST' : 'LIVE'} mode`);
 
     // Create Stripe Checkout Session with appropriate mode
-    const stripeInstance = getStripe(useTestMode);
+    const stripeInstance = await getStripe(useTestMode);
 
     const session = await stripeInstance.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -242,11 +255,11 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     // Try test mode first, then live mode (webhook will use the same mode as checkout)
     let event;
     try {
-      const stripeTestInstance = getStripe(true);
+      const stripeTestInstance = await getStripe(true);
       event = stripeTestInstance.webhooks.constructEvent(req.body, sig, webhookSecret);
     } catch (testError) {
       // If test mode fails, try live mode
-      const stripeLiveInstance = getStripe(false);
+      const stripeLiveInstance = await getStripe(false);
       event = stripeLiveInstance.webhooks.constructEvent(req.body, sig, webhookSecret);
     }
 
@@ -329,10 +342,10 @@ router.get('/verify-session/:sessionId', async (req, res) => {
     // Try to retrieve session from either test or live mode
     let session;
     try {
-      const stripeTestInstance = getStripe(true);
+      const stripeTestInstance = await getStripe(true);
       session = await stripeTestInstance.checkout.sessions.retrieve(sessionId);
     } catch (testError) {
-      const stripeLiveInstance = getStripe(false);
+      const stripeLiveInstance = await getStripe(false);
       session = await stripeLiveInstance.checkout.sessions.retrieve(sessionId);
     }
 

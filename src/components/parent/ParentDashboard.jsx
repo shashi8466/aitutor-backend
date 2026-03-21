@@ -377,7 +377,7 @@ const ChildCoursesReport = () => {
                         <p className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Real-time Performance Metrics & Diagnostic View</p>
                     </div>
                     {!loading && (
-                        <div className="flex gap-4">
+                        <div className="flex flex-wrap gap-4">
                             <SummaryBadge label="Current" value={`${scores.total}/1600`} color="bg-blue-50 text-blue-700" darkColor="dark:bg-blue-900/30 dark:text-blue-300" />
                             <SummaryBadge label="Goal" value={`${scores.target}/1600`} color="bg-purple-50 text-purple-700" darkColor="dark:bg-purple-900/30 dark:text-purple-300" />
                         </div>
@@ -586,7 +586,7 @@ const ChildPerformanceReport = () => {
                     <SafeIcon icon={FiArrowLeft} /> Back to Difficulty
                 </Link>
                 <h2 className="text-3xl font-extrabold text-gray-900 mb-6">Performance Report</h2>
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm responsive-table-container">
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
                             <tr>

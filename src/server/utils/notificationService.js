@@ -7,29 +7,120 @@
 import nodemailer from 'nodemailer';
 import https from 'https';
 import { createRequire } from 'module';
+import { getInternalSettings } from './internalSettings.js';
 
 // ─── Email Transport ────────────────────────────────────────────────────────
 
-function createEmailTransporter() {
-    const user = process.env.EMAIL_USER;
-    const pass = process.env.EMAIL_PASS;
-    const host = process.env.EMAIL_HOST || 'smtp.gmail.com';
-    const port = parseInt(process.env.EMAIL_PORT || '587'); // Switch to 587 for Render
+let cachedTransporter = null;
+let cachedTransporterKey = null;
+
+function getEmailConfigKey({ host, port, secure, user }) {
+    return `${host}:${port}:${secure ? 'secure' : 'starttls'}:${user}`;
+}
+
+async function createEmailTransporter() {
+    // 1. Try DB settings first
+    const settings = await getInternalSettings();
+    const emailConfig = settings?.email_config || {};
+
+    let user, pass, host, port, secure, fromEmail;
+
+    if (emailConfig.enabled && emailConfig.user && emailConfig.pass) {
+        user = emailConfig.user;
+        pass = emailConfig.pass;
+        host = emailConfig.host || 'smtp.gmail.com';
+        port = parseInt(emailConfig.port || '587');
+        fromEmail = emailConfig.from_email || user;
+        secure = (port === 465);
+    } else {
+        // 2. Fallback to process.env
+        user = process.env.EMAIL_USER;
+        pass = process.env.EMAIL_PASS;
+        host = process.env.EMAIL_HOST || 'smtp.gmail.com';
+        port = parseInt(process.env.EMAIL_PORT || '587');
+        fromEmail = process.env.EMAIL_FROM || user;
+        const secureEnv = process.env.EMAIL_SECURE;
+        const secureParsed = typeof secureEnv === 'string'
+            ? (secureEnv.toLowerCase() === 'true' || secureEnv === '1')
+            : (port === 465);
+        secure = secureParsed;
+    }
 
     if (!user || !pass) {
         console.warn('⚠️ [Notifications] SMTP credentials missing – email notifications disabled.');
         return null;
     }
 
-    return nodemailer.createTransport({
+    const key = getEmailConfigKey({ host, port, secure, user });
+    if (cachedTransporter && cachedTransporterKey === key) return cachedTransporter;
+
+    cachedTransporterKey = key;
+    cachedTransporter = nodemailer.createTransport({
         host,
         port,
-        secure: false, // false for 587
+        secure, // true for 465, false for 587 (STARTTLS)
         auth: { user, pass },
         tls: {
             rejectUnauthorized: false // Helps in cloud environments
-        }
+        },
+        // Render/cloud networks can hang on SMTP connect/handshake.
+        // Keep these aggressive so outbox can retry rather than stalling the worker.
+        connectionTimeout: 10000, // 10s
+        greetingTimeout: 5000,    // 5s
+        socketTimeout: 10000,     // 10s
+        pool: true,
+        maxConnections: 2,
+        maxMessages: 50
     });
+    cachedTransporter.fromEmail = fromEmail;
+    return cachedTransporter;
+}
+
+async function sendEmailViaResend({ to, subject, html, text }) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) return { attempted: false, ok: false };
+
+    const from = process.env.EMAIL_FROM || process.env.RESEND_FROM || process.env.EMAIL_USER;
+    if (!from) {
+        console.warn('⚠️ [Email] RESEND_API_KEY set but EMAIL_FROM missing – skipping.');
+        return { attempted: true, ok: false };
+    }
+
+    const controller = new AbortController();
+    const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 10000);
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const resp = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from,
+                to: Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean),
+                subject,
+                html: html || undefined,
+                text: text || undefined
+            }),
+            signal: controller.signal
+        });
+
+        if (!resp.ok) {
+            const body = await resp.text().catch(() => '');
+            console.error(`❌ [Email] Resend error ${resp.status}: ${body}`.slice(0, 1000));
+            return { attempted: true, ok: false };
+        }
+
+        console.log(`✅ [Email] Sent via Resend to ${to}`);
+        return { attempted: true, ok: true };
+    } catch (err) {
+        console.error(`❌ [Email] Resend failed to send to ${to}:`, err?.message || String(err));
+        return { attempted: true, ok: false };
+    } finally {
+        clearTimeout(t);
+    }
 }
 
 /**
@@ -43,13 +134,23 @@ export async function sendEmail({ to, subject, html, text }) {
         return false;
     }
 
-    const transporter = createEmailTransporter();
+    // Prefer HTTP-based providers in cloud environments (more reliable than SMTP).
+    const resend = await sendEmailViaResend({ to, subject, html, text });
+    if (resend.attempted) return resend.ok;
+
+    const transporter = await createEmailTransporter();
     if (!transporter) return false;
 
     const appName = process.env.APP_NAME || 'AI Tutor Platform';
-    const fromEmail = process.env.EMAIL_USER;
+    const fromEmail = transporter.fromEmail || process.env.EMAIL_USER;
 
     try {
+        // Quick verify on first use; if it hangs, it will fail fast due to timeouts above.
+        if (!transporter.__verified) {
+            await transporter.verify().catch(() => null);
+            transporter.__verified = true;
+        }
+
         const info = await transporter.sendMail({
             from: `"${appName}" <${fromEmail}>`,
             to,
@@ -74,8 +175,20 @@ export async function sendEmail({ to, subject, html, text }) {
  * @param {string} body - Message body
  */
 async function twilioSend({ from, to, body }) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken  = process.env.TWILIO_AUTH_TOKEN;
+    // 1. Try DB settings first
+    const settings = await getInternalSettings();
+    const smsConfig = settings?.sms_config || {};
+
+    let accountSid, authToken;
+
+    if (smsConfig.enabled && smsConfig.account_sid && smsConfig.auth_token) {
+        accountSid = smsConfig.account_sid;
+        authToken = smsConfig.auth_token;
+    } else {
+        // 2. Fallback to process.env
+        accountSid = process.env.TWILIO_ACCOUNT_SID;
+        authToken  = process.env.TWILIO_AUTH_TOKEN;
+    }
 
     if (!accountSid || !authToken) {
         console.warn('⚠️ [Twilio] TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN missing – skipping.');
@@ -131,7 +244,16 @@ export async function sendSMS({ to, message }) {
         return false;
     }
 
-    const from = process.env.TWILIO_PHONE_NUMBER;
+    const settings = await getInternalSettings();
+    const smsConfig = settings?.sms_config || {};
+    
+    let from;
+    if (smsConfig.enabled && smsConfig.from_number) {
+        from = smsConfig.from_number;
+    } else {
+        from = process.env.TWILIO_PHONE_NUMBER;
+    }
+
     if (!from) {
         console.warn('⚠️ [SMS] TWILIO_PHONE_NUMBER missing – skipping.');
         return false;
@@ -150,7 +272,17 @@ export async function sendWhatsApp({ to, message }) {
         return false;
     }
 
-    const fromRaw = process.env.TWILIO_WHATSAPP_NUMBER;
+    const settings = await getInternalSettings();
+    const smsConfig = settings?.sms_config || {};
+
+    let fromRaw;
+    if (smsConfig.enabled && smsConfig.whatsapp_number) {
+         // Note: If AdminSettings.jsx doesn't have whatsapp_number, we might use from_number
+         fromRaw = smsConfig.whatsapp_number || smsConfig.from_number;
+    } else {
+         fromRaw = process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER;
+    }
+
     if (!fromRaw) {
         console.warn('⚠️ [WhatsApp] TWILIO_WHATSAPP_NUMBER missing – skipping.');
         return false;
@@ -235,7 +367,7 @@ const BASE_STYLES = `
     .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
     .header p  { font-size: 14px; opacity: 0.85; }
     .body { padding: 28px 32px; }
-    .score-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+    .score-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
     .score-box { flex: 1; min-width: 120px; background: #f7f9fc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #e2e8f0; }
     .score-box .val { font-size: 28px; font-weight: 800; color: #667eea; }
     .score-box .lbl { font-size: 12px; color: #718096; margin-top: 4px; }
@@ -249,10 +381,20 @@ const BASE_STYLES = `
     .badge-green  { background: #c6f6d5; color: #276749; }
     .badge-yellow { background: #fefcbf; color: #975a16; }
     .badge-red    { background: #fed7d7; color: #9b2c2c; }
-    .cta { display: block; width: fit-content; margin: 24px auto 0; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-decoration: none; padding: 14px 36px; border-radius: 50px; font-size: 15px; font-weight: 600; }
+    .cta { display: block; width: fit-content; margin: 24px auto 0; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-decoration: none; padding: 14px 36px; border-radius: 50px; font-size: 15px; font-weight: 600; text-align: center; }
     .footer { text-align: center; padding: 20px 32px; font-size: 12px; color: #a0aec0; border-top: 1px solid #e2e8f0; }
     .tip-box { background: #ebf8ff; border-left: 4px solid #3182ce; border-radius: 8px; padding: 14px 18px; margin: 20px 0; font-size: 14px; color: #2c5282; }
     .reminder-box { background: #fff5f5; border-left: 4px solid #fc8181; border-radius: 8px; padding: 14px 18px; margin: 20px 0; font-size: 14px; color: #742a2a; }
+
+    @media only screen and (max-width: 480px) {
+      .wrapper { padding: 12px 8px !important; }
+      .header { padding: 24px 20px !important; }
+      .header h1 { font-size: 20px !important; }
+      .body { padding: 20px !important; }
+      .score-box { min-width: 100% !important; margin-bottom: 8px; }
+      .score-row { gap: 0 !important; }
+      .cta { width: 100% !important; padding: 14px 20px !important; box-sizing: border-box !important; }
+    }
   </style>`;
 
 /**

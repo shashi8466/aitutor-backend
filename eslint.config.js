@@ -9,7 +9,8 @@ export default [
       'dist',
       'src/server/**',
       '*.cjs',
-      '*.js' // Ignore root-level scripts
+      '*.js',
+      '*.mjs' // Ignore root-level scripts
     ]
   },
   js.configs.recommended,

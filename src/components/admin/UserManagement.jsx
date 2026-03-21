@@ -104,14 +104,14 @@ const UserManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">User Authority</h2>
           <p className="text-gray-500 dark:text-gray-400 font-medium">Manage faculty approval, student roles, and course assignments</p>
         </div>
         <button
           onClick={loadData}
-          className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:bg-gray-50 transition-all"
+          className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:bg-gray-50 transition-all self-end sm:self-auto"
         >
           <SafeIcon icon={FiRefreshCw} className={`w-5 h-5 text-blue-600 ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -125,8 +125,7 @@ const UserManagement = () => {
       )}
 
       {/* Authority Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 responsive-table-container">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
@@ -206,7 +205,6 @@ const UserManagement = () => {
               ))}
             </tbody>
           </table>
-        </div>
       </div>
 
       {/* Management Modal */}

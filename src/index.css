@@ -31,6 +31,22 @@ body {
   }
 }
 
+@layer components {
+  /* Global Utility for Tables on Mobile */
+  .responsive-table-container {
+    @apply overflow-x-auto -mx-4 sm:mx-0;
+  }
+  
+  /* Smooth horizontal scroll for navigation bars */
+  .horizontal-scroll-nav {
+    @apply flex overflow-x-auto scrollbar-hide snap-x snap-mandatory;
+  }
+
+  .horizontal-scroll-nav > * {
+    @apply snap-start;
+  }
+}
+
 /* Math Content Formatting & Overflow Protection */
 .math-content,
 mjx-container {

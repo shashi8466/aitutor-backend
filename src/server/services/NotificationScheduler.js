@@ -90,10 +90,10 @@ class NotificationScheduler {
     try {
       console.log(`📬 [Notification] Triggering test completion notification for submission ${submissionId}`);
       
-      // Fetch submission with course info
+      // Fetch submission (avoid implicit joins; they can break depending on FK naming)
       const { data: submission, error: subError } = await supabase
         .from('test_submissions')
-        .select('*, courses(name), profiles!inner(name)')
+        .select('id, user_id, course_id, level, raw_score, total_questions, raw_score_percentage, scaled_score, test_date')
         .eq('id', submissionId)
         .single();
 
@@ -102,12 +102,22 @@ class NotificationScheduler {
         return;
       }
 
+      // Resolve student + course info (robust across schema variations)
+      const [{ data: studentProfile }, { data: course }] = await Promise.all([
+        supabase.from('profiles').select('id, name, email').eq('id', submission.user_id || studentId).maybeSingle(),
+        supabase.from('courses').select('id, name').eq('id', submission.course_id).maybeSingle()
+      ]);
+
+      if (!studentProfile?.email) {
+        console.warn(`⚠️ [Notification] Student ${submission.user_id || studentId} has no email in profiles.email – email delivery will fail until set.`);
+      }
+
       // Build payload matching email template expectations
       const payload = {
         submissionId,
         studentId,
-        studentName: submission.profiles?.name || 'Student',
-        courseName: submission.courses?.name || 'Course',
+        studentName: studentProfile?.name || 'Student',
+        courseName: course?.name || 'Course',
         level: submission.level,
         rawScore: submission.raw_score,
         totalQuestions: submission.total_questions,

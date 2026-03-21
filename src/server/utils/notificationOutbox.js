@@ -1,5 +1,6 @@
 import supabase from '../../supabase/supabaseAdmin.js';
 import { sendNotification, buildTestCompletionEmail, buildWeeklyReportEmail, buildDueDateReminderEmail } from './notificationService.js';
+import { getInternalSettings } from './internalSettings.js';
 
 const DEFAULT_CHANNELS = ['email', 'sms', 'whatsapp'];
 
@@ -20,12 +21,15 @@ function normalizeChannels(channels) {
 }
 
 async function getPreferences(profileId) {
-  const { data } = await supabase
-    .from('profiles')
-    .select('notification_preferences')
-    .eq('id', profileId)
-    .single();
-  return data?.notification_preferences || null;
+  // Use the canonical preferences table (matches migrations + API routes)
+  const { data, error } = await supabase
+    .from('notification_preferences')
+    .select('*')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+
+  if (error) return null;
+  return data || null;
 }
 
 async function getProfile(profileId) {
@@ -41,18 +45,18 @@ function channelsFromPrefs(prefs, channelsRequested, eventType) {
   const requested = normalizeChannels(channelsRequested);
   if (!prefs) return requested;
 
-  // Use keys matching the UI (AdminNotificationManager)
+  // Canonical columns from `notification_preferences` (see migration)
   const allowEvent =
-    (eventType === 'TEST_COMPLETED' && (prefs.testCompletion !== false)) ||
-    (eventType === 'WEEKLY_REPORT' && (prefs.weeklyProgress !== false)) ||
-    (eventType === 'DUE_DATE_REMINDER' && (prefs.testDueDate !== false));
+    (eventType === 'TEST_COMPLETED' && (prefs.test_completed_enabled !== false)) ||
+    (eventType === 'WEEKLY_REPORT' && (prefs.weekly_report_enabled !== false)) ||
+    (eventType === 'DUE_DATE_REMINDER' && (prefs.due_date_enabled !== false));
 
   if (!allowEvent) return [];
 
   const enabled = [];
-  if (requested.includes('email') && (prefs.email !== false)) enabled.push('email');
-  if (requested.includes('sms') && (prefs.sms !== false)) enabled.push('sms');
-  if (requested.includes('whatsapp') && (prefs.whatsapp !== false)) enabled.push('whatsapp');
+  if (requested.includes('email') && (prefs.email_enabled !== false)) enabled.push('email');
+  if (requested.includes('sms') && (prefs.sms_enabled !== false)) enabled.push('sms');
+  if (requested.includes('whatsapp') && (prefs.whatsapp_enabled !== false)) enabled.push('whatsapp');
   return enabled;
 }
 
@@ -64,8 +68,12 @@ function resolveWhatsApp({ recipientProfile, prefs, fallbackPhone }) {
   return prefs?.whatsapp_e164 || recipientProfile?.whatsapp_number || recipientProfile?.phone_number || recipientProfile?.mobile || fallbackPhone || null;
 }
 
-function buildContent({ eventType, payload, recipientName, isParent }) {
-  const appUrl = process.env.APP_URL || process.env.VITE_APP_URL || '';
+async function buildContent({ eventType, payload, recipientName, isParent }) {
+  // 1. Try DB settings for production URL
+  const dbSettings = await getInternalSettings();
+  const siteConfig = dbSettings?.site_config || {};
+  
+  const appUrl = siteConfig.appUrl || process.env.APP_URL || process.env.VITE_APP_URL || '';
   const appName = process.env.APP_NAME || 'AI Tutor Platform';
 
   if (eventType === 'TEST_COMPLETED') {
@@ -131,6 +139,52 @@ export async function enqueueNotification({
   payload = {},
   scheduledFor = new Date().toISOString()
 }) {
+  // Idempotency / de-dupe for high-frequency events (esp. TEST_COMPLETED).
+  // Prevents duplicate sends when:
+  // - cron runs multiple instances
+  // - manual "reset failed -> pending" is executed
+  // - endpoints are retried by clients
+  const submissionId = payload?.submissionId ?? payload?.submission_id ?? null;
+  if (eventType === 'TEST_COMPLETED' && submissionId) {
+    const { data: existing, error: existingErr } = await supabase
+      .from('notification_outbox')
+      .select('id, status, attempts, scheduled_for')
+      .eq('event_type', eventType)
+      .eq('recipient_profile_id', recipientProfileId)
+      .contains('payload', { submissionId })
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (!existingErr && existing?.length) {
+      const row = existing[0];
+
+      // If it's already queued/processing/sent, don't create another row.
+      if (row.status === 'pending' || row.status === 'processing' || row.status === 'sent') {
+        return row.id;
+      }
+
+      // If it previously failed, re-queue the SAME row (no duplicates).
+      const maxAttempts = Number(process.env.NOTIFICATION_MAX_ATTEMPTS || 5);
+      if (row.status === 'failed' && (row.attempts || 0) < maxAttempts) {
+        const { data: requeued, error: requeueErr } = await supabase
+          .from('notification_outbox')
+          .update({
+            status: 'pending',
+            scheduled_for: scheduledFor,
+            last_error: null
+          })
+          .eq('id', row.id)
+          .select('id')
+          .single();
+
+        if (!requeueErr && requeued?.id) return requeued.id;
+      } else if (row.status === 'failed') {
+        // Give back the row id so callers can inspect it.
+        return row.id;
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('notification_outbox')
     .insert({
@@ -167,13 +221,15 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
 
   for (const item of items) {
     // Claim
-    const { error: claimError } = await supabase
+    const { data: claimed, error: claimError } = await supabase
       .from('notification_outbox')
       .update({ status: 'processing' })
       .eq('id', item.id)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .select('id');
 
-    if (claimError) continue;
+    // If another worker claimed it first, this update returns 0 rows (no error).
+    if (claimError || !claimed?.length) continue;
 
     try {
       const recipientProfile = await getProfile(item.recipient_profile_id);
@@ -194,7 +250,7 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
 
       const fallbackPhone = item.payload?.fallbackPhone || recipientProfile?.father_mobile || null;
 
-      const content = buildContent({
+      const content = await buildContent({
         eventType: item.event_type,
         payload: item.payload || {},
         recipientName,
@@ -203,6 +259,15 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
 
       const phone = resolvePhone({ recipientProfile, prefs, fallbackPhone });
       const whatsappPhone = resolveWhatsApp({ recipientProfile, prefs, fallbackPhone });
+
+      // If a channel is enabled but we lack the destination, treat as a failure
+      // so it shows up clearly and doesn't get marked as "sent" without delivery.
+      const missing = [];
+      if (enabledChannels.includes('email') && !recipientProfile?.email) missing.push('email');
+      if ((enabledChannels.includes('sms') || enabledChannels.includes('whatsapp')) && !phone && !whatsappPhone) missing.push('phone');
+      if (missing.length) {
+        throw new Error(`Missing recipient ${missing.join('+')} for enabled channel(s)`);
+      }
 
       const results = await sendNotification({
         email: recipientProfile?.email,
@@ -213,30 +278,83 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
         channels: enabledChannels
       });
 
-      const ok = (
-        (enabledChannels.includes('email') ? results.email : true) &&
-        (enabledChannels.includes('sms') && phone && !phone.includes('12345') ? results.sms : true) &&
-        (enabledChannels.includes('whatsapp') && whatsappPhone && !whatsappPhone.includes('12345') ? results.whatsapp : true)
+      const dbSettings = await getInternalSettings();
+      const emailConfig = dbSettings?.email_config || {};
+      const smsConfig = dbSettings?.sms_config || {};
+
+      const twilioConfigured = Boolean(
+        (smsConfig.enabled && smsConfig.account_sid && smsConfig.auth_token) ||
+        (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
       );
+      const smsGatewayConfigured = twilioConfigured && Boolean(
+        (smsConfig.enabled && smsConfig.from_number) ||
+        process.env.TWILIO_PHONE_NUMBER
+      );
+      const waGatewayConfigured = twilioConfigured && Boolean(
+        (smsConfig.enabled && (smsConfig.whatsapp_number || smsConfig.from_number)) ||
+        process.env.TWILIO_WHATSAPP_NUMBER
+      );
+
+      const emailGatewayConfigured = Boolean(
+        (emailConfig.enabled && emailConfig.user && emailConfig.pass) ||
+        (process.env.EMAIL_USER && process.env.EMAIL_PASS) ||
+        process.env.RESEND_API_KEY
+      );
+
+      // Consider a channel "required" only if:
+      // - user has that channel enabled
+      // - the destination exists (email/phone)
+      // - the gateway is configured (for Email/SMS/WhatsApp)
+      const emailRequired = enabledChannels.includes('email') && Boolean(recipientProfile?.email) && emailGatewayConfigured;
+      const smsRequired = enabledChannels.includes('sms') && Boolean(phone) && smsGatewayConfigured && !String(phone).includes('12345');
+      const waRequired = enabledChannels.includes('whatsapp') && Boolean(whatsappPhone) && waGatewayConfigured && !String(whatsappPhone).includes('12345');
+
+      const ok = (
+        (emailRequired ? results.email : true) &&
+        (smsRequired ? results.sms : true) &&
+        (waRequired ? results.whatsapp : true)
+      );
+
+      const failureReasons = [];
+      if (enabledChannels.includes('email') && recipientProfile?.email && !emailGatewayConfigured) failureReasons.push('email_gateway_missing');
+      if (emailRequired && !results.email) failureReasons.push('email_failed');
+      if (enabledChannels.includes('sms') && phone && !smsGatewayConfigured) failureReasons.push('sms_gateway_missing');
+      if (smsRequired && !results.sms) failureReasons.push('sms_failed');
+      if (enabledChannels.includes('whatsapp') && whatsappPhone && !waGatewayConfigured) failureReasons.push('whatsapp_gateway_missing');
+      if (waRequired && !results.whatsapp) failureReasons.push('whatsapp_failed');
+
+      const nextAttempts = (item.attempts || 0) + 1;
+      const maxAttempts = Number(process.env.NOTIFICATION_MAX_ATTEMPTS || 5);
+
+      // Exponential-ish backoff: 1m, 2m, 4m, 8m... capped at 30m
+      const backoffMinutes = Math.min(30, Math.pow(2, Math.max(0, nextAttempts - 1)));
+      const retryAt = new Date(Date.now() + backoffMinutes * 60_000).toISOString();
 
       await supabase
         .from('notification_outbox')
         .update({
-          status: ok ? 'sent' : 'failed',
+          status: ok ? 'sent' : (nextAttempts < maxAttempts ? 'pending' : 'failed'),
           sent_at: ok ? new Date().toISOString() : null,
-          attempts: item.attempts + 1,
-          last_error: ok ? null : 'One or more channels failed'
+          attempts: nextAttempts,
+          last_error: ok ? null : (failureReasons.join(',') || 'One or more channels failed'),
+          scheduled_for: ok ? item.scheduled_for : (nextAttempts < maxAttempts ? retryAt : item.scheduled_for)
         })
         .eq('id', item.id);
 
       processed++;
     } catch (err) {
+      const nextAttempts = (item.attempts || 0) + 1;
+      const maxAttempts = Number(process.env.NOTIFICATION_MAX_ATTEMPTS || 5);
+      const backoffMinutes = Math.min(30, Math.pow(2, Math.max(0, nextAttempts - 1)));
+      const retryAt = new Date(Date.now() + backoffMinutes * 60_000).toISOString();
+
       await supabase
         .from('notification_outbox')
         .update({
-          status: 'failed',
-          attempts: item.attempts + 1,
-          last_error: err?.message || String(err)
+          status: nextAttempts < maxAttempts ? 'pending' : 'failed',
+          attempts: nextAttempts,
+          last_error: err?.message || String(err),
+          scheduled_for: nextAttempts < maxAttempts ? retryAt : item.scheduled_for
         })
         .eq('id', item.id);
       processed++;

@@ -82,14 +82,19 @@ const DetailedTestReview = () => {
     return (
         <div className="max-w-6xl mx-auto p-6 space-y-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={() => navigate(-1)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                >
-                    <SafeIcon icon={FiArrowLeft} className="w-5 h-5" />
-                </button>
-                <div className="flex-1">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border border-gray-100 dark:border-gray-700"
+                    >
+                        <SafeIcon icon={FiArrowLeft} className="w-5 h-5" />
+                    </button>
+                    <div className="sm:hidden">
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Test Review</h1>
+                    </div>
+                </div>
+                <div className="flex-1 hidden sm:block">
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Test Review</h1>
                     <p className="text-gray-500 dark:text-gray-400">Detailed question-wise analysis</p>
                 </div>
@@ -125,9 +130,8 @@ const DetailedTestReview = () => {
                         <p className="text-xl font-bold">
                             {Math.floor((submission.test_duration_seconds || submission.duration || 0) / 60)} min
                         </p>
-
                     </div>
-                    <div>
+                    <div className="md:border-l md:border-white/20 md:pl-6">
                         <div className="flex items-center gap-2 mb-2">
                             <SafeIcon icon={FiAward} className="w-5 h-5 opacity-80" />
                             <p className="text-blue-100 text-sm font-bold">Total Score</p>
@@ -146,7 +150,7 @@ const DetailedTestReview = () => {
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
                     <div className="flex items-center justify-between mb-2">
                         <SafeIcon icon={FiInfo} className="w-5 h-5 text-gray-400" />
@@ -181,20 +185,20 @@ const DetailedTestReview = () => {
             </div>
 
             {/* Filter Tabs */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-2 flex gap-2">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-1.5 grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                     onClick={() => setSelectedFilter('all')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-bold transition-colors ${selectedFilter === 'all'
-                        ? 'bg-blue-600 text-white'
+                    className={`px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${selectedFilter === 'all'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none translate-y-[-1px]'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                         }`}
                 >
-                    All Questions ({totalQuestions})
+                    All ({totalQuestions})
                 </button>
                 <button
                     onClick={() => setSelectedFilter('correct')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-bold transition-colors ${selectedFilter === 'correct'
-                        ? 'bg-green-600 text-white'
+                    className={`px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${selectedFilter === 'correct'
+                        ? 'bg-green-600 text-white shadow-md shadow-green-200 dark:shadow-none translate-y-[-1px]'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                         }`}
                 >
@@ -202,8 +206,8 @@ const DetailedTestReview = () => {
                 </button>
                 <button
                     onClick={() => setSelectedFilter('incorrect')}
-                    className={`flex-1 px-4 py-2 rounded-lg font-bold transition-colors ${selectedFilter === 'incorrect'
-                        ? 'bg-red-600 text-white'
+                    className={`px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${selectedFilter === 'incorrect'
+                        ? 'bg-red-600 text-white shadow-md shadow-red-200 dark:shadow-none translate-y-[-1px]'
                         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                         }`}
                 >
