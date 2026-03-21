@@ -110,6 +110,10 @@ async function sendEmailViaResend({ to, subject, html, text }) {
 
         if (!resp.ok) {
             const body = await resp.text().catch(() => '');
+            // 403 = domain not verified – no point retrying or logging verbosely
+            if (resp.status === 403) {
+                return { attempted: true, ok: false, error: `Resend:403_domain_not_verified` };
+            }
             console.error(`❌ [Email] Resend error ${resp.status}: ${body}`.slice(0, 1000));
             return { attempted: true, ok: false, error: `Resend error ${resp.status}: ${body}` };
         }
@@ -135,14 +139,33 @@ export async function sendEmail({ to, subject, html, text }) {
         return { ok: false, error: 'No recipient provided' };
     }
 
-    // Prefer HTTP-based providers in cloud environments (more reliable than SMTP).
-    // However, Resend is strict about 'from' domains (e.g., no @gmail.com without verification).
+    // Try Resend first (HTTP API — works on cloud without SMTP port issues)
     const resend = await sendEmailViaResend({ to, subject, html, text });
     if (resend.attempted && resend.ok) return resend;
-    
-    // If Resend was attempted but failed (e.g., 403 domain error), log it and FALLBACK to SMTP.
-    if (resend.attempted && !resend.ok) {
-        console.warn(`⚠️ [Email] Resend failed (${resend.error}) – falling back to SMTP...`);
+    // If Resend returned 403 domain error, skip silently and try SMTP
+
+    // Try Gmail SMTP fallback (Render-friendly: port 587 is allowed)
+    // Set GMAIL_USER and GMAIL_APP_PASS env vars on Render for this to work
+    const gmailUser = process.env.GMAIL_USER;
+    const gmailPass = process.env.GMAIL_APP_PASS;
+    if (gmailUser && gmailPass) {
+        try {
+            const gmailTransport = nodemailer.createTransport({
+                service: 'gmail',
+                auth: { user: gmailUser, pass: gmailPass },
+                connectionTimeout: 10000
+            });
+            const info = await gmailTransport.sendMail({
+                from: `"AI Tutor Platform" <${gmailUser}>`,
+                to, subject,
+                text: text || '',
+                html: html || text || ''
+            });
+            console.log(`✅ [Email] Sent via Gmail SMTP to ${to} | MessageId: ${info.messageId}`);
+            return { ok: true };
+        } catch (gmailErr) {
+            console.warn(`⚠️ [Email] Gmail fallback failed: ${gmailErr.message}`);
+        }
     }
 
     const transporter = await createEmailTransporter();
