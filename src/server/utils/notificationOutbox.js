@@ -310,18 +310,18 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       const waRequired = enabledChannels.includes('whatsapp') && Boolean(whatsappPhone) && waGatewayConfigured && !String(whatsappPhone).includes('12345');
 
       const ok = (
-        (emailRequired ? results.email : true) &&
-        (smsRequired ? results.sms : true) &&
-        (waRequired ? results.whatsapp : true)
+        (emailRequired ? results.email.ok : true) &&
+        (smsRequired ? results.sms.ok : true) &&
+        (waRequired ? results.whatsapp.ok : true)
       );
 
       const failureReasons = [];
       if (enabledChannels.includes('email') && recipientProfile?.email && !emailGatewayConfigured) failureReasons.push('email_gateway_missing');
-      if (emailRequired && !results.email) failureReasons.push('email_failed');
+      if (emailRequired && !results.email.ok) failureReasons.push(results.email.error || 'email_failed');
       if (enabledChannels.includes('sms') && phone && !smsGatewayConfigured) failureReasons.push('sms_gateway_missing');
-      if (smsRequired && !results.sms) failureReasons.push('sms_failed');
+      if (smsRequired && !results.sms.ok) failureReasons.push(results.sms.error || 'sms_failed');
       if (enabledChannels.includes('whatsapp') && whatsappPhone && !waGatewayConfigured) failureReasons.push('whatsapp_gateway_missing');
-      if (waRequired && !results.whatsapp) failureReasons.push('whatsapp_failed');
+      if (waRequired && !results.whatsapp.ok) failureReasons.push(results.whatsapp.error || 'whatsapp_failed');
 
       const nextAttempts = (item.attempts || 0) + 1;
       const maxAttempts = Number(process.env.NOTIFICATION_MAX_ATTEMPTS || 5);
@@ -336,7 +336,7 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
           status: ok ? 'sent' : (nextAttempts < maxAttempts ? 'pending' : 'failed'),
           sent_at: ok ? new Date().toISOString() : null,
           attempts: nextAttempts,
-          last_error: ok ? null : (failureReasons.join(',') || 'One or more channels failed'),
+          last_error: ok ? null : (failureReasons.join(' | ') || 'Delivery failed'),
           scheduled_for: ok ? item.scheduled_for : (nextAttempts < maxAttempts ? retryAt : item.scheduled_for)
         })
         .eq('id', item.id);
