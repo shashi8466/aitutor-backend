@@ -135,8 +135,14 @@ export async function sendEmail({ to, subject, html, text }) {
     }
 
     // Prefer HTTP-based providers in cloud environments (more reliable than SMTP).
+    // However, Resend is strict about 'from' domains (e.g., no @gmail.com without verification).
     const resend = await sendEmailViaResend({ to, subject, html, text });
-    if (resend.attempted) return resend;
+    if (resend.attempted && resend.ok) return resend;
+    
+    // If Resend was attempted but failed (e.g., 403 domain error), log it and FALLBACK to SMTP.
+    if (resend.attempted && !resend.ok) {
+        console.warn(`⚠️ [Email] Resend failed (${resend.error}) – falling back to SMTP...`);
+    }
 
     const transporter = await createEmailTransporter();
     if (!transporter) return { ok: false, error: 'SMTP credentials missing' };
