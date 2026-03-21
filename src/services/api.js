@@ -482,7 +482,12 @@ export const planService = {
 // --- SETTINGS SERVICE ---
 export const settingsService = {
   get: async () => {
-    return await supabase.from('site_settings').select('*').eq('id', 1).single();
+    try {
+      const res = await axios.get('/api/settings/general');
+      return { data: res.data?.data, error: null };
+    } catch (err) {
+      return { data: null, error: err.response?.data || err };
+    }
   },
   update: async (appName, logoFile) => {
     let logoUrl = null;
@@ -502,16 +507,32 @@ export const settingsService = {
       logoUrl = data.publicUrl;
     }
 
-    const updates = { app_name: appName, updated_at: new Date() };
-    if (logoUrl) updates.logo_url = logoUrl;
-
-    return await supabase.from('site_settings').update(updates).eq('id', 1).select().single();
+    try {
+      const res = await axios.put('/api/settings/general', {
+        app_name: appName,
+        logo_url: logoUrl || undefined
+      });
+      return { data: res.data?.data, error: null };
+    } catch (err) {
+      return { data: null, error: err.response?.data || err };
+    }
   },
   getAdvanced: async () => {
-    return await supabase.from('internal_settings').select('*').eq('id', 1).single();
+    try {
+      const res = await axios.get('/api/settings/advanced');
+      return { data: res.data?.data, error: null };
+    } catch (err) {
+      return { data: null, error: err.response?.data || err };
+    }
   },
   updateAdvanced: async (config) => {
-    return await supabase.from('internal_settings').update({ ...config, updated_at: new Date() }).eq('id', 1).select().single();
+    try {
+      const res = await axios.put('/api/settings/advanced', config);
+      return { data: res.data?.data, error: null };
+    } catch (err) {
+      const errMsg = err.response?.data?.error || err.message || 'Failed to update settings';
+      return { data: null, error: new Error(errMsg) };
+    }
   }
 };
 

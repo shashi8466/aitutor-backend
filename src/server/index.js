@@ -20,6 +20,7 @@ import adminGroupsRoutes from './routes/admin-groups.js';
 import notificationsRoutes from './routes/notifications.js';
 import notificationMiddleware from './middleware/notificationMiddleware.js';
 import adminNotificationRoutes from './routes/admin-notifications.js';
+import settingsRoutes from './routes/settings.js';
 
 // 1. Load environment variables FIRST
 dotenv.config();
@@ -168,6 +169,7 @@ app.use('/api/admin', adminGroupsRoutes);
 app.use('/api/admin', adminNotificationRoutes);
 // app.use('/api/auth-debug', authDebugRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 console.log('✅ All routes mounted successfully');
 app._router.stack.forEach(m => {
