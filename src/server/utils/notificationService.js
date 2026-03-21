@@ -64,14 +64,15 @@ async function createEmailTransporter() {
             rejectUnauthorized: false // Helps in cloud environments
         },
         // Render/cloud networks can hang on SMTP connect/handshake.
-        // Keep these aggressive so outbox can retry rather than stalling the worker.
-        connectionTimeout: 10000, // 10s
-        greetingTimeout: 5000,    // 5s
-        socketTimeout: 10000,     // 10s
+        // Increased for robustness with slow mail servers.
+        connectionTimeout: 20000, // 20s
+        greetingTimeout: 15000,    // 15s
+        socketTimeout: 25000,     // 25s
         pool: true,
         maxConnections: 2,
         maxMessages: 50
     });
+    console.log(`📡 [Email] Initialized transporter (Host: ${host}, Port: ${port}, Secure: ${secure})`);
     cachedTransporter.fromEmail = fromEmail;
     return cachedTransporter;
 }
