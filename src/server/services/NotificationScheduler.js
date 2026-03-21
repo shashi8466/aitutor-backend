@@ -19,18 +19,23 @@ class NotificationScheduler {
     console.log('Starting notification scheduler...');
 
     // Outbox processor - Every minute
-    cron.schedule('* * * * *', async () => {
-      try {
-        console.log('🔄 [Cron] Processing notification outbox...');
-        const { processOutboxOnce } = await import('../utils/notificationOutbox.js');
-        const result = await processOutboxOnce({ limit: 20 });
-        if (result.processed > 0) {
-          console.log(`✅ [Cron] Processed ${result.processed} notifications`);
+    // ⚠️ DISABLED LOCALLY to prevent local environment from consuming/failing production outbox items
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_LOCAL_OUTBOX === 'true') {
+        cron.schedule('* * * * *', async () => {
+        try {
+            console.log('🔄 [Cron] Processing notification outbox...');
+            const { processOutboxOnce } = await import('../utils/notificationOutbox.js');
+            const result = await processOutboxOnce({ limit: 20 });
+            if (result.processed > 0) {
+            console.log(`✅ [Cron] Processed ${result.processed} notifications`);
+            }
+        } catch (e) {
+            console.error('❌ [Cron] Error processing outbox:', e.message);
         }
-      } catch (e) {
-        console.error('❌ [Cron] Error processing outbox:', e.message);
-      }
-    });
+        });
+    } else {
+        console.log('ℹ️ [Cron] Outbox processor disabled locally (NODE_ENV != production)');
+    }
 
     // Weekly progress report - Every Sunday at 9 AM
     cron.schedule('0 9 * * 0', async () => {
