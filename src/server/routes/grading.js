@@ -74,6 +74,54 @@ router.get('/parent/student/:studentId/submissions', async (req, res) => {
     }
 });
 
+/**
+ * GET /api/grading/parent/my-children
+ * Get names and basic info for all students linked to this parent (security bypass)
+ */
+router.get('/parent/my-children', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        // 1. Get parent profile to see linked students
+        const { data: parent, error: pError } = await supabase
+            .from('profiles')
+            .select('role, linked_students')
+            .eq('id', userId)
+            .single();
+
+        if (pError) {
+            console.error('Error fetching parent profile:', pError);
+            return res.status(500).json({ error: 'Failed to fetch parent profile' });
+        }
+
+        if (!parent || parent.role !== 'parent') {
+            return res.status(403).json({ error: 'Parent access level required' });
+        }
+
+        const linkedIds = parent.linked_students || [];
+        if (linkedIds.length === 0) {
+            return res.json({ children: [] });
+        }
+
+        // 2. Fetch children profiles using Admin client to bypass RLS
+        const { data: children, error: cError } = await supabase
+            .from('profiles')
+            .select('id, name, email')
+            .in('id', linkedIds);
+
+        if (cError) {
+            console.error('Error fetching children profiles:', cError);
+            return res.status(500).json({ error: 'Failed to fetch children data' });
+        }
+
+        res.json({ children: children || [] });
+    } catch (error) {
+        console.error('Get parent children fatal error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 
 /**
  * GET /api/grading/parent/student/:studentId/dashboard-data

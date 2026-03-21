@@ -27,7 +27,7 @@ EMAIL_FROM=noreply@yourplatform.com
 
 # Twilio Configuration (SMS & WhatsApp)
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=bbfba98d4dc7f2385470c71481a9af00
+TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
 TWILIO_FROM_NUMBER=+1234567890  # Your actual Twilio number
 WHATSAPP_FROM_NUMBER=whatsapp:+14155238886  # Sandbox or production
 
@@ -130,7 +130,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-key
 EMAIL_USER=your-email@gmail.com
 EMAIL_PASS=your-app-password
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=bbfba98d4dc7f2385470c71481a9af00
+TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
 TWILIO_FROM_NUMBER=+1234567890
 APP_URL=https://educational-ai-backend.onrender.com
 NODE_ENV=production

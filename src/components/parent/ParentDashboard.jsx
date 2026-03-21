@@ -93,30 +93,21 @@ const ChildrenOverview = () => {
     useEffect(() => {
         const fetchChildren = async () => {
             try {
-                let userProfile = user;
-                if (!user.linked_students) {
-                    const { data } = await supabase.from('profiles').select('linked_students').eq('id', user.id).single();
-                    userProfile = { ...user, linked_students: data?.linked_students || [] };
-                }
+                // Use the backend service to fetch linked children (bypasses RLS issues for parent role)
+                const res = await parentService.getMyChildren();
+                const childrenData = res.data?.children || [];
 
-                if (userProfile && userProfile.linked_students?.length > 0) {
-                    const { data } = await supabase
-                        .from('profiles')
-                        .select('id, name')
-                        .in('id', userProfile.linked_students);
-
-                    if (data && data.length > 0) {
-                        setChildren(data.map(child => ({
-                            id: child.id,
-                            name: child.name || 'Anonymous Student',
-                            grade: 'Student Core'
-                        })));
-                    } else {
-                        setChildren([]);
-                    }
+                if (childrenData.length > 0) {
+                    setChildren(childrenData.map(child => ({
+                        id: child.id,
+                        name: child.name || 'Anonymous Student',
+                        email: child.email,
+                        grade: 'Student Core'
+                    })));
                 } else {
                     setChildren([]);
                 }
+
             } catch (err) {
                 console.error(err);
                 setChildren([]);

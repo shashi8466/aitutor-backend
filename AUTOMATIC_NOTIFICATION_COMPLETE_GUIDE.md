@@ -177,7 +177,7 @@ Before testing, verify:
 ✅ EMAIL_USER=your-email@gmail.com
 ✅ EMAIL_PASS=your-app-password
 ✅ TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-✅ TWILIO_AUTH_TOKEN=bbfba98d4dc7f2385470c71481a9af00
+✅ TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
 ✅ TWILIO_FROM_NUMBER=+1234567890
 ✅ APP_URL=https://your-deployed-app.com
 ```

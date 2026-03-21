@@ -724,5 +724,8 @@ export const parentService = {
   },
   getDashboardData: async (studentId) => {
     return axios.get(`/api/grading/parent/student/${studentId}/dashboard-data`);
+  },
+  getMyChildren: async () => {
+    return axios.get('/api/grading/parent/my-children');
   }
-};
+};
