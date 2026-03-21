@@ -128,11 +128,61 @@ async function sendEmailViaResend({ to, subject, html, text }) {
     }
 }
 
+async function sendEmailViaSendGrid({ to, subject, html, text }) {
+    const settings = await getInternalSettings();
+    const apiKey = process.env.SENDGRID_API_KEY || settings?.email_config?.sendgrid_api_key;
+    if (!apiKey) return { attempted: false, ok: false };
+
+    const from = process.env.EMAIL_FROM || settings?.email_config?.from_email || process.env.SENDGRID_FROM || 'ssky57771@gmail.com';
+
+    const controller = new AbortController();
+    const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 10000);
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const toArray = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
+        const personalizations = toArray.map(email => ({ to: [{ email }] }));
+
+        const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                personalizations,
+                from: { email: from, name: "AI Tutor Platform" },
+                subject,
+                content: [
+                    ...(text ? [{ type: 'text/plain', value: text }] : []),
+                    ...(html ? [{ type: 'text/html', value: html }] : [])
+                ]
+            }),
+            signal: controller.signal
+        });
+
+        if (!resp.ok) {
+            const body = await resp.text().catch(() => '');
+            console.error(`❌ [Email] SendGrid error ${resp.status}: ${body}`.slice(0, 1000));
+            return { attempted: true, ok: false, error: `SendGrid error ${resp.status}: ${body}` };
+        }
+
+        console.log(`✅ [Email] Sent via SendGrid to ${to}`);
+        return { attempted: true, ok: true };
+    } catch (err) {
+        console.error(`❌ [Email] SendGrid failed to send to ${to}:`, err?.message || String(err));
+        return { attempted: true, ok: false, error: err?.message || String(err) };
+    } finally {
+        clearTimeout(t);
+    }
+}
+
 /**
  * Send an HTML email.
  * @param {object} opts - { to, subject, html, text }
  * @returns {Promise<object>} - { ok: boolean, error?: string }
  */
+
 export async function sendEmail({ to, subject, html, text }) {
     if (!to) {
         console.warn('⚠️ [Email] No recipient provided – skipping.');
@@ -143,6 +193,10 @@ export async function sendEmail({ to, subject, html, text }) {
     const resend = await sendEmailViaResend({ to, subject, html, text });
     if (resend.attempted && resend.ok) return resend;
     // If Resend returned 403 domain error, skip silently and try SMTP
+
+    // Try SendGrid (another robust HTTP API)
+    const sendgrid = await sendEmailViaSendGrid({ to, subject, html, text });
+    if (sendgrid.attempted && sendgrid.ok) return sendgrid;
 
     // Try Gmail SMTP fallback (Render-friendly: port 587 is allowed)
     // Set GMAIL_USER and GMAIL_APP_PASS env vars on Render for this to work
