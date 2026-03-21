@@ -273,6 +273,13 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
         try {
             console.log(`📬 [Trigger] Enqueuing notification for submission ${result.submission_id}`);
             await notificationMiddleware.scheduler.triggerTestCompletionNotification(result.submission_id, userId);
+            
+            // 🟢 IMMEDIATELY PROCESS OUTBOX
+            // This ensures notifications are sent right away instead of waiting for the minute cron
+            console.log(`🚀 [Trigger] Immediate outbox processing started...`);
+            processOutboxOnce({ limit: 5 }).catch(err => {
+                console.warn('⚠️ [Trigger] Immediate outbox processing background error:', err.message);
+            });
         } catch (noteError) {
             console.error('⚠️ [Trigger] Failed to enqueue notification:', noteError.message);
         }
