@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, lazy, Suspense, useRef } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
@@ -78,6 +78,12 @@ const AdminDashboard = () => {
     { name: 'Settings', path: '/admin/settings', icon: FiSettings },
   ];
 
+  const navRef = useRef(null);
+
+  const scrollNav = (dir) => {
+    if (navRef.current) navRef.current.scrollBy({ left: dir * 180, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -104,26 +110,52 @@ const AdminDashboard = () => {
           </div>
 
           {/* Navigation */}
-          <div className="mt-6 flex bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm horizontal-scroll-nav">
-            {navLinks.map((link) => {
-              const isActive = link.path === '/admin'
-                ? location.pathname === '/admin'
-                : location.pathname.startsWith(link.path);
+          <div className="mt-6 relative">
+            {/* Left scroll button */}
+            <button
+              onClick={() => scrollNav(-1)}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md rounded-full p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+              style={{ marginLeft: '-12px' }}
+            >
+              <svg className="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
 
-              return (
-                <Link
-                  key={link.name}
-                  to={link.path}
-                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${isActive
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+            {/* Scrollable nav */}
+            <div
+              ref={navRef}
+              className="flex bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              {navLinks.map((link) => {
+                const isActive = link.path === '/admin'
+                  ? location.pathname === '/admin'
+                  : location.pathname.startsWith(link.path);
+
+                return (
+                  <Link
+                    key={link.name}
+                    to={link.path}
+                    className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
+                      isActive
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                     }`}
-                >
-                  <SafeIcon icon={link.icon} className="w-4 h-4 mr-2" />
-                  {link.name}
-                </Link>
-              );
-            })}
+                  >
+                    <SafeIcon icon={link.icon} className="w-4 h-4 mr-2" />
+                    {link.name}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Right scroll button */}
+            <button
+              onClick={() => scrollNav(1)}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md rounded-full p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+              style={{ marginRight: '-12px' }}
+            >
+              <svg className="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
           </div>
         </motion.div>
 
