@@ -5,11 +5,9 @@ const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 
 async function check() {
     const s = createClient(url, serviceKey);
-    const { data: outbox } = await s.from('notification_outbox').select('*').order('created_at', { ascending: false }).limit(10);
-    console.log("Recent Outbox Items (Latest first):");
-    outbox.forEach((i, idx) => {
-        console.log(`[${idx}] ${i.event_type} | ${i.status} | Recipient: ${i.recipient_profile_id} | Error: ${i.last_error || 'None'}`);
-    });
+    const { data: outbox } = await s.from('notification_outbox').select('*').eq('status', 'sent').order('sent_at', { ascending: false }).limit(5);
+    console.log("Recently SENT Notifications:");
+    outbox.forEach(i => console.log(`- Sent at: ${i.sent_at} | Event: ${i.event_type} | To ID: ${i.recipient_profile_id}`));
 }
 
 check().catch(console.error);

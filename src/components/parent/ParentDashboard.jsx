@@ -140,7 +140,7 @@ const ChildrenOverview = () => {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.1 }}
-                                className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-750 border border-gray-100 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
+                                className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-lg bg-gray-50 dark:bg-gray-750 border border-gray-100 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
                             >
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xl">
@@ -153,7 +153,7 @@ const ChildrenOverview = () => {
                                 </div>
                                 <Link
                                     to={`/parent/child/${child.id}`}
-                                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-medium text-amber-600 hover:bg-amber-50 dark:hover:bg-gray-700 transition"
+                                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-medium text-amber-600 hover:bg-amber-50 dark:hover:bg-gray-700 transition"
                                 >
                                     View Report <SafeIcon icon={FiChevronRight} />
                                 </Link>
@@ -685,8 +685,8 @@ const DetailedTestReport = () => {
                 </div>
 
                 {/* Premium Result Header */}
-                <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-8 md:p-10 text-white overflow-hidden shadow-lg border border-white/10">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative z-10 divide-x divide-white/10">
+                <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 md:p-10 text-white overflow-hidden shadow-lg border border-white/10">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative z-10 md:divide-x md:divide-white/10">
                         <div className="flex items-center gap-6 px-4">
                             <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
                                 <SafeIcon icon={FiBook} className="w-7 h-7" />
@@ -697,7 +697,7 @@ const DetailedTestReport = () => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6 px-8">
+                        <div className="flex items-center gap-6 px-4 md:px-8">
                             <div>
                                 <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider opacity-80">Date</p>
                                 <h2 className="text-lg font-bold">
@@ -706,7 +706,7 @@ const DetailedTestReport = () => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6 px-8">
+                        <div className="flex items-center gap-6 px-4 md:px-8">
                             <div>
                                 <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider opacity-80">Duration</p>
                                 <h2 className="text-xl font-bold tracking-tight">15 min</h2>
@@ -871,7 +871,7 @@ const ParentDashboard = () => {
     return (
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 flex flex-col font-sans text-gray-900 dark:text-gray-100">
             <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-6 py-4 sticky top-0 z-30 shadow-sm">
-                <div className="flex items-center justify-between max-w-7xl mx-auto w-full">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between max-w-7xl mx-auto w-full gap-4">
                     <div className="flex items-center gap-3 font-semibold">
                         <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-100">
                             <SafeIcon icon={FiUsers} className="w-6 h-6" />
@@ -881,7 +881,7 @@ const ParentDashboard = () => {
                             <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Account: {user?.name || 'Parent'}</p>
                         </div>
                     </div>
-                    <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold uppercase transition-all hover:bg-red-100">
+                    <button onClick={handleLogout} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold uppercase transition-all hover:bg-red-100">
                         <SafeIcon icon={FiLogOut} className="w-4 h-4" /> Logout
                     </button>
                 </div>

@@ -143,19 +143,24 @@ class NotificationScheduler {
       });
       console.log(`✅ [Notification] Queued notification for student ${studentId}`);
 
-      // Find and notify linked parents
-      const { data: parents, error: parentError } = await supabase
+      // Find and notify linked parents (Robuster checking for linked_students array type)
+      const { data: allParents, error: parentError } = await supabase
         .from('profiles')
-        .select('id')
-        .eq('role', 'parent')
-        .contains('linked_students', [studentId]);
+        .select('id, linked_students')
+        .eq('role', 'parent');
 
       if (parentError) {
         console.error('❌ [Notification] Error finding parents:', parentError.message);
         return;
       }
+      
+      const parents = (allParents || []).filter(p => {
+        const linked = p.linked_students || [];
+        // Handle array of strings/UUIDs reliably
+        return Array.isArray(linked) && linked.some(id => String(id).trim() === String(studentId).trim());
+      });
 
-      for (const parent of parents || []) {
+      for (const parent of parents) {
         await enqueueNotification({
           eventType: 'TEST_COMPLETED',
           recipientProfileId: parent.id,

@@ -13,10 +13,13 @@ async function testDBSettings() {
     const transporter = nodemailer.createTransport({
         host: config.host,
         port: parseInt(config.port),
-        secure: config.port === '465',
+        secure: parseInt(config.port) === 465, // Only true for 465
         auth: {
             user: config.user,
             pass: config.pass
+        },
+        tls: {
+            rejectUnauthorized: false
         }
     });
 

@@ -16,7 +16,6 @@ import enrollmentRoutes from './routes/enrollment.js';
 import invitationsRoutes from './routes/invitations.js';
 import gradingRoutes from './routes/grading.js';
 import adminGroupsRoutes from './routes/admin-groups.js';
-// import authDebugRoutes from './routes/auth-debug.js';
 import notificationsRoutes from './routes/notifications.js';
 import notificationMiddleware from './middleware/notificationMiddleware.js';
 import adminNotificationRoutes from './routes/admin-notifications.js';
@@ -30,6 +29,7 @@ console.log('\n🚀 Starting Educational Platform Backend Server...\n');
 // 2. Define paths
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const DIST_PATH = path.join(__dirname, '../../dist');
 
 // 3. Initialize Express
 const app = express();
@@ -41,7 +41,7 @@ console.log(`  - Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`  - OpenAI Key: ${process.env.OPENAI_API_KEY ? '✅ Present' : '❌ Missing'}`);
 console.log('');
 
-// 4. CRITICAL: CORS Configuration
+// 4. CORS Configuration
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -51,7 +51,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
@@ -64,51 +63,29 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Enable compression
 app.use(compression());
 
-console.log('✅ CORS configured for production and local development');
-
-// 5. Body parsing with increased limits
+// 5. Body parsing
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-console.log('✅ Body parsing configured (50MB limit)');
 
 // 6. Request logging & Auth Middleware
 app.use(async (req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.url}`);
-
   try {
     const user = await getUserFromRequest(req);
-    if (user) {
-      req.user = user;
-    }
+    if (user) req.user = user;
   } catch (error) {
     console.warn(`[${timestamp}] Auth middleware warning:`, error.message);
   }
-
   next();
 });
 
-// 7. Root test route
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Educational Platform Backend',
-    status: 'running',
-    version: '2.0.0',
-    endpoints: {
-      health: '/api/health',
-      debug: '/api/debug/routes',
-      ai: '/api/ai/*',
-      upload: '/api/upload',
-      payment: '/api/payment/*'
-    }
-  });
-});
+// 7. Static File Serving (Vite Build)
+app.use(express.static(DIST_PATH));
 
-// 8. Health check
+// 8. API Routes
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -117,45 +94,6 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime()
   });
 });
-
-// 🟢 Debug: Verify Env Vars (Redacted)
-app.get('/api/debug/env', (req, res) => {
-  const redact = (str) => {
-    if (!str) return '❌ MISSING';
-    if (str.length < 8) return '✅ PRESENT (Short)';
-    return `✅ ${str.substring(0, 4)}...${str.substring(str.length - 4)}`;
-  };
-
-  res.json({
-    OPENAI_API_KEY: redact(process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY),
-    SUPABASE_URL: redact(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
-    SUPABASE_KEY: redact(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env['anon-public']),
-    SUPABASE_SERVICE_KEY: redact(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SERVICE_ROLE_KEY || process.env['service_role']),
-    NODE_ENV: process.env.NODE_ENV,
-    PORT: process.env.PORT
-  });
-});
-
-// 🟦 Debug: Show exact Supabase project host (no secrets)
-app.get('/api/debug/supabase', (req, res) => {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
-  let host = '';
-  try {
-    host = url ? new URL(url).host : '';
-  } catch {
-    host = '';
-  }
-  res.json({
-    supabaseUrl: url || null,
-    supabaseHost: host || null,
-    hint: 'Compare supabaseHost with your Supabase dashboard project URL (the *.supabase.co subdomain must match).'
-  });
-});
-
-console.log('✅ Core routes registered\n');
-
-
-console.log('🔗 Mounting Feature Routes...');
 
 app.use('/api/ai', aiRoutes);
 app.use('/api/upload', uploadRoutes);
@@ -167,89 +105,50 @@ app.use('/api/invitations', invitationsRoutes);
 app.use('/api/grading', gradingRoutes);
 app.use('/api/admin', adminGroupsRoutes);
 app.use('/api/admin', adminNotificationRoutes);
-// app.use('/api/auth-debug', authDebugRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/settings', settingsRoutes);
 
-console.log('✅ All routes mounted successfully');
-app._router.stack.forEach(m => {
-  if (m.name === 'router') {
-    const path = m.regexp.source.replace('\\/?(?=\\/|$)', '').replace(/\\\//g, '/').replace('^', '');
-    console.log(`   - Mounted Router at: ${path}`);
-  }
-});
-console.log('');
-
-// 10. Debug routes endpoint
-app.get('/api/debug/routes', (req, res) => {
-  const routes = [];
-
-  app._router.stack.forEach((middleware) => {
-    if (middleware.route) {
-      routes.push({
-        path: middleware.route.path,
-        methods: Object.keys(middleware.route.methods)
-      });
-    } else if (middleware.name === 'router') {
-      middleware.handle.stack.forEach((handler) => {
-        if (handler.route) {
-          const basePath = middleware.regexp.source
-            .replace('\\/?', '')
-            .replace('(?=\\/|$)', '')
-            .replace(/\\\//g, '/');
-          routes.push({
-            path: basePath + handler.route.path,
-            methods: Object.keys(handler.route.methods)
-          });
-        }
-      });
-    }
-  });
-
+// 9. Root API Info
+app.get('/api', (req, res) => {
   res.json({
-    message: 'Registered API Routes',
-    status: 'all_mounted_statically',
-    routes,
-    totalRoutes: routes.length
+    message: 'Educational Platform API',
+    status: 'running',
+    version: '2.0.0'
   });
 });
 
-// 11. 404 Handler
-app.use('/api/*', (req, res) => {
-  console.warn(`⚠️ 404 Not Found: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({
-    error: `API endpoint not found: ${req.originalUrl}`,
-    method: req.method,
-    hint: 'Visit /api/debug/routes to see all registered routes'
-  });
+// 10. Catch-all for SPA Routing (MUST BE AFTER API ROUTES)
+app.get('*', (req, res) => {
+  // If requesting something in /api that doesn't exist, don't serve index.html
+  if (req.url.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  res.sendFile(path.join(DIST_PATH, 'index.html'));
 });
 
-// 12. Global error handler
+// 11. Error handling
 app.use((err, req, res, next) => {
   console.error('💥 Server Error:', err);
   res.status(500).json({
     error: 'Internal server error',
-    message: err.message,
-    path: req.path
+    message: err.message
   });
 });
 
-// 13. Start server
+// 12. Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🚀 SERVER SUCCESSFULLY STARTED');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
-  console.log('📡 Server Address: http://0.0.0.0:' + PORT);
-  console.log('🌐 API Base URL: http://localhost:' + PORT + '/api');
-  console.log('');
+  console.log(`📡 Port: ${PORT}`);
+  console.log(`🌐 Frontend: http://localhost:${PORT}`);
+  console.log(`🌐 API: http://localhost:${PORT}/api`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   
-  // Initialize notification scheduler
   try {
     notificationMiddleware.initializeScheduler();
-    console.log('🔔 Notification scheduler initialized successfully');
+    console.log('🔔 Notification scheduler initialized');
   } catch (error) {
-    console.error('❌ Failed to initialize notification scheduler:', error.message);
+    console.error('❌ Notification scheduler failed:', error.message);
   }
 });

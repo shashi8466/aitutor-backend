@@ -14,6 +14,13 @@ import { getInternalSettings } from './internalSettings.js';
 let cachedTransporter = null;
 let cachedTransporterKey = null;
 
+/** Call this after changing SMTP settings to force new connection. */
+export function resetTransporterCache() {
+    cachedTransporter = null;
+    cachedTransporterKey = null;
+    console.log('🔄 [Email] Transporter cache cleared – will reconnect on next send.');
+}
+
 function getEmailConfigKey({ host, port, secure, user }) {
     return `${host}:${port}:${secure ? 'secure' : 'starttls'}:${user}`;
 }
@@ -31,7 +38,8 @@ async function createEmailTransporter() {
         host = emailConfig.host || 'smtp.gmail.com';
         port = parseInt(emailConfig.port || '587');
         fromEmail = emailConfig.from_email || user;
-        secure = (port === 465);
+        // Use the explicit secure bit from DB if it exists, otherwise check port
+        secure = (emailConfig.secure !== undefined) ? emailConfig.secure : (port === 465);
     } else {
         // 2. Fallback to process.env
         user = process.env.EMAIL_USER;
@@ -189,17 +197,17 @@ export async function sendEmail({ to, subject, html, text }) {
         return { ok: false, error: 'No recipient provided' };
     }
 
-    // Try Resend first (HTTP API — works on cloud without SMTP port issues)
+    // 1. Try Resend first (HTTP API — no SMTP port issues)
     const resend = await sendEmailViaResend({ to, subject, html, text });
     if (resend.attempted && resend.ok) return resend;
-    // If Resend returned 403 domain error, skip silently and try SMTP
 
-    // Try SendGrid (another robust HTTP API)
+    // 2. Try SendGrid (HTTP API)
     const sendgrid = await sendEmailViaSendGrid({ to, subject, html, text });
     if (sendgrid.attempted && sendgrid.ok) return sendgrid;
 
-    // Try Gmail SMTP fallback (Render-friendly: port 587 is allowed)
-    // Set GMAIL_USER and GMAIL_APP_PASS env vars on Render for this to work
+    // 3. Try Gmail SMTP — tried BEFORE custom SMTP because Gmail uses Google's
+    //    own servers which are reachable on any network, unlike custom SMTP
+    //    servers that may have port 465/587 blocked by local ISPs.
     const gmailUser = process.env.GMAIL_USER;
     const gmailPass = process.env.GMAIL_APP_PASS;
     if (gmailUser && gmailPass) {
@@ -207,7 +215,8 @@ export async function sendEmail({ to, subject, html, text }) {
             const gmailTransport = nodemailer.createTransport({
                 service: 'gmail',
                 auth: { user: gmailUser, pass: gmailPass },
-                connectionTimeout: 10000
+                connectionTimeout: 15000,
+                tls: { rejectUnauthorized: false }
             });
             const info = await gmailTransport.sendMail({
                 from: `"AI Tutor Platform" <${gmailUser}>`,
@@ -218,70 +227,66 @@ export async function sendEmail({ to, subject, html, text }) {
             console.log(`✅ [Email] Sent via Gmail SMTP to ${to} | MessageId: ${info.messageId}`);
             return { ok: true };
         } catch (gmailErr) {
-            console.warn(`⚠️ [Email] Gmail fallback failed: ${gmailErr.message}`);
+            console.warn(`⚠️ [Email] Gmail SMTP failed: ${gmailErr.message}`);
         }
     }
 
+    // 4. Try Custom SMTP (DB-configured, e.g. gigatechservices.org)
+    //    This is last because custom SMTP ports may be blocked by ISP/firewall
+    //    in local/cloud environments. Works best in dedicated server environments.
     const transporter = await createEmailTransporter();
-    if (!transporter) return { ok: false, error: 'SMTP credentials missing' };
+    if (transporter) {
+        const appName = process.env.APP_NAME || 'AI Tutor Platform';
+        const fromEmail = transporter.fromEmail || process.env.EMAIL_USER;
 
-    const appName = process.env.APP_NAME || 'AI Tutor Platform';
-    const fromEmail = transporter.fromEmail || process.env.EMAIL_USER;
+        try {
+            if (!transporter.__verified) {
+                await transporter.verify().catch(() => null);
+                transporter.__verified = true;
+            }
+            const info = await transporter.sendMail({
+                from: `"${appName}" <${fromEmail}>`,
+                to, subject,
+                text: text || '',
+                html: html || text || ''
+            });
+            console.log(`✅ [Email] Sent via Custom SMTP to ${to} | MessageId: ${info.messageId}`);
+            return { ok: true };
+        } catch (err) {
+            const errorMsg = err.message || String(err);
+            console.warn(`⚠️ [Email] Custom SMTP Failed (${errorMsg})`);
 
-    try {
-        // Quick verify on first use; if it hangs, it will fail fast due to timeouts above.
-        if (!transporter.__verified) {
-            await transporter.verify().catch(() => null);
-            transporter.__verified = true;
-        }
-
-        const info = await transporter.sendMail({
-            from: `"${appName}" <${fromEmail}>`,
-            to,
-            subject,
-            text: text || '',
-            html: html || text || ''
-        });
-        console.log(`✅ [Email] Sent to ${to} | MessageId: ${info.messageId}`);
-        return { ok: true };
-    } catch (err) {
-        const errorMsg = err.message || String(err);
-        console.warn(`⚠️ [Email] SMTP Primary Attempt Failed (${errorMsg})...`);
-        
-        // 🚀 SMART FALLBACK: If Port 465 (SSL) failed (common on cloud firewalls),
-        // try Port 587 (Explicit TLS/STARTTLS) as a last resort.
-        const transporterRaw = await createEmailTransporter(); // re-fetch config
-        const currentPort = transporterRaw?.options?.port;
-        
-        if (currentPort === 465 && (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || errorMsg.includes('timeout'))) {
-            console.log(`🔄 [Email] Port 465 seems blocked. Attempting Port 587 (TLS Fallback)...`);
-            try {
-                const fallbackTransporter = nodemailer.createTransport({
-                    ...transporterRaw.options,
-                    port: 587,
-                    secure: false, // STARTTLS
-                    connectionTimeout: 10000,
-                    greetingTimeout: 5000
-                });
-                
-                const fallbackInfo = await fallbackTransporter.sendMail({
-                    from: `"${appName}" <${fromEmail}>`,
-                    to,
-                    subject,
-                    text: text || '',
-                    html: html || text || ''
-                });
-                console.log(`✅ [Email] Sent via Port 587 Fallback to ${to} | MessageId: ${fallbackInfo.messageId}`);
-                return { ok: true };
-            } catch (fallbackErr) {
-                console.error(`❌ [Email] Port 587 Fallback also failed:`, fallbackErr.message);
-                return { ok: false, error: `${errorMsg} | Fallback Error: ${fallbackErr.message}` };
+            // Port 465 → 587 fallback for custom SMTP
+            const transporterRaw = await createEmailTransporter();
+            const currentPort = transporterRaw?.options?.port;
+            if (currentPort === 465 && (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || errorMsg.includes('timeout'))) {
+                console.log(`🔄 [Email] Trying custom SMTP on Port 587...`);
+                try {
+                    const fallbackTransporter = nodemailer.createTransport({
+                        ...transporterRaw.options,
+                        port: 587,
+                        secure: false,
+                        connectionTimeout: 10000,
+                        greetingTimeout: 5000
+                    });
+                    const fallbackInfo = await fallbackTransporter.sendMail({
+                        from: `"${appName}" <${fromEmail}>`,
+                        to, subject,
+                        text: text || '',
+                        html: html || text || ''
+                    });
+                    console.log(`✅ [Email] Sent via Custom SMTP Port 587 to ${to} | MessageId: ${fallbackInfo.messageId}`);
+                    return { ok: true };
+                } catch (fallbackErr) {
+                    console.error(`❌ [Email] Custom SMTP Port 587 also failed: ${fallbackErr.message}`);
+                }
+            } else {
+                console.error(`❌ [Email] Custom SMTP failed to send to ${to}: ${errorMsg}`);
             }
         }
-
-        console.error(`❌ [Email] Failed to send to ${to}:`, errorMsg);
-        return { ok: false, error: errorMsg };
     }
+
+    return { ok: false, error: 'All email methods failed' };
 }
 
 // ─── Twilio Helper (SMS + WhatsApp) ─────────────────────────────────────────
