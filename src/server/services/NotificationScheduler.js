@@ -134,6 +134,7 @@ class NotificationScheduler {
       console.log(`✅ [Notification] Payload built for ${payload.studentName} - Score: ${payload.rawPercentage}%`);
 
       // Send to student
+      console.log("Student:", studentProfile?.email || "❌ MISSING");
       await enqueueNotification({
         eventType: 'TEST_COMPLETED',
         recipientProfileId: studentId,
@@ -146,7 +147,7 @@ class NotificationScheduler {
       // Find and notify linked parents (Robuster checking for linked_students array type)
       const { data: allParents, error: parentError } = await supabase
         .from('profiles')
-        .select('id, linked_students')
+        .select('id, email, linked_students')
         .eq('role', 'parent');
 
       if (parentError) {
@@ -161,6 +162,7 @@ class NotificationScheduler {
       });
 
       for (const parent of parents) {
+        console.log("Parent:", parent.email || "❌ MISSING");
         await enqueueNotification({
           eventType: 'TEST_COMPLETED',
           recipientProfileId: parent.id,

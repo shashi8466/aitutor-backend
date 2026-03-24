@@ -97,6 +97,8 @@ async function sendEmailViaResend({ to, subject, html, text }) {
     const t = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
+        console.log("📧 Sending to:", to);
+
         const resp = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
@@ -113,14 +115,20 @@ async function sendEmailViaResend({ to, subject, html, text }) {
             signal: controller.signal
         });
 
+        const bodyText = await resp.text().catch(() => '');
+
         if (!resp.ok) {
-            const body = await resp.text().catch(() => '');
-            console.error(`❌ [Email] Resend error ${resp.status}: ${body}`.slice(0, 500));
+            console.error(`❌ [Email] Resend error ${resp.status}: ${bodyText}`.slice(0, 500));
             return { attempted: true, ok: false, error: `Resend error ${resp.status}` };
         }
 
+        // Successfully sent via Resend API
+        let responseJson = {};
+        try { responseJson = JSON.parse(bodyText); } catch(e) {}
+        
+        console.log(`✅ Resend response:`, responseJson);
         console.log(`✅ [Email] Sent via Resend (from: ${from}) to ${to}`);
-        return { attempted: true, ok: true };
+        return { attempted: true, ok: true, id: responseJson.id };
     } catch (err) {
         console.error(`❌ [Email] Resend failed to send to ${to}:`, err?.message || String(err));
         return { attempted: true, ok: false, error: err?.message || String(err) };
