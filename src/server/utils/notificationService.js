@@ -454,33 +454,55 @@ export async function sendNotification({ email, phone, subject, emailHtml, smsMe
 // ─── Email HTML Templates ────────────────────────────────────────────────────
 
 const BASE_STYLES = `
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; color: #1a202c; }
-    .wrapper { max-width: 620px; margin: 0 auto; padding: 24px 16px; }
-    .card { background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 32px 32px 24px; color: #fff; }
-    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-    .header p  { font-size: 14px; opacity: 0.85; }
-    .body { padding: 28px 32px; }
-    .score-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
-    .score-box { flex: 1; min-width: 120px; background: #f7f9fc; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #e2e8f0; }
-    .score-box .val { font-size: 28px; font-weight: 800; color: #667eea; }
-    .score-box .lbl { font-size: 12px; color: #718096; margin-top: 4px; }
-    .section-title { font-size: 16px; font-weight: 700; color: #2d3748; margin: 24px 0 12px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th { background: #667eea; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
-    td { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f0f4f8; color: #1a202c; -webkit-text-size-adjust: 100%; }
+    .wrapper { max-width: 600px; margin: 0 auto; width: 100%; padding: 20px 10px; }
+    .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 24px 20px; color: #fff; text-align: center; }
+    .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; line-height: 1.2; }
+    .header p  { font-size: 14px; opacity: 0.9; margin: 0; }
+    .body { padding: 24px; }
+    
+    /* Responsive Score Grid (Fallback for email clients) */
+    .score-row { width: 100%; text-align: center; margin: 20px 0; }
+    .score-box { display: inline-block; width: 31%; min-width: 110px; background: #f7f9fc; border-radius: 10px; padding: 16px 8px; margin: 0 1% 10px; text-align: center; border: 1px solid #e2e8f0; vertical-align: top; box-sizing: border-box; }
+    
+    .score-box .val { font-size: 24px; font-weight: 800; color: #667eea; line-height: 1.2; }
+    .score-box .lbl { font-size: 12px; color: #718096; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .section-title { font-size: 16px; font-weight: 700; color: #2d3748; margin: 24px 0 12px; text-align: left; }
+    
+    /* Table styling */
+    .table-container { width: 100%; overflow-x: auto; margin-bottom: 16px; }
+    table { width: 100%; min-width: 400px; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th { background: #f7f9fc; color: #4a5568; padding: 12px; font-weight: 700; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+    td { padding: 12px; border-bottom: 1px solid #e2e8f0; color: #2d3748; }
     tr:last-child td { border-bottom: none; }
-    tr:nth-child(even) td { background: #f7f9fc; }
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .badge-green  { background: #c6f6d5; color: #276749; }
-    .badge-yellow { background: #fefcbf; color: #975a16; }
-    .badge-red    { background: #fed7d7; color: #9b2c2c; }
-    .cta { display: block; width: fit-content; margin: 24px auto 0; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-decoration: none; padding: 14px 36px; border-radius: 50px; font-size: 15px; font-weight: 600; text-align: center; }
-    .footer { text-align: center; padding: 20px 32px; font-size: 12px; color: #a0aec0; border-top: 1px solid #e2e8f0; }
-    .tip-box { background: #ebf8ff; border-left: 4px solid #3182ce; border-radius: 8px; padding: 14px 18px; margin: 20px 0; font-size: 14px; color: #2c5282; }
-    .reminder-box { background: #fff5f5; border-left: 4px solid #fc8181; border-radius: 8px; padding: 14px 18px; margin: 20px 0; font-size: 14px; color: #742a2a; }
+    
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .badge-green  { background: #c6f6d5; color: #22543d; }
+    .badge-yellow { background: #fefcbf; color: #744210; }
+    .badge-red    { background: #fed7d7; color: #742a2a; }
+    
+    .cta { display: block; max-width: 250px; margin: 25px auto 10px; background: #667eea; color: #ffffff; text-decoration: none; padding: 14px 20px; border-radius: 8px; font-size: 15px; font-weight: 700; text-align: center; }
+    
+    .footer { text-align: center; padding: 20px; font-size: 12px; color: #a0aec0; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+    .tip-box, .reminder-box { border-radius: 8px; padding: 14px 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; text-align: left; }
+    .tip-box { background: #ebf8ff; border-left: 4px solid #3182ce; color: #2c5282; }
+    .reminder-box { background: #fff5f5; border-left: 4px solid #fc8181; color: #742a2a; }
+
+    /* Mobile specifically */
+    @media only screen and (max-width: 480px) {
+      .wrapper { padding: 10px; }
+      .header { padding: 25px 15px 15px; }
+      .body { padding: 16px; }
+      .score-box { width: 47%; min-width: 47%; margin: 0 1% 10px; padding: 14px 8px; }
+      .score-box .val { font-size: 20px; }
+      .cta { width: 100%; max-width: 100%; margin-top: 20px; }
+      th, td { padding: 10px 8px; font-size: 12px; }
+    }
   </style>`;
 
 export function buildTestCompletionEmail({ studentName, testName, courseName, score, totalQuestions, correctAnswers, scaledScore, testDate, appUrl }) {
