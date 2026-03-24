@@ -262,22 +262,23 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
 
       const recipientEmails = item.payload?.recipientEmails || (recipientProfile?.email ? [recipientProfile.email] : []);
 
-      // If a channel is enabled but we lack the destination, treat as a failure
-      // so it shows up clearly and doesn't get marked as "sent" without delivery.
-      const missing = [];
-      if (enabledChannels.includes('email') && recipientEmails.length === 0) missing.push('email');
-      if ((enabledChannels.includes('sms') || enabledChannels.includes('whatsapp')) && !phone && !whatsappPhone) missing.push('phone');
-      if (missing.length) {
-        throw new Error(`Missing recipient ${missing.join('+')} for enabled channel(s)`);
+      // Gracefully degrade enabled channels if destination contact info is missing
+      const actualChannels = [];
+      if (enabledChannels.includes('email') && recipientEmails.length > 0) actualChannels.push('email');
+      if (enabledChannels.includes('sms') && (phone || whatsappPhone)) actualChannels.push('sms');
+      if (enabledChannels.includes('whatsapp') && (phone || whatsappPhone)) actualChannels.push('whatsapp');
+
+      if (actualChannels.length === 0) {
+         throw new Error('No valid contact methods (email/phone) found for any enabled channel');
       }
 
       const results = await sendNotification({
         email: recipientEmails,
-        phone: enabledChannels.includes('whatsapp') ? whatsappPhone : phone,
+        phone: actualChannels.includes('whatsapp') ? whatsappPhone : phone,
         subject: content.subject,
         emailHtml: content.emailHtml,
         smsMessage: content.smsMessage,
-        channels: enabledChannels
+        channels: actualChannels
       });
 
       const dbSettings = await getInternalSettings();
