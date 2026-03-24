@@ -7,7 +7,11 @@
 import nodemailer from 'nodemailer';
 import https from 'https';
 import { createRequire } from 'module';
-import { getInternalSettings } from './internalSettings.js';
+import SibApiV3Sdk from 'sib-api-v3-sdk';
+
+const { getInternalSettings } = await import('./internalSettings.js').catch(() => ({
+    getInternalSettings: async () => ({})
+}));
 
 // ─── Email Transport ────────────────────────────────────────────────────────
 
@@ -23,6 +27,46 @@ export function resetTransporterCache() {
 
 function getEmailConfigKey({ host, port, secure, user }) {
     return `${host}:${port}:${secure ? 'secure' : 'starttls'}:${user}`;
+}
+
+async function sendEmailViaBrevo({ to, subject, html, text }) {
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) return { attempted: false, ok: false };
+
+    try {
+        const defaultClient = SibApiV3Sdk.ApiClient.instance;
+        const apiKeyAuth = defaultClient.authentications['api-key'];
+        apiKeyAuth.apiKey = apiKey;
+
+        const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+
+        sendSmtpEmail.subject = subject;
+        sendSmtpEmail.htmlContent = html || text || '<p>Notification</p>';
+        if (text && !html) sendSmtpEmail.textContent = text;
+        
+        // Ensure to is array formatted
+        const toList = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
+        sendSmtpEmail.to = toList.map(email => ({ email }));
+
+        // Hardcode exactly what the user requested, or fallback to env var
+        const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'ssky57771@gmail.com';
+        sendSmtpEmail.sender = { email: senderEmail, name: "AI Tutor Platform" };
+
+        console.log("📧 Sending via Brevo to:", toList.join(', '));
+        
+        const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
+        console.log(`✅ [Email] Sent via Brevo to ${toList.join(', ')} | MessageId: ${data.messageId}`);
+        return { attempted: true, ok: true, id: data.messageId };
+        
+    } catch (err) {
+        let errorMsg = err.message || String(err);
+        if (err.response && err.response.text) {
+            errorMsg = err.response.text;
+        }
+        console.error(`❌ [Email] Brevo failed to send to ${to}:`, errorMsg);
+        return { attempted: true, ok: false, error: errorMsg };
+    }
 }
 
 async function createEmailTransporter() {
@@ -198,7 +242,11 @@ export async function sendEmail({ to, subject, html, text }) {
         return { ok: false, error: 'No recipient provided' };
     }
 
-    // 1. Try Resend first (HTTP API — no SMTP port issues)
+    // 1. Try Brevo (Sendinblue) first as explicitly requested
+    const brevo = await sendEmailViaBrevo({ to, subject, html, text });
+    if (brevo.attempted && brevo.ok) return brevo;
+
+    // 2. Try Resend (HTTP API — no SMTP port issues)
     const resend = await sendEmailViaResend({ to, subject, html, text });
     if (resend.attempted && resend.ok) return resend;
 
