@@ -89,9 +89,9 @@ async function sendEmailViaResend({ to, subject, html, text }) {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) return { attempted: false, ok: false };
 
-    // Try the configured from address first, then fallback to Gmail address
+    // Try the configured from address first, then fallback to Resend's onboarding address
     const fromPrimary = process.env.EMAIL_FROM || process.env.RESEND_FROM;
-    const fromFallback = process.env.EMAIL_USER || process.env.GMAIL_USER || 'ssky57771@gmail.com';
+    const fromFallback = 'onboarding@resend.dev';
     const fromCandidates = [...new Set([fromPrimary, fromFallback].filter(Boolean))];
 
     for (const from of fromCandidates) {
