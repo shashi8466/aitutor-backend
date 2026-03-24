@@ -260,17 +260,19 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       const phone = resolvePhone({ recipientProfile, prefs, fallbackPhone });
       const whatsappPhone = resolveWhatsApp({ recipientProfile, prefs, fallbackPhone });
 
+      const recipientEmails = item.payload?.recipientEmails || (recipientProfile?.email ? [recipientProfile.email] : []);
+
       // If a channel is enabled but we lack the destination, treat as a failure
       // so it shows up clearly and doesn't get marked as "sent" without delivery.
       const missing = [];
-      if (enabledChannels.includes('email') && !recipientProfile?.email) missing.push('email');
+      if (enabledChannels.includes('email') && recipientEmails.length === 0) missing.push('email');
       if ((enabledChannels.includes('sms') || enabledChannels.includes('whatsapp')) && !phone && !whatsappPhone) missing.push('phone');
       if (missing.length) {
         throw new Error(`Missing recipient ${missing.join('+')} for enabled channel(s)`);
       }
 
       const results = await sendNotification({
-        email: recipientProfile?.email,
+        email: recipientEmails,
         phone: enabledChannels.includes('whatsapp') ? whatsappPhone : phone,
         subject: content.subject,
         emailHtml: content.emailHtml,

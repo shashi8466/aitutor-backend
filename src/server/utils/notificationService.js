@@ -45,16 +45,14 @@ async function sendEmailViaBrevo({ to, subject, html, text }) {
         sendSmtpEmail.htmlContent = html || text || '<p>Notification</p>';
         if (text && !html) sendSmtpEmail.textContent = text;
         
-        // Ensure to is array formatted
-        const toList = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
-        sendSmtpEmail.to = toList.map(email => ({ email }));
-
-        // Hardcode exactly what the user requested, or fallback to env var
         const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'ssky57771@gmail.com';
         sendSmtpEmail.sender = { email: senderEmail, name: "AI Tutor Platform" };
 
-        console.log("📧 Sending via Brevo to:", toList.join(', '));
+        const toList = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
+        console.log("📧 Sending via Brevo to:", toList);
         
+        sendSmtpEmail.to = toList.map(email => ({ email }));
+
         const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
         console.log(`✅ [Email] Sent via Brevo to ${toList.join(', ')} | MessageId: ${data.messageId}`);
         return { attempted: true, ok: true, id: data.messageId };

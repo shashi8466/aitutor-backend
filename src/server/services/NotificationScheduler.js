@@ -113,8 +113,34 @@ class NotificationScheduler {
         supabase.from('courses').select('id, name').eq('id', submission.course_id).maybeSingle()
       ]);
 
-      if (!studentProfile?.email) {
-        console.warn(`⚠️ [Notification] Student ${submission.user_id || studentId} has no email in profiles.email – email delivery will fail until set.`);
+      const studentEmail = studentProfile?.email;
+      if (!studentEmail) {
+        console.warn(`⚠️ [Notification] Student ${submission.user_id || studentId} has no email – delivery will skip student.`);
+      }
+
+      // Collect all parents
+      const { data: allParents, error: parentError } = await supabase
+        .from('profiles')
+        .select('id, name, email, linked_students')
+        .eq('role', 'parent');
+
+      const parents = (allParents || []).filter(p => {
+        const linked = p.linked_students || [];
+        return Array.isArray(linked) && linked.some(id => String(id).trim() === String(studentId).trim());
+      });
+
+      const parentEmails = parents.map(p => p.email).filter(Boolean);
+      
+      // Build a unified recipient list for the payload
+      // We will store all emails in payload.recipientEmails
+      const recipientEmails = [studentEmail, ...parentEmails].filter(Boolean);
+
+      console.log("Student:", studentEmail || "❌ MISSING");
+      parentEmails.forEach(pe => console.log("Parent:", pe));
+
+      if (recipientEmails.length === 0) {
+        console.warn('⚠️ [Notification] No valid emails found for student or parents. Skipping.');
+        return;
       }
 
       // Build payload matching email template expectations
@@ -128,13 +154,13 @@ class NotificationScheduler {
         totalQuestions: submission.total_questions,
         rawPercentage: submission.raw_score_percentage,
         scaledScore: submission.scaled_score,
-        testDate: submission.test_date
+        testDate: submission.test_date,
+        recipientEmails // 🔥 NEW: consolidated list for Brevo
       };
 
       console.log(`✅ [Notification] Payload built for ${payload.studentName} - Score: ${payload.rawPercentage}%`);
 
-      // Send to student
-      console.log("Student:", studentProfile?.email || "❌ MISSING");
+      // Send to student profile (as the primary record holder)
       await enqueueNotification({
         eventType: 'TEST_COMPLETED',
         recipientProfileId: studentId,
@@ -142,38 +168,7 @@ class NotificationScheduler {
         payload,
         scheduledFor: new Date().toISOString()
       });
-      console.log(`✅ [Notification] Queued notification for student ${studentId}`);
-
-      // Find and notify linked parents (Robuster checking for linked_students array type)
-      const { data: allParents, error: parentError } = await supabase
-        .from('profiles')
-        .select('id, email, linked_students')
-        .eq('role', 'parent');
-
-      if (parentError) {
-        console.error('❌ [Notification] Error finding parents:', parentError.message);
-        return;
-      }
-      
-      const parents = (allParents || []).filter(p => {
-        const linked = p.linked_students || [];
-        // Handle array of strings/UUIDs reliably
-        return Array.isArray(linked) && linked.some(id => String(id).trim() === String(studentId).trim());
-      });
-
-      for (const parent of parents) {
-        console.log("Parent:", parent.email || "❌ MISSING");
-        await enqueueNotification({
-          eventType: 'TEST_COMPLETED',
-          recipientProfileId: parent.id,
-          recipientType: 'parent',
-          payload,
-          scheduledFor: new Date().toISOString()
-        });
-        console.log(`✅ [Notification] Queued notification for parent ${parent.id}`);
-      }
-
-      console.log(`✅ [Notification] Test completion notifications queued successfully`);
+      console.log(`✅ [Notification] Queued unified notification for ${recipientEmails.length} recipients`);
     } catch (error) {
       console.error('❌ [Notification] Error triggering test completion notification:', error);
     }
