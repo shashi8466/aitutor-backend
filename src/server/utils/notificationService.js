@@ -89,8 +89,8 @@ async function sendEmailViaResend({ to, subject, html, text }) {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) return { attempted: false, ok: false };
 
-    // User explicitly requested to ALWAYS use this sender address
-    const from = 'onboarding@resend.dev';
+    // Once gigatechservices.org is verified, Resend will perfectly accept the emails
+    const from = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'onboarding@resend.dev';
 
     const controller = new AbortController();
     const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 10000);
