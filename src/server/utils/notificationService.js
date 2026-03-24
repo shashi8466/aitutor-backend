@@ -89,55 +89,44 @@ async function sendEmailViaResend({ to, subject, html, text }) {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) return { attempted: false, ok: false };
 
-    // Try the configured from address first, then fallback to Resend's onboarding address
-    const fromPrimary = process.env.EMAIL_FROM || process.env.RESEND_FROM;
-    const fromFallback = 'onboarding@resend.dev';
-    const fromCandidates = [...new Set([fromPrimary, fromFallback].filter(Boolean))];
+    // User explicitly requested to ALWAYS use this sender address
+    const from = 'onboarding@resend.dev';
 
-    for (const from of fromCandidates) {
-        const controller = new AbortController();
-        const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 10000);
-        const t = setTimeout(() => controller.abort(), timeoutMs);
+    const controller = new AbortController();
+    const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 10000);
+    const t = setTimeout(() => controller.abort(), timeoutMs);
 
-        try {
-            const resp = await fetch('https://api.resend.com/emails', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    from,
-                    to: Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean),
-                    subject,
-                    html: html || undefined,
-                    text: text || undefined
-                }),
-                signal: controller.signal
-            });
+    try {
+        const resp = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from,
+                to: Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean),
+                subject,
+                html: html || undefined,
+                text: text || undefined
+            }),
+            signal: controller.signal
+        });
 
-            if (!resp.ok) {
-                const body = await resp.text().catch(() => '');
-                if (resp.status === 403) {
-                    // Domain not verified on Resend — try next from address
-                    console.warn(`⚠️ [Email] Resend: domain for <${from}> not verified, trying next sender...`);
-                    continue;
-                }
-                console.error(`❌ [Email] Resend error ${resp.status}: ${body}`.slice(0, 500));
-                return { attempted: true, ok: false, error: `Resend error ${resp.status}` };
-            }
-
-            console.log(`✅ [Email] Sent via Resend (from: ${from}) to ${to}`);
-            return { attempted: true, ok: true };
-        } catch (err) {
-            console.error(`❌ [Email] Resend failed to send to ${to}:`, err?.message || String(err));
-            return { attempted: true, ok: false, error: err?.message || String(err) };
-        } finally {
-            clearTimeout(t);
+        if (!resp.ok) {
+            const body = await resp.text().catch(() => '');
+            console.error(`❌ [Email] Resend error ${resp.status}: ${body}`.slice(0, 500));
+            return { attempted: true, ok: false, error: `Resend error ${resp.status}` };
         }
-    }
 
-    return { attempted: true, ok: false, error: 'Resend: all from-addresses failed domain verification' };
+        console.log(`✅ [Email] Sent via Resend (from: ${from}) to ${to}`);
+        return { attempted: true, ok: true };
+    } catch (err) {
+        console.error(`❌ [Email] Resend failed to send to ${to}:`, err?.message || String(err));
+        return { attempted: true, ok: false, error: err?.message || String(err) };
+    } finally {
+        clearTimeout(t);
+    }
 }
 
 async function sendEmailViaSendGrid({ to, subject, html, text }) {
