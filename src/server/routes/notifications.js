@@ -66,12 +66,11 @@ router.post('/run-weekly', async (req, res) => {
     const weekEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const weekStart = new Date(weekEnd.getTime() - 7 * 86400000);
 
-    const { data: students, error: studentsErr } = await supabase
-      .from('profiles')
-      .select('id, name, role')
-      .eq('role', 'student');
-
-    if (studentsErr) throw studentsErr;
+    // Fetch students and all parents to resolve linking
+    const [{ data: students }, { data: allParents }] = await Promise.all([
+      supabase.from('profiles').select('id, name, email').eq('role', 'student'),
+      supabase.from('profiles').select('id, name, email, linked_students').eq('role', 'parent')
+    ]);
 
     let enqueued = 0;
 
@@ -88,6 +87,17 @@ router.post('/run-weekly', async (req, res) => {
       const avgScore = totalTests > 0 ? Math.round(submissions.reduce((sum, sub) => sum + (sub.raw_score_percentage || 0), 0) / totalTests) : 0;
       const bestScore = totalTests > 0 ? Math.round(Math.max(...submissions.map(sub => sub.raw_score_percentage || 0))) : 0;
 
+      // Find parents linked to this student
+      const linkedParents = (allParents || []).filter(p => {
+        const linked = p.linked_students || [];
+        return Array.isArray(linked) && linked.some(id => String(id).trim() === String(s.id).trim());
+      });
+
+      const parentEmails = linkedParents.map(p => p.email).filter(Boolean);
+      const recipientEmails = [s.email, ...parentEmails].filter(Boolean);
+
+      if (recipientEmails.length === 0) continue;
+
       const payload = {
         studentId: s.id,
         studentName: s.name || 'Student',
@@ -96,7 +106,8 @@ router.post('/run-weekly', async (req, res) => {
         submissions: submissions || [],
         totalTests,
         avgScore,
-        bestScore
+        bestScore,
+        recipientEmails // 🔥 Unified list for Brevo
       };
 
       await enqueueNotification({
@@ -107,23 +118,6 @@ router.post('/run-weekly', async (req, res) => {
         scheduledFor: new Date().toISOString()
       });
       enqueued++;
-
-      const { data: parents } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'parent')
-        .contains('linked_students', [s.id]);
-
-      for (const p of parents || []) {
-        await enqueueNotification({
-          eventType: 'WEEKLY_REPORT',
-          recipientProfileId: p.id,
-          recipientType: 'parent',
-          payload,
-          scheduledFor: new Date().toISOString()
-        });
-        enqueued++;
-      }
     }
 
     const processed = await processOutboxOnce({ limit: 50 });
@@ -160,26 +154,40 @@ router.post('/run-due-reminders', async (req, res) => {
       byStudent.get(a.user_id).push(a);
     }
 
+    // Fetch students and all parents to resolve linking
+    const [{ data: students }, { data: allParents }] = await Promise.all([
+      supabase.from('profiles').select('id, name, email, father_mobile').eq('role', 'student'),
+      supabase.from('profiles').select('id, name, email, linked_students').eq('role', 'parent')
+    ]);
+
     let enqueued = 0;
 
     for (const [studentId, items] of byStudent.entries()) {
-      const { data: student } = await supabase
-        .from('profiles')
-        .select('id, name, father_mobile')
-        .eq('id', studentId)
-        .single();
-
+      const student = (students || []).find(s => s.id === studentId);
+      
       const dueItems = (items || []).map(it => ({
         course_name: it.courses?.name || 'Course',
         level: it.level || null,
         due_date: it.due_at
       }));
 
+      // Find parents linked to this student
+      const linkedParents = (allParents || []).filter(p => {
+        const linked = p.linked_students || [];
+        return Array.isArray(linked) && linked.some(id => String(id).trim() === String(studentId).trim());
+      });
+
+      const parentEmails = linkedParents.map(p => p.email).filter(Boolean);
+      const recipientEmails = [student?.email, ...parentEmails].filter(Boolean);
+
+      if (recipientEmails.length === 0) continue;
+
       const payload = {
         studentId,
         studentName: student?.name || 'Student',
         dueItems,
-        fallbackPhone: student?.father_mobile || null
+        fallbackPhone: student?.father_mobile || null,
+        recipientEmails // 🔥 Unified list for Brevo
       };
 
       await enqueueNotification({
@@ -189,22 +197,6 @@ router.post('/run-due-reminders', async (req, res) => {
         payload
       });
       enqueued++;
-
-      const { data: parents } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('role', 'parent')
-        .contains('linked_students', [studentId]);
-
-      for (const p of parents || []) {
-        await enqueueNotification({
-          eventType: 'DUE_DATE_REMINDER',
-          recipientProfileId: p.id,
-          recipientType: 'parent',
-          payload
-        });
-        enqueued++;
-      }
     }
 
     const processed = await processOutboxOnce({ limit: 50 });
