@@ -206,29 +206,28 @@ export async function sendEmail({ to, subject, html, text }) {
     if (sendgrid.attempted && sendgrid.ok) return sendgrid;
 
     // 3. Try Gmail SMTP — tried BEFORE custom SMTP because Gmail uses Google's
-    //    own servers which are reachable on any network, unlike custom SMTP
-    //    servers that may have port 465/587 blocked by local ISPs.
-    const gmailUser = process.env.GMAIL_USER;
-    const gmailPass = process.env.GMAIL_APP_PASS;
-    if (gmailUser && gmailPass) {
-        try {
-            const gmailTransport = nodemailer.createTransport({
-                service: 'gmail',
-                auth: { user: gmailUser, pass: gmailPass },
-                connectionTimeout: 15000,
-                tls: { rejectUnauthorized: false }
-            });
-            const info = await gmailTransport.sendMail({
-                from: `"AI Tutor Platform" <${gmailUser}>`,
-                to, subject,
-                text: text || '',
-                html: html || text || ''
-            });
-            console.log(`✅ [Email] Sent via Gmail SMTP to ${to} | MessageId: ${info.messageId}`);
-            return { ok: true };
-        } catch (gmailErr) {
-            console.warn(`⚠️ [Email] Gmail SMTP failed: ${gmailErr.message}`);
-        }
+    //    own servers which are reachable on any network (including Render/cloud).
+    //    Custom SMTP ports 465/587 are blocked by Render and many ISPs.
+    //    Fallback credentials provided so this works even without env vars on Render.
+    const gmailUser = process.env.GMAIL_USER || process.env.EMAIL_USER || 'ssky57771@gmail.com';
+    const gmailPass = process.env.GMAIL_APP_PASS || process.env.EMAIL_PASS || 'hxlhrbzchvlugvud';
+    try {
+        const gmailTransport = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: gmailUser, pass: gmailPass },
+            connectionTimeout: 15000,
+            tls: { rejectUnauthorized: false }
+        });
+        const info = await gmailTransport.sendMail({
+            from: `"AI Tutor Platform" <${gmailUser}>`,
+            to, subject,
+            text: text || '',
+            html: html || text || ''
+        });
+        console.log(`✅ [Email] Sent via Gmail to ${to} | MessageId: ${info.messageId}`);
+        return { ok: true };
+    } catch (gmailErr) {
+        console.warn(`⚠️ [Email] Gmail SMTP failed: ${gmailErr.message}`);
     }
 
     // 4. Try Custom SMTP (DB-configured, e.g. gigatechservices.org)
