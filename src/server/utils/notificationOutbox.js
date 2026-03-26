@@ -1,5 +1,5 @@
 import supabase from '../../supabase/supabaseAdmin.js';
-import { sendNotification, buildTestCompletionEmail, buildWeeklyReportEmail, buildDueDateReminderEmail } from './notificationService.js';
+import { sendNotification, buildTestCompletionEmail, buildWeeklyReportEmail, buildDueDateReminderEmail, buildWelcomeEmail } from './notificationService.js';
 import { getInternalSettings } from './internalSettings.js';
 
 const DEFAULT_CHANNELS = ['email', 'sms', 'whatsapp'];
@@ -47,6 +47,7 @@ function channelsFromPrefs(prefs, channelsRequested, eventType) {
 
   // Canonical columns from `notification_preferences` (see migration)
   const allowEvent =
+    (eventType === 'WELCOME_EMAIL') ||
     (eventType === 'TEST_COMPLETED' && (prefs.test_completed_enabled !== false)) ||
     (eventType === 'WEEKLY_REPORT' && (prefs.weekly_report_enabled !== false)) ||
     (eventType === 'DUE_DATE_REMINDER' && (prefs.due_date_enabled !== false));
@@ -73,11 +74,34 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   const dbSettings = await getInternalSettings();
   const siteConfig = dbSettings?.site_config || {};
   
-  const appUrl = siteConfig.appUrl || process.env.APP_URL || process.env.VITE_APP_URL || '';
+  let appUrl = siteConfig.appUrl || process.env.APP_URL || process.env.VITE_APP_URL || '';
+  // Prefer the frontend base URL if available (especially on Render).
+  // HashRouter URLs need the full origin; if appUrl is empty, we lose the `#` deep link.
+  appUrl = appUrl || process.env.FRONTEND_URL || process.env.VITE_FRONTEND_URL || '';
+  if (appUrl.endsWith('/')) {
+    appUrl = appUrl.slice(0, -1);
+  }
   const appName = process.env.APP_NAME || 'AI Tutor Platform';
 
   if (eventType === 'TEST_COMPLETED') {
     const subject = `Test Completed: ${payload.courseName || 'Course'} (${payload.level || ''})`;
+    
+    // Construct deep-link report URL
+    const reportPath = isParent
+      ? `/parent/child/${payload.studentId}/course/${payload.courseId}/difficulty/${payload.level?.toLowerCase() || 'medium'}/test/${payload.submissionId}`
+      : `/student/detailed-review/${payload.submissionId}`;
+    
+    // Email clients sometimes strip `#` fragments. Include a `?redirect=...`
+    // fallback so the app can still navigate to the exact report route.
+    const redirectParam = `?redirect=${encodeURIComponent(reportPath)}`;
+
+    // Include the hash route too (HashRouter expects it).
+    const hashPart = `#${reportPath}`;
+
+    // `appUrl` is expected to be something like `https://.../dashboard` already,
+    // so we should NOT insert an extra `/` before `?redirect=`.
+    const finalUrl = appUrl ? `${appUrl}${redirectParam}${hashPart}` : `/${redirectParam}${hashPart}`;
+
     const emailHtml = buildTestCompletionEmail({
       studentName: payload.studentName,
       testName: payload.testName,
@@ -87,7 +111,8 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
       correctAnswers: payload.rawScore,
       scaledScore: payload.scaledScore,
       testDate: payload.testDate,
-      appUrl
+      appUrl,
+      reportUrl: finalUrl
     });
     const smsMessage =
       `${appName}: ${payload.studentName || 'Student'} completed ${payload.courseName || 'a test'} (${payload.level || ''}). ` +
@@ -97,6 +122,19 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
 
   if (eventType === 'WEEKLY_REPORT') {
     const subject = `Weekly Progress Report${isParent ? `: ${payload.studentName || ''}` : ''}`;
+    
+    // Construct dedicated weekly report URL
+    const weekStartPart = payload.weekStart ? payload.weekStart.split('T')[0] : new Date().toISOString().split('T')[0];
+    const dashboardPath = isParent
+      ? `/parent/weekly-report/${payload.studentId}/${weekStartPart}`
+      : `/student/weekly-report/${weekStartPart}`;
+    
+    // Direct URL with fallback
+    const separator = appUrl.endsWith('/') ? '' : '/';
+    const redirectParam = `?redirect=${encodeURIComponent(dashboardPath)}`;
+    const hashPart = `#${dashboardPath}`;
+    const finalUrl = appUrl ? `${appUrl}${separator}${redirectParam}${hashPart}` : dashboardPath;
+
     const emailHtml = buildWeeklyReportEmail({
       recipientName,
       studentName: payload.studentName,
@@ -104,7 +142,8 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
       weekStart: payload.weekStart,
       weekEnd: payload.weekEnd,
       appUrl,
-      isParent
+      isParent,
+      reportUrl: finalUrl
     });
     const smsMessage =
       `${appName}: Weekly report${isParent ? ` for ${payload.studentName}` : ''}. ` +
@@ -114,17 +153,40 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
 
   if (eventType === 'DUE_DATE_REMINDER') {
     const subject = `Upcoming Test Due Dates${isParent ? `: ${payload.studentName || ''}` : ''}`;
+    
+    // Construct target URL (dashboard)
+    const targetPath = isParent
+      ? `/parent/child/${payload.studentId}`
+      : `/student`;
+    
+    // Direct URL with fallback
+    const separator = appUrl.endsWith('/') ? '' : '/';
+    const redirectParam = `?redirect=${encodeURIComponent(targetPath)}`;
+    const hashPart = `#${targetPath}`;
+    const finalUrl = appUrl ? `${appUrl}${separator}${redirectParam}${hashPart}` : targetPath;
+
     const emailHtml = buildDueDateReminderEmail({
       recipientName,
       studentName: payload.studentName,
       dueItems: payload.dueItems || [],
       appUrl,
-      isParent
+      isParent,
+      reportUrl: finalUrl
     });
     const first = (payload.dueItems || [])[0];
     const smsMessage =
       `${appName}: Upcoming test due dates${isParent ? ` for ${payload.studentName}` : ''}. ` +
       (first ? `Next: ${first.course_name || 'Course'} due ${new Date(first.due_date).toLocaleDateString()}.` : '');
+    return { subject, emailHtml, smsMessage };
+  }
+
+  if (eventType === 'WELCOME_EMAIL') {
+    const subject = `Welcome to ${appName} 🎉`;
+    const emailHtml = buildWelcomeEmail({
+      name: payload.name || recipientName,
+      appUrl: appUrl || '#'
+    });
+    const smsMessage = `Welcome to ${appName}! You have successfully registered. Start learning today 🚀`;
     return { subject, emailHtml, smsMessage };
   }
 

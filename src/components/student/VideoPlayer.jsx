@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -14,10 +14,24 @@ const VideoPlayer = () => {
   const [loading, setLoading] = useState(true);
   const [showAI, setShowAI] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     loadVideos();
   }, [courseId, level]);
+
+  // Browsers can throw noisy `AbortError: play() request was interrupted...`
+  // when auto-play races with component unmount/re-render. We explicitly
+  // start playback and swallow AbortError so signup/login isn't affected.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (!activeVideo || videoError) return;
+    v.play().catch((err) => {
+      if (err?.name === 'AbortError') return;
+      // Other autoplay failures (policy, not allowed) can be ignored.
+    });
+  }, [activeVideo?.id, videoError]);
 
   const loadVideos = async () => {
     try {
@@ -67,10 +81,9 @@ const VideoPlayer = () => {
                   <video 
                     key={activeVideo.id} 
                     controls 
+                    ref={videoRef}
                     className="w-full h-full"
                     onError={() => setVideoError(true)}
-                    /* Auto-play when switching videos can be nice, remove if unwanted */
-                    autoPlay
                   >
                     <source src={activeVideo.file_url} type={`video/${activeVideo.file_type || 'mp4'}`} />
                     <source src={activeVideo.file_url} />

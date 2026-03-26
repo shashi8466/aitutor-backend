@@ -4,16 +4,16 @@ export const SCORING_CONFIG = {
     QUESTIONS: 22,
     LEVELS: {
       'Easy': { min: 200, max: 500 },
-      'Medium': { min: 400, max: 650 },
-      'Hard': { min: 550, max: 800 }
+      'Medium': { min: 200, max: 650 },
+      'Hard': { min: 200, max: 800 }
     }
   },
   RW: {
     QUESTIONS: 27,
     LEVELS: {
-      'Easy': { min: 200, max: 480 },
-      'Medium': { min: 380, max: 650 },
-      'Hard': { min: 550, max: 800 }
+      'Easy': { min: 200, max: 500 },
+      'Medium': { min: 200, max: 650 },
+      'Hard': { min: 200, max: 800 }
     }
   }
 };

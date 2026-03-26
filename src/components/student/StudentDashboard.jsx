@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import CircularProgress from '../../components/common/CircularProgress';
 import Skeleton from '../../components/common/Skeleton';
+import DashboardNotifications from '../../components/common/DashboardNotifications';
 
 // Services
 import { courseService, enrollmentService, progressService, planService, gradingService } from '../../services/api';
@@ -58,57 +59,39 @@ const StudentDashboard = () => {
 
   // Memoized derived data
   const dashboardData = React.useMemo(() => {
-    const { enrollments, progress, plan, submissions } = rawData;
-    
-    const planData = plan?.generated_plan || null;
-    const diagnosticData = plan?.diagnostic_data || null;
-
-    const passedLevels = progress.filter(p => p.passed).length;
-    const lessonsCount = Math.min(50, passedLevels * 3 + 5);
-    const testsTaken = submissions.length;
-
-    const enrollmentProgress = enrollments.map(e => {
-      const courseId = e.course_id;
-      // Supabase may return bigint IDs as strings in some contexts; normalize comparisons.
-      const courseSubmissions = submissions.filter(s => Number(s.course_id) === Number(courseId));
-      const courseProgress = progress.filter(p => Number(p.course_id) === Number(courseId));
-      const courseCategory = getCategory(e);
-
-      // Find the LATEST test submission for this course
-      let latestSubmission = null;
-      let latestTestDate = 0;
+    try {
+      const { enrollments, progress, plan, submissions } = rawData;
       
-      courseSubmissions.forEach(sub => {
-        const testDate = new Date(sub.test_date || sub.created_at || 0).getTime();
-        if (testDate > latestTestDate) {
-          latestTestDate = testDate;
-          latestSubmission = sub;
-        }
-      });
+      const planData = plan?.generated_plan || null;
+      const diagnosticData = plan?.diagnostic_data || null;
 
-      // Use the LATEST submission's actual scaled score if available
-      let courseScaledScore = 0;
-      let isEstimated = false;
+      const passedLevels = progress.filter(p => p.passed).length;
+      const lessonsCount = Math.min(50, passedLevels * 3 + 5);
+      const testsTaken = submissions.length;
 
-      if (latestSubmission && latestSubmission.scaled_score) {
-        // Use the ACTUAL scaled score from the latest test attempt
-        courseScaledScore = latestSubmission.scaled_score;
-        isEstimated = false;
-      } else if (latestSubmission && latestSubmission.raw_score_percentage !== undefined) {
-        // If no scaled_score stored, calculate it from the raw percentage
-        const levelName = latestSubmission.level 
-          ? latestSubmission.level.charAt(0).toUpperCase() + latestSubmission.level.slice(1).toLowerCase()
-          : 'Medium';
-        courseScaledScore = calculateSessionScore(
-          courseCategory,
-          levelName,
-          Math.round(latestSubmission.raw_score_percentage || 0)
-        );
-        isEstimated = false;
-      } else {
-        // Fallback: Use aggregated level scores if no submissions exist
+      const enrollmentProgress = enrollments.map(e => {
+        const courseId = e.course_id;
+        // Supabase may return bigint IDs as strings in some contexts; normalize comparisons.
+        const courseSubmissions = submissions.filter(s => Number(s.course_id) === Number(courseId));
+        const courseProgress = progress.filter(p => Number(p.course_id) === Number(courseId));
+        const courseCategory = getCategory(e);
+
+        // Find the LATEST test submission for this course
+        let latestSubmission = null;
+        let latestTestDate = 0;
+        
+        courseSubmissions.forEach(sub => {
+          const testDate = new Date(sub.test_date || sub.created_at || 0).getTime();
+          if (testDate > latestTestDate) {
+            latestTestDate = testDate;
+            latestSubmission = sub;
+          }
+        });
+
+        // AGGREGATE BEST SCORES PER LEVEL ACROSS BOTH SUBMISSIONS AND PROGRESS (Sync with weighted SAT logic)
         const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
         
+        // A. From progress table (lessons)
         courseProgress.forEach(p => {
           const lvl = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
           if (['Easy', 'Medium', 'Hard'].includes(lvl) && typeof p.score === 'number') {
@@ -116,67 +99,80 @@ const StudentDashboard = () => {
           }
         });
 
-        const hasLevelScores = levelScores.Easy > 0 || levelScores.Medium > 0 || levelScores.Hard > 0;
-        
-        if (hasLevelScores) {
-          courseScaledScore = calculateSatScore(
-            levelScores.Easy,
-            levelScores.Medium,
-            levelScores.Hard
-          );
-          isEstimated = true;
-        } else {
-          // Last resort: diagnostic baseline
-          const baseline = courseCategory === 'MATH'
-            ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
-            : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
-          courseScaledScore = baseline;
-          isEstimated = true;
-        }
-      }
+        // B. From test submissions
+        courseSubmissions.forEach(sub => {
+          const lvlRaw = sub.level || 'Medium';
+          const lvl = lvlRaw.charAt(0).toUpperCase() + lvlRaw.slice(1).toLowerCase();
+          if (['Easy', 'Medium', 'Hard'].includes(lvl)) {
+            const rawPct = Math.round(sub.raw_score_percentage || 0);
+            if (rawPct > levelScores[lvl]) levelScores[lvl] = rawPct;
+          }
+        });
 
-      // Build level scores for display purposes (not for score calculation)
-      const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
-      courseProgress.forEach(p => {
-        const lvl = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
-        if (['Easy', 'Medium', 'Hard'].includes(lvl) && typeof p.score === 'number') {
-          if (p.score > levelScores[lvl]) levelScores[lvl] = p.score;
+        // FINAL Weighted Calculation (Sync with overall SAT display)
+        let courseScaledScore = calculateSatScore(
+          levelScores.Easy,
+          levelScores.Medium,
+          levelScores.Hard
+        );
+
+        // Fallback: If no activity yet, show diagnostic baseline
+        if (courseScaledScore === 0) {
+          courseScaledScore = courseCategory === 'MATH'
+              ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
+              : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
         }
+
+        return {
+          ...e.courses,
+          levelScores,
+          courseScaledScore,
+          latestSubmission,
+          isEstimated: courseSubmissions.length === 0
+        };
       });
 
+      // Overall SAT scores – centralized logic shared with parent dashboard.
+      const overallScores = calculateStudentScore(progress, diagnosticData, submissions);
+
       return {
-        ...e.courses,
-        levelScores,
-        courseScaledScore,
-        latestSubmission,
-        isEstimated
+        scores: {
+          total: overallScores.current,
+          math: overallScores.math,
+          rw: overallScores.rw,
+          // For now, "Latest Attempt" == weighted SAT-style scores
+          latestMath: overallScores.latestMath || overallScores.math,
+          latestRw: overallScores.latestRW || overallScores.rw,
+          target: overallScores.target,
+          totalImprovement: overallScores.totalImprovement
+        },
+        counts: {
+          lessons: lessonsCount,
+          tests: testsTaken,
+          worksheets: 14,
+          sessions: Math.floor(lessonsCount / 2)
+        },
+        maxCounts: { lessons: 50, tests: 20, worksheets: 30, sessions: 24 },
+        enrollments: enrollmentProgress.filter(e => !e.is_practice)
       };
-    });
-
-    // Overall SAT scores – centralized logic shared with parent dashboard.
-    // These are already calculated using the weighted Easy/Medium/Hard model.
-    const overallScores = calculateStudentScore(progress, diagnosticData, submissions);
-
-    return {
-      scores: {
-        total: overallScores.current,
-        math: overallScores.math,
-        rw: overallScores.rw,
-        // For now, "Latest Attempt" == weighted SAT-style scores
-        latestMath: overallScores.latestMath || overallScores.math,
-        latestRw: overallScores.latestRW || overallScores.rw,
-        target: overallScores.target,
-        totalImprovement: overallScores.totalImprovement
-      },
-      counts: {
-        lessons: lessonsCount,
-        tests: testsTaken,
-        worksheets: 14,
-        sessions: Math.floor(lessonsCount / 2)
-      },
-      maxCounts: { lessons: 50, tests: 20, worksheets: 30, sessions: 24 },
-      enrollments: enrollmentProgress.filter(e => !e.is_practice)
-    };
+    } catch (err) {
+      console.error('StudentDashboard derived-data error:', err);
+      // Safe fallback so UI doesn't go blank.
+      return {
+        scores: {
+          total: 0,
+          math: 200,
+          rw: 200,
+          latestMath: 200,
+          latestRw: 200,
+          target: 1500,
+          totalImprovement: 0
+        },
+        counts: { lessons: 0, tests: 0, worksheets: 14, sessions: 0 },
+        maxCounts: { lessons: 50, tests: 20, worksheets: 30, sessions: 24 },
+        enrollments: []
+      };
+    }
   }, [rawData]);
 
   const { scores, counts, maxCounts, enrollments } = dashboardData;
@@ -195,6 +191,9 @@ const StudentDashboard = () => {
             <p className="text-gray-500 mt-1">Here is your daily progress overview.</p>
           </div>
         </div>
+
+        {/* Dashboard Notifications */}
+        <DashboardNotifications limit={3} />
 
         {/* 2. Profile Card */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8 flex flex-col md:flex-row items-center justify-between gap-6">

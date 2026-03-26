@@ -9,6 +9,8 @@ import supabase from '../../supabase/supabase';
 import { parentService, gradingService, planService } from '../../services/api';
 import { calculateStudentScore, calculateSessionScore, getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 import CircularProgress from '../common/CircularProgress';
+import DashboardNotifications from '../common/DashboardNotifications';
+import WeeklyReport from '../common/WeeklyReport';
 
 const { FiUsers, FiLogOut, FiHome, FiChevronRight, FiFileText, FiBarChart2, FiPieChart, FiActivity, FiArrowLeft, FiCheckCircle, FiXCircle, FiMinusCircle, FiBook, FiCheckSquare, FiPlay } = FiIcons;
 
@@ -126,6 +128,9 @@ const ChildrenOverview = () => {
                     My Children
                 </h3>
 
+                {/* In-app notifications panel (shown on overview too) */}
+                <DashboardNotifications limit={3} />
+
                 <div className="space-y-4">
                     {loading ? (
                         [1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
@@ -197,17 +202,16 @@ const ChildCoursesReport = () => {
                 // Build Course Breakdown (Sync with Student Dashboard)
                 const courseMap = {};
 
-                // A. Process Submissions
+                // A. Initialize Course Map & Process Submissions
                 (submissions || []).forEach(sub => {
                     const cId = sub.course_id;
                     if (!courseMap[cId]) {
                         courseMap[cId] = {
                             id: cId,
                             name: sub.courses?.name || `Course ${cId}`,
-                            courses: sub.courses, // Pass the whole object for getCategory
+                            courses: sub.courses,
                             levelScores: { Easy: 0, Medium: 0, Hard: 0 },
-                            levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 },
-                            latestTestScore: 0,
+                            latestSubmission: null,
                             latestTestDate: 0
                         };
                     }
@@ -215,40 +219,17 @@ const ChildCoursesReport = () => {
                     if (sub.level) {
                         const lvl = sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase();
                         if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
+                        
                         const rawPct = Math.round(sub.raw_score_percentage || 0);
-
-                        const category = getCategory(sub.courses?.name || courseMap[cId].name, sub.courses?.tutor_type);
-
-                        // Real scaling logic sync
-                        let mathVal = sub.math_scaled_score || 0;
-                        let rwVal = (sub.reading_scaled_score || 0) + (sub.writing_scaled_score || 0);
-
-                        if (!mathVal && !rwVal) {
-                          if (sub.scaled_score > 0) {
-                            if (sub.scaled_score <= 800) {
-                                if (category === 'MATH') mathVal = sub.scaled_score;
-                                else rwVal = sub.scaled_score;
-                            } else {
-                                mathVal = Math.round(sub.scaled_score / 2);
-                                rwVal = sub.scaled_score - mathVal;
-                            }
-                          } else {
-                            const calced = calculateSessionScore(category, lvl, sub.raw_score_percentage);
-                            if (category === 'MATH') mathVal = calced;
-                            else rwVal = calced;
-                          }
+                        if (rawPct > courseMap[cId].levelScores[lvl]) {
+                            courseMap[cId].levelScores[lvl] = rawPct;
                         }
 
-                        const scaled = category === 'MATH' ? mathVal : rwVal;
+                        // Track latest for display info
                         const testDate = new Date(sub.test_date || sub.created_at).getTime();
-                        
-                        if (rawPct > courseMap[cId].levelScores[lvl]) courseMap[cId].levelScores[lvl] = rawPct;
-                        if (scaled > courseMap[cId].levelScaledBest[lvl]) courseMap[cId].levelScaledBest[lvl] = scaled;
-
-                        // Track latest for this course
-                        if (scaled > 0 && testDate >= (courseMap[cId].latestTestDate || 0)) {
+                        if (testDate >= (courseMap[cId].latestTestDate || 0)) {
                             courseMap[cId].latestTestDate = testDate;
-                            courseMap[cId].latestTestScore = scaled;
+                            courseMap[cId].latestSubmission = sub;
                         }
                     }
                 });
@@ -262,34 +243,28 @@ const ChildCoursesReport = () => {
                             name: p.courses?.name || `Course ${cId}`,
                             courses: p.courses,
                             levelScores: { Easy: 0, Medium: 0, Hard: 0 },
-                            levelScaledBest: { Easy: 0, Medium: 0, Hard: 0 }
+                            latestSubmission: null,
+                            latestTestDate: 0
                         };
                     }
                     const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
-                    if (['Easy', 'Medium', 'Hard'].includes(lvl) && p.score > courseMap[cId].levelScores[lvl]) {
+                    if (['Easy', 'Medium', 'Hard'].includes(lvl) && (p.score || 0) > courseMap[cId].levelScores[lvl]) {
                         courseMap[cId].levelScores[lvl] = p.score;
                     }
                 });
 
                 const formattedCourses = Object.values(courseMap).map(c => {
                     const category = getCategory(c);
-                    const isMath = category === 'MATH';
+                    // Weighted SAT Calculation
+                    let courseScaledScore = calculateSatScore(
+                        c.levelScores.Easy,
+                        c.levelScores.Medium,
+                        c.levelScores.Hard
+                    );
 
-                    // Use the same SAT-style weighted model as StudentDashboard
-                    const hasLevelScores =
-                        c.levelScores.Easy > 0 ||
-                        c.levelScores.Medium > 0 ||
-                        c.levelScores.Hard > 0;
-
-                    let courseScaledScore;
-                    if (hasLevelScores) {
-                        courseScaledScore = calculateSatScore(
-                            c.levelScores.Easy,
-                            c.levelScores.Medium,
-                            c.levelScores.Hard
-                        );
-                    } else {
-                        // Fallback to diagnostic baseline if no level data yet
+                    // Fallback to diagnostic baseline if no activity yet
+                    if (courseScaledScore === 0) {
+                        const isMath = category === 'MATH';
                         courseScaledScore = isMath
                             ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
                             : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
@@ -299,7 +274,7 @@ const ChildCoursesReport = () => {
                         ...c,
                         category,
                         courseScaledScore,
-                        isEstimated: !hasLevelScores
+                        isEstimated: !c.latestSubmission
                     };
                 });
                 
@@ -374,7 +349,10 @@ const ChildCoursesReport = () => {
                         </div>
                     )}
                 </div>
-
+                
+                {/* Child-Specific Notifications */}
+                <DashboardNotifications limit={3} />
+                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
                         <div className="flex justify-between items-center mb-8">
@@ -895,6 +873,7 @@ const ParentDashboard = () => {
                         <Route path="/child/:studentId/course/:courseId" element={<ChildDifficultyReport />} />
                         <Route path="/child/:studentId/course/:courseId/difficulty/:difficultyId" element={<ChildPerformanceReport />} />
                         <Route path="/child/:studentId/course/:courseId/difficulty/:difficultyId/test/:testId" element={<DetailedTestReport />} />
+                        <Route path="/weekly-report/:studentId/:weekStart" element={<WeeklyReport isParentView={true} />} />
                     </Routes>
                 </AnimatePresence>
             </main>

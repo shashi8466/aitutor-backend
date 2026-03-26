@@ -20,6 +20,10 @@ import notificationsRoutes from './routes/notifications.js';
 import notificationMiddleware from './middleware/notificationMiddleware.js';
 import adminNotificationRoutes from './routes/admin-notifications.js';
 import settingsRoutes from './routes/settings.js';
+import authRoutes from './routes/auth.js';
+
+// Background Processors
+import WelcomeEmailProcessor from './services/WelcomeEmailProcessor.js';
 
 // 1. Load environment variables FIRST
 dotenv.config();
@@ -52,7 +56,15 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+    // Allow localhost, Firebase, and Render subdomains
+    const isAllowed = 
+      allowedOrigins.includes(origin) || 
+      origin.includes('localhost') || 
+      origin.includes('.web.app') || 
+      origin.includes('.firebaseapp.com') ||
+      origin.includes('.onrender.com');
+
+    if (isAllowed || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -107,6 +119,7 @@ app.use('/api/admin', adminGroupsRoutes);
 app.use('/api/admin', adminNotificationRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/auth', authRoutes);
 
 // 9. Root API Info
 app.get('/api', (req, res) => {
@@ -150,5 +163,16 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('🔔 Notification scheduler initialized');
   } catch (error) {
     console.error('❌ Notification scheduler failed:', error.message);
+  }
+  
+  // Start welcome email processor (independent try-catch)
+  try {
+    const welcomeEmailProcessor = new WelcomeEmailProcessor();
+    welcomeEmailProcessor.start();
+    console.log('📧 Welcome email queue processor started');
+    console.log('⚠️ NOTE: Welcome emails will only send if welcome_email_queue table exists in Supabase');
+    console.log('   Run SUPABASE_WELCOME_EMAIL_SAFE.sql in Supabase SQL Editor to enable\n');
+  } catch (error) {
+    console.error('❌ Welcome email processor failed:', error.message);
   }
 });

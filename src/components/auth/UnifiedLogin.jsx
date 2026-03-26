@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,6 +20,8 @@ const UnifiedLogin = () => {
     const { settings } = useSettings();
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams] = useSearchParams();
+    const redirectPath = searchParams.get('redirect');
 
     // After login, this handles the specific redirection
     const handleRoleRedirection = (role) => {
@@ -33,7 +35,16 @@ const UnifiedLogin = () => {
             'student': '/student'
         };
 
-        const targetPath = paths[role] || '/student';
+        // Use redirectPath if available, otherwise use default role path.
+        // `redirectPath` typically comes URL-encoded (from ProtectedRoute/email flows).
+        let targetPath = redirectPath || paths[role] || '/student';
+        if (redirectPath) {
+            try {
+                targetPath = decodeURIComponent(redirectPath);
+            } catch {
+                // keep as-is
+            }
+        }
 
         // Short delay for the "Success" animation
         setTimeout(() => navigate(targetPath), 1200);

@@ -10,15 +10,18 @@ async function updateEmailConfigToGmail() {
     const { data: current } = await s.from('internal_settings').select('id, email_config').limit(1).single();
     if (!current) { console.log("No settings found"); return; }
 
+    const GMAIL_USER = 'YOUR_GMAIL_USER_HERE';
+    const GMAIL_PASS = 'YOUR_GMAIL_APP_PASS_HERE';
+
     const updated = {
         ...current.email_config,
         enabled: true,
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
-        user: 'ssky57771@gmail.com',
-        pass: 'hxlhrbzchvlugvud',
-        from_email: 'ssky57771@gmail.com'
+        user: GMAIL_USER,
+        pass: GMAIL_PASS,
+        from_email: GMAIL_USER
     };
 
     const { error } = await s.from('internal_settings')

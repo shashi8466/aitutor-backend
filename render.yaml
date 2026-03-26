@@ -11,14 +11,14 @@ services:
       - key: PORT
         value: 10000
       - key: GMAIL_USER
-        value: ssky57771@gmail.com
+        value: YOUR_GMAIL_USER_HERE
       - key: GMAIL_APP_PASS
-        value: hxlhrbzchvlugvud
+        value: YOUR_GMAIL_APP_PASS_HERE
       - key: EMAIL_USER
-        value: ssky57771@gmail.com
+        value: YOUR_EMAIL_USER_HERE
       - key: EMAIL_PASS
-        value: hxlhrbzchvlugvud
+        value: YOUR_EMAIL_PASS_HERE
       - key: EMAIL_FROM
-        value: ssky57771@gmail.com
+        value: YOUR_EMAIL_FROM_HERE
       - key: APP_NAME
         value: AI Tutor Platform

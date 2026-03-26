@@ -19,8 +19,13 @@ class NotificationScheduler {
     console.log('Starting notification scheduler...');
 
     // Outbox processor - Every minute
-    // ⚠️ DISABLED LOCALLY to prevent local environment from consuming/failing production outbox items
-    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_LOCAL_OUTBOX === 'true') {
+    // Allowed locally if ENABLE_LOCAL_OUTBOX is true OR in any non-production environment
+    const shouldRunOutbox = 
+        process.env.NODE_ENV === 'production' || 
+        process.env.ENABLE_LOCAL_OUTBOX === 'true' ||
+        process.env.NODE_ENV !== 'production';
+
+    if (shouldRunOutbox) {
         cron.schedule('* * * * *', async () => {
         try {
             console.log('🔄 [Cron] Processing notification outbox...');
@@ -131,44 +136,132 @@ class NotificationScheduler {
 
       const parentEmails = parents.map(p => p.email).filter(Boolean);
       
-      // Build a unified recipient list for the payload
-      // We will store all emails in payload.recipientEmails
-      const recipientEmails = [studentEmail, ...parentEmails].filter(Boolean);
+      // 3. Enqueue External Notifications (Separate for Student vs Parents for Deep Linking)
+      
+      // Enqueue for Student
+      if (studentEmail) {
+        // External notification (Outbox) - survivable deep link
+        await enqueueNotification({
+          eventType: 'TEST_COMPLETED',
+          recipientProfileId: studentId,
+          recipientType: 'student',
+          payload: {
+            submissionId,
+            studentId,
+            studentName: studentProfile?.name || 'Student',
+            courseId: submission.course_id,
+            courseName: course?.name || 'Course',
+            level: submission.level,
+            rawScore: submission.raw_score,
+            totalQuestions: submission.total_questions,
+            rawPercentage: submission.raw_score_percentage,
+            scaledScore: submission.scaled_score,
+            testDate: submission.test_date
+          },
+          scheduledFor: new Date().toISOString()
+        });
 
-      console.log("Student:", studentEmail || "❌ MISSING");
-      parentEmails.forEach(pe => console.log("Parent:", pe));
-
-      if (recipientEmails.length === 0) {
-        console.warn('⚠️ [Notification] No valid emails found for student or parents. Skipping.');
-        return;
+        // In-App Notification (Dashboard)
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: studentId,
+            title: `Test Graded: ${course?.name || 'Course'}`,
+            message: `You scored ${Math.round(submission.raw_score_percentage)}% in your ${submission.level || ''} level test.`,
+            type: 'test_completion',
+            data: { submissionId, courseId: submission.course_id, level: submission.level }
+          });
       }
 
-      // Build payload matching email template expectations
-      const payload = {
-        submissionId,
-        studentId,
-        studentName: studentProfile?.name || 'Student',
-        courseName: course?.name || 'Course',
-        level: submission.level,
-        rawScore: submission.raw_score,
-        totalQuestions: submission.total_questions,
-        rawPercentage: submission.raw_score_percentage,
-        scaledScore: submission.scaled_score,
-        testDate: submission.test_date,
-        recipientEmails // 🔥 NEW: consolidated list for Brevo
-      };
+      // Enqueue for each Parent separately
+      for (const parent of parents) {
+        if (parent.email) {
+          // External notification (Outbox)
+          await enqueueNotification({
+            eventType: 'TEST_COMPLETED',
+            recipientProfileId: parent.id,
+            recipientType: 'parent',
+            payload: {
+              submissionId,
+              studentId, // Needed for parent deep link
+              studentName: studentProfile?.name || 'Student',
+              courseId: submission.course_id,
+              courseName: course?.name || 'Course',
+              level: submission.level,
+              rawScore: submission.raw_score,
+              totalQuestions: submission.total_questions,
+              rawPercentage: submission.raw_score_percentage,
+              scaledScore: submission.scaled_score,
+              testDate: submission.test_date
+            },
+            scheduledFor: new Date().toISOString()
+          });
 
-      console.log(`✅ [Notification] Payload built for ${payload.studentName} - Score: ${payload.rawPercentage}%`);
+          // In-App Notification (Parent Dashboard)
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: parent.id,
+              title: `Child Activity: ${studentProfile?.name || 'Student'}`,
+              message: `${studentProfile?.name} completed a ${course?.name || 'Course'} test with ${Math.round(submission.raw_score_percentage)}%.`,
+              type: 'test_completion',
+              data: { 
+                submissionId, 
+                studentId, 
+                courseId: submission.course_id, 
+                level: submission.level,
+                studentName: studentProfile?.name
+              }
+            });
+        }
+      }
 
-      // Send to student profile (as the primary record holder)
-      await enqueueNotification({
-        eventType: 'TEST_COMPLETED',
-        recipientProfileId: studentId,
-        recipientType: 'student',
-        payload,
-        scheduledFor: new Date().toISOString()
+      console.log(`✅ [Notification] Enqueued separate notifications for student and ${parents.length} parents`);
+
+      // 4. Create In-App Notifications
+      const inAppNotifications = [];
+      
+      // For Student
+      inAppNotifications.push({
+        user_id: studentId,
+        title: 'Test Completed!',
+        message: `You completed ${course?.name || 'Test'} (${submission.level || 'Practice'}). Score: ${Math.round(submission.raw_score_percentage || 0)}%`,
+        type: 'test_completion',
+        data: { 
+            submissionId, 
+            courseId: submission.course_id, 
+            level: submission.level,
+            score: Math.round(submission.raw_score_percentage || 0),
+            scaledScore: submission.scaled_score,
+            testName: course?.name || 'Test'
+        }
       });
-      console.log(`✅ [Notification] Queued unified notification for ${recipientEmails.length} recipients`);
+
+      // For Parents
+      parents.forEach(parent => {
+        inAppNotifications.push({
+          user_id: parent.id,
+          title: 'Child Test Completed',
+          message: `${studentProfile?.name || 'Your child'} completed ${course?.name || 'Test'} (${submission.level || 'Practice'}). Score: ${Math.round(submission.raw_score_percentage || 0)}%`,
+          type: 'test_completion',
+          data: { 
+              submissionId, 
+              studentId,
+              studentName: studentProfile?.name,
+              courseId: submission.course_id, 
+              level: submission.level,
+              score: Math.round(submission.raw_score_percentage || 0),
+              scaledScore: submission.scaled_score,
+              testName: course?.name || 'Test'
+          }
+        });
+      });
+
+      if (inAppNotifications.length > 0) {
+        // Use supabaseAdmin to bypass RLS for direct insertion
+        await supabaseAdmin.from('notifications').insert(inAppNotifications);
+        console.log(`✅ [Notification] In-app notifications created in table for ${inAppNotifications.length} users`);
+      }
     } catch (error) {
       console.error('❌ [Notification] Error triggering test completion notification:', error);
     }

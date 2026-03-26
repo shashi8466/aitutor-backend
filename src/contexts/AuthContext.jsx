@@ -19,15 +19,23 @@ export const AuthProvider = ({ children }) => {
   // Background Sync Function
   const syncProfile = async (currentUser) => {
     if (!currentUser?.id) return;
-    const profile = await authService.getDbProfile(currentUser.id);
-    if (profile) {
-      // Only update state if meaningful changes exist to prevent loops
-      setUser(prev => {
-        if (prev?.role !== profile.role || prev?.name !== profile.name) {
-          return { ...prev, ...profile };
-        }
-        return prev;
-      });
+    try {
+      const profile = await authService.getDbProfile(currentUser.id);
+      if (profile) {
+        // console.log('🔄 [Auth] Profile sync successful:', profile.role);
+        setUser(prev => {
+          if (!prev) return { ...currentUser, ...profile };
+          if (prev.role !== profile.role || prev.name !== profile.name || 
+              JSON.stringify(prev.linked_students) !== JSON.stringify(profile.linked_students)) {
+            return { ...prev, ...profile };
+          }
+          return prev;
+        });
+      } else {
+        console.warn('⚠️ [Auth] Profile sync: No profile records found for user', currentUser.email);
+      }
+    } catch (err) {
+      console.error('❌ [Auth] Profile sync fatal error:', err.message);
     }
   };
 

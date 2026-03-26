@@ -1,6 +1,7 @@
-import React, { lazy, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import React, { lazy, Suspense, useEffect } from 'react';
+import { Routes, Route, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
+import { useAuth } from './contexts/AuthContext';
 import Navbar from './components/layout/Navbar';
 import supabase from './supabase/supabase';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -34,6 +35,7 @@ const ParentConnect = lazy(() => import('./components/student/agents/ParentConne
 const PaymentSuccess = lazy(() => import('./components/student/PaymentSuccess'));
 const PracticeTests = lazy(() => import('./components/student/PracticeTests'));
 const DetailedTestReview = lazy(() => import('./components/student/DetailedTestReview'));
+const WeeklyReport = lazy(() => import('./components/common/WeeklyReport'));
 const SalesBot = lazy(() => import('./components/common/SalesBot'));
 
 // Notification Components - ADMIN ONLY
@@ -120,9 +122,76 @@ axios.interceptors.response.use(
   }
 );
 //============================================
+// Home Redirector Component
+//============================================
+const HomeRedirector = () => {
+  const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    if (!loading && user) {
+      // 1. Check for explicit redirect query param (fallback for lost hashes)
+      // Check both React Router searchParams (post-hash) and window.location.search (pre-hash)
+      const browserParams = new URLSearchParams(window.location.search);
+      const queryRedirect = searchParams.get('redirect') || browserParams.get('redirect');
+      
+      if (queryRedirect) {
+        // Ensure the path is relative to the app root.
+        // Some email clients strip fragments and/or keep an encoded redirect value.
+        let decodedRedirect = queryRedirect;
+        try {
+          // If still encoded (e.g. contains %2F), decode once more.
+          if (/%2F/i.test(decodedRedirect)) decodedRedirect = decodeURIComponent(decodedRedirect);
+        } catch {
+          // keep original
+        }
+        const target = decodedRedirect.startsWith('/') ? decodedRedirect : `/${decodedRedirect}`;
+        navigate(target, { replace: true });
+        return;
+      }
+
+      // 2. Default Role Redirection
+      const roleMap = {
+        admin: '/admin',
+        tutor: '/tutor',
+        parent: '/parent',
+        student: '/student'
+      };
+      navigate(roleMap[user.role] || '/student', { replace: true });
+    }
+  }, [user, loading, searchParams, navigate]);
+
+  // If the user is NOT logged in but the URL includes a redirect target (from email),
+  // send them to login first, then come back to the same target.
+  useEffect(() => {
+    if (loading || user) return;
+    const browserParams = new URLSearchParams(window.location.search);
+    const queryRedirect = searchParams.get('redirect') || browserParams.get('redirect');
+    if (!queryRedirect) return;
+
+    let decodedRedirect = queryRedirect;
+    try {
+      if (/%2F/i.test(decodedRedirect)) decodedRedirect = decodeURIComponent(decodedRedirect);
+    } catch {
+      // keep original
+    }
+    const target = decodedRedirect.startsWith('/') ? decodedRedirect : `/${decodedRedirect}`;
+    navigate(`/login?redirect=${encodeURIComponent(target)}`, { replace: true });
+  }, [user, loading, searchParams, navigate]);
+  
+  if (loading) return <LoadingSpinner />;
+  
+  // Only show landing page if definitively NOT authenticated
+  if (!user) return <HomePage />;
+  
+  return <LoadingSpinner />; // Transitory state while redirecting
+};
 
 function App() {
+  const { user, loading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isStudentRoute = location.pathname.startsWith('/student');
   const isTutorRoute = location.pathname.startsWith('/tutor');
@@ -131,14 +200,45 @@ function App() {
     location.pathname.startsWith('/login/');
   const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isAuthRoute;
 
+  // Global deep-link redirect handler for email links.
+  // Mail clients can land the user on non-root routes (e.g. `/dashboard`) while keeping `?redirect=...`
+  // in the URL query string. This ensures we always navigate to the exact target path.
+  useEffect(() => {
+    if (loading) return;
+
+    // Only act when redirect query exists.
+    // With HashRouter, `location.search` often reflects the hash portion only.
+    // For email links, `?redirect=...` is typically before `#`, so read window.location.search.
+    const params = new URLSearchParams(window.location.search);
+    const queryRedirect = params.get('redirect');
+    if (!queryRedirect) return;
+
+    // Avoid fighting with the login page UI.
+    if (location.pathname.startsWith('/login')) return;
+
+    let decoded = queryRedirect;
+    try {
+      if (/%2F/i.test(decoded)) decoded = decodeURIComponent(decoded);
+    } catch {
+      // keep original
+    }
+    const target = decoded.startsWith('/') ? decoded : `/${decoded}`;
+
+    if (user) {
+      navigate(target, { replace: true });
+    } else {
+      navigate(`/login?redirect=${encodeURIComponent(target)}`, { replace: true });
+    }
+  }, [user, loading, navigate, location.pathname]);
+
   return (
     <div className="app-container">
       {showNavbar && <Navbar />}
       <AnimatePresence mode="wait">
         <Suspense fallback={<LoadingSpinner />}>
           <Routes location={location} key={location.pathname}>
-            {/* Public Routes */}
-            <Route path="/" element={<HomePage />} />
+            {/* Public Routes with Auto-Redirection for Auth Users */}
+            <Route path="/" element={<HomeRedirector />} />
 
             {/* Unified Authentication Route */}
             <Route path="/login" element={<UnifiedLogin />} />
@@ -182,6 +282,7 @@ function App() {
               <Route path="drills" element={<WeaknessDrills />} />
               <Route path="test-review" element={<TestReview />} />
               <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
+              <Route path="weekly-report/:weekStart" element={<WeeklyReport />} />
               <Route path="college" element={<CollegeAdvisor />} />
               <Route path="parent" element={<ParentConnect />} />
 

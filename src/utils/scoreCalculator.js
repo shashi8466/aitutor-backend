@@ -4,16 +4,16 @@ const SCORING_CONFIG = {
     QUESTIONS: 22,
     LEVELS: {
       'Easy': { min: 200, max: 500 },
-      'Medium': { min: 400, max: 650 },
-      'Hard': { min: 550, max: 800 }
+      'Medium': { min: 200, max: 650 },
+      'Hard': { min: 200, max: 800 }
     }
   },
   RW: {
     QUESTIONS: 27,
     LEVELS: {
-      'Easy': { min: 200, max: 480 },
-      'Medium': { min: 380, max: 650 },
-      'Hard': { min: 550, max: 800 }
+      'Easy': { min: 200, max: 500 },
+      'Medium': { min: 200, max: 650 },
+      'Hard': { min: 200, max: 800 }
     }
   }
 };
@@ -64,17 +64,18 @@ export const calculateSessionScore = (category, levelName, percentageScore) => {
 
 export const calculateSatScore = (easy, medium, hard) => {
   // SAT-style weighted model across levels:
-  // Easy 20%, Medium 35%, Hard 45%, then mapped to SAT 200–800.
+  // Easy 20%, Medium 35%, Hard 45%
+  // finalScore = (easyAccuracy * 0.20 + mediumAccuracy * 0.35 + hardAccuracy * 0.45) / 100 * 800
   const e = Number(easy) || 0;
   const m = Number(medium) || 0;
   const h = Number(hard) || 0;
 
   const weightedAccuracy = (e * 0.20) + (m * 0.35) + (h * 0.45); // 0–100 range
-  // Map 0–100 → 200–800 (200 floor, 800 ceiling)
-  const rawScore = 200 + (weightedAccuracy / 100) * 600;
+  // Map 0–100 → 0–800 (as per user formula)
+  const rawScore = (weightedAccuracy / 100) * 800;
 
-  // Clamp defensively to valid SAT section bounds
-  const finalScore = Math.min(800, Math.max(200, rawScore));
+  // Clamp defensively to valid SAT section bounds (800 ceiling)
+  const finalScore = Math.min(800, Math.max(0, rawScore));
   return Math.round(finalScore);
 };
 

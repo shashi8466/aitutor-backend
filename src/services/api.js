@@ -73,12 +73,22 @@ export const authService = {
     return null;
   },
   getDbProfile: async (userId) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
-      .eq('id', userId)
-      .maybeSingle();
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ [api] getDbProfile error:', error.message);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      console.error('💥 [api] getDbProfile fatal error:', err.message);
+      return null;
+    }
   },
   updateRole: async (userId, role) => {
     const { data, error } = await supabase
@@ -132,6 +142,14 @@ export const authService = {
       email: email,
     });
   }
+};
+
+// --- PROFILE SERVICE ---
+export const profileService = {
+  getProfile: async (userId) => authService.getDbProfile(userId),
+  getById: async (userId) => authService.getDbProfile(userId),
+  getAll: async () => authService.getAllProfiles(),
+  update: async (userId, updates) => authService.updateProfile(userId, updates)
 };
 
 // --- COURSE SERVICE ---

@@ -106,10 +106,10 @@ router.post('/run-weekly', async (req, res) => {
         submissions: submissions || [],
         totalTests,
         avgScore,
-        bestScore,
-        recipientEmails // 🔥 Unified list for Brevo
+        bestScore
       };
 
+      // 1. Enqueue for Student
       await enqueueNotification({
         eventType: 'WEEKLY_REPORT',
         recipientProfileId: s.id,
@@ -117,6 +117,41 @@ router.post('/run-weekly', async (req, res) => {
         payload,
         scheduledFor: new Date().toISOString()
       });
+
+      // In-App Notification (Student Dashboard)
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: s.id,
+          title: 'Weekly Performance Report',
+          message: `Your report for the week is ready. You completed ${totalTests} tests with an average score of ${avgScore}%.`,
+          type: 'weekly_report',
+          data: { weekStart: weekStart.toISOString() }
+        });
+
+      // 2. Enqueue for each Parent
+      for (const parent of linkedParents) {
+        if (parent.email) {
+          await enqueueNotification({
+            eventType: 'WEEKLY_REPORT',
+            recipientProfileId: parent.id,
+            recipientType: 'parent',
+            payload,
+            scheduledFor: new Date().toISOString()
+          });
+
+          // In-App Notification (Parent Dashboard)
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: parent.id,
+              title: `Weekly Report: ${s.name || 'Student'}`,
+              message: `${s.name}'s weekly progress summary is ready. ${totalTests} tests completed this week.`,
+              type: 'weekly_report',
+              data: { weekStart: weekStart.toISOString(), studentId: s.id }
+            });
+        }
+      }
       enqueued++;
     }
 
@@ -186,16 +221,30 @@ router.post('/run-due-reminders', async (req, res) => {
         studentId,
         studentName: student?.name || 'Student',
         dueItems,
-        fallbackPhone: student?.father_mobile || null,
-        recipientEmails // 🔥 Unified list for Brevo
+        fallbackPhone: student?.father_mobile || null
       };
 
+      // 1. Enqueue for Student
       await enqueueNotification({
         eventType: 'DUE_DATE_REMINDER',
         recipientProfileId: studentId,
         recipientType: 'student',
-        payload
+        payload,
+        scheduledFor: new Date().toISOString()
       });
+
+      // 2. Enqueue for each Parent
+      for (const parent of linkedParents) {
+        if (parent.email) {
+          await enqueueNotification({
+            eventType: 'DUE_DATE_REMINDER',
+            recipientProfileId: parent.id,
+            recipientType: 'parent',
+            payload,
+            scheduledFor: new Date().toISOString()
+          });
+        }
+      }
       enqueued++;
     }
 

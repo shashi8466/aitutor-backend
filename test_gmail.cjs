@@ -3,11 +3,13 @@ const nodemailer = require('nodemailer');
 
 async function testGmail() {
     console.log("Testing Gmail App Password...");
+    const GMAIL_USER = 'YOUR_GMAIL_USER_HERE';
+    const GMAIL_PASS = 'YOUR_GMAIL_APP_PASS_HERE';
     const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
-            user: 'ssky57771@gmail.com',
-            pass: 'hxlhrbzchvlugvud'
+            user: GMAIL_USER,
+            pass: GMAIL_PASS
         },
         connectionTimeout: 10000
     });

@@ -1,22 +1,55 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const getUserFromRequest = async (req) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return null;
+// Reuse client instance to avoid performance issues and overhead
+let supabaseInstance = null;
 
-    const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-    const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || 'SCRUBBED_KEY';
+const getSupabase = () => {
+    if (supabaseInstance) return supabaseInstance;
 
-    if (!SUPABASE_KEY) {
-        console.error('❌ [AuthHelper] SUPABASE_ANON_KEY is missing from .env and no fallback available');
+    const url = process.env.SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+    const key = process.env.SUPABASE_ANON_KEY;
+
+    if (!key) {
+        console.error('❌ [AuthHelper] SUPABASE_ANON_KEY is missing from environment variables!');
         return null;
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseInstance = createClient(url, key);
+    return supabaseInstance;
+};
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+export const getUserFromRequest = async (req) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) {
+            // Only log if it's an API request that expects auth
+            if (req.url.includes('/api/')) {
+                console.warn(`⚠️ [Auth] No authorization header for ${req.method} ${req.url}`);
+            }
+            return null;
+        }
 
-    if (error || !user) return null;
-    return user;
+        const supabase = getSupabase();
+        if (!supabase) return null;
+
+        const token = authHeader.replace('Bearer ', '').trim();
+        if (!token) return null;
+
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+
+        if (error) {
+            console.error('❌ [Auth] Token verification failed:', error.message);
+            return null;
+        }
+
+        if (!user) {
+            console.warn('⚠️ [Auth] Token verified but no user found');
+            return null;
+        }
+
+        return user;
+    } catch (err) {
+        console.error('💥 [Auth] Fatal error in getUserFromRequest:', err.message);
+        return null;
+    }
 };
