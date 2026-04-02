@@ -63,21 +63,23 @@ const Signup = () => {
   };
 
   const finalizeRegistration = async (role) => {
-    if (enrollmentKey) {
-      setEnrolling(true);
-      try {
-        await enrollmentService.useKey(enrollmentKey);
-      } catch (err) {
-        console.error('Auto-enrollment failed during signup:', err);
+    try {
+      // Small delay to ensure auth state is properly set
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Redirect based on role
+      if (role === 'admin') {
+        navigate('/admin');
+      } else if (role === 'tutor') {
+        navigate('/tutor');
+      } else if (role === 'parent') {
+        navigate('/parent');
+      } else {
+        navigate('/student');
       }
-    }
-
-    // Redirect based on role
-    if (role === 'admin') {
-      navigate('/admin');
-    } else if (role === 'tutor') {
-      navigate('/tutor');
-    } else {
+    } catch (error) {
+      console.error('Redirection error:', error);
+      // Fallback to student dashboard
       navigate('/student');
     }
   };
@@ -97,16 +99,34 @@ const Signup = () => {
     const slowTimer = setTimeout(() => setSlowConnection(true), 2000);
 
     try {
+      console.log('🔄 Starting signup for:', formData.email);
       const result = await signup(formData);
       clearTimeout(slowTimer);
 
       if (result.success) {
+        console.log('✅ Signup successful:', result);
+        // Some Supabase auth settings return `session: null` even when the user can sign in immediately
+        // (or the session becomes available a moment later). To prevent "blank page" / failed redirect,
+        // we do a best-effort auto-login when session is missing.
+        if (!result.session) {
+          try {
+            const loginResult = await login({ email: formData.email, password: formData.password });
+            if (loginResult.success) {
+              setRedirecting(true);
+              await finalizeRegistration(formData.role);
+              return;
+            }
+          } catch (e) {
+            // ignore; fall back to success mode below
+          }
+        }
+
         if (result.session) {
           // User is logged in immediately
           setRedirecting(true);
           await finalizeRegistration(formData.role);
         } else {
-          // User needs to check email
+          // User needs to check email / could not auto-login
           setSuccessMode(true);
         }
       } else {
@@ -123,17 +143,19 @@ const Signup = () => {
               setError("This email is registered but the password didn't match. Please Log In.");
             }
           } catch (loginErr) {
+            console.error('Auto-login failed:', loginErr);
             setError("Account exists. Please Log In.");
           }
         } else {
+          console.error('Signup error:', result.error);
           setError(result.error || "An error occurred during signup.");
         }
         setLoading(false);
       }
     } catch (err) {
       clearTimeout(slowTimer);
-      console.error(err);
-      setError("An unexpected error occurred.");
+      console.error('Signup exception:', err);
+      setError("An unexpected error occurred. Please try again.");
       setLoading(false);
     }
   };

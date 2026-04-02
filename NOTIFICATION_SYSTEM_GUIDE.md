@@ -131,7 +131,7 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # Email (Gmail example)
 EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-password  # NOT regular password!
+EMAIL_PASS=[REDACTED]  # NOT regular password!
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=465
 
@@ -143,7 +143,7 @@ EMAIL_PORT=465
 
 # Twilio SMS
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=your-token
+TWILIO_AUTH_TOKEN=[REDACTED]
 TWILIO_PHONE_NUMBER=+1234567890
 
 # Get Twilio credentials:

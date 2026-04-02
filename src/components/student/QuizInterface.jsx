@@ -510,7 +510,7 @@ const QuizInterface = () => {
           <div className="w-full bg-gray-100 dark:bg-gray-800 h-1.5">
             <div className="bg-[#E53935] h-1.5 transition-all" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
           </div>
-          <div className="p-8 md:p-10">
+          <div className="p-5 sm:p-8 md:p-10">
             {/* Q.1) Topic Name - Premium Header */}
             <div className="mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -523,7 +523,7 @@ const QuizInterface = () => {
 
             {/* Question Text */}
             <div className="mb-6">
-              <h2 className="text-xl md:text-2xl font-bold text-black dark:text-white leading-relaxed">
+              <h2 className="text-lg md:text-2xl font-bold text-black dark:text-white leading-relaxed">
                 <MathRenderer text={getCleanQuestionText(currentQuestion.question || '', currentQuestion.image)} />
               </h2>
             </div>
@@ -597,13 +597,13 @@ const QuizInterface = () => {
                 <div className={`p-6 md:p-8 rounded-2xl border-2 transition-all shadow-sm ${isCorrectAnswer() ? 'bg-green-50/40 border-green-100 text-green-900' : 'bg-red-50/40 border-red-100 text-red-900'}`}>
                   
                   {/* Status Indicator */}
-                  <div className="flex items-center gap-3 mb-8">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm ${isCorrectAnswer() ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                      <SafeIcon icon={isCorrectAnswer() ? FiCheck : FiX} className="w-6 h-6" />
+                  <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm ${isCorrectAnswer() ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                      <SafeIcon icon={isCorrectAnswer() ? FiCheck : FiX} className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[10px] font-black uppercase tracking-widest text-[#E53935]/60 mb-0.5">Quiz Status</span>
-                      <span className="font-black text-xl uppercase tracking-wider">{isCorrectAnswer() ? "Correct Answer" : "Incorrect Answer"}</span>
+                      <span className="font-black text-lg md:text-xl uppercase tracking-wider">{isCorrectAnswer() ? "Correct Answer" : "Incorrect Answer"}</span>
                     </div>
                   </div>
 

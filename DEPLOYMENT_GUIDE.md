@@ -12,7 +12,7 @@ Update these for **PRODUCTION**:
 # Supabase Configuration
 SUPABASE_URL=https://wqavuacgbawhgcdxxzom.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_SERVICE_ROLE_KEY=[REDACTED]
 VITE_SUPABASE_URL=https://wqavuacgbawhgcdxxzom.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 
@@ -22,12 +22,12 @@ VITE_OPENAI_API_KEY=your-openai-key
 
 # Email Configuration (Gmail/SMTP)
 EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-gmail-app-password
+EMAIL_PASS=[REDACTED]
 EMAIL_FROM=noreply@yourplatform.com
 
 # Twilio Configuration (SMS & WhatsApp)
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
+TWILIO_ACCOUNT_SID=[REDACTED]
+TWILIO_AUTH_TOKEN=[REDACTED]
 TWILIO_FROM_NUMBER=+1234567890  # Your actual Twilio number
 WHATSAPP_FROM_NUMBER=whatsapp:+14155238886  # Sandbox or production
 
@@ -126,11 +126,11 @@ supabase.from('courses').select('*').then(r => console.log('✅ DB OK:', r.data?
 In Render dashboard → Environment:
 ```
 SUPABASE_URL=https://wqavuacgbawhgcdxxzom.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-key
+SUPABASE_SERVICE_ROLE_KEY=[REDACTED]
 EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-password
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
+EMAIL_PASS=[REDACTED]
+TWILIO_ACCOUNT_SID=[REDACTED]
+TWILIO_AUTH_TOKEN=[REDACTED]
 TWILIO_FROM_NUMBER=+1234567890
 APP_URL=https://educational-ai-backend.onrender.com
 NODE_ENV=production

@@ -94,6 +94,12 @@ const ChildrenOverview = () => {
 
     useEffect(() => {
         const fetchChildren = async () => {
+            const timeoutId = setTimeout(() => {
+                console.warn('⏰ Parent dashboard load timeout - showing empty state');
+                setLoading(false);
+                setChildren([]);
+            }, 15000); // 15 second timeout
+            
             try {
                 // Use the backend service to fetch linked children (bypasses RLS issues for parent role)
                 const res = await parentService.getMyChildren();
@@ -111,10 +117,12 @@ const ChildrenOverview = () => {
                 }
 
             } catch (err) {
-                console.error(err);
+                console.error('Failed to load children:', err.message);
                 setChildren([]);
+            } finally {
+                clearTimeout(timeoutId);
+                setLoading(false);
             }
-            setLoading(false);
         };
         if (user) fetchChildren();
     }, [user]);
@@ -185,6 +193,13 @@ const ChildCoursesReport = () => {
 
     useEffect(() => {
         const fetchData = async () => {
+            const timeoutId = setTimeout(() => {
+                console.warn('⏰ Child courses report timeout - showing empty state');
+                setLoading(false);
+                setCourses([]);
+                setChildName("Unknown");
+            }, 20000); // 20 second timeout
+            
             setLoading(true);
             try {
                 // 1. Fetch ALL data in one optimized request
@@ -318,10 +333,13 @@ const ChildCoursesReport = () => {
                     }
                 });
             } catch (err) {
-                console.error(err);
+                console.error('Failed to load child courses:', err.message);
                 setCourses([]);
+                setChildName("Unknown");
+            } finally {
+                clearTimeout(timeoutId);
+                setLoading(false);
             }
-            setLoading(false);
         };
         fetchData();
     }, [studentId]);

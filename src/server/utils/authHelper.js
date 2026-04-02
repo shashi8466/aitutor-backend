@@ -6,11 +6,17 @@ let supabaseInstance = null;
 const getSupabase = () => {
     if (supabaseInstance) return supabaseInstance;
 
-    const url = process.env.SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-    const key = process.env.SUPABASE_ANON_KEY;
+    const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+    // Prefer service role key when available. This avoids edge-cases where the anon
+    // key is missing/misconfigured, while still verifying the provided user token.
+    const key =
+        process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_ANON_KEY;
 
     if (!key) {
-        console.error('❌ [AuthHelper] SUPABASE_ANON_KEY is missing from environment variables!');
+        console.error('❌ [AuthHelper] Missing Supabase key (service role or anon). Check env vars!');
         return null;
     }
 

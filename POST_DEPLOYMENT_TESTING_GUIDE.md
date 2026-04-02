@@ -13,13 +13,13 @@ Before testing, ensure these are configured:
 ```bash
 # Email Configuration (REQUIRED)
 EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-password
+EMAIL_PASS=[REDACTED]
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=465
 
 # Twilio Configuration (REQUIRED for SMS/WhatsApp)
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
+TWILIO_ACCOUNT_SID=[REDACTED]
+TWILIO_AUTH_TOKEN=[REDACTED]
 TWILIO_FROM_NUMBER=+1234567890  # Your Twilio number
 TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886  # Sandbox
 

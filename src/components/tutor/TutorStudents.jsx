@@ -7,7 +7,7 @@ import { useLocation, Link } from 'react-router-dom';
 
 const { FiUsers, FiSearch, FiFilter, FiMail, FiBarChart2, FiCalendar, FiBook } = FiIcons;
 
-const TutorStudents = ({ dashboardData }) => {
+const TutorStudents = ({ dashboardData, isParentLoading }) => {
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
     const initialCourseFilter = queryParams.get('courseId') || '';
@@ -25,8 +25,11 @@ const TutorStudents = ({ dashboardData }) => {
     }, [dashboardData]);
 
     useEffect(() => {
-        loadData();
-    }, [courseFilter]);
+        // Wait for dashboard data if it's currently loading
+        if (!isParentLoading) {
+            loadData();
+        }
+    }, [courseFilter, isParentLoading]);
 
     const loadData = async () => {
         setLoading(true);

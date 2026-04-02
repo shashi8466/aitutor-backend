@@ -32,10 +32,10 @@ User gets beautiful email ✨
 Your `.env` already has the correct values:
 
 ```bash
-✅ BREVO_API_KEY=YOUR_BREVO_API_KEY_HERE
+✅ BREVO_API_KEY=[REDACTED]
 ✅ EMAIL_FROM=YOUR_EMAIL_FROM_HERE
 ✅ EMAIL_USER=YOUR_EMAIL_USER_HERE
-✅ EMAIL_PASS=YOUR_EMAIL_PASS_HERE
+✅ EMAIL_PASS=[REDACTED]
 ```
 
 **Note:** Your `.env` shows Brevo is configured! ✅

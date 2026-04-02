@@ -2,12 +2,17 @@ class NotificationTemplates {
   /**
    * Test Completion Notification Templates
    */
-  static getTestCompletionTemplate(studentName, testName, score, totalScore, percentage, parentName = null) {
+  static getTestCompletionTemplate(studentName, testName, score, totalScore, percentage, submissionId, parentName = null) {
     const isForParent = parentName !== null;
     
     const emailSubject = isForParent 
       ? `📊 Test Completion Report: ${studentName}'s ${testName} Results`
       : `🎯 Your ${testName} Test Results Are Ready!`;
+
+    // Create specific redirect URL with submission ID
+    const redirectUrl = isForParent
+      ? `${process.env.FRONTEND_URL}?redirect=/parent/dashboard`
+      : `${process.env.FRONTEND_URL}?redirect=/student/detailed-review/${submissionId}`;
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -54,7 +59,7 @@ class NotificationTemplates {
             </ul>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${process.env.FRONTEND_URL}/student/test-review" class="btn">View Full Report</a>
+              <a href="${redirectUrl}" class="btn">View Full Report</a>
             </div>
           </div>
           
@@ -68,8 +73,8 @@ class NotificationTemplates {
     `;
 
     const smsMessage = isForParent
-      ? `Hi ${parentName}! ${studentName} completed ${testName}. Score: ${score}/${totalScore} (${percentage}%). View full report: ${process.env.FRONTEND_URL}/parent/dashboard`
-      : `Hi ${studentName}! Great job completing ${testName}. Your score: ${score}/${totalScore} (${percentage}%). View detailed report: ${process.env.FRONTEND_URL}/student/test-review`;
+      ? `Hi ${parentName}! ${studentName} completed ${testName}. Score: ${score}/${totalScore} (${percentage}%). View full report: ${redirectUrl}`
+      : `Hi ${studentName}! Great job completing ${testName}. Your score: ${score}/${totalScore} (${percentage}%). View detailed report: ${redirectUrl}`;
 
     const whatsappMessage = smsMessage; // Similar content for WhatsApp
 
@@ -90,6 +95,11 @@ class NotificationTemplates {
     const emailSubject = isForParent
       ? `📈 Weekly Progress Report: ${studentName}'s SAT Prep Journey`
       : `📊 Your Weekly SAT Prep Progress Report`;
+
+    // Create specific redirect URL for dashboard
+    const redirectUrl = isForParent
+      ? `${process.env.FRONTEND_URL}?redirect=/parent/dashboard`
+      : `${process.env.FRONTEND_URL}?redirect=/student/dashboard`;
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -185,7 +195,7 @@ class NotificationTemplates {
             </ul>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${isForParent ? process.env.FRONTEND_URL + '/parent/dashboard' : process.env.FRONTEND_URL + '/student/dashboard'}" class="btn">View Detailed Dashboard</a>
+              <a href="${redirectUrl}" class="btn">View Detailed Dashboard</a>
             </div>
           </div>
           
@@ -199,8 +209,8 @@ class NotificationTemplates {
     `;
 
     const smsMessage = isForParent
-      ? `Weekly update: ${studentName} attempted ${progressData.testsAttempted || 0} tests, avg score ${progressData.averageScore || 0}%. Current total: ${progressData.currentTotalScore || 0}/1600. Full report: ${process.env.FRONTEND_URL}/parent/dashboard`
-      : `Your weekly progress: ${progressData.testsAttempted || 0} tests, avg ${progressData.averageScore || 0}%. Current score: ${progressData.currentTotalScore || 0}/1600. Details: ${process.env.FRONTEND_URL}/student/dashboard`;
+      ? `Weekly update: ${studentName} attempted ${progressData.testsAttempted || 0} tests, avg score ${progressData.averageScore || 0}%. Current total: ${progressData.currentTotalScore || 0}/1600. Full report: ${redirectUrl}`
+      : `Your weekly progress: ${progressData.testsAttempted || 0} tests, avg ${progressData.averageScore || 0}%. Current score: ${progressData.currentTotalScore || 0}/1600. Details: ${redirectUrl}`;
 
     return {
       emailSubject,
@@ -227,6 +237,11 @@ class NotificationTemplates {
       medium: '#ffc107', 
       low: '#28a745'
     };
+
+    // Create specific redirect URL for dashboard
+    const redirectUrl = isForParent
+      ? `${process.env.FRONTEND_URL}?redirect=/parent/dashboard`
+      : `${process.env.FRONTEND_URL}?redirect=/student/dashboard`;
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -277,7 +292,7 @@ class NotificationTemplates {
             </ul>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${isForParent ? process.env.FRONTEND_URL + '/parent/dashboard' : process.env.FRONTEND_URL + '/student/dashboard'}" class="btn">Go to Dashboard</a>
+              <a href="${redirectUrl}" class="btn">Go to Dashboard</a>
             </div>
           </div>
           
@@ -292,8 +307,8 @@ class NotificationTemplates {
 
     const urgencyText = daysUntilDue === 1 ? 'tomorrow' : daysUntilDue <= 3 ? 'soon' : `in ${daysUntilDue} days`;
     const smsMessage = isForParent
-      ? `Reminder: ${studentName}'s ${testName} is due ${urgencyText} (${new Date(dueDate).toLocaleDateString()}). Ensure they complete it on time! Dashboard: ${process.env.FRONTEND_URL}/parent/dashboard`
-      : `Reminder: Your ${testName} is due ${urgencyText} (${new Date(dueDate).toLocaleDateString()}). Don't miss it! Dashboard: ${process.env.FRONTEND_URL}/student/dashboard`;
+      ? `Reminder: ${studentName}'s ${testName} is due ${urgencyText} (${new Date(dueDate).toLocaleDateString()}). Ensure they complete it on time! Dashboard: ${redirectUrl}`
+      : `Reminder: Your ${testName} is due ${urgencyText} (${new Date(dueDate).toLocaleDateString()}). Don't miss it! Dashboard: ${redirectUrl}`;
 
     return {
       emailSubject,

@@ -275,11 +275,11 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       console.log(`✅ [Payment] Payment successful for user ${userId}, course ${courseId}`);
 
       // Create enrollment using service role key (no auth header needed)
-      const supabaseUrl = process.env.SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-      const serviceRoleKey = process.env.SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+      const serviceRoleKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
 
       if (!serviceRoleKey) {
-        console.error('❌ [Payment] Service role key not configured');
+        console.error('❌ [Payment] Service role key (SUPABASE_SERVICE_ROLE_KEY) not configured');
         return res.status(500).send('Service role key missing');
       }
 

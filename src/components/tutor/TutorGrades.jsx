@@ -19,7 +19,7 @@ const {
     FiFilter, FiDownload, FiInfo, FiTrendingUp, FiAlertCircle, FiX
 } = FiIcons;
 
-const TutorGrades = ({ adminMode = false, courseId = null }) => {
+const TutorGrades = ({ adminMode = false, courseId = null, dashboardData, isParentLoading }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -27,7 +27,7 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
     const studentIdParam = queryParams.get('studentId');
     const courseIdParam = queryParams.get('courseId') || courseId;
 
-    const [courses, setCourses] = useState([]);
+    const [courses, setCourses] = useState(dashboardData?.courses || []);
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [submissions, setSubmissions] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -37,8 +37,10 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
     const [activeTab, setActiveTab] = useState('incorrect'); // 'incorrect' or 'correct'
 
     useEffect(() => {
-        loadCourses();
-    }, [courseIdParam]);
+        if (!isParentLoading) {
+            loadCourses();
+        }
+    }, [courseIdParam, isParentLoading, dashboardData]);
 
     const loadCourses = async () => {
         try {
@@ -49,16 +51,23 @@ const TutorGrades = ({ adminMode = false, courseId = null }) => {
                 return;
             }
 
-            const res = await tutorService.getDashboard();
-            setCourses(res.data.courses || []);
+            let coursesList = [];
+            if (dashboardData?.courses) {
+                coursesList = dashboardData.courses;
+            } else {
+                const res = await tutorService.getDashboard();
+                coursesList = res.data.courses || [];
+            }
+            
+            setCourses(coursesList);
 
             const targetId = courseIdParam || courseId;
             if (targetId) {
-                const target = res.data.courses?.find(c => c.id === parseInt(targetId));
+                const target = coursesList.find(c => c.id === parseInt(targetId));
                 if (target) handleCourseSelect(target);
-                else if (res.data.courses?.length > 0) handleCourseSelect(res.data.courses[0]);
-            } else if (res.data.courses?.length > 0) {
-                handleCourseSelect(res.data.courses[0]);
+                else if (coursesList.length > 0) handleCourseSelect(coursesList[0]);
+            } else if (coursesList.length > 0) {
+                handleCourseSelect(coursesList[0]);
             }
         } catch (error) {
             console.error('Error loading courses:', error);

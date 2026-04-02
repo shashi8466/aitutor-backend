@@ -6,9 +6,9 @@ import { enrollmentService, tutorService } from '../../services/api';
 
 const { FiMail, FiLink, FiCopy, FiPlus, FiCalendar, FiUsers, FiX, FiCheck, FiInfo, FiTrash2, FiClock, FiAlertCircle } = FiIcons;
 
-const TutorInvitations = () => {
+const TutorInvitations = ({ dashboardData, isParentLoading }) => {
     const [invitations, setInvitations] = useState([]);
-    const [courses, setCourses] = useState([]);
+    const [courses, setCourses] = useState(dashboardData?.courses || []);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [copyStatus, setCopyStatus] = useState(null);
@@ -24,19 +24,32 @@ const TutorInvitations = () => {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (!isParentLoading) {
+            loadData();
+        }
+    }, [isParentLoading, dashboardData]);
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [keysRes, dashboardRes] = await Promise.all([
-                enrollmentService.getKeys(),
-                tutorService.getDashboard()
-            ]);
-            // Filter keys to only show those that are "Invitations" (optional logic, but here we show all tutor keys)
+            const fetchers = [enrollmentService.getKeys()];
+            
+            // Only fetch dashboard if not provided by parent
+            if (!dashboardData?.courses) {
+                fetchers.push(tutorService.getDashboard());
+            }
+
+            const results = await Promise.all(fetchers);
+            const keysRes = results[0];
+            const dashRes = results[1];
+
             setInvitations(keysRes.data.keys || []);
-            setCourses(dashboardRes.data.courses || []);
+            
+            if (dashboardData?.courses) {
+                setCourses(dashboardData.courses);
+            } else if (dashRes) {
+                setCourses(dashRes.data.courses || []);
+            }
         } catch (error) {
             console.error('Error loading invitations:', error);
         } finally {

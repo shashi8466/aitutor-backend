@@ -6,15 +6,15 @@ Your Twilio Account SID has been added to the environment files:
 
 ### In `.env` (Active Configuration):
 ```bash
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE  # Replace with actual token
+TWILIO_ACCOUNT_SID=[REDACTED]
+TWILIO_AUTH_TOKEN=[REDACTED]  # Replace with actual token
 TWILIO_FROM_NUMBER=+1234567890  # Replace with your Twilio number
 ```
 
 ### In `.env.example` (Template):
 ```bash
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE  # Replace with actual token
+TWILIO_ACCOUNT_SID=[REDACTED]
+TWILIO_AUTH_TOKEN=[REDACTED]  # Replace with actual token
 TWILIO_PHONE_NUMBER=+1234567890  # Replace with your Twilio number
 ```
 
@@ -34,7 +34,7 @@ TWILIO_PHONE_NUMBER=+1234567890  # Replace with your Twilio number
 Open `.env` and replace `YOUR_AUTH_TOKEN_HERE` with your actual token:
 
 ```bash
-TWILIO_AUTH_TOKEN=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6  # Your real token
+TWILIO_AUTH_TOKEN=[REDACTED]  # Your real token
 ```
 
 ### Step 3: Add Your Twilio Phone Number
@@ -61,11 +61,11 @@ npm start
 ### Option 1: Test via cURL (from your message)
 
 ```bash
-curl 'https://api.twilio.com/2010-04-01/Accounts/ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/Messages.json' -X POST \
+curl 'https://api.twilio.com/2010-04-01/Accounts/[REDACTED]/Messages.json' -X POST \
 --data-urlencode 'To=+918466924574' \
 --data-urlencode 'MessagingServiceSid=MG190cb68962bef6b4b4f9e30d4c6a9d8b' \
 --data-urlencode 'Body=Ahoy 👋' \
--u ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx:YOUR_AUTH_TOKEN
+-u [REDACTED]:YOUR_AUTH_TOKEN
 ```
 
 Replace `YOUR_AUTH_TOKEN` with your actual token.
@@ -78,7 +78,7 @@ Create a test file `test-twilio.js`:
 import twilio from 'twilio';
 
 const client = twilio(
-  'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+  '[REDACTED]',
   'YOUR_AUTH_TOKEN'  // Replace with your token
 );
 
@@ -106,7 +106,7 @@ Once everything is configured, the notification system will automatically use Tw
 
 | Variable | Value | Status |
 |----------|-------|--------|
-| `TWILIO_ACCOUNT_SID` | `ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` | ✅ Set |
+| `TWILIO_ACCOUNT_SID` | `[REDACTED]` | ✅ Set |
 | `TWILIO_AUTH_TOKEN` | `YOUR_AUTH_TOKEN_HERE` | ⚠️ **NEEDS UPDATE** |
 | `TWILIO_FROM_NUMBER` | `+1234567890` | ⚠️ **Update if you have a number** |
 | `TWILIO_WHATSAPP_NUMBER` | `whatsapp:+14155238886` | ✅ Already set in .env.example |

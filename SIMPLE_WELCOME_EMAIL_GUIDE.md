@@ -297,7 +297,7 @@ WHERE tgname = 'on_user_signup_queue_welcome';
 **Fix:**
 1. Check `.env` has correct Brevo key:
    ```bash
-   BREVO_API_KEY=YOUR_BREVO_API_KEY_HERE
+   BREVO_API_KEY=[REDACTED]
    ```
 
 2. Restart backend after updating `.env`

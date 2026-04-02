@@ -116,13 +116,15 @@ const UnifiedLogin = () => {
                     <motion.div
                         initial={{ y: -20 }}
                         animate={{ y: 0 }}
-                        className="mx-auto h-20 w-20 bg-white dark:bg-gray-800 rounded-3xl flex items-center justify-center shadow-2xl overflow-hidden mb-6 border border-gray-100 dark:border-gray-700"
+                        className="mx-auto flex items-center justify-center mb-10"
                     >
-                        {settings.logoUrl ? (
-                            <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                        {(settings.logo_url || settings.logoUrl) ? (
+                            <div className="h-16 w-auto max-w-[200px] flex items-center justify-center">
+                                <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain" />
+                            </div>
                         ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-blue-700 flex items-center justify-center">
-                                <span className="text-white text-3xl font-bold italic">AI</span>
+                            <div className="h-20 w-20 rounded-[28px] bg-black border border-white/20 flex items-center justify-center shadow-2xl">
+                                <span className="text-white font-black italic text-2xl tracking-tighter">AI</span>
                             </div>
                         )}
                     </motion.div>

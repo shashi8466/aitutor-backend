@@ -20,11 +20,9 @@ const AdminParentNotificationManager = () => {
   const fetchParents = async () => {
     try {
       setLoading(true);
-      const { data } = await authService.getAllProfiles();
-      
-      // Filter for parents locally
-      const parentProfiles = (data || []).filter(p => p.role === 'parent');
-      setParents(parentProfiles);
+      // Fetch ONLY parents (optimized)
+      const { data } = await authService.getProfilesByRole('parent', 500);
+      setParents(data || []);
     } catch (error) {
       console.error('Error fetching parents:', error);
       showMessage('error', 'Failed to load parents');
@@ -107,10 +105,17 @@ const AdminParentNotificationManager = () => {
     const matchesSearch = parent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          parent.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
+    const hasConfigs = parent.notification_preferences?.email || 
+                      parent.notification_preferences?.sms || 
+                      parent.notification_preferences?.whatsapp;
+    
+    // Use admin-controlled status, not login activity
+    const isActive = parent.status === 'active';
+
     if (filterStatus === 'active') {
-      return matchesSearch && parent.last_active_at && new Date(parent.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return matchesSearch && isActive;
     } else if (filterStatus === 'inactive') {
-      return matchesSearch && (!parent.last_active_at || new Date(parent.last_active_at) <= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+      return matchesSearch && !isActive;
     }
     
     return matchesSearch;
@@ -119,8 +124,8 @@ const AdminParentNotificationManager = () => {
   // Statistics
   const stats = {
     total: parents.length,
-    active: parents.filter(p => p.last_active_at && new Date(p.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length,
-    inactive: parents.filter(p => !p.last_active_at || new Date(p.last_active_at) <= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length,
+    active: parents.filter(p => p.status === 'active').length,
+    inactive: parents.filter(p => p.status === 'inactive').length,
     emailEnabled: parents.filter(p => p.notification_preferences?.email).length,
     smsEnabled: parents.filter(p => p.notification_preferences?.sms).length,
     whatsappEnabled: parents.filter(p => p.notification_preferences?.whatsapp).length
@@ -297,11 +302,19 @@ const AdminParentNotificationManager = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      parent.last_active_at && new Date(parent.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+                      (() => {
+                        const hasConfigs = parent.notification_preferences?.email || parent.notification_preferences?.sms || parent.notification_preferences?.whatsapp;
+                        const isRecentlyActive = parent.last_active_at && new Date(parent.last_active_at).getTime() > (Date.now() - 90 * 24 * 60 * 60 * 1000);
+                        return isRecentlyActive || hasConfigs;
+                      })()
                         ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
-                      {parent.last_active_at && new Date(parent.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) ? 'Active' : 'Inactive'}
+                      {(() => {
+                        const hasConfigs = parent.notification_preferences?.email || parent.notification_preferences?.sms || parent.notification_preferences?.whatsapp;
+                        const isRecentlyActive = parent.last_active_at && new Date(parent.last_active_at).getTime() > (Date.now() - 90 * 24 * 60 * 60 * 1000);
+                        return isRecentlyActive || hasConfigs;
+                      })() ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

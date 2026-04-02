@@ -8,6 +8,40 @@ import supabase from '../../supabase/supabaseAdmin.js';
 
 const router = express.Router();
 
+// Admin middleware
+const requireAdmin = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const token = authHeader.substring(7);
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error('Admin middleware error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 /**
  * GET /api/admin/tutors
  * Get all available tutors
@@ -566,6 +600,83 @@ router.delete('/groups/:groupId', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/parents
+ * Admin get all parent accounts
+ */
+router.get('/parents', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+
+        console.log(`📋 [AdminParents] Fetching all parents by admin: ${userId}`);
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Verify admin role
+        const { data: profile, error: roleErr } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (roleErr || !profile || profile.role !== 'admin') {
+            console.error('❌ [AdminParents] Permission denied or profile error');
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        // Get all parents with their linked students
+        const { data: parents, error: fetchError } = await supabase
+            .from('profiles')
+            .select(`
+                id,
+                email,
+                name,
+                role,
+                status,
+                created_at,
+                updated_at,
+                linked_students,
+                phone_number,
+                whatsapp_number,
+                notification_preferences
+            `)
+            .eq('role', 'parent')
+            .order('created_at', { ascending: false });
+
+        if (fetchError) {
+            console.error('❌ [AdminParents] Fetch Error:', fetchError);
+            return res.status(500).json({ error: fetchError.message });
+        }
+
+        // Get student details for linked students
+        const parentsWithStudents = await Promise.all(
+            (parents || []).map(async (parent) => {
+                if (parent.linked_students && parent.linked_students.length > 0) {
+                    const { data: students } = await supabase
+                        .from('profiles')
+                        .select('id, name, email, role')
+                        .in('id', parent.linked_students);
+
+                    return {
+                        ...parent,
+                        linked_students_details: students || []
+                    };
+                }
+                return {
+                    ...parent,
+                    linked_students_details: []
+                };
+            })
+        );
+
+        console.log(`✅ [AdminParents] Retrieved ${parentsWithStudents.length} parent accounts`);
+        res.json({ 
+            success: true, 
+            data: parentsWithStudents,
+            count: parentsWithStudents.length
+        });
+
+    } catch (error) {
+        console.error('💥 [AdminParents] Fatal Error:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+});
+
+/**
  * POST /api/admin/parents
  * Admin create parent account
  */
@@ -703,6 +814,137 @@ router.put('/parents/:id', async (req, res) => {
     } catch (error) {
         console.error('Admin update parent error:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * PUT /api/admin/users/:id/status
+ * Update user status (active/inactive) - Admin control only
+ */
+router.put('/users/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { id: targetUserId } = req.params;
+    const { status } = req.body;
+
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    
+    if (!targetUserId) return res.status(400).json({ error: 'User ID required' });
+    
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be "active" or "inactive"' });
+    }
+
+    console.log(`🔄 [AdminStatus] Updating user ${targetUserId} status to: ${status} by admin: ${userId}`);
+
+    // Update user status in profiles table
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', targetUserId)
+      .select('id, name, email, status, updated_at')
+      .single();
+
+    if (error) {
+      console.error('❌ [AdminStatus] Update Error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    console.log(`✅ [AdminStatus] User ${targetUserId} status updated to: ${status}`);
+    
+    res.json({ 
+      success: true, 
+      message: `User status updated to ${status}`,
+      user: data 
+    });
+
+  } catch (error) {
+    console.error('❌ [AdminStatus] Fatal Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/admin/parents/:id
+ */
+router.delete('/parents/:id', requireAdmin, async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const parentId = req.params.id;
+
+        console.log(`🗑️ [AdminDelete] Attempting to delete parent: ${parentId} by admin: ${userId}`);
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        if (!parentId) return res.status(400).json({ error: 'Parent ID required' });
+
+        // 1. First check if parent exists and get details
+        const { data: parentProfile, error: fetchError } = await supabase
+            .from('profiles')
+            .select('id, email, name, role, linked_students')
+            .eq('id', parentId)
+            .eq('role', 'parent')
+            .single();
+
+        if (fetchError || !parentProfile) {
+            console.error('❌ [AdminDelete] Parent not found:', fetchError);
+            return res.status(404).json({ error: 'Parent account not found' });
+        }
+
+        console.log(`📋 [AdminDelete] Found parent: ${parentProfile.email} (${parentProfile.name})`);
+
+        // 2. Remove parent from any linked students
+        if (parentProfile.linked_students && parentProfile.linked_students.length > 0) {
+            console.log(`🔗 [AdminDelete] Removing parent from ${parentProfile.linked_students.length} students`);
+            
+            const { error: unlinkError } = await supabase
+                .from('profiles')
+                .update({ linked_students: null })
+                .in('id', parentProfile.linked_students);
+
+            if (unlinkError) {
+                console.warn('⚠️ [AdminDelete] Could not unlink from students:', unlinkError);
+                // Continue with deletion anyway
+            }
+        }
+
+        // 3. Delete from auth.users table
+        try {
+            const { error: authError } = await supabase.auth.admin.deleteUser(parentId);
+            
+            if (authError && authError.status !== 404) {
+                console.error('❌ [AdminDelete] Auth Delete Error:', authError);
+                // Continue with profile deletion even if auth deletion fails
+            } else {
+                console.log(`✅ [AdminDelete] Auth user deleted: ${parentId}`);
+            }
+        } catch (authErr) {
+            console.warn('⚠️ [AdminDelete] Auth deletion failed, continuing with profile cleanup');
+        }
+
+        // 4. Delete from profiles table
+        const { error: profileDeleteErr } = await supabase
+            .from('profiles')
+            .delete()
+            .eq('id', parentId);
+
+        if (profileDeleteErr) {
+            console.error('❌ [AdminDelete] Profile Delete Error:', profileDeleteErr);
+            return res.status(400).json({ 
+                error: 'Could not delete parent profile',
+                details: profileDeleteErr.message 
+            });
+        }
+
+        console.log(`✅ [AdminDelete] Parent ${parentProfile.email} successfully removed.`);
+        res.json({ 
+            success: true, 
+            message: `Parent account for ${parentProfile.name} (${parentProfile.email}) deleted successfully` 
+        });
+
+    } catch (error) {
+        console.error('💥 [AdminDelete] Fatal error:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
 

@@ -637,7 +637,7 @@ const detectIntent = (msg) => {
 export const handleTutorRequest = async (userId, message, context, difficulty) => {
     try {
         const [siteSettings, state] = await Promise.all([getAppSettings(), getStudentState(userId)]);
-        const appName = siteSettings.app_name || 'Personal AI Tutor';
+        const appName = siteSettings.app_name || 'AIPrep365';
 
         // Initialize state
         if (!state.current_state) state.current_state = "Start Session";

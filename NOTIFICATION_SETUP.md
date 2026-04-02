@@ -31,12 +31,12 @@ Update your `.env` file with your actual credentials:
 ```env
 # Email Configuration (Gmail/SMTP)
 EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-password
+EMAIL_PASS=[REDACTED]
 EMAIL_FROM=noreply@yourapp.com
 
 # Twilio Configuration (SMS & WhatsApp)
 TWILIO_ACCOUNT_SID=your-twilio-account-sid
-TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_AUTH_TOKEN=[REDACTED]
 TWILIO_FROM_NUMBER=+1234567890
 
 # WhatsApp Configuration

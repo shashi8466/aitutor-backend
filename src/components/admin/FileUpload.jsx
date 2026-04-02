@@ -192,24 +192,26 @@ const FileUpload = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Document & Video Upload System</h2>
-        <p className="text-gray-600 mt-2">Upload documents to extract questions or videos for course content</p>
-      </div>
+     <div className="mb-8">
+       <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">Document & Video Upload System</h2>
+       <p className="text-slate-500 dark:text-slate-400 mt-2">Upload documents to extract questions or videos for course content</p>
+     </div>
 
       {/* Server Status Check */}
       <ServerStatusBanner onStatusChange={setServerOnline} />
 
       {/* Upload Settings */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <SafeIcon icon={FiSettings} className="w-5 h-5 text-gray-600" />
-          <h3 className="font-medium text-gray-900">Upload Settings</h3>
-        </div>
+       <motion.div
+         initial={{ opacity: 0, y: 20 }}
+         animate={{ opacity: 1, y: 0 }}
+         className="dashboard-card p-6 bg-white dark:bg-slate-900"
+       >
+         <div className="flex items-center gap-2 mb-6">
+           <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+             <SafeIcon icon={FiSettings} className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+           </div>
+           <h3 className="font-bold text-slate-900 dark:text-white">Upload Configuration</h3>
+         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Select Course</label>
@@ -257,19 +259,19 @@ const FileUpload = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Content Level</label>
-            <select
-              value={selectedLevel}
-              onChange={(e) => setSelectedLevel(e.target.checked)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="All">Mixed / All Levels</option>
-              <option value="Easy">Easy</option>
-              <option value="Medium">Medium</option>
-              <option value="Hard">Hard</option>
-            </select>
-          </div>
+           <div>
+             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Content Level</label>
+             <select
+               value={selectedLevel}
+               onChange={(e) => setSelectedLevel(e.target.value)}
+               className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-900 dark:text-white"
+             >
+               <option value="All">Mixed / All Levels</option>
+               <option value="Easy">Easy</option>
+               <option value="Medium">Medium</option>
+               <option value="Hard">Hard</option>
+             </select>
+           </div>
         </div>
         <div className="mt-4 flex items-center text-xs text-gray-500 gap-2">
           <SafeIcon icon={FiDatabase} className="w-3 h-3" />
@@ -284,17 +286,21 @@ const FileUpload = () => {
         transition={{ delay: 0.1 }}
         className={`bg-white rounded-xl shadow-lg border border-gray-200 p-6 ${!serverOnline ? 'opacity-50 pointer-events-none grayscale' : ''}`}
       >
-        <div
-          className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
-            }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-        >
-          <SafeIcon icon={FiUpload} className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Drop files here or click to upload</h3>
-          <p className="text-gray-600 mb-4">Supports: PDF, DOCX, MP4, MOV, ZIP (Max 3GB)</p>
+         <div
+           className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 ${dragActive 
+             ? 'border-sky-500 bg-sky-500/5 shadow-inner shadow-sky-500/10' 
+             : 'border-slate-200 dark:border-white/5 hover:border-sky-500/50 hover:bg-slate-50 dark:hover:bg-white/5'
+           }`}
+           onDragEnter={handleDrag}
+           onDragLeave={handleDrag}
+           onDragOver={handleDrag}
+           onDrop={handleDrop}
+         >
+           <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-6 transition-transform group-hover:scale-110">
+             <SafeIcon icon={FiUpload} className="w-8 h-8 text-slate-400 group-hover:text-sky-500" />
+           </div>
+           <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Drop files here or click to upload</h3>
+           <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm">Supports: PDF, DOCX, MP4, MOV, ZIP (Max 3GB)</p>
           <input
             type="file"
             multiple
@@ -315,15 +321,17 @@ const FileUpload = () => {
           <div className="mt-6">
             <h4 className="font-medium text-gray-900 mb-3">Selected Files</h4>
             <div className="space-y-2">
-              {files.map((fileItem) => (
-                <div key={fileItem.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <SafeIcon icon={getStatusIcon(fileItem.status)} className={`w-5 h-5 ${getStatusColor(fileItem.status)}`} />
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium text-gray-900 truncate block max-w-xs md:max-w-md">{fileItem.file.name}</span>
-                      <span className="text-xs text-gray-500">({formatFileSize(fileItem.file.size)})</span>
-                    </div>
-                  </div>
+               {files.map((fileItem) => (
+                 <div key={fileItem.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl transition-all">
+                   <div className="flex items-center space-x-4">
+                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 shadow-sm`}>
+                       <SafeIcon icon={getStatusIcon(fileItem.status)} className={`w-5 h-5 ${getStatusColor(fileItem.status)}`} />
+                     </div>
+                     <div className="min-w-0">
+                       <span className="text-sm font-bold text-slate-900 dark:text-white truncate block max-w-xs md:max-w-md">{fileItem.file.name}</span>
+                       <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{formatFileSize(fileItem.file.size)}</span>
+                     </div>
+                   </div>
                   {fileItem.status === 'pending' && (
                     <button onClick={() => removeFile(fileItem.id)} className="text-gray-400 hover:text-red-600 transition-colors">
                       <SafeIcon icon={FiTrash2} className="w-4 h-4" />

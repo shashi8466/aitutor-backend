@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -9,62 +13,159 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  @apply bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 transition-colors duration-200;
+  @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300;
 }
 
 #root {
   width: 100%;
-  height: 100%;
 }
 
-@layer utilities {
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+@layer base {
+  /* Headings */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold text-slate-900 dark:text-white transition-colors duration-300;
   }
 
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  /* Form Elements */
+  input, select, textarea {
+    @apply bg-white dark:bg-slate-900 
+           border-slate-200 dark:border-slate-800 
+           text-slate-900 dark:text-slate-200 
+           placeholder:text-slate-400 dark:placeholder:text-slate-600
+           focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+           transition-all duration-200;
+  }
+
+  label {
+    @apply text-sm font-semibold text-slate-600 dark:text-slate-400 transition-colors duration-300;
+  }
+
+  /* Table styles */
+  table {
+    @apply w-full text-left border-collapse;
+  }
+  
+  th {
+    @apply px-4 py-3 bg-slate-50 dark:bg-slate-900/50 
+           text-xs font-bold uppercase tracking-wider 
+           text-slate-500 dark:text-slate-400 
+           border-b border-slate-200 dark:border-slate-800;
+  }
+  
+  td {
+    @apply px-4 py-3 border-b border-slate-100 dark:border-slate-900 
+           text-sm text-slate-700 dark:text-slate-300;
   }
 }
 
 @layer components {
-  /* Global Utility for Tables on Mobile */
-  .responsive-table-container {
-    @apply overflow-x-auto -mx-4 sm:mx-0;
+  .dashboard-card {
+    @apply bg-white dark:bg-slate-900/60 
+           border border-slate-200 dark:border-white/5 
+           rounded-2xl shadow-sm dark:shadow-2xl 
+           transition-all duration-300;
+  }
+
+  .btn-primary {
+    @apply px-4 py-2 bg-blue-600 hover:bg-blue-700 
+           text-white font-bold rounded-xl shadow-lg 
+           shadow-blue-600/20 active:scale-95 
+           transition-all duration-200;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar, .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide, .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
   
-  /* Smooth horizontal scroll for navigation bars */
-  .horizontal-scroll-nav {
-    @apply flex overflow-x-auto scrollbar-hide snap-x snap-mandatory;
-  }
-
-  .horizontal-scroll-nav > * {
-    @apply snap-start;
+  .responsive-table-container {
+    @apply overflow-x-auto -mx-4 sm:mx-0 rounded-xl border border-slate-200 dark:border-slate-800;
   }
 }
 
-/* Math Content Formatting & Overflow Protection */
-.math-content,
-mjx-container {
-  overflow-wrap: anywhere !important;
-  word-break: normal !important;
-  white-space: normal !important;
+/* ==========================================================================
+   GLOBAL DARK MODE OVERRIDES (Themed Contrast Fixes)
+   ========================================================================== */
+
+/* slate-950: #020617, slate-900: #0f172a, slate-800: #1e293b, slate-700: #334155 */
+/* slate-400: #94a3b8, slate-300: #cbd5e1, slate-200: #e2e8f0, slate-100: #f1f5f9 */
+
+/* Force hardcoded backgrounds to adapt in dark mode */
+.dark .bg-white { background-color: #0f172a !important; }
+.dark .bg-gray-50, .dark .bg-slate-50 { background-color: #020617 !important; }
+.dark .bg-gray-100, .dark .bg-slate-100 { background-color: rgba(15, 23, 42, 0.5) !important; }
+.dark .bg-gray-200, .dark .bg-slate-200 { background-color: #1e293b !important; }
+
+/* Force hardcoded text to adapt in dark mode */
+.dark .text-gray-900, .dark .text-slate-900, .dark .text-black { color: #f1f5f9 !important; }
+.dark .text-gray-800, .dark .text-slate-800 { color: #e2e8f0 !important; }
+.dark .text-gray-700, .dark .text-slate-700 { color: #cbd5e1 !important; }
+.dark .text-gray-600, .dark .text-slate-600 { color: #94a3b8 !important; }
+.dark .text-gray-500, .dark .text-slate-500 { color: #94a3b8 !important; }
+.dark .text-gray-400, .dark .text-slate-400 { color: #64748b !important; }
+
+/* Force borders to adapt in dark mode */
+.dark .border-gray-100, .dark .border-slate-100, .dark .border-gray-200, .dark .border-slate-200, .dark .border-gray-300 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* Block math should be scrollable if extremely long, not run off page */
-mjx-container[display="true"] {
-  display: block !important;
-  max-width: 100% !important;
-  overflow-x: auto !important;
-  padding: 0.5rem 0;
+.dark .divide-gray-100, .dark .divide-gray-200, .dark .divide-slate-200 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* Force standard font for text blocks inside math to avoid squashing */
-mjx-utext {
-  font-family: inherit !important;
-  white-space: normal !important;
+/* Specific Input/Select Fixes */
+.dark input, .dark select, .dark textarea {
+  background-color: #020617 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #e2e8f0 !important;
 }
+
+.dark input::placeholder {
+  color: #475569 !important;
+}
+
+.dark input:focus, .dark select:focus, .dark textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Modal and Card Shadows */
+.dark .shadow-sm, .dark .shadow-md, .dark .shadow-lg, .dark .shadow-xl, .dark .shadow-2xl {
+  box-shadow: 0 20px 50px -12px rgba(0,0,0,0.8) !important;
+}
+
+/* Table Specific Contrast */
+.dark thead tr, .dark th {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark td {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Level Badges & Section Highlighting */
+.dark .bg-blue-50 { background-color: rgba(30, 58, 138, 0.2) !important; color: #93c5fd !important; border-color: rgba(59, 130, 246, 0.2) !important; }
+.dark .bg-green-50 { background-color: rgba(20, 83, 45, 0.2) !important; color: #86efac !important; border-color: rgba(34, 197, 94, 0.2) !important; }
+.dark .bg-red-50 { background-color: rgba(127, 29, 29, 0.2) !important; color: #fca5a5 !important; border-color: rgba(239, 44, 44, 0.2) !important; }
+.dark .bg-purple-50 { background-color: rgba(88, 28, 135, 0.2) !important; color: #d8b4fe !important; border-color: rgba(168, 85, 247, 0.2) !important; }
+.dark .bg-orange-50 { background-color: rgba(124, 45, 18, 0.2) !important; color: #fdba74 !important; border-color: rgba(249, 115, 22, 0.2) !important; }
+
+/* Dashboard Cards */
+.dark .dashboard-card {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 20px 50px -12px rgba(0,0,0,0.8) !important;
+}
+
+/* Math Content Transitions */
+.math-content, mjx-container {
+  transition: color 300ms, background-color 300ms;
+}

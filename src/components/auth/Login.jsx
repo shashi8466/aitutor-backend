@@ -31,8 +31,16 @@ const Login = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user && !loading && !redirecting) {
-      const target = user.role === 'admin' ? '/admin' : '/student';
-      navigate(target);
+      const params = new URLSearchParams(window.location.search);
+      const redirectTarget = params.get('redirect');
+      
+      if (redirectTarget) {
+        navigate(decodeURIComponent(redirectTarget), { replace: true });
+        return;
+      }
+
+      const defaultTarget = user.role === 'admin' ? '/admin' : '/student';
+      navigate(defaultTarget);
     }
   }, [user, navigate, loading, redirecting]);
 
@@ -58,9 +66,17 @@ const Login = () => {
       } else {
         // Success: Immediate feedback and FAST redirection
         setRedirecting(true);
-        const target = result.user.role === 'admin' ? '/admin' : '/student';
+        
+        // Respect redirect query param
+        const params = new URLSearchParams(window.location.search);
+        const redirectTarget = params.get('redirect');
+        const defaultTarget = result.user.role === 'admin' ? '/admin' : '/student';
+        const finalTarget = redirectTarget ? decodeURIComponent(redirectTarget) : defaultTarget;
+
+        console.log('🎯 [Login] Redirecting to:', finalTarget);
+        
         // Minimal delay just for animation smoothness
-        setTimeout(() => navigate(target), 100);
+        setTimeout(() => navigate(finalTarget, { replace: true }), 100);
       }
     } catch (err) {
       console.error(err);

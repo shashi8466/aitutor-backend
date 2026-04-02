@@ -256,7 +256,9 @@ class NotificationController {
    */
   async sendTestDueDateReminder(req, res) {
     try {
-      const { studentId, parentId, testName, dueDate } = req.body;
+      const { studentId, parentId, testName, dueDate, priority = 'medium', customEmail } = req.body;
+
+      console.log(`📅 [DueDate] Sending due date reminder for test: ${testName}`);
 
       // Get student details
       const student = await User.findById(studentId);
@@ -270,67 +272,50 @@ class NotificationController {
         parent = await User.findById(parentId);
       }
 
-      // Prepare recipients
-      const recipients = {
-        email: [student.email],
-        phone: student.phone ? [student.phone] : [],
-        whatsapp: student.phone ? [student.phone] : []
+      // Prepare due date data
+      const dueDateData = {
+        testName,
+        dueDate: new Date(dueDate),
+        priority,
+        daysUntilDue: Math.ceil((new Date(dueDate) - new Date()) / (1000 * 60 * 60 * 24)),
+        studentName: student.name,
+        parentName: parent ? parent.name : null
       };
 
-      if (parent) {
-        recipients.email.push(parent.email);
-        if (parent.phone) {
-          recipients.phone.push(parent.phone);
-          recipients.whatsapp.push(parent.phone);
+      // Send email notification
+      const targetEmail = customEmail || (parent ? parent.email : student.email);
+      const targetName = parent ? parent.name : student.name;
+      
+      const emailResult = await notificationService.sendDueDateReminder(
+        targetEmail,
+        targetName,
+        dueDateData
+      );
+
+      // Send SMS if enabled
+      if (parent && parent.phone_number) {
+        try {
+          await notificationService.sendSMS(
+            parent.phone_number,
+            `Reminder: ${student.name} has test "${testName}" due on ${new Date(dueDate).toLocaleDateString()}`
+          );
+        } catch (smsError) {
+          console.warn('SMS notification failed:', smsError.message);
         }
       }
 
-      // Get notification templates
-      const studentTemplate = NotificationTemplates.getTestDueDateTemplate(
-        student.name, testName, dueDate
-      );
-
-      const parentTemplate = parent ? NotificationTemplates.getTestDueDateTemplate(
-        student.name, testName, dueDate, parent.name
-      ) : null;
-
-      // Send notifications
-      const results = await this.notificationService.sendNotification(recipients, {
-        email: true,
-        sms: true,
-        whatsapp: true,
-        subject: studentTemplate.emailSubject,
-        message: studentTemplate.smsMessage,
-        htmlContent: studentTemplate.emailHtml
-      });
-
-      // Log notification
-      await this.logNotification({
-        type: 'test_due_date',
-        studentId: studentId,
-        parentId: parentId,
-        testName: testName,
-        dueDate: dueDate,
-        recipients: recipients,
-        results: results,
-        sentAt: new Date()
-      });
-
       res.json({
         success: true,
-        message: 'Test due date reminder sent successfully',
-        results
+        message: 'Due date reminder sent successfully',
+        dueDateInfo: dueDateData,
+        emailResult
       });
 
     } catch (error) {
-      console.error('Error sending test due date reminder:', error);
-      res.status(500).json({ error: 'Failed to send reminder' });
+      console.error('Error sending due date reminder:', error);
+      res.status(500).json({ error: 'Failed to send due date reminder' });
     }
   }
-
-  /**
-   * Get notification history
-   */
   async getNotificationHistory(req, res) {
     try {
       const { studentId, parentId, type, limit = 20 } = req.query;

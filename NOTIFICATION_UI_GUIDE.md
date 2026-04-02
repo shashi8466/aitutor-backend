@@ -96,9 +96,9 @@ npm run dev
 1. **Add Your Credentials** to `.env`:
    ```env
    EMAIL_USER=your-email@gmail.com
-   EMAIL_PASS=your-app-password
+   EMAIL_PASS=[REDACTED]
    TWILIO_ACCOUNT_SID=your-sid
-   TWILIO_AUTH_TOKEN=your-token
+   TWILIO_AUTH_TOKEN=[REDACTED]
    TWILIO_FROM_NUMBER=+1234567890
    ```
 

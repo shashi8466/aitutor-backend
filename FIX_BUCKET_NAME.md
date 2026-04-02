@@ -38,7 +38,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key-here
 # Backend Configuration (for file uploads)
 PORT=3001
 SUPABASE_URL=https://wqavuacgbawhgcdxxzom.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+SUPABASE_SERVICE_ROLE_KEY=[REDACTED]
 BUCKET_NAME=course-materials
 ```
 

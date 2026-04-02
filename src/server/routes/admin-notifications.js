@@ -376,19 +376,14 @@ router.get('/notification-stats', requireAdmin, async (req, res) => {
     const smsCount = emailEnabled?.filter(s => s.notification_preferences?.sms).length || 0;
     const whatsappCount = emailEnabled?.filter(s => s.notification_preferences?.whatsapp).length || 0;
 
-    // Get active vs inactive
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
+    // Get active vs inactive based on explicit status field, not login activity
     const { data: allStudents } = await supabase
       .from('profiles')
-      .select('last_active_at')
+      .select('status, last_active_at')
       .eq('role', 'student');
 
-    const activeCount = allStudents?.filter(s => 
-      s.last_active_at && new Date(s.last_active_at) > sevenDaysAgo
-    ).length || 0;
-    const inactiveCount = totalStudents - activeCount;
+    const activeCount = allStudents?.filter(s => s.status === 'active').length || 0;
+    const inactiveCount = allStudents?.filter(s => s.status === 'inactive').length || 0;
 
     res.json({
       success: true,

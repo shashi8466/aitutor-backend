@@ -20,11 +20,9 @@ const AdminNotificationManager = () => {
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const { data } = await authService.getAllProfiles();
-      
-      // Filter for students locally
-      const studentProfiles = (data || []).filter(p => p.role === 'student');
-      setStudents(studentProfiles);
+      // Fetch ONLY students (with limit to keep it fast)
+      const { data } = await authService.getProfilesByRole('student', 500);
+      setStudents(data || []);
     } catch (error) {
       console.error('Error fetching students:', error);
       showMessage('error', 'Failed to load students');
@@ -110,10 +108,17 @@ const AdminNotificationManager = () => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.email?.toLowerCase().includes(searchTerm.toLowerCase());
     
+    const hasConfigs = student.notification_preferences?.email || 
+                      student.notification_preferences?.sms || 
+                      student.notification_preferences?.whatsapp;
+    
+    // Use admin-controlled status, not login activity
+    const isActive = student.status === 'active';
+
     if (filterStatus === 'active') {
-      return matchesSearch && student.last_active_at && new Date(student.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return matchesSearch && isActive;
     } else if (filterStatus === 'inactive') {
-      return matchesSearch && (!student.last_active_at || new Date(student.last_active_at) <= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+      return matchesSearch && !isActive;
     }
     
     return matchesSearch;
@@ -122,8 +127,8 @@ const AdminNotificationManager = () => {
   // Statistics
   const stats = {
     total: students.length,
-    active: students.filter(s => s.last_active_at && new Date(s.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length,
-    inactive: students.filter(s => !s.last_active_at || new Date(s.last_active_at) <= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length,
+    active: students.filter(s => s.status === 'active').length,
+    inactive: students.filter(s => s.status === 'inactive').length,
     emailEnabled: students.filter(s => s.notification_preferences?.email).length,
     smsEnabled: students.filter(s => s.notification_preferences?.sms).length,
     whatsappEnabled: students.filter(s => s.notification_preferences?.whatsapp).length
@@ -300,11 +305,11 @@ const AdminNotificationManager = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      student.last_active_at && new Date(student.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+                      student.status === 'active'
                         ? 'bg-green-100 text-green-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
-                      {student.last_active_at && new Date(student.last_active_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) ? 'Active' : 'Inactive'}
+                      {student.status === 'active' ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

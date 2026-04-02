@@ -8,10 +8,20 @@ import BrevoEmailService from './BrevoEmailService.js';
 
 class WelcomeEmailProcessor {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.warn('⚠️ WelcomeEmailProcessor Error: Missing Supabase credentials.');
+      // Don't throw, let start() handle the check if we want to be graceful
+    }
+
+    if (supabaseUrl && supabaseServiceKey) {
+      this.supabase = createClient(supabaseUrl, supabaseServiceKey);
+    } else {
+      console.warn('⚠️ WelcomeEmailProcessor: Missing Supabase credentials. Background processing disabled.');
+      this.supabase = null;
+    }
     this.emailService = new BrevoEmailService();
     this.isRunning = false;
     this.processQueueInFlight = false;
@@ -60,9 +70,9 @@ class WelcomeEmailProcessor {
     this.processQueueInFlight = true;
 
     try {
-      // Check if Supabase is configured
-      if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        console.log('⚠️ Supabase not configured - skipping welcome email processing');
+      // Check if Supabase client is initialized
+      if (!this.supabase) {
+        // Only log warning once to avoid log spam, or skip logging if previously warned in constructor
         return;
       }
 

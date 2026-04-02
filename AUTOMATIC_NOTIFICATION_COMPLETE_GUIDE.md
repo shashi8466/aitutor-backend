@@ -175,9 +175,9 @@ Before testing, verify:
 ### Environment Variables (.env):
 ```bash
 ✅ EMAIL_USER=your-email@gmail.com
-✅ EMAIL_PASS=your-app-password
-✅ TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-✅ TWILIO_AUTH_TOKEN=YOUR_AUTH_TOKEN_HERE
+✅ EMAIL_PASS=[REDACTED]
+✅ TWILIO_ACCOUNT_SID=[REDACTED]
+✅ TWILIO_AUTH_TOKEN=[REDACTED]
 ✅ TWILIO_FROM_NUMBER=+1234567890
 ✅ APP_URL=https://your-deployed-app.com
 ```

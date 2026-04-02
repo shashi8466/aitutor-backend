@@ -13,11 +13,27 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('⚠️ Warning: Supabase variables are missing in supabase.js. Check your .env file.');
 }
 
-// Standard client configuration
-// Removed 'detectSessionInUrl: false' and custom 'storageKey' to prevent session issues
+// Safe client configuration (handles storage errors in strict browsers)
 export default createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
-    autoRefreshToken: true
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    // Custom storage to handle blocked storage gracefully
+    storage: (() => {
+      try {
+        const dummyKey = '_supabase_test';
+        localStorage.setItem(dummyKey, dummyKey);
+        localStorage.removeItem(dummyKey);
+        return localStorage;
+      } catch (e) {
+        console.warn('⚠️ Supabase Storage: Storage access blocked. Sessions will not persist.');
+        return {
+          getItem: () => null,
+          setItem: () => {},
+          removeItem: () => {}
+        };
+      }
+    })()
   }
 })

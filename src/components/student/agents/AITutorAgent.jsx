@@ -29,81 +29,38 @@ const DIFFICULTY_CONFIG = {
 
 // ── Premium Welcome Card (rendered instead of plain markdown for msg id=1) ──
 const WelcomeCard = () => (
-  <div style={{
-    background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)',
-    border: '1px solid rgba(229,57,53,0.25)',
-    borderRadius: '18px',
-    overflow: 'hidden',
-    maxWidth: '420px',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-  }}>
+  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden w-full max-w-[420px] shadow-xl transition-all duration-300">
     {/* Card header */}
-    <div style={{
-      background: 'linear-gradient(90deg, #E53935 0%, #b71c1c 100%)',
-      padding: '14px 18px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-    }}>
-      <div style={{
-        width: 38, height: 38,
-        background: 'rgba(255,255,255,0.15)',
-        borderRadius: '10px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 20,
-      }}>🤖</div>
+    <div className="bg-gradient-to-r from-red-600 to-red-800 p-4 flex items-center gap-3">
+      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">🤖</div>
       <div>
-        <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>
-          Personal AI SAT Tutor
-        </div>
-        <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 2 }}>
-          Digital SAT Specialist • Online
-        </div>
+        <div className="text-white font-bold text-sm leading-tight">Personal AI SAT Tutor</div>
+        <div className="text-white/70 text-[10px] mt-0.5">Digital SAT Specialist • Online</div>
       </div>
     </div>
 
     {/* Card body */}
-    <div style={{ padding: '16px 18px' }}>
-      <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginBottom: 14, letterSpacing: '0.02em' }}>
-        I CAN HELP YOU WITH
-      </p>
+    <div className="p-5">
+      <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">I can help you with</p>
 
       {[
         { icon: '🎯', label: 'Practice Quizzes', example: 'Quiz me on Algebra' },
-        { icon: '📚', label: 'Concept Explanations', example: 'Explain completing the square' },
-        { icon: '🗺️', label: 'Study Plans', example: 'Make me a 4-week study plan' },
+        { icon: '📚', label: 'Concept Explanations', example: 'Explain quadratics' },
+        { icon: '🗺️', label: 'Study Plans', example: 'Make a 4-week plan' },
       ].map((item, i) => (
-        <div key={i} style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '9px 12px',
-          marginBottom: 8,
-          background: 'rgba(255,255,255,0.04)',
-          borderRadius: 10,
-          border: '1px solid rgba(255,255,255,0.07)',
-        }}>
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
+        <div key={i} className="flex items-center gap-3 p-3 mb-2 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl transition-colors">
+          <span className="text-xl flex-shrink-0">{item.icon}</span>
           <div>
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: 13 }}>{item.label}</div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 1 }}>
-              e.g. "{item.example}"
-            </div>
+            <div className="text-slate-900 dark:text-white font-bold text-xs">{item.label}</div>
+            <div className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 italic">"{item.example}"</div>
           </div>
         </div>
       ))}
 
-      <div style={{
-        marginTop: 14,
-        padding: '9px 12px',
-        background: 'rgba(229,57,53,0.08)',
-        borderRadius: 10,
-        border: '1px solid rgba(229,57,53,0.2)',
-        color: 'rgba(255,255,255,0.55)',
-        fontSize: 12,
-        textAlign: 'center',
-      }}>
-        Difficulty is set to <strong style={{ color: '#E53935' }}>Medium</strong> by default — change it anytime above
+      <div className="mt-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-xl text-center">
+        <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+          Difficulty is set to <span className="text-red-600 dark:text-red-400">Medium</span> — change it anytime above
+        </p>
       </div>
     </div>
   </div>
@@ -180,7 +137,7 @@ const AITutorAgent = () => {
             <SafeIcon icon={FiCpu} className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold leading-tight">Personal AI Tutor</h1>
+            <h1 className="text-lg font-bold leading-tight">AIPrep365</h1>
             <p className="text-gray-400 text-xs flex items-center gap-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse inline-block" />
               Online • Digital SAT Specialist
@@ -213,7 +170,7 @@ const AITutorAgent = () => {
       </div>
 
       {/* ── Chat Area ── */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 custom-scrollbar bg-gray-50 dark:bg-gray-900/50">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 custom-scrollbar bg-white dark:bg-slate-900/50">
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
             <motion.div
@@ -225,8 +182,8 @@ const AITutorAgent = () => {
             >
               {/* Avatar */}
               <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm text-sm ${msg.sender === 'user'
-                ? 'bg-black text-white'
-                : 'bg-white text-[#E53935] border border-gray-200 dark:border-gray-600 dark:bg-gray-800'
+                ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                : 'bg-white text-[#E53935] border border-slate-200 dark:border-slate-700 dark:bg-slate-800'
                 }`}>
                 {msg.sender === 'user' ? '👤' : '🤖'}
               </div>
@@ -236,8 +193,8 @@ const AITutorAgent = () => {
                 <WelcomeCard />
               ) : (
                 <div className={`p-3.5 rounded-2xl max-w-[82%] md:max-w-[78%] shadow-sm text-sm leading-relaxed ${msg.sender === 'user'
-                  ? 'bg-black text-white rounded-tr-none'
-                  : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-tl-none'
+                  ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-tr-none'
+                  : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-tl-none'
                   }`}>
                   <MathRenderer text={msg.text} />
                 </div>
@@ -253,14 +210,14 @@ const AITutorAgent = () => {
             animate={{ opacity: 1 }}
             className="flex gap-3"
           >
-            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-white border border-gray-200 dark:border-gray-600 dark:bg-gray-800 text-sm flex-shrink-0">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-white border border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-sm flex-shrink-0">
               🤖
             </div>
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-2xl rounded-tl-none flex gap-1.5 items-center shadow-sm">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-2xl rounded-tl-none flex gap-1.5 items-center shadow-sm">
               {[0, 1, 2].map(i => (
                 <span
                   key={i}
-                  className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                  className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"
                   style={{ animationDelay: `${i * 150}ms` }}
                 />
               ))}
@@ -268,7 +225,7 @@ const AITutorAgent = () => {
           </motion.div>
         )}
 
-        {/* Quick action chips (only show when no quiz is active and few messages) */}
+        {/* Quick action chips */}
         {messages.length <= 2 && !loading && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -280,7 +237,7 @@ const AITutorAgent = () => {
               <button
                 key={i}
                 onClick={() => handleSend(action.msg)}
-                className="px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 hover:border-[#E53935] hover:text-[#E53935] transition-all duration-150 shadow-sm hover:shadow-md"
+                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-xs text-slate-700 dark:text-slate-300 hover:border-[#E53935] hover:text-[#E53935] transition-all duration-150 shadow-sm hover:shadow-md"
               >
                 {action.label}
               </button>

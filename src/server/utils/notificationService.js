@@ -46,7 +46,7 @@ async function sendEmailViaBrevo({ to, subject, html, text }) {
         if (text && !html) sendSmtpEmail.textContent = text;
         
         const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'ssky57771@gmail.com';
-        sendSmtpEmail.sender = { email: senderEmail, name: "AI Tutor Platform" };
+        sendSmtpEmail.sender = { email: senderEmail, name: "AIPrep365" };
 
         const toList = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
         console.log("📧 Sending via Brevo to:", toList);
@@ -202,7 +202,7 @@ async function sendEmailViaSendGrid({ to, subject, html, text }) {
             },
             body: JSON.stringify({
                 personalizations,
-                from: { email: from, name: "AI Tutor Platform" },
+                from: { email: from, name: "AIPrep365" },
                 subject,
                 content: [
                     ...(text ? [{ type: 'text/plain', value: text }] : []),
@@ -266,7 +266,7 @@ export async function sendEmail({ to, subject, html, text }) {
             tls: { rejectUnauthorized: false }
         });
         const info = await gmailTransport.sendMail({
-            from: `"AI Tutor Platform" <${gmailUser}>`,
+            from: `"AIPrep365" <${gmailUser}>`,
             to, subject,
             text: text || '',
             html: html || text || ''
@@ -282,7 +282,7 @@ export async function sendEmail({ to, subject, html, text }) {
     //    in local/cloud environments. Works best in dedicated server environments.
     const transporter = await createEmailTransporter();
     if (transporter) {
-        const appName = process.env.APP_NAME || 'AI Tutor Platform';
+        const appName = process.env.APP_NAME || 'AIPrep365';
         const fromEmail = transporter.fromEmail || process.env.EMAIL_USER;
 
         try {
@@ -504,7 +504,7 @@ const BASE_STYLES = `
   </style>`;
 
 export function buildTestCompletionEmail({ studentName, testName, courseName, score, totalQuestions, correctAnswers, scaledScore, testDate, appUrl, reportUrl }) {
-    const appName = process.env.APP_NAME || 'AI Tutor Platform';
+    const appName = process.env.APP_NAME || 'AIPrep365';
     const pct = Math.round(score);
     const badge = pct >= 70 ? 'badge-green' : pct >= 40 ? 'badge-yellow' : 'badge-red';
     const grade = pct >= 70 ? '🏆 Excellent' : pct >= 40 ? '✅ Passing' : '📚 Needs Work';
@@ -513,7 +513,7 @@ export function buildTestCompletionEmail({ studentName, testName, courseName, sc
 }
 
 export function buildWeeklyReportEmail({ recipientName, studentName, submissions, weekStart, weekEnd, appUrl, isParent, reportUrl }) {
-    const appName = process.env.APP_NAME || 'AI Tutor Platform';
+    const appName = process.env.APP_NAME || 'AIPrep365';
     const totalTests = submissions.length;
     const avgScore = totalTests > 0 ? Math.round(submissions.reduce((s, sub) => s + (sub.raw_score_percentage || 0), 0) / totalTests) : 0;
     const bestScore = totalTests > 0 ? Math.round(Math.max(...submissions.map(s => s.raw_score_percentage || 0))) : 0;
@@ -530,7 +530,7 @@ export function buildWeeklyReportEmail({ recipientName, studentName, submissions
 }
 
 export function buildDueDateReminderEmail({ recipientName, studentName, dueItems, appUrl, isParent, reportUrl }) {
-    const appName = process.env.APP_NAME || 'AI Tutor Platform';
+    const appName = process.env.APP_NAME || 'AIPrep365';
     const rows = dueItems.map(item => {
         const daysLeft = Math.ceil((new Date(item.due_date) - Date.now()) / 86400000);
         const urgency = daysLeft <= 1 ? 'badge-red' : daysLeft <= 3 ? 'badge-yellow' : 'badge-green';
@@ -544,7 +544,7 @@ export function buildDueDateReminderEmail({ recipientName, studentName, dueItems
 }
 
 export function buildWelcomeEmail({ name, appUrl }) {
-    const appName = process.env.APP_NAME || 'AI Tutor Platform';
+    const appName = process.env.APP_NAME || 'AIPrep365';
     const finalUrl = appUrl || '#';
-    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>Welcome to ${appName} 🎉</h1><p>Your journey starts here!</p></div><div class="body"><p>Hi <strong>${name || 'Student'}</strong>,</p><p style="margin-top:15px; font-size: 16px; line-height: 1.6;">You have successfully registered on ${appName} platform. Start learning and improve your skills 🚀</p><div class="tip-box">📚 Explore your dashboard to find assigned courses and start your first test.</div><a class="cta" href="${finalUrl}">Start Learning Now →</a><p style="margin-top:20px; font-size: 14px; color: #4a5568;">Thanks,<br><strong>AI Tutor Team</strong></p></div><div class="footer">${appName} • Thank you for joining our community.</div></div></div></body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>Welcome to ${appName} 🎉</h1><p>Your journey starts here!</p></div><div class="body"><p>Hi <strong>${name || 'Student'}</strong>,</p><p style="margin-top:15px; font-size: 16px; line-height: 1.6;">You have successfully registered on ${appName} platform. Start learning and improve your skills 🚀</p><div class="tip-box">📚 Explore your dashboard to find assigned courses and start your first test.</div><a class="cta" href="${finalUrl}">Start Learning Now →</a><p style="margin-top:20px; font-size: 14px; color: #4a5568;">Thanks,<br><strong>AIPrep365 Team</strong></p></div><div class="footer">${appName} • Thank you for joining our community.</div></div></div></body></html>`;
 }

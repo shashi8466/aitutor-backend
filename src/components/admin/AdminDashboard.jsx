@@ -85,7 +85,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* Header Area with Logout */}
@@ -96,13 +96,13 @@ const AdminDashboard = () => {
         >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">Manage courses, questions, content, and settings</p>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
+              <p className="text-slate-600 dark:text-slate-400 mt-2">Manage courses, questions, content, and settings</p>
             </div>
 
             <button
               onClick={handleLogout}
-              className="flex items-center px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium border border-red-200 self-start md:self-auto shadow-sm"
+              className="flex items-center px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors font-medium border border-orange-200 dark:border-orange-800 self-start md:self-auto shadow-sm"
             >
               <SafeIcon icon={FiLogOut} className="w-4 h-4 mr-2" />
               Logout
@@ -114,16 +114,16 @@ const AdminDashboard = () => {
             {/* Left scroll button */}
             <button
               onClick={() => scrollNav(-1)}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md rounded-full p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md rounded-full p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hidden md:flex"
               style={{ marginLeft: '-12px' }}
             >
-              <svg className="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              <svg className="w-4 h-4 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
 
             {/* Scrollable nav */}
             <div
               ref={navRef}
-              className="flex bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar"
+              className="flex bg-white dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto scrollbar-hide hide-scrollbar"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               {navLinks.map((link) => {
@@ -137,8 +137,8 @@ const AdminDashboard = () => {
                     to={link.path}
                     className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                       isActive
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
+                        ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <SafeIcon icon={link.icon} className="w-4 h-4 mr-2" />
@@ -151,10 +151,10 @@ const AdminDashboard = () => {
             {/* Right scroll button */}
             <button
               onClick={() => scrollNav(1)}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md rounded-full p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md rounded-full p-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hidden md:flex"
               style={{ marginRight: '-12px' }}
             >
-              <svg className="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <svg className="w-4 h-4 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
           </div>
         </motion.div>
@@ -183,105 +183,67 @@ const AdminDashboard = () => {
 
 const DashboardHome = ({ stats, loading }) => {
   const statCards = [
-    { title: 'Total Courses', value: stats.totalCourses, icon: FiBook, color: 'bg-blue-500' },
-    { title: 'Total Questions', value: stats.totalQuestions, icon: FiHelpCircle, color: 'bg-green-500' },
-    { title: 'Total Uploads', value: stats.totalUploads, icon: FiUpload, color: 'bg-purple-500' },
+    { title: 'Total Courses', value: stats.totalCourses, icon: FiBook, color: 'bg-sky-500' },
+    { title: 'Total Questions', value: stats.totalQuestions, icon: FiHelpCircle, color: 'bg-orange-500' },
+    { title: 'Total Uploads', value: stats.totalUploads, icon: FiUpload, color: 'bg-sky-500' },
     { title: 'Active Users', value: stats.activeUsers, icon: FiUsers, color: 'bg-orange-500' }
   ];
 
   return (
     <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {statCards.map((stat, index) => (
           <motion.div
             key={stat.title}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 border border-gray-200 dark:border-gray-700"
+            className="dashboard-card p-6"
           >
             <div className="flex justify-between items-center mb-4">
-              <div className={`${stat.color} p-3 rounded-lg text-white`}>
+              <div className={`${stat.color} p-3 rounded-lg text-white shadow-lg`}>
                 <SafeIcon icon={stat.icon} className="w-6 h-6" />
               </div>
-              <span className="text-sm font-medium text-green-600 dark:text-green-400 flex items-center">
+              <span className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full">
                 <SafeIcon icon={FiTrendingUp} className="w-3 h-3 mr-1" /> Active
               </span>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">{stat.title}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider">{stat.title}</p>
             {loading ? (
               <Skeleton className="h-8 w-16 mt-1" />
             ) : (
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+              <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{stat.value}</p>
             )}
           </motion.div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-bold mb-4 dark:text-white">Quick Actions</h2>
+        <div className="dashboard-card p-6">
+          <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Link to="/admin/courses" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-blue-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiBook} />
-              </div>
-              <h3 className="font-bold dark:text-white">Manage Courses</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Add or edit courses</p>
-            </Link>
-            <Link to="/admin/groups" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-indigo-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiLayers} />
-              </div>
-              <h3 className="font-bold dark:text-white">Student Groups</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Manage tutor groups</p>
-            </Link>
-            <Link to="/admin/upload" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-green-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiUpload} />
-              </div>
-              <h3 className="font-bold dark:text-white">Upload Content</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Parse documents</p>
-            </Link>
-            <Link to="/admin/knowledge-base" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-purple-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiDatabase} />
-              </div>
-              <h3 className="font-bold dark:text-white">Knowledge Base</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Review extracted data</p>
-            </Link>
-            <Link to="/admin/users" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-orange-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiUsers} />
-              </div>
-              <h3 className="font-bold dark:text-white">Manage Users</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">View all users</p>
-            </Link>
-            <Link to="/admin/parents" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-amber-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiUsers} />
-              </div>
-              <h3 className="font-bold dark:text-white">Parents</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Create & link parents</p>
-            </Link>
-            <Link to="/admin/notifications" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-teal-500 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiBook} />
-              </div>
-              <h3 className="font-bold dark:text-white">Notifications</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Manage student notifications</p>
-            </Link>
-            <Link to="/admin/settings" className="p-4 border dark:border-gray-600 rounded hover:shadow-md transition-all group">
-              <div className="bg-gray-700 w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform">
-                <SafeIcon icon={FiSettings} />
-              </div>
-              <h3 className="font-bold dark:text-white">Settings</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Update app name/logo</p>
-            </Link>
+            {[
+              { to: '/admin/courses', icon: FiBook, color: 'bg-sky-500', title: 'Manage Courses', desc: 'Add or edit courses' },
+              { to: '/admin/groups', icon: FiLayers, color: 'bg-orange-500', title: 'Student Groups', desc: 'Manage tutor groups' },
+              { to: '/admin/upload', icon: FiUpload, color: 'bg-sky-500', title: 'Upload Content', desc: 'Parse documents' },
+              { to: '/admin/knowledge-base', icon: FiDatabase, color: 'bg-orange-500', title: 'Knowledge Base', desc: 'Review extracted data' },
+              { to: '/admin/users', icon: FiUsers, color: 'bg-orange-500', title: 'Manage Users', desc: 'View all users' },
+              { to: '/admin/parents', icon: FiUsers, color: 'bg-amber-500', title: 'Parents', desc: 'Create & link parents' },
+              { to: '/admin/notifications', icon: FiBook, color: 'bg-teal-500', title: 'Notifications', desc: 'Manage student notifications' },
+              { to: '/admin/settings', icon: FiSettings, color: 'bg-slate-700', title: 'Settings', desc: 'Update app name/logo' },
+            ].map(item => (
+              <Link key={item.title} to={item.to} className="p-4 border border-slate-100 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group shadow-sm">
+                <div className={`${item.color} w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform shadow-lg`}>
+                  <SafeIcon icon={item.icon} />
+                </div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-sm">{item.title}</h3>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{item.desc}</p>
+              </Link>
+            ))}
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl shadow p-6 text-white">
+        <div className="dashboard-card p-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
           <h2 className="text-xl font-bold mb-2">System Status</h2>
           <p className="text-blue-100 mb-6">All systems operational. Database connected.</p>
           <div className="space-y-3">

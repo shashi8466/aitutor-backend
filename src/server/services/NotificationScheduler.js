@@ -296,10 +296,89 @@ class NotificationScheduler {
    */
   async sendManualWeeklyReport(studentId, parentId = null) {
     try {
-      console.log(`Manual weekly report triggered for student ${studentId}`);
-      return { success: true, message: 'Manual weekly report triggered' };
+      console.log(`📬 [ManualReport] Triggering weekly report for student ${studentId}`);
+
+      // 1. Fetch student profile
+      const { data: student, error: studentError } = await supabase
+        .from('profiles')
+        .select('id, name, email, role')
+        .eq('id', studentId)
+        .single();
+
+      if (studentError || !student) {
+        throw new Error(`Student not found: ${studentError?.message || 'unknown'}`);
+      }
+
+      // 2. Fetch submissions for the last 7 days
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      
+      const { data: submissions, error: subError } = await supabase
+        .from('test_submissions')
+        .select('*, courses:courses(id, name)')
+        .eq('user_id', studentId)
+        .gte('test_date', oneWeekAgo.toISOString())
+        .order('test_date', { ascending: false });
+
+      if (subError) throw subError;
+
+      // 3. Find linked parents
+      const { data: allParents } = await supabase
+        .from('profiles')
+        .select('id, name, email, linked_students')
+        .eq('role', 'parent');
+
+      const parents = (allParents || []).filter(p => {
+        const linked = p.linked_students || [];
+        return Array.isArray(linked) && linked.some(id => String(id) === String(studentId));
+      });
+
+      // 4. Calculate Stats
+      const totalTests = submissions?.length || 0;
+      const avgScore = totalTests > 0 
+        ? Math.round(submissions.reduce((acc, s) => acc + (s.raw_score_percentage || 0), 0) / totalTests) 
+        : 0;
+      const bestScore = totalTests > 0 
+        ? Math.round(Math.max(...submissions.map(s => s.raw_score_percentage || 0))) 
+        : 0;
+
+      const payload = {
+        studentId,
+        studentName: student.name,
+        submissions: submissions || [],
+        totalTests,
+        avgScore,
+        bestScore,
+        weekStart: oneWeekAgo.toISOString(),
+        weekEnd: new Date().toISOString()
+      };
+
+      // 5. Enqueue for Student
+      if (student.email) {
+        await enqueueNotification({
+          eventType: 'WEEKLY_REPORT',
+          recipientProfileId: student.id,
+          recipientType: 'student',
+          payload,
+        });
+      }
+
+      // 6. Enqueue for Parents
+      for (const parent of parents) {
+        if (parent.email) {
+          await enqueueNotification({
+            eventType: 'WEEKLY_REPORT',
+            recipientProfileId: parent.id,
+            recipientType: 'parent',
+            payload,
+          });
+        }
+      }
+
+      console.log(`✅ [ManualReport] Weekly report enqueued for student and ${parents.length} parents.`);
+      return { success: true, count: 1 + parents.length };
     } catch (error) {
-      console.error('Error sending manual weekly report:', error);
+      console.error('❌ [ManualReport] Error sending manual weekly report:', error);
       throw error;
     }
   }
@@ -309,10 +388,51 @@ class NotificationScheduler {
    */
   async sendManualDueDateReminder(studentId, testName, dueDate, parentId = null) {
     try {
-      console.log(`Manual due date reminder triggered for student ${studentId}`);
-      return { success: true, message: 'Manual due date reminder triggered' };
+      console.log(`📬 [ManualDue] Triggering due date reminder for student ${studentId}`);
+
+      const { data: student } = await supabase.from('profiles').select('id, name, email').eq('id', studentId).single();
+      if (!student) throw new Error('Student not found');
+
+      const payload = {
+        studentId,
+        studentName: student.name,
+        dueItems: [
+          {
+            course_name: testName || 'Assigned Test',
+            due_date: dueDate || new Date(Date.now() + 86400000 * 2).toISOString(), // fallback 2 days
+            level: 'Practice'
+          }
+        ]
+      };
+
+      // Enqueue Student
+      if (student.email) {
+        await enqueueNotification({
+          eventType: 'DUE_DATE_REMINDER',
+          recipientProfileId: student.id,
+          recipientType: 'student',
+          payload
+        });
+      }
+
+      // Enqueue Parents
+      const { data: allParents } = await supabase.from('profiles').select('id, name, email, linked_students').eq('role', 'parent');
+      const parents = (allParents || []).filter(p => (p.linked_students || []).some(id => String(id) === String(studentId)));
+
+      for (const parent of parents) {
+        if (parent.email) {
+          await enqueueNotification({
+            eventType: 'DUE_DATE_REMINDER',
+            recipientProfileId: parent.id,
+            recipientType: 'parent',
+            payload
+          });
+        }
+      }
+
+      return { success: true };
     } catch (error) {
-      console.error('Error sending manual due date reminder:', error);
+      console.error('❌ [ManualDue] Error sending manual due reminder:', error);
       throw error;
     }
   }

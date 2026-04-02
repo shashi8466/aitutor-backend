@@ -12,7 +12,7 @@ const {
     FiChevronRight, FiBarChart2, FiRefreshCw
 } = FiIcons;
 
-const GroupManager = ({ dashboardData }) => {
+const GroupManager = ({ dashboardData, isParentLoading }) => {
     const { user } = useAuth();
     const [groups, setGroups] = useState([]);
     const [students, setStudents] = useState([]);
@@ -42,8 +42,10 @@ const GroupManager = ({ dashboardData }) => {
     }, [dashboardData]);
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (!isParentLoading) {
+            loadData();
+        }
+    }, [isParentLoading, dashboardData]);
 
     const loadData = async () => {
         setLoading(true);

@@ -5,18 +5,20 @@ import SafeIcon from '../../common/SafeIcon';
 import { enrollmentService, tutorService } from '../../services/api';
 import EnrollmentKeyManager from '../admin/EnrollmentKeyManager'; // Reuse existing logic
 
-const TutorEnrollmentKeys = ({ dashboardData }) => {
+const TutorEnrollmentKeys = ({ dashboardData, isParentLoading }) => {
     const [courses, setCourses] = useState(dashboardData?.courses || []);
-    const [loading, setLoading] = useState(!dashboardData);
+    const [loading, setLoading] = useState(!dashboardData && isParentLoading);
 
     useEffect(() => {
         if (dashboardData?.courses) {
             setCourses(dashboardData.courses);
             setLoading(false);
-        } else {
+        } else if (!isParentLoading && !dashboardData) {
             fetchCourses();
+        } else if (isParentLoading) {
+            setLoading(true);
         }
-    }, [dashboardData]);
+    }, [dashboardData, isParentLoading]);
 
     const fetchCourses = async () => {
         if (!dashboardData) setLoading(true);

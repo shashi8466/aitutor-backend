@@ -670,5 +670,15 @@ router.post('/due-reminder-manual', async (req, res) => {
   }
 });
 
-export default router;
+// POST /api/notifications/send-due-date-reminder
+router.post('/send-due-date-reminder', async (req, res) => {
+  try {
+    await processOutboxOnce();
+    res.json({ success: true, message: 'Due date reminder queued' });
+  } catch (error) {
+    console.error('Due date reminder error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
+export default router;

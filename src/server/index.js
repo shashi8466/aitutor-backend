@@ -39,41 +39,50 @@ const DIST_PATH = path.join(__dirname, '../../dist');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-console.log('⚙️ Server Configuration:');
-console.log(`  - Port: ${PORT}`);
-console.log(`  - Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`  - OpenAI Key: ${process.env.OPENAI_API_KEY ? '✅ Present' : '❌ Missing'}`);
-console.log('');
-
-// 4. CORS Configuration
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'https://aitutor-4431c.web.app',
-  'https://aitutor-4431c.firebaseapp.com'
+// 4. Robust CORS & Preflight (To fix Render domain-specific issues definitively)
+const ALLOWED_ORIGINS = [
+  "https://aiprep365.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:3001"
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    // Allow localhost, Firebase, and Render subdomains
-    const isAllowed = 
-      allowedOrigins.includes(origin) || 
-      origin.includes('localhost') || 
-      origin.includes('.web.app') || 
-      origin.includes('.firebaseapp.com') ||
-      origin.includes('.onrender.com');
-
-    if (isAllowed || process.env.NODE_ENV !== 'production') {
+    if (!origin || 
+        ALLOWED_ORIGINS.indexOf(origin) !== -1 || 
+        origin.includes('firebaseapp.com') || 
+        origin.includes('web.app') || 
+        origin.includes('aiprep365.com')) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`⚠️ Blocked CORS request from unknown origin: ${origin}`);
+      callback(null, false); // Return false instead of throwing an Error to prevent 500 crashes
     }
   },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization", "X-Content-Range", "Content-Range"]
 }));
+
+// Robust Preflight Fix
+app.options("*", cors());
+
+// Force headers for specific problematic clients if needed
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.includes('firebaseapp.com') || origin.includes('web.app'))) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Content-Range, Content-Range");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+  res.header("Access-Control-Allow-Credentials", "true");
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 app.use(compression());
 
@@ -99,12 +108,16 @@ app.use(express.static(DIST_PATH));
 
 // 8. API Routes
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Server is active',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+  try {
+    res.status(200).json({
+      status: 'ok',
+      message: 'Server is active',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'ERROR', error: err.message });
+  }
 });
 
 app.use('/api/ai', aiRoutes);
@@ -132,29 +145,36 @@ app.get('/api', (req, res) => {
 
 // 10. Catch-all for SPA Routing (MUST BE AFTER API ROUTES)
 app.get('*', (req, res) => {
-  // If requesting something in /api that doesn't exist, don't serve index.html
   if (req.url.startsWith('/api')) {
     return res.status(404).json({ error: 'API endpoint not found' });
   }
   res.sendFile(path.join(DIST_PATH, 'index.html'));
 });
 
-// 11. Error handling
 app.use((err, req, res, next) => {
   console.error('💥 Server Error:', err);
-  res.status(500).json({
-    error: 'Internal server error',
-    message: err.message
+
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header("Access-Control-Allow-Origin", origin);
+  } else {
+    res.header("Access-Control-Allow-Origin", "https://aiprep365.com");
+  }
+  
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Content-Range, Content-Range");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+  res.header("Access-Control-Allow-Credentials", "true");
+
+  res.status(500).json({ 
+    message: 'Internal Server Error',
+    error: err.message 
   });
 });
 
-// 12. Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🚀 SERVER SUCCESSFULLY STARTED');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`📡 Port: ${PORT}`);
-  console.log(`🌐 Frontend: http://localhost:${PORT}`);
   console.log(`🌐 API: http://localhost:${PORT}/api`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   
@@ -165,13 +185,10 @@ app.listen(PORT, '0.0.0.0', () => {
     console.error('❌ Notification scheduler failed:', error.message);
   }
   
-  // Start welcome email processor (independent try-catch)
   try {
     const welcomeEmailProcessor = new WelcomeEmailProcessor();
     welcomeEmailProcessor.start();
     console.log('📧 Welcome email queue processor started');
-    console.log('⚠️ NOTE: Welcome emails will only send if welcome_email_queue table exists in Supabase');
-    console.log('   Run SUPABASE_WELCOME_EMAIL_SAFE.sql in Supabase SQL Editor to enable\n');
   } catch (error) {
     console.error('❌ Welcome email processor failed:', error.message);
   }

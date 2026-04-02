@@ -26,49 +26,52 @@ const TutorSettings = lazy(() => import('./TutorSettings'));
 import Skeleton from '../common/Skeleton';
 
 const TutorOverview = ({ dashboardData, loading }) => (
-    <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h2>
-            <span className="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md uppercase tracking-tight">Sync v1.0.5</span>
+    <div className="p-6 overflow-hidden">
+        <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Dashboard Overview</h2>
+            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/50 px-2 py-1 rounded-md uppercase tracking-tight border border-slate-200 dark:border-slate-800">Sync v1.0.5</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">My Courses</p>
+            <div className="dashboard-card p-6 border-l-4 border-l-blue-500 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">My Courses</p>
                 {loading ? (
                     <Skeleton className="h-10 w-12 mt-1" />
                 ) : (
-                    <p className="text-3xl font-black text-blue-600">{dashboardData?.courses?.length || 0}</p>
+                    <p className="text-3xl font-black text-blue-600 dark:text-blue-400">{dashboardData?.courses?.length || 0}</p>
                 )}
             </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Active Students</p>
+            <div className="dashboard-card p-6 border-l-4 border-l-indigo-500 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Active Students</p>
                 {loading ? (
                     <Skeleton className="h-10 w-12 mt-1" />
                 ) : (
-                    <p className="text-3xl font-black text-indigo-600">
+                    <p className="text-3xl font-black text-indigo-600 dark:text-indigo-400">
                         {typeof dashboardData?.total_students === 'object' ? (dashboardData?.total_students?.count || 0) : (dashboardData?.total_students || 0)}
                     </p>
                 )}
             </div>
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Enrollments</p>
+            <div className="dashboard-card p-6 border-l-4 border-l-purple-500 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Enrollments</p>
                 {loading ? (
                     <Skeleton className="h-10 w-12 mt-1" />
                 ) : (
-                    <p className="text-3xl font-black text-purple-600">
+                    <p className="text-3xl font-black text-purple-600 dark:text-purple-400">
                         {typeof dashboardData?.total_enrollments === 'object' ? (dashboardData?.total_enrollments?.count || 0) : (dashboardData?.total_enrollments || 0)}
                     </p>
                 )}
             </div>
         </div>
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-2xl border border-blue-100 dark:border-blue-800">
-            <h3 className="font-bold text-blue-900 dark:text-blue-200 mb-2">Welcome back!</h3>
-            <p className="text-blue-700 dark:text-blue-300">You can manage your assigned courses, students, and enrollment keys from the sidebar.</p>
+        <div className="bg-sky-50 dark:bg-sky-900/20 p-6 rounded-2xl border border-sky-100 dark:border-sky-800/50 flex items-start gap-4 shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-sky-200 dark:bg-sky-800 flex items-center justify-center flex-shrink-0">
+              <SafeIcon icon={FiAward} className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sky-900 dark:text-sky-100 mb-1">Welcome back, Tutor!</h3>
+              <p className="text-sky-700 dark:text-sky-300 text-sm">Everything you need to manage your assigned courses, students, and enrollment keys is right at your fingertips.</p>
+            </div>
         </div>
     </div>
 );
-
-// Removed TutorSettingsPage placeholder component
 
 const TutorDashboard = () => {
     const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
@@ -83,12 +86,10 @@ const TutorDashboard = () => {
         console.log('🏗️ [TutorDashboard] Mounted');
         fetchDashboardData();
 
-        // Safety Catch: Always reset scroll lock when changing tabs
         document.body.style.overflow = 'unset';
 
         const handleFocus = () => {
             console.log('👀 [TutorDashboard] Window Focused - Refreshing stats');
-            // Background refresh without showing loading spinner
             tutorService.getDashboard().then(res => {
                 if (res?.data) setDashboardData(res.data);
             }).catch(() => { });
@@ -100,16 +101,17 @@ const TutorDashboard = () => {
             window.removeEventListener('focus', handleFocus);
             document.body.style.overflow = 'unset';
         };
-    }, []); // Run once on mount
+    }, []);
 
     const fetchDashboardData = async () => {
         setLoading(true);
         const timeoutId = setTimeout(() => {
             if (loading) {
-                console.warn('Dashboard global fetch timed out');
+                console.warn('⏰ Dashboard global fetch timed out');
                 setLoading(false);
+                setDashboardData({ courses: [], students: [], groups: [] });
             }
-        }, 12000); // 12s timeout
+        }, 12000);
 
         try {
             console.log('📡 [TutorDashboard] Fetching data...');
@@ -122,7 +124,7 @@ const TutorDashboard = () => {
             }
         } catch (error) {
             console.error('❌ [TutorDashboard] Error:', error);
-            setDashboardData({ courses: [], profile: user });
+            setDashboardData({ courses: [], students: [], groups: [] });
         } finally {
             clearTimeout(timeoutId);
             setLoading(false);
@@ -154,7 +156,6 @@ const TutorDashboard = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
-            {/* Sidebar */}
             <AnimatePresence>
                 {sidebarOpen && (
                     <motion.aside
@@ -165,7 +166,6 @@ const TutorDashboard = () => {
                         className="fixed lg:sticky top-0 left-0 h-screen w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-[9999] overflow-y-auto"
                     >
                         <div className="p-6">
-                            {/* Header */}
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
@@ -184,7 +184,6 @@ const TutorDashboard = () => {
                                 </button>
                             </div>
 
-                            {/* User Profile */}
                             <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
                                 <div className="flex items-center gap-3 mb-2">
                                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
@@ -217,7 +216,6 @@ const TutorDashboard = () => {
                                 )}
                             </div>
 
-                            {/* Navigation Menu */}
                             <nav className="space-y-1">
                                 {menuItems.map((item) => (
                                     <Link
@@ -234,7 +232,6 @@ const TutorDashboard = () => {
                                 ))}
                             </nav>
 
-                            {/* Logout Button */}
                             <button
                                 onClick={handleLogout}
                                 className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
@@ -247,9 +244,7 @@ const TutorDashboard = () => {
                 )}
             </AnimatePresence>
 
-            {/* Main Content */}
             <div className="flex-1 flex flex-col min-h-screen">
-                {/* Top Bar */}
                 <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-30">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -304,13 +299,13 @@ const TutorDashboard = () => {
                     <Suspense fallback={<LoadingSpinner fullPage={false} />}>
                         <Routes>
                             <Route index element={<TutorOverview dashboardData={dashboardData} loading={loading} />} />
-                            <Route path="courses" element={<TutorCourses dashboardData={dashboardData} />} />
-                            <Route path="students" element={<TutorStudents dashboardData={dashboardData} />} />
-                            <Route path="groups" element={<GroupManager dashboardData={dashboardData} />} />
-                            <Route path="enrollment-keys" element={<TutorEnrollmentKeys dashboardData={dashboardData} />} />
-                            <Route path="invitations" element={<TutorInvitations dashboardData={dashboardData} />} />
-                            <Route path="grades" element={<TutorGrades dashboardData={dashboardData} />} />
-                            <Route path="settings" element={<TutorSettings dashboardData={dashboardData} />} />
+                            <Route path="courses" element={<TutorCourses dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="students" element={<TutorStudents dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="groups" element={<GroupManager dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="enrollment-keys" element={<TutorEnrollmentKeys dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="invitations" element={<TutorInvitations dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="grades" element={<TutorGrades dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="settings" element={<TutorSettings dashboardData={dashboardData} isParentLoading={loading} />} />
                         </Routes>
                     </Suspense>
                 </main>

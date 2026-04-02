@@ -1,68 +1,109 @@
 -- ============================================
--- AUTOMATIC WELCOME EMAIL TRIGGER
--- Sends email when new user signs up
+-- SAFE SIGNUP AUTOMATION
+-- 1) Ensures profile row is created with student name
+-- 2) Queues welcome email on signup
 -- ============================================
 
--- Create or replace the function to send welcome email
-CREATE OR REPLACE FUNCTION send_welcome_email_on_signup()
-RETURNS TRIGGER AS $$
+-- Ensure welcome email queue exists
+CREATE TABLE IF NOT EXISTS public.welcome_email_queue (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'sent', 'failed')),
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  processed_at TIMESTAMPTZ,
+  processing_at TIMESTAMPTZ,
+  payload JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS welcome_email_queue_user_id_unique
+ON public.welcome_email_queue(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_welcome_email_status ON public.welcome_email_queue(status);
+CREATE INDEX IF NOT EXISTS idx_welcome_email_created ON public.welcome_email_queue(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_welcome_email_processing_at ON public.welcome_email_queue(processing_at);
+
+-- Function: profile + queue in one safe trigger
+CREATE OR REPLACE FUNCTION public.handle_signup_profile_and_welcome()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
-  -- Variables
-  user_email TEXT;
-  user_name TEXT;
-  user_id TEXT;
+  v_name TEXT;
+  v_role TEXT;
+  v_email TEXT;
 BEGIN
-  -- Get user details
-  user_email := NEW.email;
-  user_name := COALESCE(NEW.raw_user_meta_data->>'name', SPLIT_PART(user_email, '@', 1));
-  user_id := NEW.id::text;
+  v_email := NEW.email;
+  
+  -- Extract name from raw_user_meta_data (multiple possible locations)
+  v_name := COALESCE(
+    NULLIF(NEW.raw_user_meta_data->>'name', ''),
+    NULLIF(NEW.raw_user_meta_data->>'full_name', ''),
+    NULLIF(NEW.raw_user_meta_data->>'user_name', ''),
+    SPLIT_PART(v_email, '@', 1),
+    'Student'
+  );
+  
+  -- Extract role with fallback
+  v_role := COALESCE(
+    NULLIF(NEW.raw_user_meta_data->>'role', ''), 
+    'student'
+  );
 
-  -- Log the trigger (for debugging)
-  RAISE NOTICE '📧 Sending welcome email to: %', user_email;
-
-  -- Send webhook to backend using Supabase's built-in net.http functions.
-  -- Fail-safe: never block signup if webhook fails (network/config/receiver down).
+  -- Never fail signup if profile write fails.
   BEGIN
-    PERFORM net.http_post(
-      url := current_setting('app.settings.backend_url', true) || '/api/auth/welcome-email',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key', true)
-      )::jsonb,
-      body := jsonb_build_object(
-        'email', user_email,
-        'name', user_name,
-        'userId', user_id
-      )::jsonb,
-      timeout_milliseconds := 5000
-    );
+    INSERT INTO public.profiles (id, email, name, role, created_at)
+    VALUES (NEW.id, v_email, v_name, v_role, NOW())
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      name = COALESCE(NULLIF(EXCLUDED.name, ''), public.profiles.name),
+      role = COALESCE(NULLIF(EXCLUDED.role, ''), public.profiles.role);
   EXCEPTION WHEN OTHERS THEN
-    -- Fail-safe: signup must not return HTTP 500 due to webhook issues.
+    NULL;
+  END;
+
+  -- Queue welcome email. Never fail signup if queue insert fails.
+  BEGIN
+    INSERT INTO public.welcome_email_queue (user_id, email, name, status)
+    VALUES (NEW.id, v_email, v_name, 'pending')
+    ON CONFLICT (user_id) DO UPDATE SET
+      email = EXCLUDED.email,
+      name = COALESCE(NULLIF(EXCLUDED.name, ''), public.welcome_email_queue.name),
+      status = CASE
+        WHEN public.welcome_email_queue.status = 'sent' THEN 'sent'
+        ELSE 'pending'
+      END,
+      error_message = NULL,
+      processing_at = NULL;
+  EXCEPTION WHEN OTHERS THEN
     NULL;
   END;
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- Drop existing trigger if exists
+-- Replace old signup triggers with the unified safe trigger
 DROP TRIGGER IF EXISTS on_user_signup_send_welcome ON auth.users;
--- Prevent duplicates if the queue-based trigger is enabled too
 DROP TRIGGER IF EXISTS on_user_signup_queue_welcome ON auth.users;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP TRIGGER IF EXISTS on_auth_user_created_ultra_safe ON auth.users;
 
--- Create the trigger
-CREATE TRIGGER on_user_signup_send_welcome
+CREATE TRIGGER on_auth_user_created_safe
 AFTER INSERT ON auth.users
 FOR EACH ROW
-EXECUTE FUNCTION send_welcome_email_on_signup();
+EXECUTE FUNCTION public.handle_signup_profile_and_welcome();
 
--- Grant permissions
-GRANT EXECUTE ON FUNCTION send_welcome_email_on_signup TO postgres, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_signup_profile_and_welcome TO postgres, service_role, authenticated, anon;
+GRANT ALL ON public.welcome_email_queue TO postgres, service_role, authenticated, anon;
 
--- Verification query
-SELECT 
-  '✅ Welcome Email Trigger Created' as status,
-  COUNT(*) as trigger_count
-FROM pg_trigger 
-WHERE tgname = 'on_user_signup_send_welcome';
+-- Verification
+SELECT
+  '✅ Safe signup profile + welcome trigger created' AS status,
+  COUNT(*) AS trigger_count
+FROM pg_trigger
+WHERE tgname = 'on_auth_user_created_safe';

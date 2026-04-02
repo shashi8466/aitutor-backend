@@ -45,7 +45,7 @@ router.get('/diagnostics', async (req, res) => {
 
 /**
  * GET /api/tutor/dashboard
- * Get tutor dashboard data
+ * Get tutor dashboard data - OPTIMIZED
  */
 router.get('/dashboard', async (req, res) => {
     try {
@@ -55,7 +55,7 @@ router.get('/dashboard', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Get profile (no role filter yet to allow admins)
+        // 1. Get profile (cached/fast)
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -71,122 +71,79 @@ router.get('/dashboard', async (req, res) => {
             return res.status(403).json({ error: 'Not authorized for tutor dashboard' });
         }
 
-        // Tutors need approval, admins don't
+        // Tutors need approval
         if (profile.role === 'tutor' && !profile.tutor_approved) {
             return res.status(403).json({
                 error: 'Tutor account pending approval',
                 pending: true
             });
         }
-        const assignedCourses = getAssignedCourses(profile);
-        console.log(`📊 [TUTOR DASHBOARD] User: ${userId}, Role: ${profile.role}, Normalized Assigned Courses:`, assignedCourses);
 
-        // 1. Get stats
-        let totalEnrollments = 0;
-        let uniqueStudentsCount = 0;
+        const assignedCourses = getAssignedCourses(profile);
+        console.log(`📊 [TUTOR DASHBOARD] User: ${userId}, Role: ${profile.role}, Optimized Assigned Courses:`, assignedCourses);
+
+        // DEFAULT DATA
+        let stats = {
+            totalCourses: 0,
+            totalStudents: 0,
+            totalEnrollments: 0,
+            recentTests: 0
+        };
         let courses = [];
         let recentSubmissions = [];
 
         if (assignedCourses.length > 0) {
             try {
-                // Parallelize all data fetching
-                const [
-                    enrollmentsCountRes,
-                    enrollmentDataRes,
-                    coursesDataRes,
-                    enrollmentCountsRes,
-                    submissionsRes
-                ] = await Promise.all([
-                    // 1. Get total enrollments count
-                    supabase
-                        .from('enrollments')
-                        .select('*', { count: 'exact', head: true })
-                        .in('course_id', assignedCourses),
-
-                    // 2. Get unique students data
+                // PARALLELIZE OPTIMIZED FLOW
+                // 1. Courses with counts via RPC (Single call, fast)
+                // 2. Global enrollment data for unique student count
+                // 3. Recent activity
+                const [coursesRes, enrollmentDataRes, submissionsRes] = await Promise.all([
+                    supabase.rpc('get_tutor_courses', { requested_user_id: userId }),
+                    
                     supabase
                         .from('enrollments')
                         .select('user_id')
                         .in('course_id', assignedCourses),
 
-                    // 3. Get assigned courses details
                     supabase
-                        .from('courses')
-                        .select('id, name, description, tutor_type, created_at')
-                        .in('id', assignedCourses),
-
-                    // 4. Fetch enrollment counts for each course
-                    supabase
-                        .from('enrollments')
-                        .select('course_id')
-                        .in('course_id', assignedCourses),
-
-                    // 5. Get recent activity (last 7 days)
-                    (async () => {
-                        const sevenDaysAgo = new Date();
-                        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                        return supabase
-                            .from('test_submissions')
-                            .select('*, user:profiles!user_id(name, email)')
-                            .in('course_id', assignedCourses)
-                            .gte('created_at', sevenDaysAgo.toISOString())
-                            .order('created_at', { ascending: false })
-                            .limit(10);
-                    })()
+                        .from('test_submissions')
+                        .select('*, user:profiles!user_id(name, email)')
+                        .in('course_id', assignedCourses)
+                        .order('created_at', { ascending: false })
+                        .limit(10)
                 ]);
 
-                // Process Enrollments
-                if (enrollmentsCountRes.error) console.error('❌ [TUTOR DASHBOARD] Enrollment count error:', enrollmentsCountRes.error);
-                totalEnrollments = enrollmentsCountRes.count || 0;
-
-                // Process Unique Students
-                if (!enrollmentDataRes.error && enrollmentDataRes.data) {
-                    const uniqueIds = new Set(enrollmentDataRes.data.map(e => String(e.user_id)));
-                    uniqueStudentsCount = uniqueIds.size;
-                }
-
                 // Process Courses
-                if (coursesDataRes.error) {
-                    console.error('❌ [TUTOR DASHBOARD] Courses fetch error:', coursesDataRes.error);
-                } else {
-                    courses = coursesDataRes.data || [];
-
-                    const countMap = (enrollmentCountsRes.data || []).reduce((acc, curr) => {
-                        acc[curr.course_id] = (acc[curr.course_id] || 0) + 1;
-                        return acc;
-                    }, {});
-
-                    for (let course of courses) {
-                        course.enrolled_count = countMap[course.id] || 0;
-                    }
+                courses = coursesRes.data || [];
+                
+                // Process Overall Stats
+                if (enrollmentDataRes.data) {
+                    const uniqueIds = new Set(enrollmentDataRes.data.map(e => String(e.user_id)));
+                    stats.totalStudents = uniqueIds.size;
+                    stats.totalEnrollments = enrollmentDataRes.data.length;
                 }
+
+                stats.totalCourses = courses.length;
 
                 // Process Recent Activity
-                if (submissionsRes.error) {
-                    console.error('❌ [TUTOR DASHBOARD] Recent activity fetch error:', submissionsRes.error);
-                } else {
-                    recentSubmissions = submissionsRes.data || [];
-                }
+                recentSubmissions = submissionsRes.data || [];
+                stats.recentTests = recentSubmissions.length;
 
             } catch (innerError) {
-                console.error('❌ [TUTOR DASHBOARD] Inner query error:', innerError);
+                console.error('❌ [TUTOR DASHBOARD] Query error:', innerError);
             }
         }
 
-        console.log(`📊 [TUTOR DASHBOARD] Stats: ${courses.length} courses, ${totalEnrollments} enrollments, ${uniqueStudentsCount} students`);
+        console.log(`✅ [TUTOR DASHBOARD] Stats: ${stats.totalCourses} courses, ${stats.totalEnrollments} enrollments, ${stats.totalStudents} students`);
 
         res.json({
             profile,
             courses: courses,
-            total_students: uniqueStudentsCount,
-            total_enrollments: totalEnrollments,
+            total_students: stats.totalStudents,
+            total_enrollments: stats.totalEnrollments,
             recentActivity: recentSubmissions,
-            stats: {
-                totalCourses: courses.length,
-                totalStudents: uniqueStudentsCount,
-                totalEnrollments: totalEnrollments,
-                recentTests: recentSubmissions.length
-            }
+            stats
         });
 
     } catch (error) {
@@ -202,46 +159,19 @@ router.get('/dashboard', async (req, res) => {
 router.get('/courses', async (req, res) => {
     try {
         const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-        if (!userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-
-        // Fetch tutor profile to get assigned courses
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('assigned_courses')
-            .eq('id', userId)
-            .single();
-
-        let rawAssigned = profile?.assigned_courses || [];
-        if (typeof rawAssigned === 'string') {
-            try { rawAssigned = JSON.parse(rawAssigned); } catch (e) { rawAssigned = []; }
-        }
-        const assignedCourses = Array.isArray(rawAssigned) ? rawAssigned.map(Number) : [];
-
-        const { data: courses, error } = await supabase
-            .from('courses')
-            .select(`
-                id, name, description, tutor_type, created_at,
-                enrolled_count:enrollments(count)
-            `)
-            .in('id', assignedCourses);
+        // Use RPC directly for efficiency
+        const { data: courses, error } = await supabase.rpc('get_tutor_courses', { 
+            requested_user_id: userId 
+        });
 
         if (error) {
             console.error('❌ [COURSES] Error fetching tutor courses:', error);
-            return res.status(500).json({
-                error: 'Failed to fetch courses',
-                details: error.message
-            });
+            return res.status(500).json({ error: 'Failed to fetch courses' });
         }
 
-        const formattedCourses = (courses || []).map(c => ({
-            ...c,
-            enrolled_count: c.enrolled_count?.[0]?.count || 0
-        }));
-
-        res.json({ courses: formattedCourses });
+        res.json({ courses: courses || [] });
 
     } catch (error) {
         console.error('Tutor courses error:', error);
@@ -251,7 +181,7 @@ router.get('/courses', async (req, res) => {
 
 /**
  * GET /api/tutor/students
- * Get students in tutor's courses
+ * Get students in tutor's courses - OPTIMIZED with RPC
  */
 router.get('/students', async (req, res) => {
     try {
@@ -262,42 +192,11 @@ router.get('/students', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Fetch tutor profile to get assigned courses and check role
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('assigned_courses, role')
-            .eq('id', userId)
-            .single();
-
-        const isAdmin = profile?.role === 'admin';
-
-        let assignedCourses = [];
-        if (!isAdmin) {
-            let rawAssigned = profile?.assigned_courses || [];
-            if (typeof rawAssigned === 'string') {
-                try { rawAssigned = JSON.parse(rawAssigned); } catch (e) { rawAssigned = []; }
-            }
-            assignedCourses = Array.isArray(rawAssigned) ? rawAssigned.map(Number) : [];
-        }
-
-        // Direct query to get students
-        let query = supabase
-            .from('profiles')
-            .select(`
-                id, name, email,
-                enrollments!inner(course_id, enrolled_at),
-                student_progress(count)
-            `)
-            .eq('role', 'student');
-
-        // Apply course filter if tutor, or if courseId provided for admin
-        if (!isAdmin) {
-            query = query.in('enrollments.course_id', assignedCourses);
-        } else if (courseId) {
-            query = query.eq('enrollments.course_id', courseId);
-        }
-
-        const { data: students, error } = await query;
+        // Use RPC for all heavy joins and counting
+        const { data: students, error } = await supabase.rpc('get_tutor_students', {
+            course_filter: courseId ? parseInt(courseId) : null,
+            requested_user_id: userId
+        });
 
         if (error) {
             console.error('❌ [STUDENTS] Error fetching tutor students:', error);
@@ -307,21 +206,8 @@ router.get('/students', async (req, res) => {
             });
         }
 
-        // Format and filter students if needed
-        let filteredStudents = students.map(s => ({
-            id: s.id,
-            name: s.name,
-            email: s.email,
-            enrolled_course_id: s.enrollments[0]?.course_id,
-            enrolled_at: s.enrollments[0]?.enrolled_at,
-            progress_count: Number(s.student_progress?.[0]?.count || 0)
-        }));
-
-        if (courseId) {
-            filteredStudents = filteredStudents.filter(s => s.enrolled_course_id === parseInt(courseId));
-        }
-
-        res.json({ students: filteredStudents });
+        // The RPC already returns formatted students with progress_count
+        res.json({ students: students || [] });
 
     } catch (error) {
         console.error('Tutor students error:', error);

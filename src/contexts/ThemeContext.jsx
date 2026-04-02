@@ -12,9 +12,13 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
-    // Check localStorage first
-    const saved = localStorage.getItem('theme');
-    if (saved) return saved;
+    try {
+      // Check localStorage first
+      const saved = localStorage.getItem('theme');
+      if (saved) return saved;
+    } catch (e) {
+      console.warn('Storage access blocked, using default theme');
+    }
     // Fallback to system preference
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
@@ -29,7 +33,11 @@ export const ThemeProvider = ({ children }) => {
     root.classList.add(theme);
     
     // Save to localStorage
-    localStorage.setItem('theme', theme);
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (e) {
+      // Ignore storage errors
+    }
   }, [theme]);
 
   const toggleTheme = () => {

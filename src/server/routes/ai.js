@@ -56,7 +56,7 @@ router.post('/chat', async (req, res) => {
   }
 });
 
-// 1b. Dedicated Personal AI Tutor endpoint
+// 1b. Dedicated AIPrep365 endpoint
 router.post('/tutor', async (req, res) => {
   try {
     const { message, difficulty } = req.body;
@@ -65,7 +65,7 @@ router.post('/tutor', async (req, res) => {
     }
     const user = await getUserFromRequest(req);
     if (!user) {
-      return res.status(401).json({ error: "Authentication required for Personal AI Tutor." });
+      return res.status(401).json({ error: "Authentication required for AIPrep365." });
     }
     console.log(`🎓 [Tutor Route] User: ${user.id} | Difficulty: ${difficulty} | Message: "${message.substring(0, 80)}"`);
     const tutorRes = await handleTutorRequest(user.id, message, "Expert SAT Tutor", difficulty);
@@ -680,7 +680,7 @@ RESPONSE FORMAT: Keep responses concise (2-4 sentences) followed by a helpful qu
   }
 });
 
-// 14. Personal AI Tutor Agent
+// 14. AIPrep365 Agent
 router.post('/personal-tutor', async (req, res) => {
   try {
     const { message, context, difficulty } = req.body;

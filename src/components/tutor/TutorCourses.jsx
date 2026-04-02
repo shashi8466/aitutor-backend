@@ -8,18 +8,21 @@ import axios from 'axios';
 
 const { FiBook, FiUsers, FiClock, FiChevronRight, FiTrendingUp } = FiIcons;
 
-const TutorCourses = ({ dashboardData }) => {
+const TutorCourses = ({ dashboardData, isParentLoading }) => {
     const [courses, setCourses] = useState(dashboardData?.courses || []);
-    const [loading, setLoading] = useState(!dashboardData);
+    const [loading, setLoading] = useState(!dashboardData && isParentLoading);
 
     useEffect(() => {
         if (dashboardData?.courses) {
             setCourses(dashboardData.courses);
             setLoading(false);
-        } else {
+        } else if (!isParentLoading && !dashboardData) {
+            // Only fetch if parent is NOT loading but data is still missing
             fetchCourses();
+        } else if (isParentLoading) {
+            setLoading(true);
         }
-    }, [dashboardData]);
+    }, [dashboardData, isParentLoading]);
 
     const fetchCourses = async () => {
         if (!dashboardData) setLoading(true);

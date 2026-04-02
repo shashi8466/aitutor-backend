@@ -1,6 +1,18 @@
 import axios from 'axios';
 import supabase from '../supabase/supabase';
 
+// GLOBAL AXIOS CONFIGURATION
+// Use full URL for production to bypass CORS/Routing issues on specific hosts
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+axios.defaults.baseURL = BACKEND_URL;
+axios.defaults.timeout = 30000; // Increased to 30 seconds for warm-ups and heavy AI processing
+axios.defaults.withCredentials = true;
+
+// Pre-emptively "warm up" the backend (best effort)
+if (BACKEND_URL) {
+  fetch(`${BACKEND_URL}/api/health`).catch(() => {});
+}
+
 // Helper to get error message
 const getError = (error) => {
   return error.response?.data?.error || error.message || 'An error occurred';
@@ -24,11 +36,12 @@ export const authService = {
 
       // Merge user data, ensuring profile properties (like custom role) 
       // override the default Supabase user properties (like role: 'authenticated')
+      const profileRole = (profile?.role || data.user.user_metadata?.role || 'student').toLowerCase();
       const userWithProfile = {
         ...data.user,
         ...profile,
         // Explicitly force the role from profile if it exists
-        role: profile?.role || data.user.user_metadata?.role || 'student'
+        role: profileRole === 'authenticated' ? 'student' : profileRole
       };
 
       console.log('Login successful for:', email, 'Role:', userWithProfile.role);
@@ -41,7 +54,9 @@ export const authService = {
   },
   signup: async ({ email, password, name, role, mobile, fatherName, fatherMobile }) => {
     try {
-      // Pass metadata for the trigger to pick up
+      console.log('🔄 [SIGNUP] Starting signup for:', email);
+      
+      // Pass metadata for trigger to pick up
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -55,35 +70,189 @@ export const authService = {
           }
         }
       });
-      if (error) throw error;
+      
+      if (error) {
+        console.error('❌ [SIGNUP] Supabase auth error:', error.message);
+        throw error;
+      }
+      
+      console.log('✅ [SIGNUP] User created:', data.user?.id);
+
+      // CRITICAL: Return immediately with success
+      // Background tasks run separately without blocking signup
+      if (data.user) {
+        // Run background tasks asynchronously without awaiting
+        this._runSignupBackgroundTasks(data.user, { email, name, role, mobile, fatherName, fatherMobile });
+      }
+
       return { success: true, session: data.session, user: data.user };
     } catch (error) {
+      console.error('💥 [SIGNUP] Fatal error:', error.message);
       return { success: false, error: error.message };
     }
   },
+
+  // Background tasks helper (non-blocking)
+  _runSignupBackgroundTasks: async (user, userData) => {
+    const userId = user.id;
+    const userName = userData.name || 'Student';
+    const normalizedRole = (userData.role || 'student').toString().trim().toLowerCase() || 'student';
+
+    console.log('🎯 [BACKGROUND] Starting background tasks for:', userName, '<', userData.email, '>');
+
+    try {
+      // Task 1: Profile upsert - CRITICAL for dashboard name display
+      try {
+        console.log('📝 [BACKGROUND] Upserting profile...');
+        await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            email: userData.email,
+            name: userName,
+            role: normalizedRole,
+            mobile: userData.mobile || null,
+            father_name: userData.fatherName || null,
+            father_mobile: userData.fatherMobile || null
+          }, { onConflict: 'id' });
+        console.log('✅ [BACKGROUND] Profile upserted successfully with name:', userName);
+      } catch (profileError) {
+        console.error('⚠️ [BACKGROUND] Profile upsert failed:', profileError?.message);
+      }
+
+      // Task 2: Welcome email queue (best-effort)
+      try {
+        await supabase.rpc('add_to_welcome_queue', {
+          user_email: userData.email,
+          user_name: userName,
+          user_id: userId
+        });
+        console.log('✅ [BACKGROUND] Added to welcome queue via RPC');
+      } catch (rpcError) {
+        console.warn('⚠️ [BACKGROUND] Welcome queue RPC failed:', rpcError?.message);
+        // Fallback: direct insert
+        try {
+          await supabase.from('welcome_email_queue').insert({
+            user_id: userId,
+            email: userData.email,
+            name: userName,
+            status: 'pending'
+          });
+          console.log('✅ [BACKGROUND] Added to welcome queue via direct insert');
+        } catch (insertError) {
+          console.warn('⚠️ [BACKGROUND] Direct queue insert failed:', insertError?.message);
+        }
+      }
+
+      // Task 3: Welcome email endpoint (best-effort)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+
+        console.log('📧 [BACKGROUND] Calling welcome email endpoint...');
+        await axios.post('/api/auth/welcome-email', {
+          email: userData.email,
+          name: userName,
+          userId
+        }, { 
+          headers,
+          timeout: 5000 // 5 second timeout to prevent hanging
+        });
+
+        console.log('✅ [BACKGROUND] Welcome email sent successfully via endpoint');
+      } catch (endpointError) {
+        console.warn('⚠️ [BACKGROUND] Welcome email endpoint failed:', endpointError?.message);
+      }
+
+      console.log('🎉 [BACKGROUND] All background tasks completed');
+
+    } catch (error) {
+      console.error('❌ [BACKGROUND] Unexpected error in background tasks:', error?.message);
+    }
+  },
   logout: async () => {
+    // Clear local cache on logout
+    if (typeof window !== 'undefined') {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('auth_profile_')) localStorage.removeItem(key);
+      });
+    }
     await supabase.auth.signOut();
   },
+  
+  // FAST version for initial boot
   getSessionUser: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (data?.user) {
-      const profile = await authService.getDbProfile(data.user.id);
-      return { ...data.user, ...profile };
+    try {
+      // CRITICAL: Add timeout to prevent hanging
+      const getUserPromise = supabase.auth.getUser();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('getUser timeout')), 5000)
+      );
+      
+      // 1. Get user from Supabase Auth (fast, often from local storage)
+      const { data: { user }, error: authError } = await Promise.race([
+        getUserPromise,
+        timeoutPromise
+      ]).catch((err) => {
+        console.error('⏰ getUser timed out:', err.message);
+        return { data: { user: null }, error: err };
+      });
+      
+      if (authError || !user) {
+        console.warn('⚠️ No user from getUser:', authError?.message);
+        return null;
+      }
+
+      // 2. CHECK LOCAL CACHE for profile (extremely fast)
+      let cachedProfile = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem(`auth_profile_${user.id}`);
+          if (stored) cachedProfile = JSON.parse(stored);
+        } catch (e) {
+          console.warn('Failed to parse cached profile', e);
+        }
+      }
+
+      // If we have a cached profile, return it immediately with user
+      if (cachedProfile) {
+        console.log('✅ getSessionUser: Returning cached profile');
+        return { ...user, ...cachedProfile, _fromCache: true };
+      }
+
+      // 3. Fallback: Return user with metadata if no cache exists yet
+      console.log('✅ getSessionUser: Returning user with metadata');
+      return { 
+        ...user, 
+        role: user.user_metadata?.role || 'student',
+        name: user.user_metadata?.name || user.user_metadata?.full_name || 'User'
+      };
+    } catch (e) {
+      console.error('getSessionUser error', e);
+      return null;
     }
-    return null;
   },
+
   getDbProfile: async (userId) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
 
       if (error) {
-        console.error('❌ [api] getDbProfile error:', error.message);
+        console.error('❌ [api] getDbProfile database error:', error.message);
         return null;
       }
+
+      // Update local cache for next refresh
+      if (data && typeof window !== 'undefined') {
+        localStorage.setItem(`auth_profile_${userId}`, JSON.stringify(data));
+      }
+
       return data;
     } catch (err) {
       console.error('💥 [api] getDbProfile fatal error:', err.message);
@@ -100,14 +269,33 @@ export const authService = {
     if (error) throw error;
     return { data };
   },
-  getAllProfiles: async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return { data };
+  // OPTIMIZED: Unified profile fetch with filtering and pagination
+  getAllProfiles: async ({ role = null, limit = 1000, offset = 0 } = {}) => {
+    try {
+      let query = supabase
+        .from('profiles')
+        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status')
+        .order('created_at', { ascending: false });
+
+      if (role) {
+        query = query.eq('role', role);
+      }
+
+      const { data, error } = await query.range(offset, offset + limit - 1);
+
+      if (error) throw error;
+      return { data };
+    } catch (error) {
+      console.error('💥 [api] getAllProfiles error:', error.message);
+      throw error;
+    }
   },
+
+  // EFFICIENT: Fetch only specific role (Student/Parent/Tutor)
+  getProfilesByRole: async (role, limit = 1000) => {
+    return authService.getAllProfiles({ role, limit });
+  },
+
   wakeUp: async () => {
     // Simple health check or warm-up
     try {
@@ -557,23 +745,40 @@ export const settingsService = {
 // --- CONTACT SERVICE ---
 export const contactService = {
   submit: async (formData) => {
-    // 1. Save to DB for history
-    await supabase.from('contact_messages').insert([{
-      full_name: formData.fullName || formData.name,
-      email: formData.email,
-      mobile: formData.mobile,
-      message: formData.message
-    }]);
+    try {
+      console.log('📬 [api] Submitting contact form...', formData);
+      
+      // 1. Double check column names and insert to DB
+      // We try this but don't let a DB failure stop the email if possible
+      const { error: dbError } = await supabase.from('contact_messages').insert([{
+        full_name: formData.fullName || formData.name,
+        email: formData.email,
+        mobile: formData.mobile,
+        subject: formData.subject || 'General Inquiry',
+        message: formData.message,
+        created_at: new Date().toISOString()
+      }]);
+      
+      if (dbError) {
+        console.warn("⚠️ Database insertion failed, but attempting to send email:", dbError);
+      }
 
-    // 2. Post to backend to send Email
-    return axios.post('/api/contact', {
-      name: formData.fullName || formData.name,
-      email: formData.email,
-      mobile: formData.mobile,
-      subject: formData.subject || 'Direct Contact',
-      message: formData.message,
-      type: formData.subject ? 'Support Ticket' : 'General Inquiry'
-    });
+      // 2. Post to backend to send Email
+      const response = await axios.post('/api/contact', {
+        name: formData.fullName || formData.name,
+        email: formData.email,
+        mobile: formData.mobile,
+        subject: formData.subject || 'Direct Contact',
+        message: formData.message,
+        type: formData.subject ? 'Support Ticket' : 'General Inquiry'
+      });
+      
+      console.log('✅ [api] Contact form submitted successfully:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Contact service encountered an error:", error);
+      throw error;
+    }
   }
 };
 
@@ -716,8 +921,17 @@ export const adminService = {
   createParent: async (parentData) => {
     return axios.post('/api/admin/parents', parentData);
   },
+  getParents: async () => {
+    return axios.get('/api/admin/parents');
+  },
   updateParent: async (parentId, parentData) => {
     return axios.put(`/api/admin/parents/${parentId}`, parentData);
+  },
+  deleteParent: async (parentId) => {
+    return axios.delete(`/api/admin/parents/${parentId}`);
+  },
+  updateUserStatus: async (userId, status) => {
+    return axios.put(`/api/admin/users/${userId}/status`, { status });
   }
 };
 
@@ -767,4 +981,4 @@ export const parentService = {
   getMyChildren: async () => {
     return axios.get('/api/grading/parent/my-children');
   }
-};
+};

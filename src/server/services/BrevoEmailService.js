@@ -22,7 +22,7 @@ class BrevoEmailService {
     try {
       const emailData = {
         sender: {
-          name: 'AI Tutor Team',
+          name: 'AIPrep365 Team',
           email: process.env.EMAIL_FROM || 'ssky57771@gmail.com'
         },
         to: [
@@ -31,7 +31,7 @@ class BrevoEmailService {
             name: userName
           }
         ],
-        subject: 'Welcome to AI Tutor 🎉',
+        subject: 'Welcome to AIPrep365 🎉',
         htmlContent: this.getWelcomeTemplate(userName),
         headers: {
           'X-Mailin-custom': 'custom_header_value'
@@ -156,13 +156,13 @@ class BrevoEmailService {
   <div class="container">
     <div class="header">
       <div class="logo">🎓</div>
-      <h1>Welcome to AI Tutor!</h1>
+      <h1>Welcome to AIPrep365!</h1>
     </div>
 
     <div class="content">
       <p>Hi <strong>${userName || 'there'}</strong>,</p>
       
-      <p>Welcome to <strong>AI Tutor! 🎉</strong></p>
+      <p>Welcome to <strong>AIPrep365! 🎉</strong></p>
       <p>You have successfully registered on our platform.</p>
       <p>Start learning, practice regularly, and improve your skills step by step. 🚀</p>
 
@@ -176,10 +176,10 @@ class BrevoEmailService {
 
     <div class="footer">
       <p>Thanks & Regards,</p>
-      <p><strong>AI Tutor Team</strong></p>
+      <p><strong>AIPrep365 Team</strong></p>
       <p style="font-size: 12px; margin-top: 20px;">
-        © ${new Date().getFullYear()} AI Tutor Platform. All rights reserved.<br>
-        You received this email because you created an account on AI Tutor.
+        © ${new Date().getFullYear()} AIPrep365. All rights reserved.<br>
+        You received this email because you created an account on AIPrep365.
       </p>
     </div>
   </div>
@@ -199,7 +199,7 @@ class BrevoEmailService {
     try {
       const emailData = {
         sender: {
-          name: 'AI Tutor Team',
+          name: 'AIPrep365 Team',
           email: process.env.EMAIL_FROM || 'noreply@aitutor.com'
         },
         to: [{ email: userEmail, name: userName }],
@@ -262,7 +262,7 @@ class BrevoEmailService {
     try {
       const emailData = {
         sender: {
-          name: 'AI Tutor Team',
+          name: 'AIPrep365 Team',
           email: process.env.EMAIL_FROM
         },
         to: [{ email: userEmail, name: userName }],

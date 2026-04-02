@@ -6,7 +6,12 @@ export default {
   ],
   darkMode: 'class', // Enable manual dark mode via class
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],
+        archivo: ['"Archivo Black"', 'sans-serif'],
+      },
+    },
   },
   plugins: [
     require('@tailwindcss/typography'),

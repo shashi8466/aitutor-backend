@@ -81,7 +81,7 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   if (appUrl.endsWith('/')) {
     appUrl = appUrl.slice(0, -1);
   }
-  const appName = process.env.APP_NAME || 'AI Tutor Platform';
+  const appName = process.env.APP_NAME || 'AIPrep365';
 
   if (eventType === 'TEST_COMPLETED') {
     const subject = `Test Completed: ${payload.courseName || 'Course'} (${payload.level || ''})`;
