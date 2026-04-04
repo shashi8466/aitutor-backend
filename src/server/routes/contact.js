@@ -1,5 +1,5 @@
 import express from 'express';
-import supabaseAdmin from '../supabase/supabaseAdmin.js';
+import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 import { enqueueNotification } from '../utils/notificationOutbox.js';
 import { getAppSettings } from '../utils/settingsHelper.js';
 
