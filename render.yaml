@@ -10,15 +10,21 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: GMAIL_USER
-        value: YOUR_GMAIL_USER_HERE
-      - key: GMAIL_APP_PASS
-        value: YOUR_GMAIL_APP_PASS_HERE
+      - key: EMAIL_HOST
+        value: mail.gigatechservices.org
+      - key: EMAIL_PORT
+        value: 465
+      - key: EMAIL_SECURE
+        value: true
       - key: EMAIL_USER
-        value: YOUR_EMAIL_USER_HERE
+        value: notifications@gigatechservices.org
       - key: EMAIL_PASS
-        value: YOUR_EMAIL_PASS_HERE
+        value: "Pu$gm;p)$7O+IzCb"
       - key: EMAIL_FROM
-        value: YOUR_EMAIL_FROM_HERE
+        value: notifications@gigatechservices.org
+      - key: ADMIN_EMAIL
+        value: notifications@gigatechservices.org
       - key: APP_NAME
-        value: AI Tutor Platform
+        value: AIPrep365
+      - key: APP_URL
+        value: https://aiprep365.com

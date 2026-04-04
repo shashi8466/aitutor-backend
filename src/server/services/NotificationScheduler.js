@@ -258,8 +258,8 @@ class NotificationScheduler {
       });
 
       if (inAppNotifications.length > 0) {
-        // Use supabaseAdmin to bypass RLS for direct insertion
-        await supabaseAdmin.from('notifications').insert(inAppNotifications);
+        // Use supabase (service-role) to bypass RLS for direct insertion
+        await supabase.from('notifications').insert(inAppNotifications);
         console.log(`✅ [Notification] In-app notifications created in table for ${inAppNotifications.length} users`);
       }
     } catch (error) {

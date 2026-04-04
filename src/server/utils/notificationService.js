@@ -6,8 +6,6 @@
 
 import nodemailer from 'nodemailer';
 import https from 'https';
-import { createRequire } from 'module';
-import SibApiV3Sdk from 'sib-api-v3-sdk';
 
 const { getInternalSettings } = await import('./internalSettings.js').catch(() => ({
     getInternalSettings: async () => ({})
@@ -27,44 +25,6 @@ export function resetTransporterCache() {
 
 function getEmailConfigKey({ host, port, secure, user }) {
     return `${host}:${port}:${secure ? 'secure' : 'starttls'}:${user}`;
-}
-
-async function sendEmailViaBrevo({ to, subject, html, text }) {
-    const apiKey = process.env.BREVO_API_KEY;
-    if (!apiKey) return { attempted: false, ok: false };
-
-    try {
-        const defaultClient = SibApiV3Sdk.ApiClient.instance;
-        const apiKeyAuth = defaultClient.authentications['api-key'];
-        apiKeyAuth.apiKey = apiKey;
-
-        const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
-        const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-
-        sendSmtpEmail.subject = subject;
-        sendSmtpEmail.htmlContent = html || text || '<p>Notification</p>';
-        if (text && !html) sendSmtpEmail.textContent = text;
-        
-        const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'ssky57771@gmail.com';
-        sendSmtpEmail.sender = { email: senderEmail, name: "AIPrep365" };
-
-        const toList = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
-        console.log("📧 Sending via Brevo to:", toList);
-        
-        sendSmtpEmail.to = toList.map(email => ({ email }));
-
-        const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
-        console.log(`✅ [Email] Sent via Brevo to ${toList.join(', ')} | MessageId: ${data.messageId}`);
-        return { attempted: true, ok: true, id: data.messageId };
-        
-    } catch (err) {
-        let errorMsg = err.message || String(err);
-        if (err.response && err.response.text) {
-            errorMsg = err.response.text;
-        }
-        console.error(`❌ [Email] Brevo failed to send to ${to}:`, errorMsg);
-        return { attempted: true, ok: false, error: errorMsg };
-    }
 }
 
 async function createEmailTransporter() {
@@ -127,212 +87,48 @@ async function createEmailTransporter() {
     return cachedTransporter;
 }
 
-async function sendEmailViaResend({ to, subject, html, text }) {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return { attempted: false, ok: false };
-
-    // Once gigatechservices.org is verified, Resend will perfectly accept the emails
-    const from = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'onboarding@resend.dev';
-
-    const controller = new AbortController();
-    const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 10000);
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-        console.log("📧 Sending to:", to);
-
-        const resp = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                from,
-                to: Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean),
-                subject,
-                html: html || undefined,
-                text: text || undefined
-            }),
-            signal: controller.signal
-        });
-
-        const bodyText = await resp.text().catch(() => '');
-
-        if (!resp.ok) {
-            console.error(`❌ [Email] Resend error ${resp.status}: ${bodyText}`.slice(0, 500));
-            return { attempted: true, ok: false, error: `Resend error ${resp.status}` };
-        }
-
-        // Successfully sent via Resend API
-        let responseJson = {};
-        try { responseJson = JSON.parse(bodyText); } catch(e) {}
-        
-        console.log(`✅ Resend response:`, responseJson);
-        console.log(`✅ [Email] Sent via Resend (from: ${from}) to ${to}`);
-        return { attempted: true, ok: true, id: responseJson.id };
-    } catch (err) {
-        console.error(`❌ [Email] Resend failed to send to ${to}:`, err?.message || String(err));
-        return { attempted: true, ok: false, error: err?.message || String(err) };
-    } finally {
-        clearTimeout(t);
-    }
-}
-
-async function sendEmailViaSendGrid({ to, subject, html, text }) {
-    const settings = await getInternalSettings();
-    const apiKey = process.env.SENDGRID_API_KEY || settings?.email_config?.sendgrid_api_key;
-    if (!apiKey) return { attempted: false, ok: false };
-
-    const from = process.env.EMAIL_FROM || settings?.email_config?.from_email || process.env.SENDGRID_FROM || 'ssky57771@gmail.com';
-
-    const controller = new AbortController();
-    const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 10000);
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-        const toArray = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
-        const personalizations = toArray.map(email => ({ to: [{ email }] }));
-
-        const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                personalizations,
-                from: { email: from, name: "AIPrep365" },
-                subject,
-                content: [
-                    ...(text ? [{ type: 'text/plain', value: text }] : []),
-                    ...(html ? [{ type: 'text/html', value: html }] : [])
-                ]
-            }),
-            signal: controller.signal
-        });
-
-        if (!resp.ok) {
-            const body = await resp.text().catch(() => '');
-            console.error(`❌ [Email] SendGrid error ${resp.status}: ${body}`.slice(0, 1000));
-            return { attempted: true, ok: false, error: `SendGrid error ${resp.status}: ${body}` };
-        }
-
-        console.log(`✅ [Email] Sent via SendGrid to ${to}`);
-        return { attempted: true, ok: true };
-    } catch (err) {
-        console.error(`❌ [Email] SendGrid failed to send to ${to}:`, err?.message || String(err));
-        return { attempted: true, ok: false, error: err?.message || String(err) };
-    } finally {
-        clearTimeout(t);
-    }
-}
-
 /**
- * Send an HTML email.
+ * Send an HTML email via custom domain SMTP (gigatechservices.org).
  * @param {object} opts - { to, subject, html, text }
  * @returns {Promise<object>} - { ok: boolean, error?: string }
  */
-
 export async function sendEmail({ to, subject, html, text }) {
     if (!to) {
         console.warn('⚠️ [Email] No recipient provided – skipping.');
         return { ok: false, error: 'No recipient provided' };
     }
 
-    // 1. Try Brevo (Sendinblue) first as explicitly requested
-    const brevo = await sendEmailViaBrevo({ to, subject, html, text });
-    if (brevo.attempted && brevo.ok) return brevo;
+    const transporter = await createEmailTransporter();
+    if (!transporter) {
+        console.error('❌ [Email] No email transporter available – check EMAIL_HOST/USER/PASS env vars.');
+        return { ok: false, error: 'SMTP transporter not configured' };
+    }
 
-    // 2. Try Resend (HTTP API — no SMTP port issues)
-    const resend = await sendEmailViaResend({ to, subject, html, text });
-    if (resend.attempted && resend.ok) return resend;
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const fromEmail = transporter.fromEmail || process.env.EMAIL_FROM || process.env.EMAIL_USER;
 
-    // 2. Try SendGrid (HTTP API)
-    const sendgrid = await sendEmailViaSendGrid({ to, subject, html, text });
-    if (sendgrid.attempted && sendgrid.ok) return sendgrid;
-
-    // 3. Try Gmail SMTP — tried BEFORE custom SMTP because Gmail uses Google's
-    //    own servers which are reachable on any network (including Render/cloud).
-    //    Custom SMTP ports 465/587 are blocked by Render and many ISPs.
-    //    Fallback credentials provided so this works even without env vars on Render.
-    const gmailUser = process.env.GMAIL_USER || process.env.EMAIL_USER || 'YOUR_GMAIL_USER_HERE';
-    const gmailPass = process.env.GMAIL_APP_PASS || process.env.EMAIL_PASS || 'YOUR_GMAIL_APP_PASS_HERE';
     try {
-        const gmailTransport = nodemailer.createTransport({
-            service: 'gmail',
-            auth: { user: gmailUser, pass: gmailPass },
-            connectionTimeout: 15000,
-            tls: { rejectUnauthorized: false }
-        });
-        const info = await gmailTransport.sendMail({
-            from: `"AIPrep365" <${gmailUser}>`,
-            to, subject,
+        if (!transporter.__verified) {
+            await transporter.verify().catch((e) => {
+                console.warn(`⚠️ [Email] SMTP verify warning: ${e.message}`);
+            });
+            transporter.__verified = true;
+        }
+
+        const info = await transporter.sendMail({
+            from: `"${appName}" <${fromEmail}>`,
+            to,
+            subject,
             text: text || '',
             html: html || text || ''
         });
-        console.log(`✅ [Email] Sent via Gmail to ${to} | MessageId: ${info.messageId}`);
-        return { ok: true };
-    } catch (gmailErr) {
-        console.warn(`⚠️ [Email] Gmail SMTP failed: ${gmailErr.message}`);
+        console.log(`✅ [Email] Sent via SMTP to ${to} | MessageId: ${info.messageId}`);
+        return { ok: true, id: info.messageId };
+    } catch (err) {
+        const errorMsg = err.message || String(err);
+        console.error(`❌ [Email] SMTP failed to send to ${to}: ${errorMsg}`);
+        return { ok: false, error: errorMsg };
     }
-
-    // 4. Try Custom SMTP (DB-configured, e.g. gigatechservices.org)
-    //    This is last because custom SMTP ports may be blocked by ISP/firewall
-    //    in local/cloud environments. Works best in dedicated server environments.
-    const transporter = await createEmailTransporter();
-    if (transporter) {
-        const appName = process.env.APP_NAME || 'AIPrep365';
-        const fromEmail = transporter.fromEmail || process.env.EMAIL_USER;
-
-        try {
-            if (!transporter.__verified) {
-                await transporter.verify().catch(() => null);
-                transporter.__verified = true;
-            }
-            const info = await transporter.sendMail({
-                from: `"${appName}" <${fromEmail}>`,
-                to, subject,
-                text: text || '',
-                html: html || text || ''
-            });
-            console.log(`✅ [Email] Sent via Custom SMTP to ${to} | MessageId: ${info.messageId}`);
-            return { ok: true };
-        } catch (err) {
-            const errorMsg = err.message || String(err);
-            console.warn(`⚠️ [Email] Custom SMTP Failed (${errorMsg})`);
-
-            // Port 465 → 587 fallback for custom SMTP
-            const transporterRaw = await createEmailTransporter();
-            const currentPort = transporterRaw?.options?.port;
-            if (currentPort === 465 && (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || errorMsg.includes('timeout'))) {
-                console.log(`🔄 [Email] Trying custom SMTP on Port 587...`);
-                try {
-                    const fallbackTransporter = nodemailer.createTransport({
-                        ...transporterRaw.options,
-                        port: 587,
-                        secure: false,
-                        connectionTimeout: 10000,
-                        greetingTimeout: 5000
-                    });
-                    const fallbackInfo = await fallbackTransporter.sendMail({
-                        from: `"${appName}" <${fromEmail}>`,
-                        to, subject,
-                        text: text || '',
-                        html: html || text || ''
-                    });
-                    console.log(`✅ [Email] Sent via Custom SMTP Port 587 to ${to} | MessageId: ${fallbackInfo.messageId}`);
-                    return { ok: true };
-                } catch (fallbackErr) {
-                    console.error(`❌ [Email] Custom SMTP Port 587 also failed: ${fallbackErr.message}`);
-                }
-            } else {
-                console.error(`❌ [Email] Custom SMTP failed to send to ${to}: ${errorMsg}`);
-            }
-        }
-    }
-
-    return { ok: false, error: 'All email methods failed' };
 }
 
 // ─── Twilio Helper (SMS + WhatsApp) ─────────────────────────────────────────
