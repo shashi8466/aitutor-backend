@@ -1,6 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
+let cachedSettings = null;
+let lastFetchTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export const getAppSettings = async () => {
+    const now = Date.now();
+    if (cachedSettings && (now - lastFetchTime < CACHE_TTL)) {
+        return cachedSettings;
+    }
+
     try {
         const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || process.env['Project-URL'] || 'https://wqavuacgbawhgcdxxzom.supabase.co';
         const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env['anon-public'];
@@ -19,12 +28,14 @@ export const getAppSettings = async () => {
             .single();
 
         if (error || !data) {
-            return { app_name: 'Pundits AI', logo_url: null };
+            return cachedSettings || { app_name: 'Pundits AI', logo_url: null };
         }
 
+        cachedSettings = data;
+        lastFetchTime = now;
         return data;
     } catch (err) {
         console.error('Error fetching settings on server:', err);
-        return { app_name: 'Pundits AI', logo_url: null };
+        return cachedSettings || { app_name: 'Pundits AI', logo_url: null };
     }
 };

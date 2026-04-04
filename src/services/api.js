@@ -748,22 +748,7 @@ export const contactService = {
     try {
       console.log('📬 [api] Submitting contact form...', formData);
       
-      // 1. Double check column names and insert to DB
-      // We try this but don't let a DB failure stop the email if possible
-      const { error: dbError } = await supabase.from('contact_messages').insert([{
-        full_name: formData.fullName || formData.name,
-        email: formData.email,
-        mobile: formData.mobile,
-        subject: formData.subject || 'General Inquiry',
-        message: formData.message,
-        created_at: new Date().toISOString()
-      }]);
-      
-      if (dbError) {
-        console.warn("⚠️ Database insertion failed, but attempting to send email:", dbError);
-      }
-
-      // 2. Post to backend to send Email
+      // 1. Post to backend which handles DB storage (admin) and Email notifications
       const response = await axios.post('/api/contact', {
         name: formData.fullName || formData.name,
         email: formData.email,
