@@ -10,6 +10,8 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: RESEND_API_KEY
+        value: re_5XDqAZeY_LFpWTfKQ4H7DpiTdaew3G34t
       - key: EMAIL_HOST
         value: mail.gigatechservices.org
       - key: EMAIL_PORT

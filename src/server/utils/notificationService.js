@@ -88,7 +88,65 @@ async function createEmailTransporter() {
 }
 
 /**
- * Send an HTML email via custom domain SMTP (gigatechservices.org).
+ * Send email via Resend HTTP API (works on Render — no SMTP port needed).
+ * Requires RESEND_API_KEY env var.
+ * Domain gigatechservices.org must be verified in Resend dashboard.
+ */
+async function sendEmailViaResend({ to, subject, html, text }) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) return { attempted: false, ok: false };
+
+    const from = process.env.EMAIL_FROM || 'notifications@gigatechservices.org';
+
+    const controller = new AbortController();
+    const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 15000);
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const toArray = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
+        console.log('📧 [Resend] Sending to:', toArray);
+
+        const resp = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                from,
+                to: toArray,
+                subject,
+                html: html || undefined,
+                text: text || undefined
+            }),
+            signal: controller.signal
+        });
+
+        const bodyText = await resp.text().catch(() => '');
+
+        if (!resp.ok) {
+            console.error(`❌ [Resend] Error ${resp.status}: ${bodyText}`.slice(0, 500));
+            return { attempted: true, ok: false, error: `Resend HTTP ${resp.status}: ${bodyText.slice(0,200)}` };
+        }
+
+        let responseJson = {};
+        try { responseJson = JSON.parse(bodyText); } catch(e) {}
+
+        console.log(`✅ [Resend] Sent (from: ${from}) to ${toArray.join(', ')} | id: ${responseJson.id}`);
+        return { attempted: true, ok: true, id: responseJson.id };
+    } catch (err) {
+        console.error(`❌ [Resend] Failed to send to ${to}:`, err?.message || String(err));
+        return { attempted: true, ok: false, error: err?.message || String(err) };
+    } finally {
+        clearTimeout(t);
+    }
+}
+
+/**
+ * Send an HTML email.
+ * Primary:  Resend HTTP API  → works on Render (no SMTP port restrictions)
+ * Fallback: Custom SMTP      → works locally / on VPS with open SMTP ports
+ *
  * @param {object} opts - { to, subject, html, text }
  * @returns {Promise<object>} - { ok: boolean, error?: string }
  */
@@ -98,10 +156,24 @@ export async function sendEmail({ to, subject, html, text }) {
         return { ok: false, error: 'No recipient provided' };
     }
 
+    // 1. Try Resend via HTTP API (bypasses Render SMTP block)
+    const resend = await sendEmailViaResend({ to, subject, html, text });
+    if (resend.attempted && resend.ok) return resend;
+
+    // Log why Resend failed so it's visible in Render logs
+    if (resend.attempted && !resend.ok) {
+        console.warn(`⚠️ [Email] Resend failed (${resend.error}) – trying SMTP fallback...`);
+    } else {
+        console.warn('⚠️ [Email] Resend not configured (no RESEND_API_KEY) – trying SMTP fallback...');
+    }
+
+    // 2. Custom SMTP fallback (mail.gigatechservices.org)
+    //    NOTE: This will NOT work on Render because Render blocks SMTP ports.
+    //    This path is used locally or on VPS environments.
     const transporter = await createEmailTransporter();
     if (!transporter) {
-        console.error('❌ [Email] No email transporter available – check EMAIL_HOST/USER/PASS env vars.');
-        return { ok: false, error: 'SMTP transporter not configured' };
+        console.error('❌ [Email] No email transport available. Set RESEND_API_KEY or EMAIL_HOST/USER/PASS.');
+        return { ok: false, error: 'No email transport configured' };
     }
 
     const appName = process.env.APP_NAME || 'AIPrep365';
