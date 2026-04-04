@@ -42,8 +42,8 @@ class NotificationScheduler {
         console.log('ℹ️ [Cron] Outbox processor disabled locally (NODE_ENV != production)');
     }
 
-    // Weekly progress report - Every Sunday at 9 AM
-    cron.schedule('0 9 * * 0', async () => {
+    // Weekly progress report - Every Saturday at 7 PM
+    cron.schedule('0 19 * * 6', async () => {
       console.log('Weekly progress report job triggered');
       try {
         const port = process.env.PORT || 3001;
@@ -58,9 +58,9 @@ class NotificationScheduler {
       timezone: 'America/New_York'
     });
 
-    // Test due date reminders - Every day at 8 AM and 6 PM
-    cron.schedule('0 8 * * *', async () => {
-      console.log('Morning due date reminder job triggered');
+    // Test due date reminders - Every two days at 9 AM
+    cron.schedule('0 9 */2 * *', async () => {
+      console.log('Due date reminder job triggered');
       try {
         const port = process.env.PORT || 3001;
         await fetch(`http://localhost:${port}/api/notifications/run-due-reminders`, {
@@ -68,22 +68,7 @@ class NotificationScheduler {
           headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || '' }
         });
       } catch (e) {
-        console.error('Error running morning reminders from cron:', e.message);
-      }
-    }, {
-      timezone: 'America/New_York'
-    });
-
-    cron.schedule('0 18 * * *', async () => {
-      console.log('Evening due date reminder job triggered');
-      try {
-        const port = process.env.PORT || 3001;
-        await fetch(`http://localhost:${port}/api/notifications/run-due-reminders`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || '' }
-        });
-      } catch (e) {
-        console.error('Error running evening reminders from cron:', e.message);
+        console.error('Error running reminders from cron:', e.message);
       }
     }, {
       timezone: 'America/New_York'
