@@ -1,5 +1,12 @@
 import supabase from '../../supabase/supabaseAdmin.js';
-import { sendNotification, buildTestCompletionEmail, buildWeeklyReportEmail, buildDueDateReminderEmail, buildWelcomeEmail } from './notificationService.js';
+import { 
+  sendNotification, 
+  buildTestCompletionEmail, 
+  buildWeeklyReportEmail, 
+  buildDueDateReminderEmail, 
+  buildWelcomeEmail,
+  buildContactSubmissionEmail
+} from './notificationService.js';
 import { getInternalSettings } from './internalSettings.js';
 
 const DEFAULT_CHANNELS = ['email', 'sms', 'whatsapp'];
@@ -48,6 +55,7 @@ function channelsFromPrefs(prefs, channelsRequested, eventType) {
   // Canonical columns from `notification_preferences` (see migration)
   const allowEvent =
     (eventType === 'WELCOME_EMAIL') ||
+    (eventType === 'CONTACT_SUBMISSION') ||
     (eventType === 'TEST_COMPLETED' && (prefs.test_completed_enabled !== false)) ||
     (eventType === 'WEEKLY_REPORT' && (prefs.weekly_report_enabled !== false)) ||
     (eventType === 'DUE_DATE_REMINDER' && (prefs.due_date_enabled !== false));
@@ -70,6 +78,9 @@ function resolveWhatsApp({ recipientProfile, prefs, fallbackPhone }) {
 }
 
 async function buildContent({ eventType, payload, recipientName, isParent }) {
+  console.log(`🔍 [NotificationOutbox] Building content for event: "${eventType}"`);
+  console.log(`📦 [NotificationOutbox] Payload keys: ${Object.keys(payload || {}).join(', ')}`);
+
   // 1. Try DB settings for production URL
   const dbSettings = await getInternalSettings();
   const siteConfig = dbSettings?.site_config || {};
@@ -83,7 +94,9 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   }
   const appName = process.env.APP_NAME || 'AIPrep365';
 
-  if (eventType === 'TEST_COMPLETED') {
+  const normalizedEventType = (eventType || '').trim().toUpperCase();
+
+  if (normalizedEventType === 'TEST_COMPLETED') {
     const subject = `Test Completed: ${payload.courseName || 'Course'} (${payload.level || ''})`;
     
     // Construct deep-link report URL
@@ -120,7 +133,7 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     return { subject, emailHtml, smsMessage };
   }
 
-  if (eventType === 'WEEKLY_REPORT') {
+  if (normalizedEventType === 'WEEKLY_REPORT') {
     const subject = `Weekly Progress Report${isParent ? `: ${payload.studentName || ''}` : ''}`;
     
     // Construct dedicated weekly report URL
@@ -151,7 +164,7 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     return { subject, emailHtml, smsMessage };
   }
 
-  if (eventType === 'DUE_DATE_REMINDER') {
+  if (normalizedEventType === 'DUE_DATE_REMINDER') {
     const subject = `Upcoming Test Due Dates${isParent ? `: ${payload.studentName || ''}` : ''}`;
     
     // Construct target URL (dashboard)
@@ -180,7 +193,7 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     return { subject, emailHtml, smsMessage };
   }
 
-  if (eventType === 'WELCOME_EMAIL') {
+  if (normalizedEventType === 'WELCOME_EMAIL') {
     const subject = `Welcome to ${appName} 🎉`;
     const emailHtml = buildWelcomeEmail({
       name: payload.name || recipientName,
@@ -190,7 +203,38 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     return { subject, emailHtml, smsMessage };
   }
 
-  return { subject: `${appName} Notification`, emailHtml: '', smsMessage: '' };
+  if (normalizedEventType === 'CONTACT_SUBMISSION') {
+    console.log(`✅ [NotificationOutbox] Handling CONTACT_SUBMISSION logic for ${payload.email}`);
+    // If it's a support ticket, use the subject directly as requested.
+    // If it's a generic contact form, use [Contact Form] prefix.
+    let subjectLine = payload.subject || 'New Contact Submission';
+    if (payload.type === 'Support Ticket' || payload.subject) {
+      subjectLine = payload.subject;
+    } else {
+      subjectLine = `[Contact Form] ${payload.name || 'New Submission'}`;
+    }
+
+    const subject = subjectLine;
+    const emailHtml = buildContactSubmissionEmail({
+      name: payload.name,
+      email: payload.email,
+      mobile: payload.mobile || payload.phone, // Support both keys
+      subject: payload.subject,
+      type: payload.type,
+      message: payload.message,
+      appName: appName,
+      additionalDetailsHtml: payload.additionalDetailsHtml
+    });
+    const smsMessage = `${appName}: New ${payload.type || 'contact'} from ${payload.name}. Subject: ${payload.subject}`;
+    return { subject, emailHtml, smsMessage };
+  }
+
+  console.warn(`⚠️ [NotificationOutbox] No match found for event type: "${eventType}". Normalized: "${normalizedEventType}"`);
+  return { 
+    subject: `${appName} Notification`, 
+    emailHtml: `<h2>${appName} Notification</h2><p>You have a new alert regarding ${eventType}. Please check your dashboard.</p>`, 
+    smsMessage: `${appName}: You have a new notification.` 
+  };
 }
 
 export async function enqueueNotification({
