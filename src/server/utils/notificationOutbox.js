@@ -6,7 +6,7 @@ import {
   buildDueDateReminderEmail, 
   buildWelcomeEmail,
   buildContactSubmissionEmail
-} from './notificationService.js';
+} from './notificationEngine.js';
 import { getInternalSettings } from './internalSettings.js';
 
 const DEFAULT_CHANNELS = ['email', 'sms', 'whatsapp'];

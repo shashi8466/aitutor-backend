@@ -1,19 +1,13 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+import supabaseAdmin from './src/supabase/supabaseAdmin.js';
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-
-async function checkColumns() {
-    const { data, error } = await supabase
-        .from('test_submissions')
-        .select('*')
-        .limit(1);
-
+async function checkCols() {
+    const { data, error } = await supabaseAdmin.rpc('get_table_columns', { table_name: 'contact_messages' });
     if (error) {
-        console.error(error);
+        // fallback to select * from information_schema.columns
+        const { data: cols, error: err2 } = await supabaseAdmin.from('information_schema.columns').select('column_name').eq('table_name', 'contact_messages');
+        console.log('Cols:', cols?.map(c => c.column_name) || err2?.message);
     } else {
-        console.log(Object.keys(data[0] || {}));
+       console.log('Cols:', data);
     }
 }
-
-checkColumns();
+checkCols();

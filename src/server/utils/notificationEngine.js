@@ -310,3 +310,32 @@ export function buildWelcomeEmail({ name, appUrl }) {
     const finalUrl = appUrl || '#';
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>Welcome to ${appName} 🎉</h1><p>Your journey starts here!</p></div><div class="body"><p>Hi <strong>${name || 'Student'}</strong>,</p><p style="margin-top:15px; font-size: 16px; line-height: 1.6;">You have successfully registered on ${appName} platform. Start learning and improve your skills 🚀</p><div class="tip-box">📚 Explore your dashboard to find assigned courses and start your first test.</div><a class="cta" href="${finalUrl}">Start Learning Now →</a><p style="margin-top:20px; font-size: 14px; color: #4a5568;">Thanks,<br><strong>AIPrep365 Team</strong></p></div><div class="footer">${appName} • Thank you for joining our community.</div></div></div></body></html>`;
 }
+
+export function buildContactSubmissionEmail({ name, email, mobile, subject, type, message, appName, additionalDetailsHtml }) {
+    return `
+    <!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body>
+    <div class="wrapper"><div class="card">
+        <div class="header">
+            <h1>📥 New Contact Submission</h1>
+            <p>${appName} • ${type || 'Support Request'}</p>
+        </div>
+        <div class="body">
+            <p style="font-size: 14px; color: #718096; margin-bottom: 20px;">You have received a new message from the contact form:</p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr><td style="padding: 8px 0; font-weight: 700; width: 120px;">Name:</td><td>${name || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Email:</td><td><a href="mailto:${email}" style="color: #667eea; text-decoration: none;">${email || 'N/A'}</a></td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Phone:</td><td>${mobile || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Subject:</td><td>${subject || 'N/A'}</td></tr>
+            </table>
+
+            <div class="section-title">Message:</div>
+            <div style="background: #f7f9fc; padding: 16px; border-radius: 8px; font-size: 14px; line-height: 1.6; color: #2d3748; white-space: pre-wrap; border-left: 4px solid #667eea;">${message || '(No message content)'}</div>
+
+            ${additionalDetailsHtml || ''}
+            
+            <a class="cta" href="mailto:${email}?subject=Re: ${subject || 'Your Support Request'}">Reply to User →</a>
+        </div>
+        <div class="footer">${appName} • Sent automatically from the website contact system.</div>
+    </div></div></body></html>`;
+}
