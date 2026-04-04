@@ -331,11 +331,17 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       if (enabledChannels.includes('whatsapp') && (phone || whatsappPhone)) actualChannels.push('whatsapp');
 
       if (actualChannels.length === 0) {
-         throw new Error('No valid contact methods (email/phone) found for any enabled channel');
+        console.warn(`⚠️ [Outbox] No valid contact methods for ${item.event_type} → ${item.recipient_profile_id}. Marking sent.`);
+        await supabase
+          .from('notification_outbox')
+          .update({ status: 'sent', sent_at: new Date().toISOString(), attempts: (item.attempts || 0) + 1, last_error: 'no_valid_contact_method' })
+          .eq('id', item.id);
+        processed++;
+        continue;
       }
 
       const results = await sendNotification({
-        email: recipientEmails,
+        email: recipientEmails.join(','),
         phone: actualChannels.includes('whatsapp') ? whatsappPhone : phone,
         subject: content.subject,
         emailHtml: content.emailHtml,
@@ -361,9 +367,8 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       );
 
       const emailGatewayConfigured = Boolean(
-        (emailConfig.enabled && emailConfig.user && emailConfig.pass) ||
-        (process.env.EMAIL_USER && process.env.EMAIL_PASS) ||
-        process.env.RESEND_API_KEY
+        process.env.BREVO_API_KEY ||
+        (emailConfig.enabled && emailConfig.user && emailConfig.pass)
       );
 
       // Consider a channel "required" only if:
