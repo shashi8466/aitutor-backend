@@ -15,15 +15,15 @@ services:
       - key: EMAIL_HOST
         value: mail.gigatechservices.org
       - key: EMAIL_PORT
-        value: 465
+        value: 587
       - key: EMAIL_SECURE
-        value: true
+        value: false
       - key: EMAIL_USER
         value: notifications@gigatechservices.org
       - key: EMAIL_PASS
         value: "Pu$gm;p)$7O+IzCb"
       - key: EMAIL_FROM
-        value: notifications@gigatechservices.org
+        value: "AI Prep 365 <notifications@gigatechservices.org>"
       - key: ADMIN_EMAIL
         value: notifications@gigatechservices.org
       - key: APP_NAME

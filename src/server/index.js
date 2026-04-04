@@ -21,6 +21,7 @@ import notificationMiddleware from './middleware/notificationMiddleware.js';
 import adminNotificationRoutes from './routes/admin-notifications.js';
 import settingsRoutes from './routes/settings.js';
 import authRoutes from './routes/auth.js';
+import sendEmailRoute from './routes/send-email.js';
 
 // Background Processors
 import WelcomeEmailProcessor from './services/WelcomeEmailProcessor.js';
@@ -133,6 +134,7 @@ app.use('/api/admin', adminNotificationRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/send-email', sendEmailRoute);
 
 // 9. Root API Info
 app.get('/api', (req, res) => {
