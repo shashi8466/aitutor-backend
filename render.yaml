@@ -10,20 +10,10 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: RESEND_API_KEY
-        value: re_5XDqAZeY_LFpWTfKQ4H7DpiTdaew3G34t
-      - key: EMAIL_HOST
-        value: mail.gigatechservices.org
-      - key: EMAIL_PORT
-        value: 587
-      - key: EMAIL_SECURE
-        value: false
-      - key: EMAIL_USER
-        value: notifications@gigatechservices.org
-      - key: EMAIL_PASS
-        value: "Pu$gm;p)$7O+IzCb"
+      - key: BREVO_API_KEY
+        value: SET_IN_RENDER_DASHBOARD
       - key: EMAIL_FROM
-        value: "AI Prep 365 <notifications@gigatechservices.org>"
+        value: notifications@gigatechservices.org
       - key: ADMIN_EMAIL
         value: notifications@gigatechservices.org
       - key: APP_NAME

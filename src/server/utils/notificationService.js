@@ -1,154 +1,24 @@
 /**
  * Notification Service
- * Handles Email (SMTP/nodemailer), SMS (Twilio), and WhatsApp (Twilio) notifications
+ * Handles Email (Brevo HTTP API), SMS (Twilio), and WhatsApp (Twilio) notifications
  * All channels gracefully degrade if credentials are not configured.
  */
 
-import nodemailer from 'nodemailer';
 import https from 'https';
 
 const { getInternalSettings } = await import('./internalSettings.js').catch(() => ({
     getInternalSettings: async () => ({})
 }));
 
-// ─── Email Transport ────────────────────────────────────────────────────────
-
-let cachedTransporter = null;
-let cachedTransporterKey = null;
-
-/** Call this after changing SMTP settings to force new connection. */
-export function resetTransporterCache() {
-    cachedTransporter = null;
-    cachedTransporterKey = null;
-    console.log('🔄 [Email] Transporter cache cleared – will reconnect on next send.');
-}
-
-function getEmailConfigKey({ host, port, secure, user }) {
-    return `${host}:${port}:${secure ? 'secure' : 'starttls'}:${user}`;
-}
-
-async function createEmailTransporter() {
-    // 1. Try DB settings first
-    const settings = await getInternalSettings();
-    const emailConfig = settings?.email_config || {};
-
-    let user, pass, host, port, secure, fromEmail;
-
-    if (emailConfig.enabled && emailConfig.user && emailConfig.pass) {
-        user = emailConfig.user;
-        pass = emailConfig.pass;
-        host = emailConfig.host || 'smtp.gmail.com';
-        port = parseInt(emailConfig.port || '587');
-        fromEmail = emailConfig.from_email || user;
-        // Use the explicit secure bit from DB if it exists, otherwise check port
-        secure = (emailConfig.secure !== undefined) ? emailConfig.secure : (port === 465);
-    } else {
-        // 2. Fallback to process.env
-        user = process.env.EMAIL_USER;
-        pass = process.env.EMAIL_PASS;
-        host = process.env.EMAIL_HOST || 'smtp.gmail.com';
-        port = parseInt(process.env.EMAIL_PORT || '587');
-        fromEmail = process.env.EMAIL_FROM || user;
-        const secureEnv = process.env.EMAIL_SECURE;
-        const secureParsed = typeof secureEnv === 'string'
-            ? (secureEnv.toLowerCase() === 'true' || secureEnv === '1')
-            : (port === 465);
-        secure = secureParsed;
-    }
-
-    if (!user || !pass) {
-        console.warn('⚠️ [Notifications] SMTP credentials missing – email notifications disabled.');
-        return null;
-    }
-
-    const key = getEmailConfigKey({ host, port, secure, user });
-    if (cachedTransporter && cachedTransporterKey === key) return cachedTransporter;
-
-    cachedTransporterKey = key;
-    cachedTransporter = nodemailer.createTransport({
-        host,
-        port,
-        secure, // true for 465, false for 587 (STARTTLS)
-        auth: { user, pass },
-        tls: {
-            rejectUnauthorized: false // Helps in cloud environments
-        },
-        // Render/cloud networks can hang on SMTP connect/handshake.
-        // Increased for robustness with slow mail servers.
-        connectionTimeout: 20000, // 20s
-        greetingTimeout: 15000,    // 15s
-        socketTimeout: 25000,     // 25s
-        pool: true,
-        maxConnections: 2,
-        maxMessages: 50
-    });
-    console.log(`📡 [Email] Initialized transporter (Host: ${host}, Port: ${port}, Secure: ${secure})`);
-    cachedTransporter.fromEmail = fromEmail;
-    return cachedTransporter;
-}
+// ─── Email via Brevo HTTP API ────────────────────────────────────────────────
 
 /**
- * Send email via Resend HTTP API (works on Render — no SMTP port needed).
- * Requires RESEND_API_KEY env var.
- * Domain gigatechservices.org must be verified in Resend dashboard.
- */
-async function sendEmailViaResend({ to, subject, html, text }) {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return { attempted: false, ok: false };
-
-    const from = process.env.EMAIL_FROM || 'notifications@gigatechservices.org';
-
-    const controller = new AbortController();
-    const timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS || 15000);
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-        const toArray = Array.isArray(to) ? to : String(to).split(',').map(s => s.trim()).filter(Boolean);
-        console.log('📧 [Resend] Sending to:', toArray);
-
-        const resp = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                from,
-                to: toArray,
-                subject,
-                html: html || undefined,
-                text: text || undefined
-            }),
-            signal: controller.signal
-        });
-
-        const bodyText = await resp.text().catch(() => '');
-
-        if (!resp.ok) {
-            console.error(`❌ [Resend] Error ${resp.status}: ${bodyText}`.slice(0, 500));
-            return { attempted: true, ok: false, error: `Resend HTTP ${resp.status}: ${bodyText.slice(0,200)}` };
-        }
-
-        let responseJson = {};
-        try { responseJson = JSON.parse(bodyText); } catch(e) {}
-
-        console.log(`✅ [Resend] Sent (from: ${from}) to ${toArray.join(', ')} | id: ${responseJson.id}`);
-        return { attempted: true, ok: true, id: responseJson.id };
-    } catch (err) {
-        console.error(`❌ [Resend] Failed to send to ${to}:`, err?.message || String(err));
-        return { attempted: true, ok: false, error: err?.message || String(err) };
-    } finally {
-        clearTimeout(t);
-    }
-}
-
-/**
- * Send an HTML email.
- * Primary:  Resend HTTP API  → works on Render (no SMTP port restrictions)
- * Fallback: Custom SMTP      → works locally / on VPS with open SMTP ports
+ * Send an HTML email via Brevo (Sendinblue) Transactional Email HTTP API.
+ * Works on Render and all cloud environments — no SMTP port restrictions.
+ * Requires BREVO_API_KEY env var.
  *
  * @param {object} opts - { to, subject, html, text }
- * @returns {Promise<object>} - { ok: boolean, error?: string }
+ * @returns {Promise<object>} - { ok: boolean, id?: string, error?: string }
  */
 export async function sendEmail({ to, subject, html, text }) {
     if (!to) {
@@ -156,51 +26,75 @@ export async function sendEmail({ to, subject, html, text }) {
         return { ok: false, error: 'No recipient provided' };
     }
 
-    // 1. Try Resend via HTTP API (bypasses Render SMTP block)
-    const resend = await sendEmailViaResend({ to, subject, html, text });
-    if (resend.attempted && resend.ok) return resend;
-
-    // Log why Resend failed so it's visible in Render logs
-    if (resend.attempted && !resend.ok) {
-        console.warn(`⚠️ [Email] Resend failed (${resend.error}) – trying SMTP fallback...`);
-    } else {
-        console.warn('⚠️ [Email] Resend not configured (no RESEND_API_KEY) – trying SMTP fallback...');
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) {
+        console.error('❌ [Email] BREVO_API_KEY not set – email disabled.');
+        return { ok: false, error: 'BREVO_API_KEY not configured' };
     }
 
-    // 2. Custom SMTP fallback (mail.gigatechservices.org)
-    //    NOTE: This will NOT work on Render because Render blocks SMTP ports.
-    //    This path is used locally or on VPS environments.
-    const transporter = await createEmailTransporter();
-    if (!transporter) {
-        console.error('❌ [Email] No email transport available. Set RESEND_API_KEY or EMAIL_HOST/USER/PASS.');
-        return { ok: false, error: 'No email transport configured' };
-    }
+    const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'notifications@gigatechservices.org';
+    const senderName  = process.env.APP_NAME  || 'AIPrep365';
 
-    const appName = process.env.APP_NAME || 'AIPrep365';
-    const fromEmail = transporter.fromEmail || process.env.EMAIL_FROM || process.env.EMAIL_USER;
+    const toList = Array.isArray(to)
+        ? to
+        : String(to).split(',').map(s => s.trim()).filter(Boolean);
 
-    try {
-        if (!transporter.__verified) {
-            await transporter.verify().catch((e) => {
-                console.warn(`⚠️ [Email] SMTP verify warning: ${e.message}`);
-            });
-            transporter.__verified = true;
-        }
+    const payload = {
+        sender:      { email: senderEmail, name: senderName },
+        to:          toList.map(email => ({ email })),
+        subject:     String(subject || '(No Subject)').trim(),
+        htmlContent: html || text || '<p>Notification</p>',
+        ...(text && !html ? { textContent: text } : {}),
+    };
 
-        const info = await transporter.sendMail({
-            from: `"${appName}" <${fromEmail}>`,
-            to,
-            subject,
-            text: text || '',
-            html: html || text || ''
+    const body = JSON.stringify(payload);
+
+    return new Promise((resolve) => {
+        const req = https.request(
+            {
+                hostname: 'api.brevo.com',
+                path:     '/v3/smtp/email',
+                method:   'POST',
+                headers: {
+                    'api-key':        apiKey,
+                    'Content-Type':   'application/json',
+                    'Accept':         'application/json',
+                    'Content-Length': Buffer.byteLength(body),
+                },
+            },
+            (res) => {
+                let data = '';
+                res.on('data', chunk => (data += chunk));
+                res.on('end', () => {
+                    let parsed = {};
+                    try { parsed = JSON.parse(data); } catch(e) {}
+
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        console.log(`✅ [Email] Sent via Brevo to ${toList.join(', ')} | MessageId: ${parsed.messageId}`);
+                        resolve({ ok: true, id: parsed.messageId });
+                    } else {
+                        const errMsg = parsed.message || data.slice(0, 200);
+                        console.error(`❌ [Email] Brevo error ${res.statusCode}: ${errMsg}`);
+                        resolve({ ok: false, error: `Brevo ${res.statusCode}: ${errMsg}` });
+                    }
+                });
+            }
+        );
+
+        req.on('error', (err) => {
+            console.error('❌ [Email] Brevo request error:', err.message);
+            resolve({ ok: false, error: err.message });
         });
-        console.log(`✅ [Email] Sent via SMTP to ${to} | MessageId: ${info.messageId}`);
-        return { ok: true, id: info.messageId };
-    } catch (err) {
-        const errorMsg = err.message || String(err);
-        console.error(`❌ [Email] SMTP failed to send to ${to}: ${errorMsg}`);
-        return { ok: false, error: errorMsg };
-    }
+
+        req.setTimeout(15000, () => {
+            req.destroy();
+            console.error('❌ [Email] Brevo request timed out');
+            resolve({ ok: false, error: 'Brevo request timed out' });
+        });
+
+        req.write(body);
+        req.end();
+    });
 }
 
 // ─── Twilio Helper (SMS + WhatsApp) ─────────────────────────────────────────
