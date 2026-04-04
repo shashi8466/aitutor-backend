@@ -1,4 +1,5 @@
 import express from 'express';
+// Corrected relative path to match project structure
 import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 import { enqueueNotification } from '../utils/notificationOutbox.js';
 import { getAppSettings } from '../utils/settingsHelper.js';
