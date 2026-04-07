@@ -152,7 +152,7 @@ const SmartAIPanel = ({ content, summary }) => {
       if (!safeContent) throw new Error("No text content available.");
       let res;
       if (feature === 'flashcards') res = await aiService.generateFlashcards(safeContent);
-      else if (feature === 'quiz') res = await aiService.generateQuizFromContent(safeContent);
+      else if (feature === 'quiz') res = await aiService.prep365Chat(safeContent, 'Medium');
       else if (feature === 'chapters') res = await aiService.generateChapters(safeContent);
       else if (feature === 'podcast') res = await aiService.generatePodcastScript(safeContent);
       else if (feature === 'summary') res = await aiService.summarizeContent(safeContent);
@@ -161,6 +161,7 @@ const SmartAIPanel = ({ content, summary }) => {
         let rawData = (feature === 'summary' || feature === 'podcast') ? (res.data || {}) : (res.data[feature] || res.data || []);
         if (feature === 'flashcards' && res.data.flashcards !== undefined) rawData = res.data.flashcards;
         else if (feature === 'quiz' && res.data.quiz !== undefined) rawData = res.data.quiz;
+        else if (feature === 'quiz' && res.data.questions !== undefined) rawData = res.data.questions; // Handle KB response
         else if (feature === 'chapters' && res.data.chapters !== undefined) rawData = res.data.chapters;
 
         setDataCache(prev => ({ ...prev, [feature]: rawData }));
@@ -197,7 +198,8 @@ const SmartAIPanel = ({ content, summary }) => {
         console.log(`Generating ${difficulty} batch: ${currentLoaded}/${targetCount} (Attempt ${attempts})`);
 
         try {
-          const res = await aiService.generateExam(safeContent, difficulty, currentBatchSize);
+          // Use strict KB search instead of AI generation
+          const res = await aiService.prep365Chat(safeContent, difficulty);
           const newQuestions = res.data?.questions || [];
 
           if (newQuestions.length > 0) {

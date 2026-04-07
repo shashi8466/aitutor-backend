@@ -1,18 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
+import BrandName from '../../common/BrandName';
 import SafeIcon from '../../common/SafeIcon';
-import { aiService } from '../../services/api';
+import { contactService } from '../../services/api';
 
-const { FiMessageSquare, FiX, FiSend, FiUser, FiCpu, FiRefreshCw } = FiIcons;
+const { FiMessageSquare, FiX, FiSend, FiUser, FiCpu, FiRefreshCw, FiCheckCircle } = FiIcons;
 
 const SalesBot = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [step, setStep] = useState(0); // 0: Greeting, 1: Name, 2: Email, 3: Phone, 4: Role, 5: Requirement, 6: Confirmed
+  const [leadData, setLeadData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    role: '',
+    requirement: ''
+  });
   const [messages, setMessages] = useState([
     {
       id: 1,
       sender: 'bot',
-      text: "Hi! I’m your Digital SAT AI Tutor. I can help you with SAT plans, practice tests, and score improvement strategies. Are you a student preparing for the Digital SAT?"
+      text: "Hi! I’m your AIPrep365 AI Tutor 🤖. I can help you with SAT study plans, practice tests, and score improvement strategies. Are you preparing for the Digital SAT?"
     }
   ]);
   const [input, setInput] = useState('');
@@ -22,90 +31,155 @@ const SalesBot = () => {
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(scrollToBottom, [messages, isOpen]);
 
-  const handleSend = async (customText = null) => {
-    const textToSend = customText || input;
-    if (!textToSend.trim()) return;
+  // Handle flow transitions
+  useEffect(() => {
+    if (step === 0 && messages.length === 1) {
+        // Initial greeting already set
+    }
+  }, [step, messages.length]);
 
-    const userMsg = { id: Date.now(), sender: 'user', text: textToSend };
+  const addBotMessage = (text) => {
+    setIsTyping(true);
+    setTimeout(() => {
+      setMessages(prev => [...prev, { id: Date.now(), sender: 'bot', text }]);
+      setIsTyping(false);
+    }, 800);
+  };
+
+  const handleSend = async (customText = null) => {
+    const text = (customText || input || '').trim();
+    if (!text && step !== 4 && step !== 5) return; // Allow empty only if buttons used
+
+    // 1. Add User Message
+    const userMsg = { id: Date.now(), sender: 'user', text };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    setIsTyping(true);
 
-    try {
-      const res = await aiService.salesChat(textToSend, messages);
-      const reply = res.data?.reply || "I'm here to help with your SAT journey! How else can I assist you today?";
-      setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'bot', text: reply }]);
-    } catch (err) {
-      setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'bot', text: "I'm having a little trouble connecting. Feel free to try again or check our courses directly!" }]);
-    } finally {
-      setIsTyping(false);
+    // 2. Process based on current step
+    let nextStep = step;
+    let nextBotMsg = "";
+
+    if (step === 0) {
+        nextStep = 1;
+        nextBotMsg = "What’s your name?";
+    } else if (step === 1) {
+        setLeadData(prev => ({ ...prev, name: text }));
+        nextStep = 2;
+        nextBotMsg = "Please enter your email address.";
+    } else if (step === 2) {
+        setLeadData(prev => ({ ...prev, email: text }));
+        nextStep = 3;
+        nextBotMsg = "Please enter your phone number.";
+    } else if (step === 3) {
+        setLeadData(prev => ({ ...prev, phone: text }));
+        nextStep = 4;
+        nextBotMsg = "Who are you?";
+    } else if (step === 4) {
+        setLeadData(prev => ({ ...prev, role: text }));
+        nextStep = 5;
+        nextBotMsg = "What are you looking for? (e.g., SAT Courses, Practice Tests, Study Plan, Guidance, Doubt Solving, etc.)";
+    } else if (step === 5) {
+        const finalData = { ...leadData, requirement: text };
+        setLeadData(finalData);
+        nextStep = 6;
+        nextBotMsg = "Thank you! Your details have been submitted successfully. Our team will contact you soon.";
+        
+        // AUTO-SUBMIT TO BACKEND
+        try {
+            await contactService.submit({
+                fullName: finalData.name,
+                email: finalData.email,
+                mobile: finalData.phone,
+                subject: `Chatbot Lead: ${finalData.role}`,
+                message: `Requirement: ${finalData.requirement}\nCaptured via AI Tutor Chatbot flow.`,
+                type: 'Lead'
+            });
+        } catch (e) {
+            console.error("Chatbot lead submission failed", e);
+        }
+    }
+
+    setStep(nextStep);
+    if (nextBotMsg) {
+        addBotMessage(nextBotMsg);
     }
   };
 
   const handleRefresh = () => {
+    setStep(0);
+    setLeadData({ name: '', email: '', phone: '', role: '', requirement: '' });
     setMessages([
       {
         id: 1,
         sender: 'bot',
-        text: "Hi! I’m your Digital SAT AI Tutor. I can help you with SAT plans, practice tests, and score improvement strategies. Are you a student preparing for the Digital SAT?"
+        text: "Hi! I’m your AIPrep365 AI Tutor 🤖. I can help you with SAT study plans, practice tests, and score improvement strategies. Are you preparing for the Digital SAT?"
       }
     ]);
     setInput('');
   };
 
   const QuickActions = () => {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.sender !== 'bot' || isTyping) return null;
+    if (isTyping) return null;
 
-    const lowerText = lastMsg.text.toLowerCase();
-
-    // Logic to show different buttons based on bot's last response
-    let buttons = [];
-
-    if (lowerText.includes("preparing for the digital sat")) {
-      buttons = [
-        { label: "Yes, I'm a student", val: "Yes, I'm a student preparing for the SAT." },
-        { label: "I'm a Teacher", val: "I'm a teacher looking for classroom resources." },
-        { label: "I'm a Parent", val: "I'm a parent looking for my child's SAT prep." }
-      ];
-    } else if (lowerText.includes("taken a practice test")) {
-      buttons = [
-        { label: "Yes, I have", val: "Yes, I have taken a practice test before." },
-        { label: "No, not yet", val: "No, I haven't taken a practice test yet." }
-      ];
-    } else if (lowerText.includes("want to improve most")) {
-      buttons = [
-        { label: "Math", val: "I want to improve my Math score." },
-        { label: "Reading & Writing", val: "I want to improve my Reading & Writing score." },
-        { label: "Full SAT", val: "I want to improve in all sections." }
-      ];
-    } else if (lowerText.includes("next step") || lowerText.includes("recommend")) {
-      buttons = [
-        { label: "Practice Tests", val: "Tell me more about practice tests." },
-        { label: "Study Plans", val: "How do personalized study plans work?" },
-        { label: "View Courses", val: "Show me the available SAT courses." }
-      ];
+    if (step === 0) {
+        return (
+            <div className="flex flex-wrap gap-2 mt-2">
+                <button onClick={() => handleSend("Yes, I am!")} className="chat-btn">Yes, I am!</button>
+                <button onClick={() => handleSend("Just browsing")} className="chat-btn">Just browsing</button>
+            </div>
+        );
     }
 
-    if (buttons.length === 0) return null;
+    if (step === 4) {
+        return (
+            <div className="flex flex-wrap gap-2 mt-2">
+                <button onClick={() => handleSend("Student")} className="chat-btn">Student</button>
+                <button onClick={() => handleSend("Parent")} className="chat-btn">Parent</button>
+                <button onClick={() => handleSend("Teacher")} className="chat-btn">Teacher</button>
+            </div>
+        );
+    }
 
-    return (
-      <div className="flex flex-wrap gap-2 mt-2">
-        {buttons.map((btn, i) => (
-          <button
-            key={i}
-            onClick={() => handleSend(btn.val)}
-            className="text-[11px] font-bold bg-white dark:bg-gray-700 border border-indigo-200 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all shadow-sm"
-          >
-            {btn.label}
-          </button>
-        ))}
-      </div>
-    );
+    if (step === 5) {
+        return (
+            <div className="flex flex-wrap gap-2 mt-2">
+                <button onClick={() => handleSend("SAT Courses")} className="chat-btn">SAT Courses</button>
+                <button onClick={() => handleSend("Practice Tests")} className="chat-btn">Practice Tests</button>
+                <button onClick={() => handleSend("Study Plan")} className="chat-btn">Study Plan</button>
+                <button onClick={() => handleSend("Guidance")} className="chat-btn">Guidance</button>
+            </div>
+        );
+    }
+
+    return null;
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end print:hidden">
+      <style>{`
+        .chat-btn {
+            font-size: 11px;
+            font-weight: bold;
+            background: white;
+            border: 1px solid #e2e8f0;
+            color: #4f46e5;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .chat-btn:hover {
+            background: #f8fafc;
+            border-color: #4f46e5;
+            transform: translateY(-1px);
+        }
+        .dark .chat-btn {
+            background: #1e293b;
+            border-color: #334155;
+            color: #818cf8;
+        }
+      `}</style>
+
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -122,12 +196,12 @@ const SalesBot = () => {
                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 border-2 border-indigo-600 rounded-full animate-pulse"></span>
                 </div>
                 <div>
-                  <h4 className="font-black text-sm tracking-tight">Digital SAT AI Tutor</h4>
+                  <h4 className="font-black text-sm tracking-tight"><BrandName className="text-sm" /> AI Tutor</h4>
                   <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Expert Mentor</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={handleRefresh} className="hover:bg-white/20 p-2 rounded-lg transition-all" title="Refresh Chat">
+                <button onClick={handleRefresh} className="hover:bg-white/20 p-2 rounded-lg transition-all" title="Restart Flow">
                   <SafeIcon icon={FiRefreshCw} className="w-4 h-4" />
                 </button>
                 <button onClick={() => setIsOpen(false)} className="hover:bg-white/20 p-2 rounded-lg transition-all">
@@ -140,7 +214,7 @@ const SalesBot = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900 custom-scrollbar h-[350px]">
               {messages.map((msg, idx) => (
                 <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-800 rounded-tl-none'}`}>
+                  <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-800 rounded-tl-none'}`}>
                     {msg.text}
                   </div>
                   {idx === messages.length - 1 && <QuickActions />}
@@ -158,22 +232,24 @@ const SalesBot = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
-            <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex gap-2 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Ask about SAT prep..."
-                  className="flex-1 p-2 bg-transparent text-sm outline-none dark:text-white"
-                />
-                <button onClick={() => handleSend()} disabled={!input.trim() || isTyping} className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
-                  <SafeIcon icon={FiSend} className="w-4 h-4" />
-                </button>
+            {/* Input - Hidden on confirmation step */}
+            {step < 6 && (
+              <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex gap-2 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder={step === 2 ? "Enter your email..." : step === 3 ? "Enter phone number..." : "Type your message..."}
+                    className="flex-1 p-2 bg-transparent text-sm outline-none dark:text-white"
+                  />
+                  <button onClick={() => handleSend()} disabled={!input.trim() || isTyping} className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
+                    <SafeIcon icon={FiSend} className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

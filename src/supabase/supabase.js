@@ -27,11 +27,13 @@ export default createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         localStorage.removeItem(dummyKey);
         return localStorage;
       } catch (e) {
-        console.warn('⚠️ Supabase Storage: Storage access blocked. Sessions will not persist.');
+        // Fallback for strict browsers: Use in-memory storage for current session
+        console.warn('⚠️ Supabase Storage: Storage access blocked. Sessions will only persist for current page load.');
+        const memoryStorage = {};
         return {
-          getItem: () => null,
-          setItem: () => {},
-          removeItem: () => {}
+          getItem: (key) => memoryStorage[key] || null,
+          setItem: (key, value) => { memoryStorage[key] = value; },
+          removeItem: (key) => { delete memoryStorage[key]; }
         };
       }
     })()

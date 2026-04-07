@@ -80,8 +80,8 @@ console.log('  - NODE_ENV:', import.meta.env.NODE_ENV);
 
 axios.defaults.baseURL = BACKEND_URL;
 axios.defaults.withCredentials = true;
-// CRITICAL FIX: Add global timeout to prevent hanging requests
-axios.defaults.timeout = 15000; // 15 seconds timeout for all requests
+// CRITICAL FIX: Increased global timeout to prevent hanging requests and allow for heavy AI processing
+axios.defaults.timeout = 60000; // 60 seconds timeout for all requests
 
 // Add request interceptor for auth and debugging
 axios.interceptors.request.use(
@@ -119,7 +119,7 @@ axios.interceptors.response.use(
     
     // Handle timeout errors specifically
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      console.error(`⏰ API Timeout: ${config.method?.toUpperCase()} ${config.url} - Request took too long (>15s)`);
+      console.error(`⏰ API Timeout: ${config.method?.toUpperCase()} ${config.url} - Request took too long (>60s)`);
       
       // Check if we should retry
       if (!config.__retryCount) {

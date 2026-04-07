@@ -703,6 +703,84 @@ router.post('/personal-tutor', async (req, res) => {
   }
 });
 
+// 15. 24/7 AI Prep365 Chat - Exact KB Questions Only
+router.post('/prep365-chat', async (req, res) => {
+  try {
+    const { message, difficulty } = req.body;
+    const user = await getUserFromRequest(req);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Authentication required for 24/7 AI Prep365 Chat.' });
+    }
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required.' });
+    }
+
+    console.log(`📚 [Prep365 Chat] User: ${user.id} | Topic: "${message}" | Difficulty: ${difficulty || 'Mixed'}`);
+
+    // Import the search function
+    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
+    
+    // Search for exact KB questions
+    const questions = await searchExactKBQuestions(message, difficulty);
+    
+    if (questions.length === 0) {
+      return res.json({ 
+        reply: `❌ No questions found in Knowledge Base for topic: **"${message}"**${difficulty ? ` at **${difficulty}** difficulty` : ''}.\n\nPlease check:\n• Topic spelling matches KB file names\n• Try different difficulty level\n• Available topics in your Knowledge Base`,
+        questions: []
+      });
+    }
+
+    // Format response with exact KB content
+    const reply = formatKBQuestionsResponse(questions, message, difficulty);
+    
+    res.json({ 
+      reply,
+      questions,
+      topic: message,
+      difficulty: difficulty || 'Mixed',
+      source: 'Knowledge Base'
+    });
+
+  } catch (error) {
+    console.error('❌ [Prep365 Chat] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to format KB questions response
+function formatKBQuestionsResponse(questions, topic, difficulty) {
+  const difficultyText = difficulty ? ` (${difficulty} Level)` : '';
+  let response = `## 📚 Knowledge Base Questions: ${topic}${difficultyText}\n\n`;
+  
+  questions.forEach((q, index) => {
+    response += `### Question ${index + 1}\n\n`;
+    response += `${q.text}\n\n`;
+    
+    if (q.options && q.options.length > 0) {
+      q.options.forEach((option, i) => {
+        const letter = String.fromCharCode(65 + i);
+        response += `**${letter})** ${option}\n`;
+      });
+      response += '\n';
+    }
+    
+    response += `**Correct Answer:** ${q.correctAnswer}\n\n`;
+    
+    if (q.explanation) {
+      response += `**Explanation:** ${q.explanation}\n\n`;
+    }
+    
+    response += `---\n\n`;
+  });
+  
+  response += `*Source: Knowledge Base - Exact content as stored*\n`;
+  response += `*No AI regeneration or rewriting applied*`;
+  
+  return response;
+}
+
 // Log all registered routes for debugging
 console.log('✅ AI Routes Registered:');
 console.log('  POST /api/ai/chat');
@@ -719,5 +797,6 @@ console.log('  POST /api/ai/extract');
 console.log('  POST /api/ai/sales-chat');
 console.log('  POST /api/ai/generate-exam');
 console.log('  POST /api/ai/personal-tutor');
+console.log('  POST /api/ai/prep365-chat');
 
 export default router;

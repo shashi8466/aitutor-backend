@@ -1,9 +1,11 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
+import BrandName from '../../common/BrandName';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
+
 
 const { FiHome, FiCpu, FiTarget, FiActivity, FiTrendingUp, FiMap, FiLogOut, FiPieChart, FiUser, FiBook, FiAward, FiHelpCircle, FiZap, FiCalendar, FiFileText, FiX, FiSettings } = FiIcons;
 
@@ -31,7 +33,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
     {
       title: "AI Agents Suite",
       items: [
-        { name: 'AIPrep365', path: '/student/tutor', icon: FiCpu, badge: '24/7' },
+        { name: <BrandName className="text-sm" />, path: '/student/tutor', icon: FiCpu, badge: '24/7' },
         { name: 'Study Plan Agent', path: '/student/plan', icon: FiActivity },
         { name: 'Weakness Drills', path: '/student/drills', icon: FiTarget },
         { name: 'Test Review Agent', path: '/student/test-review', icon: FiPieChart },
@@ -92,15 +94,17 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         {/* Logo Area */}
         <div className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 justify-between">
           <div className="flex items-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#E53935] to-[#D32F2F] rounded-xl flex items-center justify-center text-white mr-3 shadow-lg shadow-red-500/20 overflow-hidden">
+            <div className="h-12 w-auto max-w-[150px] flex items-center justify-center mr-3 overflow-hidden text-black dark:text-white">
               {settings.logoUrl ? (
-                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                <img src={settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
               ) : (
-                <SafeIcon icon={FiZap} className="w-6 h-6" />
+                <BrandName className="text-xl" />
               )}
             </div>
             <div>
-              <span className="font-extrabold text-xl text-gray-900 dark:text-white tracking-tight block leading-none">{settings.appName}</span>
+              <span className="font-extrabold text-xl text-gray-900 dark:text-white tracking-tight block leading-none">
+                {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName className="text-xl" /> : settings.appName}
+              </span>
               <span className="text-[10px] uppercase font-bold text-[#E53935] tracking-widest">Learning</span>
             </div>
           </div>

@@ -1,77 +1,13 @@
 import { generateAIResponse, extractJSON } from './ai.js';
 import { getStudentState, updateStudentState } from './studentState.js';
 import { getAppSettings } from './settingsHelper.js';
-import { searchQuestions } from './satQuestionBank.js';
 
 // ─────────────────────────────────────────────────────────────
 //  OPTION SANITIZER
 //  Converts any LaTeX in answer options to plain readable text.
 //  Applied to every option before it is sent to the student.
 // ─────────────────────────────────────────────────────────────
-const sanitizeOption = (raw) => {
-    if (!raw || typeof raw !== 'string') return raw;
-    let t = raw.trim();
 
-    // 1. Strip outer \( \) and \[ \] delimiters
-    t = t.replace(/\\\(|\\\)/g, '').replace(/\\\[|\\\]/g, '');
-
-    // 2. \frac{a}{b}  →  a/b  (handle nested braces too)
-    const expandFrac = (s) => s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)');
-    for (let i = 0; i < 4; i++) t = expandFrac(t); // repeat for nested fractions
-
-    // 3. \sqrt{x}  →  sqrt(x)
-    t = t.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
-    t = t.replace(/\\sqrt\s*/g, 'sqrt');
-
-    // 4. Named functions
-    t = t.replace(/\\ln\b/g, 'ln');
-    t = t.replace(/\\log\b/g, 'log');
-    t = t.replace(/\\sin\b/g, 'sin');
-    t = t.replace(/\\cos\b/g, 'cos');
-    t = t.replace(/\\tan\b/g, 'tan');
-    t = t.replace(/\\csc\b/g, 'csc');
-    t = t.replace(/\\sec\b/g, 'sec');
-    t = t.replace(/\\cot\b/g, 'cot');
-    t = t.replace(/\\exp\b/g, 'exp');
-
-    // 5. Greek letters  →  Unicode
-    t = t.replace(/\\pi\b/g, 'π');
-    t = t.replace(/\\theta\b/g, 'θ');
-    t = t.replace(/\\alpha\b/g, 'α');
-    t = t.replace(/\\beta\b/g, 'β');
-    t = t.replace(/\\gamma\b/g, 'γ');
-    t = t.replace(/\\delta\b/g, 'δ');
-    t = t.replace(/\\infty\b/g, '∞');
-
-    // 6. Operators
-    t = t.replace(/\\cdot\b/g, '×');
-    t = t.replace(/\\times\b/g, '×');
-    t = t.replace(/\\div\b/g, '÷');
-    t = t.replace(/\\pm\b/g, '±');
-    t = t.replace(/\\leq\b/g, '≤');
-    t = t.replace(/\\geq\b/g, '≥');
-    t = t.replace(/\\neq\b/g, '≠');
-
-    // 7. \text{...}  and  \ext{...} (common GPT typo)  →  inner text
-    t = t.replace(/\\(?:text|ext)\{([^{}]*)\}/g, '$1');
-
-    // 8. Superscripts:  x^{2}  →  x^2
-    t = t.replace(/\^\{([^{}]+)\}/g, '^$1');
-
-    // 9. Subscripts:  x_{n}  →  x_n
-    t = t.replace(/_\{([^{}]+)\}/g, '_$1');
-
-    // 10. Remove any remaining LaTeX commands
-    t = t.replace(/\\[a-zA-Z]+/g, '');
-
-    // 11. Strip leftover braces
-    t = t.replace(/\{|\}/g, '');
-
-    // 12. Collapse whitespace
-    t = t.replace(/\s{2,}/g, ' ').trim();
-
-    return t;
-};
 
 
 // ─────────────────────────────────────────────────────────────
@@ -244,7 +180,7 @@ const tppWeaknessDrillerAgent = async (message, state, appName) => {
     }
     const module = state.practice_module;
 
-    // ── Determine difficulty from user message or saved preference ──
+    // ── Determine difficulty ──
     let difficulty = state.preferences?.difficulty || 'Medium';
     const msgLower = message.toLowerCase();
     if (msgLower.includes('hard')) difficulty = 'Hard';
@@ -253,232 +189,139 @@ const tppWeaknessDrillerAgent = async (message, state, appName) => {
 
     // ── PHASE 1: Start a new quiz ──
     if (!module.active) {
+        // ── STEP A: Extract topic + count DIRECTLY from message (NO AI - prevents topic simplification) ──
+        
+        // Extract count first (e.g., "5 questions", "10 question")
+        const countMatch = message.match(/(\d+)\s*(?:question|questions|qs|q\b)/i);
+        const count = countMatch ? Math.min(Math.max(parseInt(countMatch[1]), 1), 20) : 4;
 
-        // ── Initialise uniqueness tracking (persists in student state) ──
-        if (!state.seen_question_texts) state.seen_question_texts = [];
+        // Extract topic directly using common phrasing patterns
+        let rawTopic = null;
+        const topicPatterns = [
+            /(?:quiz\s+on|questions?\s+on|questions?\s+about|practice\s+on|test\s+on|drill\s+on|topic\s*[:=])\s+(.+)/i,
+            /(?:give\s+me|create|generate|show|make)\s+(?:\d+\s+)?(?:question|questions)?\s*(?:on|about|for)\s+(.+)/i,
+            /(?:on|about|for)\s+(.+)\s+(?:quiz|questions?|practice|drill)/i,
+        ];
 
-        // ── STEP A: Extract topic + count from user message ──
-        const paramPrompt = `The student is requesting SAT practice. Identify:
-1. The specific SAT TOPIC (e.g., "Trigonometry", "Linear Equations", "Words in Context", "Transitions", "Quadratics", "Statistics", "Geometry", "Probability")
-2. How many questions they want (default: 4, max: 10)
+        for (const pattern of topicPatterns) {
+            const m = message.match(pattern);
+            if (m && m[1]) {
+                // Clean trailing noise words
+                rawTopic = m[1].replace(/\s*(quiz|questions?|practice|please|now|difficulty|hard|medium|easy)\s*$/i, '').trim();
+                break;
+            }
+        }
 
-Student message: "${message}"
+        // If no pattern matched, use the entire message as the topic
+        if (!rawTopic) rawTopic = message;
 
-OUTPUT JSON: {"topic": "Specific SAT topic name", "count": 4}
-Rules:
-- If vague but math-related → use "Algebra"
-- If vague but English-related → use "Reading Comprehension"
-- Be specific: "algebra" → "Linear Equations", "trig" → "Trigonometry"
-- Never exceed count: 10`;
+        console.log(`🎯 [Tutor] Parsed Topic: "${rawTopic}" | Count: ${count} | Difficulty: ${difficulty}`);
 
-        const paramRes = await generateAIResponse([{ role: "user", content: paramPrompt }], true, 0.3, true);
-        const params = extractJSON(paramRes) || { topic: "Algebra", count: 4 };
-        const count = Math.min(Math.max(parseInt(params.count) || 4, 1), 10);
+        // ── Step B: Fetch questions EXCLUSIVELY from Knowledge Base (DB) ──
+        console.log(`📚 [Tutor] Fetching ${count} KB questions | Topic: "${rawTopic}" | Difficulty: ${difficulty}`);
+        
+        // Import the new prep365KB search function for strict KB-only questions
+        const { searchExactKBQuestions } = await import('./prep365KB.js');
+        const kbQuestions = await searchExactKBQuestions(rawTopic, difficulty, count);
 
-        // ── Step B: Fetch KB examples as STYLE TEMPLATES only (never serve directly) ──
-        const kbExamples = searchQuestions(params.topic, 2, difficulty);
-        const kbFallback = kbExamples.length === 0
-            ? searchQuestions("Linear Equations", 2, difficulty)
-            : kbExamples;
-
-        // Format KB examples as style reference for the AI
-        const styleExamples = kbFallback.slice(0, 2).map((ex, i) => `
-Example ${i + 1} (Source Difficulty: ${ex.difficulty}):
-Question: ${ex.text}
-Options: ${ex.options.map((o, idx) => `${String.fromCharCode(65 + idx)}) ${o}`).join(' | ')}
-Correct: ${ex.correctAnswer}`).join('\n');
-
-        // ── Step C: Build the "already seen" avoidance list ──
-        const seenList = state.seen_question_texts.slice(-30); // last 30 questions
-        const avoidBlock = seenList.length > 0
-            ? `\nDO NOT repeat, rephrase, or reuse ANY of these previously shown questions:\n${seenList.map((t, i) => `${i + 1}. "${t}"`).join('\n')}\n`
-            : '';
-
-        // ── Step D: Generate ALL questions fresh via OpenAI ──
-        const seed = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`.toUpperCase();
-        console.log(`📝 [Tutor] Generating ${count} fresh OpenAI questions | Topic: "${params.topic}" | Difficulty: ${difficulty} | Seed: ${seed}`);
-
-        const genPrompt = `You are a senior Digital SAT question writer for College Board.
-
-GENERATION SEED: ${seed}  (guarantees unique output — use it to vary structure)
-
-TASK: Write exactly ${count} completely NEW Digital SAT questions.
-Topic: "${params.topic}"
-Difficulty: ${difficulty}
-
-═══════════════════════════════════
-STYLE REFERENCE (FORMAT ONLY — do NOT copy content):
-${styleExamples}
-═══════════════════════════════════
-
-${DIGITAL_SAT_FORMAT_RULES}
-${DIFFICULTY_SPECS[difficulty] || DIFFICULTY_SPECS.Medium}
-${LATEX_RULES}
-${avoidBlock}
-═══════════════════════════════════
-UNIQUENESS RULES (NON-NEGOTIABLE):
-1. Use DIFFERENT numbers, variables, and scenarios for each question.
-2. Vary the real-world context: use settings from science, finance, sports, architecture, medicine, cooking, geography — rotate them.
-3. Change what is being solved for in each question (e.g., don't always ask for 'x').
-4. Each question must have a DIFFERENT structure (setup, framing, phrasing).
-5. Options must include plausible SAT-style distractors (common student errors).
-6. ⚠️ STRICT DIFFICULTY ADHERENCE: Every question generated MUST strictly match the ${difficulty} difficulty specifications provided above. 
-   - If the STYLE REFERENCE examples are NOT ${difficulty} level, you MUST increase/decrease their complexity to reach ${difficulty}.
-   - For HARD: Use more abstract constants, more steps, and trickier distractors.
-   - For EASY: Keep it simple, direct, and obvious.
-   - Do NOT mix difficulties.
-═══════════════════════════════════
-ANSWER OPTIONS FORMATTING (CRITICAL — READ CAREFULLY):
-- Options A, B, C, D must be SHORT, PLAIN, READABLE text.
-- ❌ NEVER use LaTeX inside options: no \\frac{}{}, no \\ln, no \\sqrt{} in the options array.
-- ✅ Write math in options as plain text:
-    • Fractions → use "/" notation: write "ln(2)/5" not "\\frac{\\ln(2)}{5}"
-    • Square roots → write "sqrt(3)" not "\\sqrt{3}"
-    • Logarithms → write "ln(2)" not "\\ln(2)"
-    • Powers → write "x^2" not "x^{2}" in options
-    • Pi → write "4π/3" not "\\frac{4\\pi}{3}"
-- The question TEXT may use full LaTeX. Options must NOT.
-- Keep each option under 30 characters if possible.
-═══════════════════════════════════
-
-OUTPUT — return ONLY this JSON, no extra text:
-{
-  "questions": [
-    {
-      "id": "q_${seed}_1",
-      "text": "Full question text here — use LaTeX \\( ... \\) for math in the question body",
-      "options": ["plain text A", "plain text B", "plain text C", "plain text D"],
-      "correctAnswer": "A",
-      "explanation": "Step-by-step solution."
-    }
-  ]
-}`;
-
-        const genRes = await generateAIResponse([{ role: "user", content: genPrompt }], true, 0.7);
-        const genData = extractJSON(genRes);
-
-        if (!genData?.questions || genData.questions.length === 0) {
+        if (kbQuestions.length === 0) {
             return {
-                reply: `I couldn't generate questions for "${params.topic}" at ${difficulty} difficulty right now. Please try again or pick a different topic.`
+                reply: `❌ No questions found in Knowledge Base for topic: **"${rawTopic}"** at **${difficulty}** difficulty.\n\n**Please check:**\n• Topic spelling matches KB file names exactly\n• Try different difficulty level\n• Available topics in your Knowledge Base:\n${getAvailableTopicsAsString ? '\n' + getAvailableTopicsAsString() : ''}`
             };
         }
 
-        const finalQuestions = genData.questions.slice(0, count);
-
-        // ── Step E: Store question text snippets to prevent future repeats ──
-        finalQuestions.forEach(q => {
-            const snippet = (q.text || '').substring(0, 150).replace(/\s+/g, ' ').trim();
-            if (snippet && !state.seen_question_texts.includes(snippet)) {
-                state.seen_question_texts.push(snippet);
-            }
-        });
-
-        // Cap the list to avoid state bloat (keep last 60 questions)
-        if (state.seen_question_texts.length > 60) {
-            state.seen_question_texts = state.seen_question_texts.slice(-60);
-        }
-
-        // ── Sanitize all options to plain text before storing & displaying ──
-        finalQuestions.forEach(q => {
-            if (Array.isArray(q.options)) {
-                q.options = q.options.map(sanitizeOption);
-            }
-        });
-
-        // ── Build quiz state from OpenAI-generated questions ──
-        const quizData = { topic: params.topic, difficulty, questions: finalQuestions };
+        // ── Step C: Format questions for current state (Internal storage includes explanation) ──
+        // Note: Students never see this state directly.
+        const quizData = {
+            topic: kbQuestions[0]?.topic || rawTopic,
+            difficulty,
+            questions: kbQuestions.map(q => ({
+                id: q.id,
+                text: q.text,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                explanation: q.explanation, // Stored for Phase 2
+                concept: q.topic
+            }))
+        };
         module.active = true;
         module.quiz_data = quizData;
 
-        // ── Format output — exact Digital SAT spec ──
-        const questionBlocks = finalQuestions.map((q, i) => {
+        // ── Step D: Build the display message (No explanations shown) ──
+        const questionBlocks = quizData.questions.map((q, i) => {
             const optionLines = q.options
-                .map((o, idx) => `${String.fromCharCode(65 + idx)}) ${o}`)
-                .join('\n');
-            return `Question ${i + 1}\n${q.text}\n\n${optionLines}`;
-        }).join('\n\n');
+                .map((o, idx) => `**${String.fromCharCode(65 + idx)})** ${o}`)
+                .join('   ');
+            return `### Question ${i + 1}\n${q.text}\n\n${optionLines}`;
+        }).join('\n\n---\n\n');
 
         return {
             reply:
-                `Digital SAT Practice: ${quizData.topic}\n\n` +
-                `Level: ${difficulty}\n\n` +
+                `## Digital SAT Quiz: ${quizData.topic}\n` +
+                `*Difficulty: ${difficulty}* • *Total: ${quizData.questions.length} Questions*\n\n` +
                 `${questionBlocks}\n\n` +
-                `Reply with answers like: 1A, 2B, 3C, 4D`
+                `**Please reply with your answers (e.g., 1A, 2B, 3C...)**`
         };
     }
 
     // ── PHASE 2: Grade submitted answers ──
     if (module.active) {
         const quizData = module.quiz_data;
-
-        const answerKey = quizData.questions.map(q => `Q${quizData.questions.indexOf(q) + 1}: ${q.correctAnswer}`).join(', ');
+        const answerKey = quizData.questions.map((q, i) => `Q${i + 1}: ${q.correctAnswer}`).join(', ');
 
         const gradingPrompt = `You are an expert SAT grader.
-
+        
 Quiz Answer Key: ${answerKey}
 Student's Answers: "${message}"
 Number of Questions: ${quizData.questions.length}
 
 TASK:
-1. Parse the student's answers (format: "1A, 2B, 3C" or "A, B, C" or "1. A  2. B").
-2. Compare each answer to the answer key.
-3. For wrong answers, identify the likely "SAT distractor trap" the student fell into.
+1. Parse the student's answers (they might use formats like "1A, 2B", "A, B, C", or "1. A, 2. B").
+2. Compare each answer to the answer key provided above.
+3. Determine if each response is correct.
 
 OUTPUT JSON:
 {
   "score": <number_correct>,
-  "total": ${quizData.questions.length},
-  "parsed_answers": ["A", "B", ...],
   "reviews": [
     {
       "q_num": 1,
       "isCorrect": true/false,
-      "student_answer": "A",
-      "correct_answer": "B",
-      "trap": "Brief name of distractor trap (if wrong)",
-      "explanation": "1-2 sentence SAT-level feedback."
+      "student_answer": "A"
     }
   ]
-}`;
+}
+Return ONLY valid JSON.`;
 
-        const gradingRes = await generateAIResponse([{ role: "user", content: gradingPrompt }], true, 0.3);
+        const gradingRes = await generateAIResponse([{ role: "user", content: gradingPrompt }], true, 0.3, true);
         const results = extractJSON(gradingRes);
 
         if (!results || !results.reviews) {
-            return { reply: "I couldn't parse your answers. Please use the format **1A, 2B, 3C...**" };
+            return { reply: "I couldn't read your answers. Please type them like: **1A, 2B, 3C**" };
         }
 
-        // ── Build score report ──
-        const pct = Math.round((results.score / results.total) * 100);
-        const grade = pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good work!' : 'Keep practicing!';
+        const score = results.reviews.filter(r => r.isCorrect).length;
+        const total = quizData.questions.length;
+        const pct = Math.round((score / total) * 100);
 
-        let report = `Quiz Results — ${quizData.topic} (${quizData.difficulty})\n\n`;
-        report += `Score: ${results.score} / ${results.total} (${pct}%) — ${grade}\n\n`;
-        report += `Review:\n\n`;
+        let report = `## Quiz Results: ${quizData.topic}\n`;
+        report += `**Final Score: ${score} / ${total} (${pct}%)**\n\n`;
 
-        results.reviews.forEach((r, i) => {
+        results.reviews.forEach((res, i) => {
             const q = quizData.questions[i];
-            const correctOption = r.correct_answer || (q?.correctAnswer);
-            const correctText = q?.options?.[correctOption.charCodeAt(0) - 65] || correctOption;
+            const isCorrect = res.isCorrect;
+            const status = isCorrect ? "✅ **Correct**" : "❌ **Incorrect**";
+            const studentChoice = res.student_answer || "?";
 
-            report += `Q${i + 1}: `;
-            if (r.isCorrect) {
-                report += `Correct ✓\n`;
-            } else {
-                report += `Wrong ✗  →  Correct answer: ${correctOption}) ${correctText}\n`;
-                if (r.trap) report += `Trap: ${r.trap}\n`;
-            }
-            if (r.explanation) report += `${r.explanation}\n`;
-            report += '\n';
+            report += `### Question ${i + 1} Review\n`;
+            report += `${status}${!isCorrect ? ` (You chose ${studentChoice}, Correct was ${q.correctAnswer})` : ""}\n\n`;
+            report += `**Solution & Explanation:**\n${q.explanation}\n\n`;
         });
 
-        if (pct < 70) {
-            report += `Try the same topic again, or ask me to "explain [topic]" for a concept review.`;
-        } else {
-            report += `Great work! Try Hard difficulty or a new topic. Ask "quiz me on [topic]" to continue.`;
-        }
+        report += `--- \nExcellent practice! Want to try another topic or set the difficulty to **Hard**? Just ask!`;
 
-        module.active = false; // End quiz
+        module.active = false; // Reset state
+        module.quiz_data = null;
         return { reply: report };
     }
 };

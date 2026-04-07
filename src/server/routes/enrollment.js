@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 import supabaseAdmin from '../../supabase/supabaseAdmin.js';
-import supabase from '../../supabase/supabase.js';
+import supabase from '../../../supabase/supabase.js';
 import fs from 'fs';
 
 const router = express.Router();

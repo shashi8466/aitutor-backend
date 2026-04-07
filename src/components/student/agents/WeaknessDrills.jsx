@@ -87,12 +87,14 @@ Strict requirements:
 - No questions about personal opinions or current events
 - If the topic is Math: use multi-step problem solving aligned to SAT Math standards
 - If the topic is English/Reading/Writing: use SAT-style passages and rhetorical skills questions`;
-      const res = await aiService.generateQuizFromContent(context, 10, true);
+      
+      // Use strict KB-only search instead of AI generation
+      const res = await aiService.prep365Chat(context, 'Medium');
 
-      const rawQuiz = res.data?.quiz || [];
+      const rawQuiz = res.data?.questions || [];
       const drillSet = rawQuiz.map((q, i) => ({
-        id: i + 1,
-        question: q.question,
+        id: q.id || i + 1,
+        question: q.text,
         options: q.options || [],
         answer: q.correctAnswer,
         explanation: q.explanation || "No explanation provided."

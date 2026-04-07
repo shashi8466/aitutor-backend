@@ -24,7 +24,8 @@ async function requireAdmin(req, res, next) {
     const token = authHeader.substring(7);
     console.log('  - Token length:', token.length);
     
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const { data: authData, error: userError } = await supabase.auth.getUser(token);
+    const user = authData?.user;
 
     if (userError || !user) {
       console.error('❌ [Admin Auth] Invalid token:', userError?.message);

@@ -22,6 +22,7 @@ import adminNotificationRoutes from './routes/admin-notifications.js';
 import settingsRoutes from './routes/settings.js';
 import authRoutes from './routes/auth.js';
 import sendEmailRoute from './routes/send-email.js';
+import kbQuizRoutes from './routes/kb-quiz.js';
 
 // Background Processors
 import WelcomeEmailProcessor from './services/WelcomeEmailProcessor.js';
@@ -44,6 +45,8 @@ const PORT = process.env.PORT || 3001;
 const ALLOWED_ORIGINS = [
   "https://aiprep365.com",
   "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
   "http://localhost:3000",
   "http://localhost:3001"
 ];
@@ -135,6 +138,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/send-email', sendEmailRoute);
+app.use('/api/kb-quiz', kbQuizRoutes);
 
 // 9. Root API Info
 app.get('/api', (req, res) => {

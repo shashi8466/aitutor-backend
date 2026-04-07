@@ -5,8 +5,27 @@ import supabase from '../supabase/supabase';
 // Use full URL for production to bypass CORS/Routing issues on specific hosts
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 axios.defaults.baseURL = BACKEND_URL;
-axios.defaults.timeout = 30000; // Increased to 30 seconds for warm-ups and heavy AI processing
+axios.defaults.timeout = 60000; // Increased to 60 seconds globally to allow for AI warm-ups and processing
 axios.defaults.withCredentials = true;
+
+// GLOBAL REQUEST INTERCEPTOR
+// Automatically attach the Supabase access token to every request
+axios.interceptors.request.use(async (config) => {
+  try {
+    // Only add token if it's an API request to our own backend
+    if (config.url && (config.url.startsWith('/api') || config.url.startsWith(BACKEND_URL))) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ [API Interceptor] Could not attach auth token:', error.message);
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
 
 // Pre-emptively "warm up" the backend (best effort)
 if (BACKEND_URL) {
@@ -82,7 +101,7 @@ export const authService = {
       // Background tasks run separately without blocking signup
       if (data.user) {
         // Run background tasks asynchronously without awaiting
-        this._runSignupBackgroundTasks(data.user, { email, name, role, mobile, fatherName, fatherMobile });
+        authService._runSignupBackgroundTasks(data.user, { email, name, role, mobile, fatherName, fatherMobile });
       }
 
       return { success: true, session: data.session, user: data.user };
@@ -391,7 +410,11 @@ export const courseService = {
       headers['Authorization'] = `Bearer ${session.access_token}`;
     }
 
-    return axios.post('/api/upload', formData, { headers });
+    // CRITICAL: Set large timeout (10 mins) for file uploads and heavy parsing logic
+    return axios.post('/api/upload', formData, { 
+      headers,
+      timeout: 600000 // 10 minutes
+    });
   }
 };
 
@@ -531,6 +554,16 @@ export const aiService = {
   generateExam: async (ctx, difficulty, count) => axios.post('/api/ai/generate-exam', { context: ctx, difficulty, count }),
   generateChapters: async (ctx) => axios.post('/api/ai/chapters', { context: ctx }),
   generatePodcastScript: async (ctx) => axios.post('/api/ai/podcast', { context: ctx }),
+  prep365Chat: async (message, difficulty) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+    return axios.post('/api/ai/prep365-chat', { message, difficulty }, { headers });
+  },
+  kbQuiz: async (topic, level) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+    return axios.post('/api/kb-quiz', { topic, level }, { headers });
+  },
 
   extractContent: async (file, url) => {
     // If it's a file, we might need a different endpoint that handles multipart

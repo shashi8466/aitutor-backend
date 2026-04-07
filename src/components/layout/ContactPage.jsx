@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
+import BrandName from '../../common/BrandName';
 import SafeIcon from '../../common/SafeIcon';
 import { contactService } from '../../services/api';
 
@@ -255,7 +256,7 @@ const ContactPage = () => {
 
         <div className="mt-12 text-center opacity-30">
            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-             © 2026 Aiprep365 Powered by TestPrep Pundit. All rights reserved.
+             © 2026 <BrandName className="text-[10px]" /> Powered by TestPrep Pundit. All rights reserved.
            </p>
         </div>
       </div>

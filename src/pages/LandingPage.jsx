@@ -5,6 +5,9 @@ import * as FiIcons from "react-icons/fi";
 import SafeIcon from "../common/SafeIcon";
 import { motion, AnimatePresence } from "framer-motion";
 
+import BrandName from '../common/BrandName';
+
+
 const { FiSun, FiMoon, FiMenu, FiX, FiCheck, FiArrowRight, FiPlay, FiStar, FiZap, FiTarget, FiMessageSquare, FiTrendingUp, FiActivity, FiCpu, FiShield, FiGlobe, FiDatabase, FiAward, FiPieChart } = FiIcons;
 
 export default function LandingPage() {
@@ -85,7 +88,7 @@ export default function LandingPage() {
                   </div>
                   <h1 className="text-5xl md:text-7xl font-black text-white leading-[1.1] tracking-tighter uppercase mb-8">
                      Smarter SAT prep with an <br />
-                     <span className="text-red-600 italic">Aiprep365</span> that never stops teaching.
+                     <BrandName className="text-5xl md:text-7xl italic" /> that never stops teaching.
                   </h1>
                   <p className="text-slate-400 text-lg md:text-xl font-medium leading-relaxed max-w-xl mb-12">
                      Aiprep365 helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep.

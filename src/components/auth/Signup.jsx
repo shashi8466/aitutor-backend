@@ -281,12 +281,14 @@ const Signup = () => {
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="mx-auto h-16 w-16 bg-[#E53935] rounded-2xl flex items-center justify-center shadow-lg shadow-red-200 dark:shadow-none overflow-hidden"
+            className="mx-auto h-16 w-auto max-w-[240px] flex items-center justify-center overflow-hidden"
           >
             {settings.logoUrl ? (
-              <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+              <img src={settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
             ) : (
-              <SafeIcon icon={FiBook} className="h-8 w-8 text-white" />
+              <div className="h-16 w-16 bg-[#E53935] rounded-2xl flex items-center justify-center shadow-lg">
+                <SafeIcon icon={FiBook} className="h-8 w-8 text-white" />
+              </div>
             )}
           </motion.div>
           <h2 className="mt-6 text-3xl font-extrabold text-black dark:text-white">Create an Account</h2>

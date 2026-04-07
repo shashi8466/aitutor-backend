@@ -338,8 +338,9 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
     if (claimError || !claimed?.length) continue;
 
     try {
-      const recipientProfile = await getProfile(item.recipient_profile_id);
-      const prefs = await getPreferences(item.recipient_profile_id);
+      const recipientProfileId = item.recipient_profile_id;
+      const recipientProfile = recipientProfileId ? await getProfile(recipientProfileId) : null;
+      const prefs = recipientProfileId ? await getPreferences(recipientProfileId) : null;
 
       const enabledChannels = channelsFromPrefs(prefs, item.channels, item.event_type);
       if (!enabledChannels.length) {

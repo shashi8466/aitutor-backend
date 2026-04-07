@@ -5,6 +5,9 @@ import * as FiIcons from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 
+import BrandName from '../../common/BrandName';
+
+
 const { FiCheck, FiMenu, FiX } = FiIcons;
 
 const AIPrep365LandingPage = () => {
@@ -51,16 +54,16 @@ const AIPrep365LandingPage = () => {
           <div className="flex items-center gap-4">
             <Link to="/" className="flex items-center gap-3 md:gap-4 group">
               {(settings.logo_url || settings.logoUrl) ? (
-                <div className="h-7 md:h-8 w-auto max-w-[100px] md:max-w-[120px] flex items-center justify-center">
-                  <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain" />
+                <div className="h-10 md:h-12 w-auto max-w-[120px] md:max-w-[150px] flex items-center justify-center">
+                  <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
                 </div>
               ) : (
                 <div className="h-8 md:h-10 w-8 md:w-10 rounded-lg md:rounded-xl bg-black border border-white/20 flex items-center justify-center shadow-xl">
                    <span className="text-white font-black italic text-[10px] md:text-xs tracking-tighter">AI</span>
                 </div>
               )}
-              <div className="text-xl md:text-2xl font-black tracking-tight text-white">
-                {settings.appName || 'Aiprep365'}
+              <div className="text-xl md:text-2xl font-black tracking-tight text-white flex items-center">
+                {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName /> : settings.appName}
               </div>
             </Link>
           </div>
@@ -130,7 +133,7 @@ const AIPrep365LandingPage = () => {
             </motion.h1>
             
             <motion.p variants={itemVariants} className="mb-10 max-w-2xl text-lg leading-8 text-slate-300 mx-auto lg:mx-0">
-              {settings.hero_subtitle || "AIPrep365 helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep."}
+              {settings.hero_subtitle || <span><BrandName className="text-lg" /> helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep.</span>}
             </motion.p>
             
             <motion.div variants={itemVariants} className="flex flex-wrap gap-5 justify-center lg:justify-start">
@@ -264,7 +267,7 @@ const AIPrep365LandingPage = () => {
           <div className="grid gap-6 md:gap-8 md:grid-cols-3">
             {[
               ["01", "Take a diagnostic", "Start with a quick assessment so the AI tutor understands current strengths and gaps."],
-              ["02", "Get a custom plan", `${settings.appName || 'AIPrep365'} builds a practice path based on your level, pace, and target score.`],
+              ["02", "Get a custom plan", <span key="step2"><BrandName className="text-base" /> builds a practice path based on your level, pace, and target score.</span>],
               ["03", "Improve every week", "Practice daily, review feedback, and watch your confidence and score trend upward."],
             ].map(([num, title, desc]) => (
               <div key={num} className="rounded-[28px] md:rounded-[32px] border border-white/5 bg-slate-900/20 p-6 md:p-8 hover:bg-slate-900/40 transition-all">
@@ -310,14 +313,36 @@ const AIPrep365LandingPage = () => {
         </div>
       </section>
 
-      <section className="py-12 md:py-16 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-sky-500/10 to-orange-500/10" />
-        <div className="relative mx-auto max-w-[1500px] px-6 md:px-10 text-center">
-          <h2 className="text-3xl md:text-5xl lg:text-7xl font-black text-white tracking-tight mb-6 uppercase">Ready to start?</h2>
-          <p className="text-lg md:text-xl text-slate-400 mb-8 max-w-2xl mx-auto">Join thousands of students and baseline your SAT score today.</p>
-          <div className="flex flex-col sm:flex-row gap-4 md:gap-6 justify-center">
-             <button onClick={handleSignupClick} className="px-8 md:px-12 py-4 md:py-5 rounded-2xl bg-orange-500 text-slate-950 font-black uppercase text-[10px] md:text-[12px] tracking-widest hover:scale-105 transition-all">Start Free Practice</button>
-             <button onClick={handleBookDemoClick} className="px-8 md:px-12 py-4 md:py-5 rounded-2xl bg-white/5 text-white font-black uppercase text-[10px] md:text-[12px] tracking-widest border border-white/10 hover:bg-white/10 transition-all">Book a Demo</button>
+      <section className="py-16 md:py-20 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="relative overflow-hidden rounded-[40px] border border-white/5 bg-[#0f172a]/50 p-8 md:p-14 text-center shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-3xl">
+             {/* Subtle gradient glows */}
+             <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[350px] h-[350px] bg-sky-500/5 rounded-full blur-[100px] pointer-events-none" />
+             <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-[350px] h-[350px] bg-orange-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+             <div className="relative z-10">
+               <h2 className="text-3xl md:text-5xl font-black text-white mb-6 tracking-tight leading-[1.1]">
+                 Ready to prep smarter with <br/>
+                 <span className="text-sky-400">AIPrep365?</span>
+               </h2>
+               <p className="text-sm md:text-base text-slate-400 mb-8 max-w-xl mx-auto leading-relaxed font-semibold">
+                 Join students and families looking for a faster, more personalized way to improve SAT performance.
+               </p>
+               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                 <button 
+                  onClick={handleStartPracticeClick}
+                  className="w-full sm:w-auto px-10 py-4 rounded-2xl bg-orange-500 text-slate-950 font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/10 active:scale-[0.98]"
+                 >
+                   Start Free Practice
+                 </button>
+                 <button 
+                  onClick={handleBookDemoClick}
+                  className="w-full sm:w-auto px-10 py-4 rounded-2xl border border-white/10 bg-slate-900/40 text-white font-black text-xs uppercase tracking-widest hover:bg-white/5 transition-all active:scale-[0.98] backdrop-blur-xl"
+                 >
+                   Schedule a Demo
+                 </button>
+               </div>
+             </div>
           </div>
         </div>
       </section>
@@ -326,7 +351,7 @@ const AIPrep365LandingPage = () => {
       <footer className="border-t border-white/5 bg-[#020617] py-8 md:py-12">
         <div className="mx-auto max-w-[1500px] px-6 md:px-10 text-center">
           <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
-            © 2026 Aiprep365 Powered by TestPrep Pundit. All rights reserved.
+            © 2026 <BrandName className="text-xs" /> Powered by TestPrep Pundit. All rights reserved.
           </p>
         </div>
       </footer>

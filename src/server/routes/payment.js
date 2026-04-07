@@ -175,9 +175,12 @@ router.post('/create-checkout-session', async (req, res) => {
     }
 
     // Get user details
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: authData, error: userError } = await supabase.auth.getUser();
+    const user = authData?.user;
+    
     if (userError || !user) {
-      return res.status(401).json({ error: 'User not authenticated' });
+      console.warn('💰 [Payment] Auth failed:', userError?.message);
+      return res.status(401).json({ error: 'User not authenticated', details: userError?.message });
     }
 
     // Get user profile
@@ -188,7 +191,13 @@ router.post('/create-checkout-session', async (req, res) => {
       .single();
 
     // Calculate price in cents (Stripe requires smallest currency unit)
-    const priceInCents = Math.round(parseFloat(course.price_full) * 100);
+    const rawPrice = parseFloat(course.price_full) || 0;
+    const priceInCents = Math.round(rawPrice * 100);
+
+    if (priceInCents < 50) {
+      console.error('💰 [Payment] Price too low for Stripe:', priceInCents);
+      return res.status(400).json({ error: 'Course price is too low for online payment' });
+    }
 
     // Determine payment mode (test or live)
     const useTestMode = await getPaymentMode(supabase);

@@ -7,6 +7,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 
 
+import BrandName from '../../common/BrandName';
+
+
 const { FiUser, FiLogOut, FiSettings, FiHelpCircle, FiMenu, FiX, FiPieChart } = FiIcons;
 
 const Navbar = () => {
@@ -30,16 +33,16 @@ const Navbar = () => {
         <div className="flex items-center gap-4">
           <Link to="/" className="flex items-center gap-4 group" onClick={closeMenu}>
             {(settings.logo_url || settings.logoUrl) ? (
-              <div className="h-10 w-auto max-w-[120px] flex items-center justify-center">
-                <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain" />
+              <div className="h-13 w-auto max-w-[140px] flex items-center justify-center">
+                <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
               </div>
             ) : (
               <div className="h-10 w-10 rounded-xl bg-black border border-white/20 flex items-center justify-center shadow-xl">
-                 <span className="text-white font-black italic text-xs tracking-tighter">AI</span>
+                 <span className="text-white font-black italic text-xs tracking-tighter shadow-sm">AI</span>
               </div>
             )}
-            <div className="text-2xl font-black tracking-tight text-white">
-              {settings.appName || 'Aiprep365'}
+            <div className="text-2xl font-black tracking-tight text-white flex items-center">
+              {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName /> : settings.appName}
             </div>
           </Link>
         </div>
@@ -100,10 +103,18 @@ const Navbar = () => {
                 <div className="flex flex-col h-full p-8">
                   <div className="flex items-center justify-between mb-10">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-black border border-white/20 flex items-center justify-center">
-                         <span className="text-white font-black italic text-[10px]">AI</span>
-                      </div>
-                      <span className="text-lg font-black text-white">{settings.appName || 'Aiprep365'}</span>
+                      {(settings.logo_url || settings.logoUrl) ? (
+                        <div className="h-10 w-auto max-w-[100px] flex items-center justify-center">
+                          <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
+                        </div>
+                      ) : (
+                        <div className="h-8 w-8 rounded-lg bg-black border border-white/20 flex items-center justify-center">
+                          <span className="text-white font-black italic text-[10px]">AI</span>
+                        </div>
+                      )}
+                      <span className="text-lg font-black text-white">
+                        {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName className="text-lg" /> : settings.appName}
+                      </span>
                     </div>
                     <button onClick={closeMenu} className="p-2 text-slate-400 hover:text-white">
                       <FiX size={24} />

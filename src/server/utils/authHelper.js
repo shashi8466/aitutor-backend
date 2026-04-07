@@ -41,7 +41,8 @@ export const getUserFromRequest = async (req) => {
         const token = authHeader.replace('Bearer ', '').trim();
         if (!token) return null;
 
-        const { data: { user }, error } = await supabase.auth.getUser(token);
+        const { data: authData, error } = await supabase.auth.getUser(token);
+        const user = authData?.user;
 
         if (error) {
             console.error('❌ [Auth] Token verification failed:', error.message);

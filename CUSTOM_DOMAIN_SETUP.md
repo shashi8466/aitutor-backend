@@ -52,15 +52,24 @@ Log in to your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.) and find:
 #### **Required DNS Records:**
 
 **For Root Domain (`aiprep365.com`):**
+Add two A records pointing to Firebase Hosting:
 
 ```
 Type: A
 Name: @ (or leave blank)
-Value: 76.76.21.21
+Value: 199.36.158.100
+TTL: 3600 (or default)
+```
+
+```
+Type: A
+Name: @ (or leave blank)
+Value: 151.101.1.195
 TTL: 3600 (or default)
 ```
 
 **For WWW Subdomain (`www.aiprep365.com`):**
+Add a CNAME pointing to your Firebase app:
 
 ```
 Type: CNAME
@@ -69,19 +78,8 @@ Value: aitutor-4431c.web.app
 TTL: 3600 (or default)
 ```
 
-**Alternative: Use All A Records (Recommended for redundancy)**
+**IMPORTANT:** Do NOT use Vercel IPs (like 76.76.21.21) if you are deploying to Firebase as this will cause "reverting to old version" issues!
 
-Firebase provides 4 IP addresses:
-```
-Type: A
-Name: @
-Values:
-  - 76.76.21.21
-  - 76.76.21.22
-  - 76.76.21.23
-  - 76.76.21.24
-TTL: 3600
-```
 
 ---
 

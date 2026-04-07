@@ -45,7 +45,7 @@ const Support = () => {
         email: user?.email || 'unknown@student.com',
         subject: ticketForm.subject,
         message: ticketForm.message,
-        mobile: user?.user_metadata?.mobile || ''
+        mobile: user?.mobile || user?.phone || user?.user_metadata?.mobile || user?.user_metadata?.phone || ''
       });
       setSubmitted(true);
       setTicketForm({ subject: '', message: '' });

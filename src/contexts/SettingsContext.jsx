@@ -12,9 +12,12 @@ export const useSettings = () => {
 };
 
 export const SettingsProvider = ({ children }) => {
-  const [settings, setSettings] = useState({
-    appName: 'Pundits AI',
-    logoUrl: null
+  const [settings, setSettings] = useState(() => {
+    const cached = localStorage.getItem('site_settings');
+    return cached ? JSON.parse(cached) : {
+      appName: 'AIPrep365',
+      logoUrl: null
+    };
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,14 +39,17 @@ export const SettingsProvider = ({ children }) => {
       const { data } = await settingsService.get();
       if (data) {
         const newSets = {
-          appName: data.app_name || 'Pundits AI',
+          appName: data.app_name || 'AIPrep365',
           logoUrl: data.logo_url
         };
         setSettings(newSets);
         applySettings(newSets);
+        localStorage.setItem('site_settings', JSON.stringify(newSets));
       }
     } catch (error) {
       console.error("Failed to load site settings:", error);
+      // If we have cached settings, apply them anyway
+      if (settings) applySettings(settings);
     } finally {
       setLoading(false);
     }
@@ -62,6 +68,7 @@ export const SettingsProvider = ({ children }) => {
       };
       setSettings(newSets);
       applySettings(newSets);
+      localStorage.setItem('site_settings', JSON.stringify(newSets));
     }
     return data;
   };

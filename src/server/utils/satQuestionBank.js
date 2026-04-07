@@ -6,6 +6,8 @@
 //          Grammar, Rhetorical Synthesis)
 // ============================================================
 
+import supabase from '../supabase/supabaseAdmin.js';
+
 export const SAT_QUESTION_BANK = [
 
     // ══════════════════════════════════════════════
@@ -534,111 +536,85 @@ export const SAT_QUESTION_BANK = [
 //  SEARCH FUNCTION – Topic-aware with difficulty filtering
 // ============================================================
 
-export const searchQuestions = (query, limit = 5, difficulty = 'Medium') => {
-    const qLower = query.toLowerCase();
+export const searchQuestions = async (query, limit = 5, difficulty = 'Medium') => {
+    try {
+        const qLower = query.toLowerCase();
 
-    // Strip noise words to get meaningful tokens
-    const stopWords = ['quiz', 'practice', 'questions', 'test', 'give', 'me', 'want',
-        'easy', 'hard', 'medium', 'some', 'few', 'a', 'an', 'the', 'on', 'about',
-        'for', 'in', 'of', 'with', 'and', 'or', 'please', 'can', 'you'];
-    const tokens = qLower
-        .split(/\s+/)
-        .map(t => t.replace(/[^a-z]/g, ''))
-        .filter(t => t.length > 2 && !stopWords.includes(t));
+        // 1. Fetch available topics from Supabase
+        const { data: topicsData, error: topicsError } = await supabase.from('questions').select('topic');
+        
+        if (!topicsError && topicsData && topicsData.length > 0) {
+            const uniqueTopics = [...new Set(topicsData.map(d => d.topic).filter(Boolean))];
 
-    // If no useful tokens, return random questions by difficulty
-    if (tokens.length === 0) {
-        const byDiff = SAT_QUESTION_BANK.filter(q =>
-            q.difficulty.toLowerCase() === difficulty.toLowerCase()
-        );
-        const pool = byDiff.length >= limit ? byDiff : SAT_QUESTION_BANK;
-        return pool.sort(() => 0.5 - Math.random()).slice(0, limit);
+            const stopWords = ['quiz', 'practice', 'questions', 'test', 'give', 'me', 'want',
+                'easy', 'hard', 'medium', 'some', 'few', 'a', 'an', 'the', 'on', 'about',
+                'for', 'in', 'of', 'with', 'and', 'or', 'please', 'can', 'you'];
+            
+            const tokens = qLower
+                .split(/\s+/)
+                .map(t => t.replace(/[^a-z0-9-]/g, ''))
+                .filter(t => t.length > 2 && !stopWords.includes(t));
+
+            let bestTopic = null;
+            let bestScore = -1;
+
+            // REFINED SMART TOPIC MATCHING FOR SAT
+            for (const topic of uniqueTopics) {
+                const tLowerTopic = topic.toLowerCase();
+                let score = 0;
+                
+                // Rule 1: Direct substring (High Priority)
+                if (tLowerTopic.includes(qLower) || qLower.includes(tLowerTopic)) {
+                    score += 10;
+                }
+                
+                // Rule 2: Token matching
+                tokens.forEach(token => {
+                    if (tLowerTopic.includes(token)) score += 2;
+                });
+
+                // Selection: Highest score wins, must be > 0
+                if (score > bestScore && score > 0) {
+                    bestScore = score;
+                    bestTopic = topic;
+                }
+            }
+
+            let dbQuery = supabase.from('questions').select('*');
+
+            if (bestTopic) {
+                console.log(`🧠 [Smart Match] Topic Found: "${bestTopic}" (Score: ${bestScore})`);
+                dbQuery = dbQuery.eq('topic', bestTopic);
+            } else {
+                console.log(`🔍 No topic header match for "${query}". Searching in source/filename...`);
+                // Use the first 2-3 significant tokens to search in source names (filenames)
+                const searchStr = tokens.slice(0, 3).join('%');
+                dbQuery = dbQuery.ilike('source', `%${searchStr}%`);
+            }
+
+            // Map difficulty strictly to "level" (Easy, Medium, Hard)
+            const diffCapitalized = difficulty.charAt(0) + difficulty.slice(1).toLowerCase();
+            dbQuery = dbQuery.eq('level', diffCapitalized);
+
+            const { data: dbMatches, error: matchError } = await dbQuery.limit(limit * 3);
+
+            if (!matchError && dbMatches && dbMatches.length > 0) {
+                return dbMatches.sort(() => 0.5 - Math.random()).slice(0, limit).map(q => ({
+                    id: q.id,
+                    topic: q.topic || bestTopic || "Knowledge Base",
+                    difficulty: difficulty,
+                    text: q.text,
+                    options: q.options,
+                    correctAnswer: q.correct_answer,
+                    explanation: q.explanation || "See Knowledge Base for details."
+                }));
+            } else {
+                console.log(`❌ STRICT FAIL: No KB questions for "${bestTopic || query}" at ${diffCapitalized}.`);
+                return [];
+            }
+        }
+    } catch (err) {
+        console.error("❌ KB Fetch Error:", err);
     }
-
-    // Topic Mapping: Map common user phrasings to KB topics/tags
-    const topicMap = {
-        // Math
-        'algebra': ['algebra', 'linear'],
-        'equation': ['linear', 'algebra'],
-        'quadratic': ['quadratic', 'advanced math'],
-        'polynomial': ['polynomial', 'advanced math'],
-        'function': ['functions', 'advanced math'],
-        'exponential': ['exponential', 'advanced math'],
-        'geometry': ['geometry'],
-        'circle': ['circles', 'geometry'],
-        'triangle': ['geometry', 'trigonometry'],
-        'trigonometry': ['trigonometry'],
-        'trig': ['trigonometry'],
-        'sine': ['trigonometry'],
-        'cosine': ['trigonometry'],
-        'tangent': ['trigonometry'],
-        'statistics': ['statistics'],
-        'probability': ['probability'],
-        'percent': ['percentages'],
-        'ratio': ['ratios'],
-        'data': ['data', 'statistics'],
-        'graph': ['linear', 'functions'],
-        'slope': ['algebra', 'linear'],
-        'system': ['systems', 'algebra'],
-        // English
-        'english': ['english'],
-        'reading': ['reading', 'english'],
-        'writing': ['writing', 'english'],
-        'grammar': ['grammar', 'english'],
-        'vocabulary': ['vocabulary', 'english'],
-        'transition': ['transitions', 'english'],
-        'punctuation': ['punctuation', 'grammar'],
-        'context': ['context', 'vocabulary'],
-        'synthesis': ['rhetorical synthesis', 'english'],
-        'evidence': ['evidence', 'english'],
-    };
-
-    // Expand tokens using topicMap
-    let expandedTags = new Set(tokens);
-    tokens.forEach(t => {
-        const mapped = topicMap[t];
-        if (mapped) mapped.forEach(tag => expandedTags.add(tag));
-    });
-    expandedTags = [...expandedTags];
-
-    // Score-based matching for ranked results
-    const scored = SAT_QUESTION_BANK.map(q => {
-        let score = 0;
-        const tLower = q.topic.toLowerCase();
-        const tagsLower = q.tags.map(t => t.toLowerCase());
-        const textLower = q.text.toLowerCase();
-
-        expandedTags.forEach(token => {
-            if (tLower.includes(token)) score += 3;           // Topic match = highest priority
-            if (tagsLower.some(t => t.includes(token))) score += 2;  // Tag match
-            if (textLower.includes(token)) score += 1;        // Text match
-        });
-
-        return { q, score };
-    });
-
-    // Filter only those with a positive score
-    let matches = scored.filter(({ score }) => score > 0).map(({ q }) => q);
-
-    // Fallback: if no matches, return by difficulty
-    if (matches.length === 0) {
-        const byDiff = SAT_QUESTION_BANK.filter(q =>
-            q.difficulty.toLowerCase() === difficulty.toLowerCase()
-        );
-        return (byDiff.length >= limit ? byDiff : SAT_QUESTION_BANK)
-            .sort(() => 0.5 - Math.random())
-            .slice(0, limit);
-    }
-
-    // Apply difficulty filter (soft: only filter if enough matches)
-    const difficultMatches = matches.filter(q =>
-        q.difficulty.toLowerCase() === difficulty.toLowerCase()
-    );
-
-    if (difficultMatches.length >= Math.min(limit, 2)) {
-        matches = difficultMatches;
-    }
-
-    // Shuffle the filtered matches and return
-    return matches.sort(() => 0.5 - Math.random()).slice(0, limit);
+    return [];
 };

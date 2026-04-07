@@ -44,8 +44,15 @@ router.post('/', async (req, res) => {
 async function _runContactBackgroundTasks(data) {
     const { senderName, senderEmail, mobile, subject, message, contactType, extraFields, ip } = data;
     
-    // 1. Get Settings for app name & admin email
-    const settings = await getAppSettings().catch(() => ({}));
+    // 1. Get Settings & Optionally resolve missing mobile if email is provided
+    const [settings, profileLookup] = await Promise.all([
+        getAppSettings().catch(() => ({})),
+        (!mobile && senderEmail) 
+            ? supabaseAdmin.from('profiles').select('mobile').eq('email', senderEmail).maybeSingle()
+            : Promise.resolve({ data: null })
+    ]).catch(() => [{}, { data: null }]);
+
+    const finalMobile = mobile || profileLookup?.data?.mobile || 'N/A';
     const adminEmail = process.env.ADMIN_EMAIL || settings?.support_email || process.env.EMAIL_USER || 'support@aiprep365.com';
     const appName = settings?.app_name || 'AIPrep365';
 
@@ -69,7 +76,7 @@ async function _runContactBackgroundTasks(data) {
         .insert({
             full_name: senderName,
             email: senderEmail,
-            mobile,
+            mobile: finalMobile,
             message,
             metadata: {
                 ...extraFields,
@@ -97,7 +104,7 @@ async function _runContactBackgroundTasks(data) {
                 recipientEmails: [adminEmail],
                 name: senderName,
                 email: senderEmail,
-                mobile,
+                mobile: finalMobile,
                 subject: subject || `${contactType} Submission`,
                 type: contactType,
                 message,

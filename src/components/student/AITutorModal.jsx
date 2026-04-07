@@ -187,22 +187,51 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           .filter(m => m.isQuestion && m.questionData)
           .map(m => m.questionData.question);
 
-        const response = await aiService.generateSimilarQuestion(questionPayload, previousQuestions);
+        // Use strict KB search with exact topic name from original question
+        // Priority: 1) question.topic (exact KB topic), 2) question.concept, 3) fallback
+        const exactTopic = question.topic || questionPayload.concept || question.concept || "this topic";
+        console.log('🔍 [AI Tutor] Searching KB with topic:', exactTopic, 'Level:', questionPayload.level || 'Medium');
+        
+        const response = await aiService.prep365Chat(
+          exactTopic,
+          questionPayload.level || 'Medium'
+        );
+        
+        console.log('📊 [AI Tutor] KB Response:', response?.data?.questions?.length || 0, 'questions found');
 
         if (!response || !response.data) {
           throw new Error("Empty response from AI service");
         }
 
-        const newQuestion = response.data;
+        // Handle KB response format (questions array)
+        const kbQuestions = response.data.questions || [];
+        if (kbQuestions.length === 0) {
+          throw new Error("No similar questions found in Knowledge Base");
+        }
+
+        const newQuestion = kbQuestions[0]; // Take the first similar question
+
+        // Map KB response format to expected format
+        const mappedQuestion = {
+          id: newQuestion.id,
+          question: newQuestion.text, // KB uses 'text' field
+          options: newQuestion.options || [],
+          correctAnswer: newQuestion.correctAnswer,
+          explanation: newQuestion.explanation || '',
+          concept: newQuestion.topic || newQuestion.concept || 'this topic',
+          level: questionPayload.level,
+          topic: newQuestion.topic,
+          source: newQuestion.source
+        };
 
         setChatMessages(prev => [
           ...prev,
           {
             id: Date.now() + 1,
             sender: 'ai',
-            text: `Here is a similar ${questionPayload.level} level question on ${newQuestion.concept || "this topic"}.`,
+            text: `Here is a similar ${questionPayload.level} level question on ${mappedQuestion.concept}.`,
             isQuestion: true,
-            questionData: { ...newQuestion, level: questionPayload.level }
+            questionData: mappedQuestion
           }
         ]);
       }

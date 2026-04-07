@@ -10,6 +10,10 @@ const {
   FiBookOpen, FiTarget, FiAward, FiRefreshCw
 } = FiIcons;
 
+import BrandName from '../../../common/BrandName';
+
+const PAGE_TYPE = "KB_ONLY";
+
 // Quick-action suggestion chips shown in the welcome state
 const QUICK_ACTIONS = [
   { label: '📐 Quiz me on Algebra', msg: 'Give me a quiz on Algebra' },
@@ -20,6 +24,98 @@ const QUICK_ACTIONS = [
   { label: '✍️ Grammar practice', msg: 'Practice grammar questions' },
   { label: '🔢 Quadratics quiz', msg: 'Quiz me on Quadratics' },
 ];
+
+/**
+ * ROBUST KB TOPIC EXTRACTOR
+ * Extracts clean, searchable topic names for KB matching.
+ * Handles "quiz on ...", "questions about ...", "-- question quiz" etc.
+ */
+const extractKBTopic = (text) => {
+  if (!text) return "";
+  const t = text.toLowerCase().trim();
+  
+  // High-accuracy patterns (ordered from specific to general)
+  const patterns = [
+    /quiz on (.*)/i,
+    /questions on (.*)/i,
+    /drill on (.*)/i,
+    /practice (.*)/i,
+    /explain (.*)/i,
+    /test me on (.*)/i,
+    /quiz me on (.*)/i,
+    /give me a (?:.*) quiz on (.*)/i,
+    /(.*) quiz/i,
+  ];
+
+  for (const p of patterns) {
+    const match = t.match(p);
+    if (match && match[1]) {
+      let cleaned = match[1]
+        .replace(/questions/g, '')
+        .replace(/question/g, '')
+        .replace(/quiz/g, '')
+        .replace(/--/g, '')
+        .replace(/\d+/g, '')
+        .replace(/\ba\b/g, '')
+        .replace(/\bthe\b/g, '')
+        .trim();
+      
+      if (cleaned.length > 2) return cleaned;
+    }
+  }
+
+  // Fallback: Use unique words if the query is short
+  const words = t.split(/\s+/);
+  if (words.length <= 4) return t;
+  
+  // Return original text if no extraction worked
+  return t;
+};
+
+const formatKBQuizResponse = (questions) => {
+  if (!questions || questions.length === 0) return "No questions found.";
+
+  let html = `<div class="kb-quiz-container space-y-8">`;
+  
+  questions.forEach((q, idx) => {
+    html += `
+      <div class="kb-question border-t border-slate-200 dark:border-slate-700 pt-6 first:border-t-0 first:pt-0">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="px-2 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-[10px] font-bold rounded">QUESTION ${idx + 1}</span>
+          <span class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">${q.topic} • ${q.difficulty}</span>
+        </div>
+        
+        <div class="question-content text-slate-800 dark:text-slate-200 leading-relaxed mb-4">
+          ${q.question_html || q.text || q.question || ''}
+        </div>
+
+        ${(q.image_url || q.image) ? `<div class="mb-4"><img src="${q.image_url || q.image}" class="rounded-lg max-w-full h-auto border border-slate-100 dark:border-slate-700 shadow-sm" alt="Question diagram" /></div>` : ''}
+
+        <div class="options-grid grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+          ${(q.options || []).map((opt, i) => `
+            <div class="flex items-start gap-2 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-xl text-xs">
+              <span class="font-bold text-slate-400">${String.fromCharCode(65 + i)})</span>
+              <span class="text-slate-700 dark:text-slate-300">${opt}</span>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="explanation-box p-4 bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/20 rounded-2xl">
+          <div class="flex items-center gap-2 mb-2 text-green-600 dark:text-green-400 text-[10px] font-bold uppercase tracking-wider">
+            <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+            Correct Answer: ${q.correct_answer || q.correctAnswer || ''}
+          </div>
+          <div class="text-[11px] text-slate-600 dark:text-slate-400 italic leading-relaxed">
+            ${q.explanation || ''}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  return html;
+};
 
 const DIFFICULTY_CONFIG = {
   Easy: { emoji: '🟢', color: 'text-green-400', bg: 'bg-green-500/20 border-green-500/40', active: 'bg-green-500 text-white' },
@@ -89,16 +185,48 @@ const AITutorAgent = () => {
     setLoading(true);
 
     try {
-      const res = await aiService.tutorChat(msgText, difficulty);
-      const reply = res.data?.reply || "I'm analyzing that...";
-      setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: reply }]);
+      if (PAGE_TYPE === "KB_ONLY") {
+        const topic = extractKBTopic(msgText);
+        console.log(`🔍 [KB_ONLY] Extracted Topic: "${topic}"`);
+        
+        const res = await aiService.kbQuiz(topic, difficulty);
+        const questions = res.data?.questions || [];
+        
+        if (questions.length === 0) {
+          setMessages(prev => [...prev, { 
+            id: Date.now() + 1, 
+            sender: 'ai', 
+            text: `❌ Sorry, I couldn't find any questions in the Knowledge Base for **"${topic}"** at **${difficulty}** level.\n\nTry a different topic or change the difficulty above.` 
+          }]);
+        } else {
+          setMessages(prev => [...prev, { 
+            id: Date.now() + 1, 
+            sender: 'ai', 
+            text: formatKBQuizResponse(questions),
+            isKB: true
+          }]);
+        }
+      } else {
+        const res = await aiService.tutorChat(msgText, difficulty);
+        const reply = res.data?.reply || "I'm analyzing that...";
+        setMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: reply }]);
+      }
     } catch (err) {
       const errMsg = err.response?.data?.error || err.message || "Connection error";
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        sender: 'ai',
-        text: `⚠️ **Error:** ${errMsg}\n\nPlease check your internet connection or try again.`
-      }]);
+      
+      if (PAGE_TYPE === "KB_ONLY" && err.response?.status === 404) {
+        setMessages(prev => [...prev, { 
+          id: Date.now() + 1, 
+          sender: 'ai', 
+          text: `❌ **No questions found:** I don't have enough entries in my Knowledge Base for that specific request yet.\n\nPlease try another SAT topic like "Boundaries" or "One-variable Data Distributions".` 
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          sender: 'ai',
+          text: `⚠️ **Error:** ${errMsg}\n\nPlease try again or check your internet connection.`
+        }]);
+      }
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -107,7 +235,9 @@ const AITutorAgent = () => {
 
   const handleReset = () => {
     setMessages([{ id: Date.now(), sender: 'ai', isWelcome: true }]);
-    aiService.tutorChat("reset", difficulty).catch(() => { });
+    if (PAGE_TYPE !== "KB_ONLY") {
+      aiService.tutorChat("reset", difficulty).catch(() => { });
+    }
   };
 
   const DifficultyButton = ({ level }) => {
@@ -137,7 +267,7 @@ const AITutorAgent = () => {
             <SafeIcon icon={FiCpu} className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold leading-tight">AIPrep365</h1>
+            <h1 className="text-lg font-bold leading-tight"><BrandName className="text-lg" /></h1>
             <p className="text-gray-400 text-xs flex items-center gap-2">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse inline-block" />
               Online • Digital SAT Specialist
@@ -192,7 +322,7 @@ const AITutorAgent = () => {
               {msg.isWelcome ? (
                 <WelcomeCard />
               ) : (
-                <div className={`p-3.5 rounded-2xl max-w-[82%] md:max-w-[78%] shadow-sm text-sm leading-relaxed ${msg.sender === 'user'
+                <div className={`p-3.5 rounded-2xl ${msg.isKB ? 'max-w-[95%] md:max-w-2xl' : 'max-w-[82%] md:max-w-[78%]'} shadow-sm text-sm leading-relaxed ${msg.sender === 'user'
                   ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-tr-none'
                   : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-tl-none'
                   }`}>

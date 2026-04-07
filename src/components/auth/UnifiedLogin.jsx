@@ -119,8 +119,8 @@ const UnifiedLogin = () => {
                         className="mx-auto flex items-center justify-center mb-10"
                     >
                         {(settings.logo_url || settings.logoUrl) ? (
-                            <div className="h-16 w-auto max-w-[200px] flex items-center justify-center">
-                                <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain" />
+                            <div className="h-20 w-auto max-w-[240px] flex items-center justify-center">
+                                <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
                             </div>
                         ) : (
                             <div className="h-20 w-20 rounded-[28px] bg-black border border-white/20 flex items-center justify-center shadow-2xl">

@@ -31,11 +31,13 @@ const StudentLayout = () => {
             <SafeIcon icon={FiMenu} className="w-6 h-6" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-[#E53935] to-[#D32F2F] rounded-lg flex items-center justify-center text-white shadow-md overflow-hidden">
+            <div className="h-10 w-auto max-w-[120px] flex items-center justify-center shadow-md overflow-hidden">
               {settings.logoUrl ? (
-                <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                <img src={settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
               ) : (
-                <SafeIcon icon={FiZap} className="w-4 h-4" />
+                <div className="w-10 h-10 bg-gradient-to-br from-[#E53935] to-[#D32F2F] rounded-[6px] flex items-center justify-center text-white">
+                    <SafeIcon icon={FiZap} className="w-4 h-4" />
+                </div>
               )}
             </div>
             <span className="font-extrabold text-lg text-gray-900 dark:text-white tracking-tight">{settings.appName}</span>
