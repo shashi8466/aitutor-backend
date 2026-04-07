@@ -51,13 +51,16 @@ const extractKBTopic = (text) => {
     const match = t.match(p);
     if (match && match[1]) {
       let cleaned = match[1]
-        .replace(/questions/g, '')
-        .replace(/question/g, '')
-        .replace(/quiz/g, '')
-        .replace(/--/g, '')
+        .replace(/\bquestions\b/gi, '')
+        .replace(/\bquestion\b/gi, '')
+        .replace(/\bquiz\b/gi, '')
+        .replace(/--/gi, '')
         .replace(/\d+/g, '')
-        .replace(/\ba\b/g, '')
-        .replace(/\bthe\b/g, '')
+        .replace(/\ba\b/gi, '')
+        .replace(/\ban\b/gi, '')
+        .replace(/\bthe\b/gi, '')
+        .replace(/\bsome\b/gi, '')
+        .replace(/\s+/g, ' ')
         .trim();
       
       if (cleaned.length > 2) return cleaned;
