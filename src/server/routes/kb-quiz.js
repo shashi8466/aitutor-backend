@@ -1,6 +1,6 @@
 import express from 'express';
 import { searchExactKBQuestions } from '../utils/prep365KB.js';
-import supabase from '../supabase/supabaseAdmin.js';
+import supabase from '../../supabase/supabaseAdmin.js';
 
 const router = express.Router();
 
