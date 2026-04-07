@@ -23,9 +23,16 @@ const matchTopicToKB = async (userTopic) => {
             .from('questions')
             .select('topic, source, level')
             .not('topic', 'is', null);
-        
-        if (topicsError || !allTopics || allTopics.length === 0) {
-            console.log('❌ No topics found in Knowledge Base');
+
+        if (topicsError) {
+            console.error('❌ [Prep365 KB] Error fetching questions for topic matching:', topicsError.message);
+            return null;
+        }
+
+        console.log(`📊 [Prep365 KB] Found ${allTopics?.length || 0} total questions with topics in database.`);
+
+        if (!allTopics || allTopics.length === 0) {
+            console.log(`❌ [Prep365 KB] No questions found in the "questions" table.`);
             return null;
         }
 
