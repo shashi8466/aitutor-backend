@@ -32,6 +32,11 @@ const getCleanQuestionText = (text, imageUrl) => {
   return cleaned.trim();
 };
 
+const successSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3');
+const errorSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.mp3');
+successSound.volume = 0.5;
+errorSound.volume = 0.4;
+
 const PublicDemoQuizInterface = () => {
   const { courseId, level } = useParams();
   const navigate = useNavigate();
@@ -103,6 +108,16 @@ const PublicDemoQuizInterface = () => {
     }
   };
 
+  const playSound = (sound) => {
+    if (!sound) return;
+    const playPromise = sound.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        if (error.name !== 'AbortError') console.warn("Audio play error:", error);
+      });
+    }
+  };
+
   const activeQuestion = questions[currentIndex];
   const isMCQ = activeQuestion?.type === 'mcq';
 
@@ -121,6 +136,13 @@ const PublicDemoQuizInterface = () => {
     if (!selectedAnswer) return;
     setIsAnswerSubmitted(true);
     setUserAnswers(prev => ({ ...prev, [currentIndex]: selectedAnswer }));
+    
+    // Play feedback sound
+    if (isCorrect()) {
+      playSound(successSound);
+    } else {
+      playSound(errorSound);
+    }
   };
 
   const jumpToQuestion = (idx) => {
@@ -137,10 +159,20 @@ const PublicDemoQuizInterface = () => {
       if (level.toLowerCase() === 'hard') {
         setShowLeadForm(true);
       } else {
-        // Mark level as passed immediately for demo flow
+        // Mark level as passed and save current score details
         try {
+          const correctCount = questions.reduce((acc, _, idx) => acc + (isCorrect(idx) ? 1 : 0), 0);
+          const percentage = questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
+          const scaledScore = Math.round(percentage * 8); // Simple approx scale
+
           const savedProgress = JSON.parse(localStorage.getItem(`demo_progress_${courseId}`) || '{"easy":{"passed":false},"medium":{"passed":false},"hard":{"passed":false}}');
-          savedProgress[level.toLowerCase()].passed = true;
+          savedProgress[level.toLowerCase()] = {
+            passed: true,
+            correctCount,
+            totalQuestions: questions.length,
+            percentage,
+            scaledScore
+          };
           localStorage.setItem(`demo_progress_${courseId}`, JSON.stringify(savedProgress));
         } catch (e) {
           console.error("Local storage error:", e);
@@ -167,27 +199,39 @@ const PublicDemoQuizInterface = () => {
     
     // Calculate Score Internally
     const correctCount = questions.reduce((acc, _, idx) => acc + (isCorrect(idx) ? 1 : 0), 0);
-    const percentage = (correctCount / questions.length) * 100;
+    const percentage = questions.length > 0 ? (correctCount / questions.length) * 100 : 0;
+    const scaledScore = Math.round(percentage * 8);
     
     // Get previous scores from localStorage for a cumulative final score
-    let easyPct = 0;
-    let mediumPct = 0;
+    let easyDetails = null;
+    let mediumDetails = null;
     try {
       const savedProgress = JSON.parse(localStorage.getItem(`demo_progress_${courseId}`) || '{}');
-      easyPct = savedProgress.easy?.percentage || 0;
-      mediumPct = savedProgress.medium?.percentage || 0;
+      easyDetails = savedProgress.easy?.percentage !== undefined ? savedProgress.easy : null;
+      mediumDetails = savedProgress.medium?.percentage !== undefined ? savedProgress.medium : null;
     } catch (e) { console.warn("Could not read previous scores:", e); }
 
+    const easyPct = easyDetails?.percentage || 0;
+    const mediumPct = mediumDetails?.percentage || 0;
     const finalScaledScore = calculateSatScore(easyPct, mediumPct, percentage);
 
     const scoreDetails = {
-      correctCount,
-      totalQuestions: questions.length,
-      currentLevelPercentage: percentage,
-      easyPercentage: easyPct,
-      mediumPercentage: mediumPct,
-      hardPercentage: percentage,
-      scaledScore: finalScaledScore
+      allLevels: {
+        easy: easyDetails,
+        medium: mediumDetails,
+        hard: {
+          correctCount,
+          totalQuestions: questions.length,
+          percentage,
+          scaledScore
+        }
+      },
+      comprehensive: {
+        finalPredictedScore: finalScaledScore,
+        overallAccuracy: Math.round(((easyDetails?.correctCount || 0) + (mediumDetails?.correctCount || 0) + correctCount) / ((easyDetails?.totalQuestions || 0) + (mediumDetails?.totalQuestions || 0) + questions.length || 1) * 100),
+        totalCorrect: (easyDetails?.correctCount || 0) + (mediumDetails?.correctCount || 0) + correctCount,
+        totalQuestions: (easyDetails?.totalQuestions || 0) + (mediumDetails?.totalQuestions || 0) + questions.length
+      }
     };
 
     try {

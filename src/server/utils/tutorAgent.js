@@ -191,9 +191,10 @@ const tppWeaknessDrillerAgent = async (message, state, appName) => {
     if (!module.active) {
         // ── STEP A: Extract topic + count DIRECTLY from message (NO AI - prevents topic simplification) ──
         
-        // Extract count first (e.g., "5 questions", "10 question")
-        const countMatch = message.match(/(\d+)\s*(?:question|questions|qs|q\b)/i);
-        const count = countMatch ? Math.min(Math.max(parseInt(countMatch[1]), 1), 20) : 4;
+        // Extract count first (e.g., "5 questions", "10 question", "quiz with 10", "give me 5")
+        // Robust regex to find numbers associated with questions/quizzes
+        const countMatch = message.match(/(?:(?:give\s+me|show|want|take)\s+)?(\d+)\s*(?:question|questions|qs|q\b|practice|drill|test)?/i);
+        const count = countMatch ? Math.min(Math.max(parseInt(countMatch[1]), 1), 50) : 10;
 
         // Extract topic directly using common phrasing patterns
         let rawTopic = null;
@@ -218,17 +219,34 @@ const tppWeaknessDrillerAgent = async (message, state, appName) => {
         console.log(`🎯 [Tutor] Parsed Topic: "${rawTopic}" | Count: ${count} | Difficulty: ${difficulty}`);
 
         // ── Step B: Fetch questions EXCLUSIVELY from Knowledge Base (DB) ──
-        console.log(`📚 [Tutor] Fetching ${count} KB questions | Topic: "${rawTopic}" | Difficulty: ${difficulty}`);
+        const excludeIds = state.seen_question_ids || [];
+        console.log(`📚 [Tutor] Fetching ${count} KB questions | Topic: "${rawTopic}" | Difficulty: ${difficulty} | Excluded: ${excludeIds.length}`);
         
         // Import the new prep365KB search function for strict KB-only questions
         const { searchExactKBQuestions } = await import('./prep365KB.js');
-        const kbQuestions = await searchExactKBQuestions(rawTopic, difficulty, count);
+        const kbQuestions = await searchExactKBQuestions(rawTopic, difficulty, count, excludeIds);
 
+        // ── Handle exhaustion ──
         if (kbQuestions.length === 0) {
-            return {
-                reply: `❌ No questions found in Knowledge Base for topic: **"${rawTopic}"** at **${difficulty}** difficulty.\n\n**Please check:**\n• Topic spelling matches KB file names exactly\n• Try different difficulty level\n• Available topics in your Knowledge Base:\n${getAvailableTopicsAsString ? '\n' + getAvailableTopicsAsString() : ''}`
-            };
+            // Check if there are ANY questions for this topic at all (ignoring exclusion)
+            const globalCheck = await searchExactKBQuestions(rawTopic, difficulty, 1, []);
+            
+            if (globalCheck.length > 0) {
+                // Topic exists but questions are exhausted for THIS user
+                console.log(`🏁 [Tutor] All questions completed for User: ${state.user_id} | Topic: "${rawTopic}"`);
+                return {
+                    reply: `🎉 **All questions completed!**\n\nYou've already tackled all the available questions for **"${rawTopic}"** at the **${difficulty}** level.\n\nExcellent work! Try a different topic or challenge yourself with a higher difficulty level to continue your progress.`
+                };
+            } else {
+                // Truly no questions found at all for this topic in KB
+                return {
+                    reply: `❌ No questions found in Knowledge Base for topic: **"${rawTopic}"** at **${difficulty}** difficulty.\n\n**Please check:**\n• Topic spelling matches KB file names exactly\n• Try different difficulty level\n• Available topics in your Knowledge Base:\n${getAvailableTopicsAsString ? '\n' + getAvailableTopicsAsString() : ''}`
+                };
+            }
         }
+
+        // ── Track these questions so they aren't repeated ──
+        state.seen_question_ids = [...excludeIds, ...kbQuestions.map(q => q.id)];
 
         // ── Step C: Format questions for current state (Internal storage includes explanation) ──
         // Note: Students never see this state directly.

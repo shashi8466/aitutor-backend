@@ -16,7 +16,7 @@ const UnifiedLogin = () => {
     const [redirecting, setRedirecting] = useState(false);
     const [detectedRole, setDetectedRole] = useState(null);
 
-    const { login, user } = useAuth();
+    const { login, logout, user } = useAuth();
     const { settings } = useSettings();
     const navigate = useNavigate();
     const location = useLocation();
@@ -53,9 +53,22 @@ const UnifiedLogin = () => {
     useEffect(() => {
         // If user is already logged in, redirect them
         if (user && !loading && !redirecting) {
-            handleRoleRedirection(user.role);
+            const userStatus = (user.status || 'active').toLowerCase();
+            
+            // CRITICAL: Only auto-redirect active users. 
+            // This prevents loops where a pending user lands on /admin, gets redirected here,
+            // and then this effect tries to send them back to /admin.
+            if (userStatus === 'active') {
+                handleRoleRedirection(user.role);
+            } else if (userStatus === 'pending') {
+                setError("Your account is pending administrator approval. You will receive an email once approved.");
+                logout(); // Clear the session to break the loop
+            } else if (userStatus === 'suspended' || userStatus === 'inactive') {
+                setError("Your account has been suspended or deactivated.");
+                logout();
+            }
         }
-    }, [user, loading, redirecting]);
+    }, [user, loading, redirecting, logout]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -76,6 +89,23 @@ const UnifiedLogin = () => {
                 }
                 setLoading(false);
             } else {
+                // Check account status
+                const userStatus = (result.user.status || 'active').toLowerCase();
+                
+                if (userStatus === 'pending') {
+                    setError("Your account is pending administrator approval. You will be notified once approved.");
+                    await logout();
+                    setLoading(false);
+                    return;
+                }
+                
+                if (userStatus === 'suspended' || userStatus === 'inactive') {
+                    setError("Your account has been suspended or deactivated. Please contact support.");
+                    await logout();
+                    setLoading(false);
+                    return;
+                }
+
                 handleRoleRedirection(result.user.role);
             }
         } catch (err) {
@@ -100,7 +130,7 @@ const UnifiedLogin = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
+        <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 transition-colors duration-200">
             {/* Background decorative elements */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-200/20 dark:bg-indigo-900/10 rounded-full blur-[120px]" />

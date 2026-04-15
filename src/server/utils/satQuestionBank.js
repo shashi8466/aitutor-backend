@@ -536,7 +536,7 @@ export const SAT_QUESTION_BANK = [
 //  SEARCH FUNCTION – Topic-aware with difficulty filtering
 // ============================================================
 
-export const searchQuestions = async (query, limit = 5, difficulty = 'Medium') => {
+export const searchQuestions = async (query, limit = 10, difficulty = 'Medium') => {
     try {
         const qLower = query.toLowerCase();
 

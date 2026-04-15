@@ -277,12 +277,9 @@ const ChildCoursesReport = () => {
                         c.levelScores.Hard
                     );
 
-                    // Fallback to diagnostic baseline if no activity yet
+                    // Fallback to 0 if no activity yet
                     if (courseScaledScore === 0) {
-                        const isMath = category === 'MATH';
-                        courseScaledScore = isMath
-                            ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
-                            : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
+                        courseScaledScore = 0;
                     }
 
                     return {

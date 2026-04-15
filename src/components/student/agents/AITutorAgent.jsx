@@ -4,6 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
 import MathRenderer from '../../../common/MathRenderer';
 import { aiService } from '../../../services/api';
+import supabase from '../../../supabase/supabase';
 
 const {
   FiCpu, FiSend, FiUser, FiZap, FiLoader,
@@ -16,108 +17,253 @@ const PAGE_TYPE = "KB_ONLY";
 
 // Quick-action suggestion chips shown in the welcome state
 const QUICK_ACTIONS = [
-  { label: '📐 Quiz me on Algebra', msg: 'Give me a quiz on Algebra' },
-  { label: '📖 Practice Transitions', msg: 'I want 4 questions on Transitions' },
-  { label: '📊 10 Question Quiz', msg: 'Give me a 10 question quiz on Linear Equations' },
-  { label: '📊 Statistics questions', msg: 'Quiz me on Statistics' },
-  { label: '📐 Trigonometry drill', msg: 'Give me a Trigonometry drill' },
-  { label: '✍️ Grammar practice', msg: 'Practice grammar questions' },
-  { label: '🔢 Quadratics quiz', msg: 'Quiz me on Quadratics' },
+  { label: '🎯 Two-variable data: models and scatterplots', msg: 'Give me 10 quiz questions on Two-variable data: models and scatterplots' },
+  { label: '🎯 Words in Context', msg: 'Give me 10 quiz questions on Words in Context' },
+  { label: '🎯 Math', msg: 'Give me 10 quiz questions on Math' },
+  { label: '🎯 Reading & Writing', msg: 'Give me 10 quiz questions on Reading & Writing' },
 ];
 
 /**
  * ROBUST KB TOPIC EXTRACTOR
  * Extracts clean, searchable topic names for KB matching.
- * Handles "quiz on ...", "questions about ...", "-- question quiz" etc.
+ * Preserves important topic keywords while removing request-specific words.
  */
 const extractKBTopic = (text) => {
   if (!text) return "";
   const t = text.toLowerCase().trim();
   
-  // High-accuracy patterns (ordered from specific to general)
+  // High-priority patterns that look for core SAT topics
   const patterns = [
-    /quiz on (.*)/i,
-    /questions on (.*)/i,
-    /drill on (.*)/i,
-    /practice (.*)/i,
-    /explain (.*)/i,
-    /test me on (.*)/i,
-    /quiz me on (.*)/i,
-    /give me a (?:.*) quiz on (.*)/i,
-    /(.*) quiz/i,
+    // Matches "10 questions quiz on Algebra", "Give me quiz on Algebra", etc.
+    // Handles multi-word keywords like "questions quiz on" or "drills about"
+    /(?:quiz|questions?|practice|drill|test|problems?|items?|exercises?|drills?)+(?:\s+(?:quiz|questions?|practice|drill|test|problems?|items?|exercises?|me|some|any))*(?:\s+(?:on|about|for|regarding|to|of))+\s+(.*)/i,
+    
+    // Simple fallback: anything after "on/about/for/to"
+    /\b(?:on|about|for|regarding|to|of)\s+(.*)/i,
+    
+    // Matches "Algebra quiz", "Algebra practice"
+    /(.*)\s+(?:quiz|practice|drill|test|exercise|questions?|drills?)/i,
   ];
 
   for (const p of patterns) {
     const match = t.match(p);
     if (match && match[1]) {
       let cleaned = match[1]
-        .replace(/\bquestions\b/gi, '')
-        .replace(/\bquestion\b/gi, '')
-        .replace(/\bquiz\b/gi, '')
-        .replace(/--/gi, '')
-        .replace(/\d+/g, '')
-        .replace(/\ba\b/gi, '')
-        .replace(/\ban\b/gi, '')
-        .replace(/\bthe\b/gi, '')
-        .replace(/\bsome\b/gi, '')
+        .replace(/^(?:a|an|the|is|are|of|in|some|any|give me|want|need|send me|show me)\s+/gi, '') // Remove starting filler
+        .replace(/\b(?:quiz|questions?|about|regarding|me|on|give|want|practice|drill|drills|test|exercise|problems?|items?|exercises?|me|some|any)\b/gi, '')
+        .replace(/\b\d+\b/g, '') // Remove lone numbers (counts)
+        .replace(/[?|!|"]/g, '') // Remove punctuation
         .replace(/\s+/g, ' ')
         .trim();
       
-      if (cleaned.length > 2) return cleaned;
+      // Only return if we have meaningful content (more than 2 characters)
+      if (cleaned.length > 2) {
+        console.log(`📝 [Topic Extract] Extracted: "${cleaned}" from "${text}"`);
+        return cleaned;
+      }
     }
   }
 
-  // Fallback: Use unique words if the query is short
-  const words = t.split(/\s+/);
-  if (words.length <= 4) return t;
+  // Fallback: Remove all common request words across the entire string
+  const noisyWordsRegex = /\b(give me|i want|send me|please|show me|quiz|questions?|practice|drill|test|on|about|for|regarding|a|an|the|is|are|some|any|on)\b/gi;
+  let cleanedFallback = t.replace(noisyWordsRegex, '')
+    .replace(/\b\d+\b/g, '') // Remove lone numbers
+    .replace(/[?|!|"]/g, '') // Remove punctuation
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (cleanedFallback.length > 2) {
+    console.log(`📝 [Topic Extract] Fallback cleaned: "${cleanedFallback}" from "${text}"`);
+    return cleanedFallback;
+  }
   
-  // Return original text if no extraction worked
+  console.log(`📝 [Topic Extract] Final fallback full text: "${t}"`);
   return t;
 };
 
-const formatKBQuizResponse = (questions) => {
-  if (!questions || questions.length === 0) return "No questions found.";
-
-  let html = `<div class="kb-quiz-container space-y-8">`;
+/**
+ * Extracts the requested question count from user message.
+ * Returns the exact number requested by the user, or 10 as a balanced default.
+ */
+const extractQuizCount = (text) => {
+  if (!text) return 10;
   
-  questions.forEach((q, idx) => {
-    html += `
-      <div class="kb-question border-t border-slate-200 dark:border-slate-700 pt-6 first:border-t-0 first:pt-0">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="px-2 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-[10px] font-bold rounded">QUESTION ${idx + 1}</span>
-          <span class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">${q.topic} • ${q.difficulty}</span>
-        </div>
-        
-        <div class="question-content text-slate-800 dark:text-slate-200 leading-relaxed mb-4">
-          ${q.question_html || q.text || q.question || ''}
-        </div>
+  // Robust patterns to capture question count
+  const patterns = [
+    /\b(\d+)\s*(?:questions?|qs|problems?|items?|exercises?|mcqs?)\b/i,  // "10 questions", "10 mcqs"
+    /\bgive me\s+(\d+)\b/i,  // "give me 10"
+    /\b(\d+)\s*(?:question|quiz|drill|practice)\b/i,  // "10 question quiz"
+    /(?:set|generate|make|create)\s+(?:a |an )?(\d+)/i,  // "generate 15"
+    /\b(\d+)\s*[-–—]\s*question/i,  // "15-question"
+    /\b(\d+)\s*$/i, // Numbers at the very end of a request
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const val = parseInt(match[1]);
+      if (!isNaN(val) && val > 0) {
+        console.log(`🔢 [Quiz Count] User explicitly requested ${val} questions.`);
+        return Math.min(val, 50); // High safety cap of 50
+      }
+    }
+  }
+  
+  return 10; // Default to 10 for a solid practice session
+};
 
-        ${(q.image_url || q.image) ? `<div class="mb-4"><img src="${q.image_url || q.image}" class="rounded-lg max-w-full h-auto border border-slate-100 dark:border-slate-700 shadow-sm" alt="Question diagram" /></div>` : ''}
+/**
+ * INTERACTIVE KB QUIZ COMPONENT
+ * Handles MCQ/Short Answer interactivity, image rendering, and reveals explanations only after submission.
+ */
+const KBQuizWidget = ({ questions }) => {
+  const [studentAnswers, setStudentAnswers] = useState({});
+  const [submitted, setSubmitted] = useState({});
 
-        <div class="options-grid grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-          ${(q.options || []).map((opt, i) => `
-            <div class="flex items-start gap-2 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-xl text-xs">
-              <span class="font-bold text-slate-400">${String.fromCharCode(65 + i)})</span>
-              <span class="text-slate-700 dark:text-slate-300">${opt}</span>
+  if (!questions || questions.length === 0) return <div>No questions found.</div>;
+
+  const handleSubmit = (qId) => {
+    setSubmitted(prev => ({ ...prev, [qId]: true }));
+  };
+
+  const handleAnswerChange = (qId, value) => {
+    if (submitted[qId]) return;
+    setStudentAnswers(prev => ({ ...prev, [qId]: value }));
+  };
+
+  return (
+    <div className="kb-quiz-container space-y-10 py-2">
+      {questions.map((q, idx) => {
+        const isMcq = q.type === 'mcq' || (q.options && q.options.length > 0);
+        const isSubmitted = submitted[q.id];
+        const studentAnswer = studentAnswers[q.id];
+        const isCorrect = isMcq 
+          ? studentAnswer === q.correctAnswer 
+          : studentAnswer?.trim().toLowerCase() === q.correctAnswer?.trim().toLowerCase();
+
+        return (
+          <div key={q.id} className="kb-question-block bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all">
+            {/* Header */}
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest">Question {idx + 1}</span>
+                <span className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-wider">{q.topic} • {q.difficulty}</span>
+              </div>
+              {isSubmitted && (
+                <span className={`text-xs font-bold flex items-center gap-1.5 ${isCorrect ? 'text-green-500' : 'text-red-500'}`}>
+                  <SafeIcon icon={isCorrect ? FiIcons.FiCheckCircle : FiIcons.FiXCircle} className="w-4 h-4" />
+                  {isCorrect ? 'Correct' : 'Incorrect'}
+                </span>
+              )}
             </div>
-          `).join('')}
-        </div>
 
-        <div class="explanation-box p-4 bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/20 rounded-2xl">
-          <div class="flex items-center gap-2 mb-2 text-green-600 dark:text-green-400 text-[10px] font-bold uppercase tracking-wider">
-            <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-            Correct Answer: ${q.correct_answer || q.correctAnswer || ''}
-          </div>
-          <div class="text-[11px] text-slate-600 dark:text-slate-400 italic leading-relaxed">
-            ${q.explanation || ''}
-          </div>
-        </div>
-      </div>
-    `;
-  });
+            <div className="p-6 space-y-6">
+                            {/* Question Text + Images/Tables from HTML */}
+                            <div className="kb-rich-content text-slate-800 dark:text-slate-200 text-sm md:text-base leading-relaxed font-medium">
+                              <MathRenderer text={q.questionHtml || q.text || ''} />
+                            </div>
+              
+                            {/* Redundant image fallback: Only show if neither field has an image tag/placeholder */}
+                            {(!((q.questionHtml || '').includes('<img') || (q.questionHtml || '').includes('[IMAGE:') || (q.text || '').includes('<img') || (q.text || '').includes('[IMAGE:'))) && (q.imageUrl || q.image) && (
+                              <div className="flex justify-center my-6 bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+                                <img 
+                                  src={q.imageUrl || q.image} 
+                                  className="max-h-[400px] w-auto h-auto object-contain rounded-xl shadow-sm" 
+                                  alt="Question visual" 
+                                  onError={(e) => e.target.style.display = 'none'}
+                                />
+                              </div>
+                            )}
 
-  html += `</div>`;
-  return html;
+              {/* Interaction Area */}
+              <div className="quiz-interaction pt-4">
+                {isMcq ? (
+                  /* MCQ OPTIONS: Exactly 4 options max */
+                  <div className="grid grid-cols-1 gap-3">
+                    {(q.options || []).slice(0, 4).map((opt, i) => {
+                      const letter = String.fromCharCode(65 + i);
+                      const isSelected = studentAnswer === letter;
+                      const isOptionCorrect = isSubmitted && letter === q.correctAnswer;
+                      const isOptionWrong = isSubmitted && isSelected && !isCorrect;
+
+                      return (
+                        <button
+                          key={i}
+                          disabled={isSubmitted}
+                          onClick={() => handleAnswerChange(q.id, letter)}
+                          className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${
+                            isSelected 
+                              ? 'border-red-500 bg-red-50 dark:bg-red-500/10' 
+                              : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-white/5'
+                          } ${isOptionCorrect ? 'border-green-500 bg-green-50 dark:bg-green-500/10' : ''} 
+                            ${isOptionWrong ? 'border-red-500 bg-red-50 dark:bg-red-500/10' : ''}
+                            hover:shadow-md active:scale-[0.98] disabled:active:scale-100 disabled:cursor-default`}
+                        >
+                          <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                            isSelected ? 'bg-red-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                          } ${isOptionCorrect ? 'bg-green-600 text-white' : ''} ${isOptionWrong ? 'bg-red-600 text-white' : ''}`}>
+                            {letter}
+                          </span>
+                          <span className="flex-1 font-medium"><MathRenderer text={opt} /></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* SHORT ANSWER: Input box */
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Your Answer</label>
+                    <input 
+                      type="text" 
+                      disabled={isSubmitted}
+                      value={studentAnswer || ''}
+                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                      placeholder="Type your answer here..."
+                      className="w-full px-5 py-4 bg-slate-50 dark:bg-white/5 border-2 border-slate-100 dark:border-slate-800 rounded-2xl focus:border-red-500 outline-none font-medium transition-all disabled:opacity-70"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Submission Button */}
+              {!isSubmitted && (
+                <div className="pt-4">
+                  <button
+                    disabled={!studentAnswer}
+                    onClick={() => handleSubmit(q.id)}
+                    className="w-full py-4 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 dark:hover:bg-white transition-all shadow-lg active:scale-95 disabled:opacity-30 disabled:active:scale-100"
+                  >
+                    Check Answer
+                  </button>
+                </div>
+              )}
+
+              {/* Reveal explanation only after submission */}
+              <AnimatePresence>
+                {isSubmitted && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4"
+                  >
+                    <div className="p-5 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/20 rounded-3xl">
+                      <div className="flex items-center gap-2 mb-3 text-green-700 dark:text-green-400 text-xs font-black uppercase tracking-widest">
+                        <SafeIcon icon={FiIcons.FiAward} className="w-4 h-4" />
+                        Correct Answer: {q.correctAnswer}
+                      </div>
+                      <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                        <MathRenderer text={q.explanation || 'No explanation provided for this question.'} />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
 const DIFFICULTY_CONFIG = {
@@ -144,8 +290,6 @@ const WelcomeCard = () => (
 
       {[
         { icon: '🎯', label: 'Practice Quizzes', example: 'Quiz me on Algebra' },
-        { icon: '📚', label: 'Concept Explanations', example: 'Explain quadratics' },
-        { icon: '🗺️', label: 'Study Plans', example: 'Make a 4-week plan' },
       ].map((item, i) => (
         <div key={i} className="flex items-center gap-3 p-3 mb-2 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl transition-colors">
           <span className="text-xl flex-shrink-0">{item.icon}</span>
@@ -174,9 +318,212 @@ const AITutorAgent = () => {
   const [difficulty, setDifficulty] = useState('Medium');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  
+  // Track shown question IDs to prevent duplicates across session
+  const [shownQuestionIds, setShownQuestionIds] = useState(new Set());
+  // Track stable keys (ID preferred, text fallback) for client-side de-duplication safety
+  const [shownQuestionKeys, setShownQuestionKeys] = useState(new Set());
+  const SEEN_IDS_STORAGE_KEY = 'kb_seen_ids_by_topic_level_v1';
+
+  const normalizeQuestionId = (id) => (id == null ? '' : String(id));
+  const toApiExcludeIds = (ids) =>
+    Array.from(ids).map((id) => {
+      const s = String(id).trim();
+      return /^\d+$/.test(s) ? Number(s) : s;
+    });
+  const topicLevelKey = (topic, level) => `${String(level || '').toLowerCase()}::${String(topic || '').toLowerCase().trim()}`;
+  const readPersistedSeenIds = (topic, level) => {
+    try {
+      const raw = localStorage.getItem(SEEN_IDS_STORAGE_KEY);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      const list = parsed?.[topicLevelKey(topic, level)] || [];
+      return new Set(Array.isArray(list) ? list.map(normalizeQuestionId).filter(Boolean) : []);
+    } catch {
+      return new Set();
+    }
+  };
+  const writePersistedSeenIds = (topic, level, ids) => {
+    try {
+      const key = topicLevelKey(topic, level);
+      const raw = localStorage.getItem(SEEN_IDS_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      parsed[key] = Array.from(new Set(ids.map(normalizeQuestionId).filter(Boolean)));
+      localStorage.setItem(SEEN_IDS_STORAGE_KEY, JSON.stringify(parsed));
+    } catch {
+      // best effort only
+    }
+  };
+  const buildQuestionKey = (q, topic, level) => {
+    const normalizedId = normalizeQuestionId(q?.id);
+    if (normalizedId) return `id:${normalizedId}`;
+    const textBasis = String(q?.questionHtml || q?.text || q?.question || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    return `fallback:${String(topic || '').toLowerCase()}|${String(level || '').toLowerCase()}|${textBasis}`;
+  };
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(scrollToBottom, [messages]);
+
+  useEffect(() => {
+    fetchAvailableTopics();
+  }, []);
+
+  const [availableTopics, setAvailableTopics] = useState([]);
+  
+  const fetchAvailableTopics = async () => {
+    // Hardcoding specific user requested topics to ensure they always appear as chips
+    const hardcodedTopics = [
+      { label: '🎯 Two-variable data: models and scatterplots', msg: 'Give me 10 quiz questions on Two-variable data: models and scatterplots' },
+      { label: '🎯 Words in Context', msg: 'Give me 10 quiz questions on Words in Context' },
+      { label: '🎯 Math', msg: 'Give me 10 quiz questions on Math' },
+      { label: '🎯 Reading & Writing', msg: 'Give me 10 quiz questions on Reading & Writing' },
+    ];
+    setAvailableTopics(hardcodedTopics);
+  };
+
+  const fetchQuizBatch = async (topic, level, count, excludeIds) => {
+    const normalizeLevel = (lvl) =>
+      String(lvl || 'Medium').charAt(0).toUpperCase() + String(lvl || 'Medium').slice(1).toLowerCase();
+    const mapDbQuestion = (q) => ({
+      id: q.id,
+      topic: q.topic,
+      difficulty: q.level,
+      type: q.type || 'mcq',
+      text: q.question || q.text,
+      questionHtml: q.question_html,
+      options: q.options || [],
+      correctAnswer: q.correct_answer,
+      explanation: q.explanation || '',
+      createdAt: q.created_at,
+      imageUrl: q.image_url || q.image,
+      images: q.images || [],
+      tables: q.tables || [],
+      formulas: q.formulas || [],
+      formatting: q.formatting || {}
+    });
+
+    const fetchDirectFromSupabase = async (requestedCount = count, extraExcludeIds = []) => {
+      const diff = normalizeLevel(level);
+      const idExclusions = Array.from(new Set([
+        ...(Array.isArray(excludeIds) ? excludeIds : []),
+        ...(Array.isArray(extraExcludeIds) ? extraExcludeIds : [])
+      ])).filter((id) => id != null);
+      let query = supabase
+        .from('questions')
+        .select('*')
+        .ilike('level', diff);
+
+      // 🎯 MODIFIED: Handle broad subject-level requests (Math/RW)
+      const t = topic.toLowerCase().trim();
+      const isMath = t === 'math' || t === 'mathematics' || t === 'maths';
+      const isRW = t === 'reading & writing' || t === 'english' || t === 'verbal' || t === 'reading' || t === 'writing';
+
+      if (isMath) {
+        // Broad Math search across common math-related topics
+        query = query.or('topic.ilike.%algebra%,topic.ilike.%linear%,topic.ilike.%geometry%,topic.ilike.%trig%,topic.ilike.%math%,topic.ilike.%equation%,topic.ilike.%problem%,topic.ilike.%data%,topic.ilike.%stat%');
+      } else if (isRW) {
+        // Broad Reading & Writing search across common verbal-related topics
+        query = query.or('topic.ilike.%reading%,topic.ilike.%writing%,topic.ilike.%evidence%,topic.ilike.%words%,topic.ilike.%grammar%,topic.ilike.%inference%,topic.ilike.%rhetorical%,topic.ilike.%context%,topic.ilike.%boundaries%,topic.ilike.%transitions%');
+      } else {
+        // Specific topic search
+        query = query.ilike('topic', topic);
+      }
+
+      if (idExclusions.length > 0) {
+        query = query.not('id', 'in', `(${idExclusions.join(',')})`);
+      }
+
+      const { data, error } = await query.limit(Math.max(count * 5, 150));
+      if (error) throw error;
+
+      const unique = [];
+      const seen = new Set();
+      for (const q of data || []) {
+        const idKey = String(q.id);
+        if (seen.has(idKey)) continue;
+        seen.add(idKey);
+        unique.push(q);
+      }
+      for (let i = unique.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unique[i], unique[j]] = [unique[j], unique[i]];
+      }
+      const mapped = unique.slice(0, requestedCount).map(mapDbQuestion);
+      return {
+        data: {
+          questions: mapped,
+          requestedCount: requestedCount,
+          actualCount: mapped.length,
+          exhausted: mapped.length === 0
+        }
+      };
+    };
+
+    const topUpWithSupabase = async (existingQuestions = []) => {
+      if ((existingQuestions || []).length >= count) return existingQuestions.slice(0, count);
+      const existingIds = existingQuestions.map((q) => q?.id).filter((id) => id != null);
+      const needed = count - existingQuestions.length;
+      const supaRes = await fetchDirectFromSupabase(needed, existingIds);
+      const supaQuestions = supaRes?.data?.questions || [];
+      const seen = new Set(existingIds.map((id) => String(id)));
+      const merged = [...existingQuestions];
+      for (const q of supaQuestions) {
+        const idKey = String(q?.id);
+        if (!idKey || seen.has(idKey)) continue;
+        seen.add(idKey);
+        merged.push(q);
+        if (merged.length >= count) break;
+      }
+      return merged.slice(0, count);
+    };
+
+    // Primary route: dedicated KB quiz endpoint
+    try {
+      const res = await aiService.kbQuiz(topic, level, count, excludeIds);
+      console.log(
+        `📦 [KB_ONLY] API returned ${res?.data?.actualCount ?? (res?.data?.questions?.length || 0)}/${count} ` +
+        `| unusedAvailable=${res?.data?.unusedAvailable ?? 'n/a'} | exhausted=${res?.data?.exhausted ?? false}`
+      );
+      const baseQuestions = res?.data?.questions || [];
+      const finalQuestions = await topUpWithSupabase(baseQuestions);
+      return {
+        data: {
+          ...(res?.data || {}),
+          questions: finalQuestions,
+          requestedCount: count,
+          actualCount: finalQuestions.length,
+          exhausted: (res?.data?.exhausted === true) && finalQuestions.length === 0
+        }
+      };
+    } catch (err) {
+      // Compatibility fallback for deployments that only expose /api/ai/prep365-chat
+      const status = err?.response?.status;
+      if (status === 404 || status === 405) {
+        try {
+          const fallbackRes = await aiService.prep365Chat(topic, level, count, excludeIds);
+          const baseQuestions = fallbackRes?.data?.questions || [];
+          const finalQuestions = await topUpWithSupabase(baseQuestions);
+          if (finalQuestions.length > 0) {
+            return {
+              data: {
+                questions: finalQuestions,
+                requestedCount: count,
+                actualCount: finalQuestions.length,
+                exhausted: false
+              }
+            };
+          }
+        } catch (_) {
+          // Continue to direct supabase fallback
+        }
+        return await fetchDirectFromSupabase();
+      }
+      throw err;
+    }
+  };
 
   const handleSend = async (text) => {
     const msgText = (text || input).trim();
@@ -190,24 +537,126 @@ const AITutorAgent = () => {
     try {
       if (PAGE_TYPE === "KB_ONLY") {
         const topic = extractKBTopic(msgText);
-        console.log(`🔍 [KB_ONLY] Extracted Topic: "${topic}"`);
-        
-        const res = await aiService.kbQuiz(topic, difficulty);
-        const questions = res.data?.questions || [];
-        
-        if (questions.length === 0) {
-          setMessages(prev => [...prev, { 
-            id: Date.now() + 1, 
-            sender: 'ai', 
-            text: `❌ Sorry, I couldn't find any questions in the Knowledge Base for **"${topic}"** at **${difficulty}** level.\n\nTry a different topic or change the difficulty above.` 
-          }]);
-        } else {
-          setMessages(prev => [...prev, { 
-            id: Date.now() + 1, 
-            sender: 'ai', 
-            text: formatKBQuizResponse(questions),
+        const requestedCount = extractQuizCount(msgText);
+        const normalizedShownIdSet = new Set(Array.from(shownQuestionIds).map(normalizeQuestionId));
+        const shownKeySet = new Set(shownQuestionKeys);
+        const persistedSeen = readPersistedSeenIds(topic, difficulty);
+        let effectiveExclude = new Set([
+          ...Array.from(normalizedShownIdSet),
+          ...Array.from(persistedSeen)
+        ]);
+        console.log(`🔍 [KB_ONLY] Extraction -> Topic: "${topic}", Count: ${requestedCount} | Excl: ${effectiveExclude.size}`);
+
+        // Fill exactly requested count whenever unused questions exist.
+        let collected = [];
+        let backendExhausted = false;
+        let unusedAvailable = null;
+        const maxAttempts = 4;
+        let attempts = 0;
+        while (collected.length < requestedCount && attempts < maxAttempts && !backendExhausted) {
+          attempts += 1;
+          const needed = requestedCount - collected.length;
+          const res = await fetchQuizBatch(topic, difficulty, needed, toApiExcludeIds(effectiveExclude));
+          const fetchedQuestions = res?.data?.questions || [];
+          const hasUnusedAvailable = Object.prototype.hasOwnProperty.call(res?.data || {}, 'unusedAvailable');
+          if (hasUnusedAvailable) unusedAvailable = Number(res?.data?.unusedAvailable);
+          backendExhausted = res?.data?.exhausted === true;
+
+          if (fetchedQuestions.length === 0) break;
+
+          const batchFresh = fetchedQuestions.filter((q) => {
+            const qid = normalizeQuestionId(q?.id);
+            if (!qid) return false;
+            if (effectiveExclude.has(qid)) return false;
+            return true;
+          });
+          if (batchFresh.length === 0) {
+            // Backend may return overlap when filters are broad; exclude and continue probing.
+            fetchedQuestions.forEach((q) => {
+              const qid = normalizeQuestionId(q?.id);
+              if (qid) effectiveExclude.add(qid);
+            });
+            continue;
+          }
+
+          collected = [...collected, ...batchFresh];
+          batchFresh.forEach((q) => {
+            const qid = normalizeQuestionId(q?.id);
+            if (qid) effectiveExclude.add(qid);
+          });
+        }
+
+        const questionsToShow = collected.slice(0, requestedCount);
+
+        if (questionsToShow.length > 0) {
+          console.log(`✅ [KB_ONLY] Showing ${questionsToShow.length} unique questions (requested ${requestedCount}).`);
+
+          // Update session history
+          const updatedShownIds = new Set(normalizedShownIdSet);
+          const updatedShownKeys = new Set(shownKeySet);
+          questionsToShow.forEach((q) => {
+            const qid = normalizeQuestionId(q?.id);
+            if (qid) updatedShownIds.add(qid);
+            updatedShownKeys.add(buildQuestionKey(q, topic, difficulty));
+          });
+          setShownQuestionIds(updatedShownIds);
+          setShownQuestionKeys(updatedShownKeys);
+          writePersistedSeenIds(topic, difficulty, Array.from(updatedShownIds));
+
+          // Add the quiz message
+          setMessages(prev => [...prev, {
+            id: Date.now() + 1,
+            sender: 'ai',
+            questions: questionsToShow,
             isKB: true
           }]);
+        } else {
+          // Only show completion message when backend EXPLICITLY confirms exhaustion.
+          const trulyExhausted = backendExhausted || unusedAvailable === 0;
+          if (trulyExhausted) {
+            setMessages(prev => [...prev, {
+              id: Date.now() + 1,
+              sender: 'ai',
+              text: `💡 It looks like you've already completed all available questions on **"${topic}"** at **${difficulty}** level.\n\nI've shown you everything currently available with your selected filters. Try another topic or difficulty level.`
+            }]);
+          } else {
+            // Recovery path: if exclude state drifted, probe once without excludes and keep only unseen questions.
+            const rescue = await fetchQuizBatch(topic, difficulty, requestedCount, []);
+            const rescueQuestions = (rescue?.data?.questions || []).filter((q) => {
+              const qKey = buildQuestionKey(q, topic, difficulty);
+              return !shownKeySet.has(qKey);
+            }).slice(0, requestedCount);
+
+            if (rescueQuestions.length > 0) {
+              const updatedShownIds = new Set(normalizedShownIdSet);
+              const updatedShownKeys = new Set(shownKeySet);
+              rescueQuestions.forEach((q) => {
+                const qid = normalizeQuestionId(q?.id);
+                if (qid) updatedShownIds.add(qid);
+                updatedShownKeys.add(buildQuestionKey(q, topic, difficulty));
+              });
+              setShownQuestionIds(updatedShownIds);
+              setShownQuestionKeys(updatedShownKeys);
+              writePersistedSeenIds(topic, difficulty, Array.from(updatedShownIds));
+
+              setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                sender: 'ai',
+                questions: rescueQuestions,
+                isKB: true
+              }]);
+            } else {
+              // Prefer an actionable message over reset-loop instructions when nothing new exists.
+              const explicitShortage = requestedCount > 1
+                ? `I couldn't find ${requestedCount} fresh unique questions right now for **"${topic}"** at **${difficulty}**.`
+                : `I couldn't find a fresh unique question right now for **"${topic}"** at **${difficulty}**.`;
+              setMessages(prev => [...prev, {
+                id: Date.now() + 1,
+                sender: 'ai',
+                text: `⚠️ ${explicitShortage}\n\nTry changing difficulty or topic to continue practicing.`
+              }]);
+            }
+          }
         }
       } else {
         const res = await aiService.tutorChat(msgText, difficulty);
@@ -238,6 +687,9 @@ const AITutorAgent = () => {
 
   const handleReset = () => {
     setMessages([{ id: Date.now(), sender: 'ai', isWelcome: true }]);
+    setShownQuestionIds(new Set()); // Reset session history
+    setShownQuestionKeys(new Set()); // Reset client dedupe keys
+    try { localStorage.removeItem(SEEN_IDS_STORAGE_KEY); } catch { /* noop */ }
     if (PAGE_TYPE !== "KB_ONLY") {
       aiService.tutorChat("reset", difficulty).catch(() => { });
     }
@@ -324,8 +776,12 @@ const AITutorAgent = () => {
               {/* Bubble */}
               {msg.isWelcome ? (
                 <WelcomeCard />
+              ) : msg.isKB ? (
+                <div className="w-full max-w-[95%] md:max-w-2xl bg-white dark:bg-slate-800 rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl">
+                  <KBQuizWidget questions={msg.questions} />
+                </div>
               ) : (
-                <div className={`p-3.5 rounded-2xl ${msg.isKB ? 'max-w-[95%] md:max-w-2xl' : 'max-w-[82%] md:max-w-[78%]'} shadow-sm text-sm leading-relaxed ${msg.sender === 'user'
+                <div className={`p-3.5 rounded-2xl max-w-[82%] md:max-w-[78%] shadow-sm text-sm leading-relaxed ${msg.sender === 'user'
                   ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-tr-none'
                   : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-tl-none'
                   }`}>
@@ -366,7 +822,7 @@ const AITutorAgent = () => {
             transition={{ delay: 0.3 }}
             className="flex flex-wrap gap-2 pt-2"
           >
-            {QUICK_ACTIONS.map((action, i) => (
+            {(availableTopics.length > 0 ? availableTopics : QUICK_ACTIONS).map((action, i) => (
               <button
                 key={i}
                 onClick={() => handleSend(action.msg)}

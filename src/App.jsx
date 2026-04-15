@@ -32,12 +32,17 @@ const StudyPlanPage = lazy(() => import('./components/student/agents/StudyPlanPa
 const WeaknessDrills = lazy(() => import('./components/student/agents/WeaknessDrills'));
 const TestReview = lazy(() => import('./components/student/agents/TestReview'));
 const CollegeAdvisor = lazy(() => import('./components/student/agents/CollegeAdvisor'));
+const ScorePredictor = lazy(() => import('./components/student/ScorePredictor'));
 const ParentConnect = lazy(() => import('./components/student/agents/ParentConnect'));
 const PaymentSuccess = lazy(() => import('./components/student/PaymentSuccess'));
 const PracticeTests = lazy(() => import('./components/student/PracticeTests'));
 const DetailedTestReview = lazy(() => import('./components/student/DetailedTestReview'));
 const WeeklyReport = lazy(() => import('./components/common/WeeklyReport'));
 const SalesBot = lazy(() => import('./components/common/SalesBot'));
+
+// Demo Pages
+const PublicDemoCourseView = lazy(() => import('./components/demo/PublicDemoCourseView'));
+const PublicDemoQuizInterface = lazy(() => import('./components/demo/PublicDemoQuizInterface'));
 
 // Notification Components - ADMIN ONLY
 // const NotificationPreferences = lazy(() => import('./components/common/NotificationPreferences'));
@@ -213,9 +218,10 @@ const App = () => {
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isStudentRoute = location.pathname.startsWith('/student');
   const isTutorRoute = location.pathname.startsWith('/tutor');
+  const isDemoRoute = location.pathname.startsWith('/demo');
   const isAuthRoute = location.pathname.startsWith('/login') || location.pathname.startsWith('/signup');
   const isHomeRoute = location.pathname === '/';
-  const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isAuthRoute && !isHomeRoute;
+  const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isAuthRoute && !isHomeRoute && !isDemoRoute;
 
   return (
     <div className="app-container">
@@ -238,6 +244,10 @@ const App = () => {
             <Route path="/signup" element={<Signup />} />
             <Route path="/contact" element={<ContactPage />} />
 
+            {/* Public Demo Routes */}
+            <Route path="/demo/:courseId" element={<PublicDemoCourseView />} />
+            <Route path="/demo/:courseId/level/:level" element={<PublicDemoQuizInterface />} />
+
             {/* Student Routes */}
             <Route
               path="/student"
@@ -258,6 +268,7 @@ const App = () => {
               {/* New Sidebar Features */}
               <Route path="calendar" element={<StudentCalendar />} />
               <Route path="practice-tests" element={<PracticeTests />} />
+              <Route path="score-predictor" element={<ScorePredictor />} />
               <Route path="leaderboard" element={<Leaderboard />} />
               <Route path="settings" element={<StudentSettings />} />
               <Route path="support" element={<Support />} />

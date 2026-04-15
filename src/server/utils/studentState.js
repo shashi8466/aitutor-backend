@@ -17,6 +17,7 @@ const defaultState = () => ({
   practice_module: { active: false, quiz_data: null },
   teaching_module: { active: false, step: 'INIT', topic: '' },
   seen_question_texts: [],
+  seen_question_ids: [],
   session_log: [],
   error_patterns: {},
   baseline: null,
@@ -62,6 +63,7 @@ export const updateStudentState = async (userId, newState) => {
     practice_module: newState.practice_module,
     teaching_module: newState.teaching_module,
     seen_question_texts: newState.seen_question_texts,
+    seen_question_ids: newState.seen_question_ids || [],
     error_patterns: newState.error_patterns,
     baseline: newState.baseline,
     // Trim session log to last 20 entries to keep DB size manageable

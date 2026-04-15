@@ -26,6 +26,7 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.39.0",
     "@tailwindcss/typography": "^0.5.19",
+    "@testsprite/testsprite-mcp": "^0.0.37",
     "adm-zip": "^0.5.10",
     "axios": "^1.6.0",
     "compression": "^1.8.1",

@@ -132,7 +132,7 @@ const UserManagement = () => {
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Identify</th>
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact</th>
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Classification</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Verification</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Verification Status</th>
                 <th className="px-6 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Execution</th>
               </tr>
             </thead>
@@ -177,21 +177,24 @@ const UserManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap">
-                    {user.role === 'tutor' ? (
-                      <button
-                        onClick={() => handleUpdateUser(user.id, { tutor_approved: !user.tutor_approved })}
-                        disabled={updating[user.id]}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${user.tutor_approved
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30'
-                          : 'bg-red-50 text-red-600 dark:bg-red-900/20'
-                          }`}
-                      >
-                        <SafeIcon icon={user.tutor_approved ? FiCheckCircle : FiAlertCircle} />
-                        {user.tutor_approved ? 'Approved' : 'Pending'}
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">N/A</span>
-                    )}
+                    <button
+                      onClick={() => {
+                        const newStatus = user.status === 'active' ? 'pending' : 'active';
+                        const updates = { status: newStatus };
+                        if (user.role === 'tutor') {
+                          updates.tutor_approved = newStatus === 'active';
+                        }
+                        handleUpdateUser(user.id, updates);
+                      }}
+                      disabled={updating[user.id]}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${user.status === 'active'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30'
+                        : 'bg-red-50 text-red-600 dark:bg-red-900/20'
+                        }`}
+                    >
+                      <SafeIcon icon={user.status === 'active' ? FiCheckCircle : FiAlertCircle} />
+                      {user.status === 'active' ? 'Active' : 'Pending Approval'}
+                    </button>
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-right">
                     <button
@@ -260,17 +263,24 @@ const UserManagement = () => {
 
                 {selectedUser.role === 'tutor' && (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/30">
+                    <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30">
                       <div>
-                        <h4 className="text-sm font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest">Tutor Verification</h4>
-                        <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">Approved tutors can view their assigned analytics and manage students.</p>
+                        <h4 className="text-sm font-black text-blue-900 dark:text-blue-200 uppercase tracking-widest">Identity Verification</h4>
+                        <p className="text-xs text-blue-700 dark:text-blue-400 font-medium">Approved users can access the system with their assigned roles.</p>
                       </div>
                       <button
-                        onClick={() => handleUpdateUser(selectedUser.id, { tutor_approved: !selectedUser.tutor_approved })}
-                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${selectedUser.tutor_approved ? 'bg-green-600 text-white' : 'bg-red-600 text-white shadow-lg shadow-red-200'
+                        onClick={() => {
+                          const newStatus = selectedUser.status === 'active' ? 'pending' : 'active';
+                          const updates = { status: newStatus };
+                          if (selectedUser.role === 'tutor') {
+                            updates.tutor_approved = newStatus === 'active';
+                          }
+                          handleUpdateUser(selectedUser.id, updates);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${selectedUser.status === 'active' ? 'bg-green-600 text-white' : 'bg-red-600 text-white shadow-lg shadow-red-200'
                           }`}
                       >
-                        {selectedUser.tutor_approved ? 'Revoke Approval' : 'Grant Approval'}
+                        {selectedUser.status === 'active' ? 'Revoke Approval' : 'Grant Approval'}
                       </button>
                     </div>
 

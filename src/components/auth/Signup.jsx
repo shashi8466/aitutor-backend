@@ -105,9 +105,18 @@ const Signup = () => {
 
       if (result.success) {
         console.log('✅ Signup successful:', result);
-        // Some Supabase auth settings return `session: null` even when the user can sign in immediately
-        // (or the session becomes available a moment later). To prevent "blank page" / failed redirect,
-        // we do a best-effort auto-login when session is missing.
+        
+        // CHECK FOR APPROVAL REQUIREMENT
+        const roleRequiresApproval = formData.role === 'tutor' || formData.role === 'admin';
+        
+        if (roleRequiresApproval) {
+          console.log('⏳ Role requires approval, showing pending message');
+          setSuccessMode(true);
+          setLoading(false);
+          return; // Stop auto-redirection
+        }
+
+        // Standard student/parent flow (auto-login/redirect)
         if (!result.session) {
           try {
             const loginResult = await login({ email: formData.email, password: formData.password });
@@ -117,16 +126,14 @@ const Signup = () => {
               return;
             }
           } catch (e) {
-            // ignore; fall back to success mode below
+            // ignore; fall back to success mode
           }
         }
 
         if (result.session) {
-          // User is logged in immediately
           setRedirecting(true);
           await finalizeRegistration(formData.role);
         } else {
-          // User needs to check email / could not auto-login
           setSuccessMode(true);
         }
       } else {
@@ -221,12 +228,17 @@ const Signup = () => {
               Back to Home
             </Link>
           </div>
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <SafeIcon icon={FiMail} className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <div className={`w-16 h-16 ${formData.role === 'student' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-blue-100 dark:bg-blue-900/30'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+            <SafeIcon icon={formData.role === 'student' ? FiMail : FiLoader} className={`w-8 h-8 ${formData.role === 'student' ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`} />
           </div>
-          <h2 className="text-2xl font-bold text-black dark:text-white mb-2">Check your email</h2>
+          <h2 className="text-2xl font-bold text-black dark:text-white mb-2">
+            {formData.role === 'student' ? 'Check your email' : 'Waiting for Approval'}
+          </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            We've sent a confirmation link to <strong className="text-black dark:text-white">{formData.email}</strong>.
+            {formData.role === 'student' 
+              ? <>We've sent a confirmation link to <strong className="text-black dark:text-white">{formData.email}</strong>.</>
+              : <>Your account request for <strong>{formData.role === 'admin' ? 'Administrator' : 'Tutor'}</strong> access has been submitted. An administrator will review and approve your account shortly.</>
+            }
           </p>
           <div className="space-y-3">
             <button

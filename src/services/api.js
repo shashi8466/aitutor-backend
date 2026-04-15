@@ -123,6 +123,11 @@ export const authService = {
       // Task 1: Profile upsert - CRITICAL for dashboard name display
       try {
         console.log('📝 [BACKGROUND] Upserting profile...');
+        
+        // Determine initial status based on role
+        // Admin and Tutor roles require manual approval
+        const initialStatus = (normalizedRole === 'admin' || normalizedRole === 'tutor') ? 'pending' : 'active';
+        
         await supabase
           .from('profiles')
           .upsert({
@@ -132,9 +137,10 @@ export const authService = {
             role: normalizedRole,
             mobile: userData.mobile || null,
             father_name: userData.fatherName || null,
-            father_mobile: userData.fatherMobile || null
+            father_mobile: userData.fatherMobile || null,
+            status: initialStatus
           }, { onConflict: 'id' });
-        console.log('✅ [BACKGROUND] Profile upserted successfully with name:', userName);
+        console.log('✅ [BACKGROUND] Profile upserted successfully with status:', initialStatus);
       } catch (profileError) {
         console.error('⚠️ [BACKGROUND] Profile upsert failed:', profileError?.message);
       }
@@ -444,24 +450,53 @@ export const uploadService = {
     return { data: flattened };
   },
   delete: async (id) => {
-    // 1. Get file path first
-    const { data: fileRecord } = await supabase
-      .from('uploads')
-      .select('file_url')
-      .eq('id', id)
-      .single();
+    try {
+      return await axios.delete(`/api/upload/${id}`);
+    } catch (error) {
+      // Some deployed backends may not expose DELETE /api/upload/:id yet.
+      // Fallback to direct Supabase deletion so admin UX still works.
+      if (error?.response?.status !== 404) throw error;
 
-    if (fileRecord?.file_url) {
-      // Extract storage path from URL
-      // Now using BUCKET_NAME constant 'documents'
-      const path = fileRecord.file_url.split(`/${STORAGE_BUCKET}/`)[1];
-      if (path) {
-        await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+      const uploadId = String(id);
+      const { data: uploadRow, error: fetchErr } = await supabase
+        .from('uploads')
+        .select('id,file_url')
+        .eq('id', uploadId)
+        .maybeSingle();
+      if (fetchErr) throw fetchErr;
+      if (!uploadRow) {
+        const notFound = new Error('Upload record not found');
+        notFound.status = 404;
+        throw notFound;
       }
-    }
 
-    // 2. Delete DB record
-    return await supabase.from('uploads').delete().eq('id', id);
+      // Keep data integrity: remove dependent questions first.
+      const { error: qErr } = await supabase
+        .from('questions')
+        .delete()
+        .eq('upload_id', uploadId);
+      if (qErr) throw qErr;
+
+      const { error: uploadErr } = await supabase
+        .from('uploads')
+        .delete()
+        .eq('id', uploadId);
+      if (uploadErr) throw uploadErr;
+
+      // Best-effort storage cleanup from public URL.
+      if (uploadRow.file_url) {
+        try {
+          const parts = String(uploadRow.file_url).split('/documents/');
+          if (parts.length > 1) {
+            await supabase.storage.from('documents').remove([parts[1]]);
+          }
+        } catch (_) {
+          // no-op: DB cleanup already succeeded
+        }
+      }
+
+      return { data: { success: true, fallback: true } };
+    }
   },
   getStats: async () => {
     const { count: uploadsCount } = await supabase
@@ -554,15 +589,19 @@ export const aiService = {
   generateExam: async (ctx, difficulty, count) => axios.post('/api/ai/generate-exam', { context: ctx, difficulty, count }),
   generateChapters: async (ctx) => axios.post('/api/ai/chapters', { context: ctx }),
   generatePodcastScript: async (ctx) => axios.post('/api/ai/podcast', { context: ctx }),
-  prep365Chat: async (message, difficulty) => {
+  prep365Chat: async (message, difficulty, count = 10, excludeIds = []) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-    return axios.post('/api/ai/prep365-chat', { message, difficulty }, { headers });
+    return axios.post('/api/ai/prep365-chat', { message, difficulty, count, excludeIds }, { headers });
   },
-  kbQuiz: async (topic, level) => {
+  kbQuiz: async (topic, level, count = 10, excludeIds = [], userId = null) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-    return axios.post('/api/kb-quiz', { topic, level }, { headers });
+    return axios.post('/api/kb-quiz', { topic, level, count, excludeIds, userId }, { headers });
+  },
+
+  kbTopics: async () => {
+    return axios.get('/api/kb-quiz/topics');
   },
 
   extractContent: async (file, url) => {

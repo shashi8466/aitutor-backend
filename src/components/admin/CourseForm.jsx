@@ -18,8 +18,16 @@ const CourseForm = ({ course, onClose, onSave }) => {
     price_section_a: course?.price_section_a || '',
     price_section_b: course?.price_section_b || '',
     start_date: course?.start_date ? new Date(course.start_date).toISOString().slice(0, 16) : '',
-    is_practice: course?.is_practice || false
+    is_practice: course?.is_practice || false,
+    is_demo: course?.is_demo || false,
+    main_category: course?.main_category || 'SAT'
   });
+
+  const COURSE_CATEGORIES = {
+    'SAT': ['SAT Math', 'SAT Reading & Writing'],
+    'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
+    'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry']
+  };
 
   const [newFiles, setNewFiles] = useState({});
   const [existingFiles, setExistingFiles] = useState({});
@@ -88,7 +96,18 @@ const CourseForm = ({ course, onClose, onSave }) => {
     }
   };
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'main_category') {
+      setFormData({
+        ...formData,
+        main_category: value,
+        tutor_type: COURSE_CATEGORIES[value][0]
+      });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
+  };
 
   const handleFileChange = (key, file) => setNewFiles(prev => ({ ...prev, [key]: file }));
 
@@ -152,8 +171,10 @@ const CourseForm = ({ course, onClose, onSave }) => {
         is_free: Number(formData.price_full) === 0,
         start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
         is_practice: formData.is_practice,
+        is_demo: formData.is_demo,
         status: formData.status || 'active',
-        manual_enrollment_count: Number(formData.manual_enrollment_count) || 0
+        manual_enrollment_count: Number(formData.manual_enrollment_count) || 0,
+        main_category: formData.main_category
       };
 
       let savedCourse;
@@ -161,19 +182,28 @@ const CourseForm = ({ course, onClose, onSave }) => {
         console.log('📝 Updating existing course:', course.id);
         const response = await courseService.update(course.id, cleanData);
         console.log('📡 Update response:', response);
-        savedCourse = response.data || response;
+        
+        if (response.error) {
+          throw new Error(`Update error: ${response.error.message || response.error}`);
+        }
+        
+        savedCourse = response.data;
+        // Fallback for different response structures
+        if (!savedCourse && !response.error) savedCourse = response;
+        if (Array.isArray(savedCourse)) savedCourse = savedCourse[0];
       } else {
         console.log('➕ Creating new course with data:', cleanData);
         const response = await courseService.create(cleanData);
         console.log('📡 Create response:', response);
 
-        // Check for Supabase error
         if (response.error) {
-          console.error('❌ Supabase error:', response.error);
           throw new Error(`Database error: ${response.error.message || response.error}`);
         }
 
-        savedCourse = response.data || response;
+        savedCourse = response.data;
+        // Fallback for different response structures
+        if (!savedCourse && !response.error) savedCourse = response;
+        if (Array.isArray(savedCourse)) savedCourse = savedCourse[0];
       }
 
       console.log('🔍 Saved course object:', savedCourse);
@@ -350,17 +380,29 @@ const CourseForm = ({ course, onClose, onSave }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Tutor Type</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Main Course</label>
+                  <select
+                    name="main_category"
+                    value={formData.main_category}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                  >
+                    {Object.keys(COURSE_CATEGORIES).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Subcourse</label>
                   <select
                     name="tutor_type"
                     value={formData.tutor_type}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                   >
-                    <option value="General">General</option>
-                    <option value="SAT Math">SAT Math</option>
-                    <option value="SAT Reading">SAT Reading</option>
-                    <option value="Science">Science</option>
+                    {COURSE_CATEGORIES[formData.main_category]?.map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="md:col-span-2">
@@ -418,27 +460,26 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     placeholder="e.g. 1999"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-white"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Set to 0 for "Free".</p>
+                  </div>
                 </div>
 
-                <div className="flex items-start gap-4 col-span-2 mt-4 p-4 bg-red-50 rounded-xl border border-red-100 shadow-sm">
+                <div className="flex items-start gap-4 col-span-2 mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100 shadow-sm">
                   <input
                     type="checkbox"
-                    id="is_practice"
-                    name="is_practice"
-                    checked={formData.is_practice}
-                    onChange={(e) => setFormData({ ...formData, is_practice: e.target.checked })}
-                    className="mt-1 w-5 h-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                    id="is_demo"
+                    name="is_demo"
+                    checked={formData.is_demo}
+                    onChange={(e) => setFormData({ ...formData, is_demo: e.target.checked })}
+                    className="mt-1 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                   />
                   <div className="flex-1">
-                    <label htmlFor="is_practice" className="text-sm font-extrabold text-[#E53935] cursor-pointer flex items-center gap-2">
+                    <label htmlFor="is_demo" className="text-sm font-extrabold text-[#1E88E5] cursor-pointer flex items-center gap-2">
                       <SafeIcon icon={FiActivity} className="w-5 h-5" />
-                      Mark as Official Practice Course
+                      Mark as Public Demo Course
                     </label>
-                    <p className="text-xs text-red-700 mt-1 font-medium italic">
-                      Special: All material uploaded to this course will be categorized as "Practice Tests" for students.
+                    <p className="text-xs text-blue-700 mt-1 font-medium italic">
+                      Enable this to generate a standalone public link that requires no login/signup.
                     </p>
-                  </div>
                 </div>
               </div>
             </div>

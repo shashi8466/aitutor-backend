@@ -14,10 +14,18 @@ const CourseManagement = ({ onStatsUpdate }) => {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', search: '' });
+  const [activeCategory, setActiveCategory] = useState('SAT');
+  const [activeSubcategory, setActiveSubcategory] = useState('All');
+
+  const COURSE_CATEGORIES = {
+    'SAT': ['SAT Math', 'SAT Reading & Writing'],
+    'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
+    'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry']
+  };
 
   useEffect(() => {
     loadCourses();
-  }, [filters]);
+  }, [filters, activeCategory, activeSubcategory]);
 
   const loadCourses = async () => {
     setLoading(true);
@@ -35,6 +43,24 @@ const CourseManagement = ({ onStatsUpdate }) => {
           (c.description && c.description.toLowerCase().includes(term))
         );
       }
+
+      // Hierarchy Filter
+      filteredCourses = filteredCourses.filter(c => {
+        const mainCat = c.main_category || (
+          (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
+          (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' :
+          ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
+        );
+
+        if (mainCat !== activeCategory) return false;
+
+        if (activeSubcategory !== 'All') {
+          return c.tutor_type === activeSubcategory;
+        }
+
+        return true;
+      });
+
       setCourses(filteredCourses);
       onStatsUpdate?.();
     } catch (error) {
@@ -64,6 +90,43 @@ const CourseManagement = ({ onStatsUpdate }) => {
           <SafeIcon icon={FiPlus} className="w-4 h-4" />
           <span>Add New Course</span>
         </motion.button>
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex flex-col space-y-4">
+        <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-fit">
+          {Object.keys(COURSE_CATEGORIES).map(cat => (
+            <button
+              key={cat}
+              onClick={() => {
+                setActiveCategory(cat);
+                setActiveSubcategory('All');
+              }}
+              className={`px-6 py-2 rounded-lg font-bold transition-all ${activeCategory === cat ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Subcategory Tabs */}
+        <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 scrollbar-none">
+          <button
+            onClick={() => setActiveSubcategory('All')}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${activeSubcategory === 'All' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}
+          >
+            All Subcourses
+          </button>
+          {COURSE_CATEGORIES[activeCategory].map(sub => (
+            <button
+              key={sub}
+              onClick={() => setActiveSubcategory(sub)}
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${activeSubcategory === sub ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}
+            >
+              {sub}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Filters */}

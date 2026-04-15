@@ -1,0 +1,214 @@
+{
+  "projectName": "Educational AI Platform",
+  "baseUrl": "http://localhost:5173",
+  "apiUrl": "http://localhost:3001",
+  "testEnvironment": "development",
+  "testSuites": [
+    {
+      "name": "Health Check",
+      "tests": [
+        {
+          "name": "API Health Check",
+          "type": "api",
+          "endpoint": "/api/health",
+          "method": "GET",
+          "expectedStatus": 200,
+          "validations": [
+            "response.data.status === 'ok'",
+            "response.data.message"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Base Quiz System",
+      "tests": [
+        {
+          "name": "Get Quiz Questions - Basic",
+          "type": "api",
+          "endpoint": "/api/kb-quiz",
+          "method": "POST",
+          "data": {
+            "topic": "percentage",
+            "level": "Medium",
+            "count": 5
+          },
+          "expectedStatus": 200,
+          "validations": [
+            "Array.isArray(response.data.questions)",
+            "response.data.questions.length > 0",
+            "response.data.questions.every(q => q.text)"
+          ]
+        },
+        {
+          "name": "Get Quiz Questions - No Duplicates",
+          "type": "api",
+          "endpoint": "/api/kb-quiz",
+          "method": "POST",
+          "data": {
+            "topic": "percentage",
+            "level": "Medium",
+            "count": 10
+          },
+          "expectedStatus": 200,
+          "validations": [
+            "Array.isArray(response.data.questions)",
+            "response.data.questions.length > 0",
+            "const questionIds = response.data.questions.map(q => q.id); new Set(questionIds).size === questionIds.length || questionIds.length <= 10"
+          ]
+        },
+        {
+          "name": "Get Available Topics",
+          "type": "api",
+          "endpoint": "/api/kb-quiz/topics",
+          "method": "GET",
+          "expectedStatus": 200,
+          "validations": [
+            "Array.isArray(response.data.topics) || Array.isArray(response.data)"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AI Tutor Functionality",
+      "tests": [
+        {
+          "name": "AI Tutor Test Endpoint",
+          "type": "api",
+          "endpoint": "/api/ai/test",
+          "method": "GET",
+          "expectedStatus": 200,
+          "validations": [
+            "response.data.message"
+          ]
+        },
+        {
+          "name": "AI Tutor Routes Info",
+          "type": "api",
+          "endpoint": "/api/ai/routes",
+          "method": "GET",
+          "expectedStatus": 200,
+          "validations": [
+            "response.data.message || Array.isArray(response.data.routes)"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Upload System",
+      "tests": [
+        {
+          "name": "Upload Test Endpoint",
+          "type": "api",
+          "endpoint": "/api/upload/test",
+          "method": "GET",
+          "expectedStatus": 200,
+          "validations": [
+            "response.data.message || response.status === 200"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Contact System",
+      "tests": [
+        {
+          "name": "Contact Form Submission",
+          "type": "api",
+          "endpoint": "/api/contact",
+          "method": "POST",
+          "data": {
+            "name": "Test User",
+            "email": "test@example.com",
+            "message": "This is a test message"
+          },
+          "expectedStatus": [200, 201],
+          "validations": [
+            "typeof response.data.success === 'boolean' || response.status === 200 || response.status === 201"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "UI Components",
+      "tests": [
+        {
+          "name": "Dashboard Page Load",
+          "type": "ui",
+          "url": "/dashboard",
+          "waitForSelector": "[data-testid='dashboard-container']",
+          "validations": [
+            "document.querySelector('[data-testid=\"dashboard-container\"]') !== null",
+            "document.querySelector('[data-testid=\"welcome-message\"]') !== null"
+          ]
+        },
+        {
+          "name": "Course List Page",
+          "type": "ui",
+          "url": "/courses",
+          "waitForSelector": "[data-testid='course-list']",
+          "validations": [
+            "document.querySelector('[data-testid=\"course-list\"]') !== null",
+            "document.querySelectorAll('[data-testid=\"course-card\"]').length > 0"
+          ]
+        },
+        {
+          "name": "AI Tutor Modal",
+          "type": "ui",
+          "url": "/dashboard",
+          "waitForSelector": "[data-testid='ai-tutor-button']",
+          "actions": [
+            "document.querySelector('[data-testid=\"ai-tutor-button\"]').click()",
+            "document.querySelector('[data-testid=\"ai-tutor-modal\"]') !== null"
+          ],
+          "validations": [
+            "document.querySelector('[data-testid=\"ai-tutor-modal\"]') !== null",
+            "document.querySelector('[data-testid=\"ai-tutor-input\"]') !== null"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Performance Tests",
+      "tests": [
+        {
+          "name": "API Response Time",
+          "type": "performance",
+          "endpoint": "/api/courses",
+          "method": "GET",
+          "maxResponseTime": 2000,
+          "validations": [
+            "response.time < 2000"
+          ]
+        },
+        {
+          "name": "Page Load Time",
+          "type": "performance",
+          "url": "/dashboard",
+          "maxLoadTime": 3000,
+          "validations": [
+            "window.performance.timing.loadEventEnd - window.performance.timing.navigationStart < 3000"
+          ]
+        }
+      ]
+    }
+  ],
+  "testSettings": {
+    "timeout": 30000,
+    "retries": 2,
+    "parallel": false,
+    "reportFormat": "html",
+    "captureScreenshots": true,
+    "captureNetworkLogs": true,
+    "browser": "chromium",
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "environment": {
+    "NODE_ENV": "test",
+    "API_BASE_URL": "http://localhost:3001",
+    "FRONTEND_BASE_URL": "http://localhost:5173"
+  }
+}

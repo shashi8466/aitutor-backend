@@ -5,6 +5,51 @@ import { getUserFromRequest } from '../utils/authHelper.js';
 
 const router = express.Router();
 
+const SAT_TOPICS_LIST = [
+    "Craft and Structure", "Information and Ideas", "Standard English Conventions",
+    "Expression of Ideas", "Words in Context", "Command of Evidence", "Inferences",
+    "Central Ideas and Details", "Text Structure", "Purpose", "Algebra", "Advanced Math",
+    "Rhetorical synthesis", "Text Structure and Purpose", "Transitions", "Boundaries",
+    "Form, Structure, and Sense", "Cross-Text Connections", "Textual Evidence",
+    "Command of textual evidence", "Command of quantitative evidence", "Quantitative evidence",
+    "Linear equations in one variable", "Linear equations in two variables", "Linear functions",
+    "Systems of two linear equations", "Linear inequalities", "Nonlinear functions",
+    "Quadratic equations", "Exponential functions", "Polynomials", "Radicals",
+    "Rational exponents", "Problem-Solving and Data Analysis",
+    "Ratios, rates, proportional relationships", "Percentages", "One-variable data",
+    "Two-variable data", "Probability", "Conditional probability",
+    "Inference from sample statistics", "Evaluating statistical claims",
+    "Geometry and Trigonometry", "Geometry & Trigonometry", "Area and volume",
+    "Lines, angles, and triangles", "Right triangles and trigonometry", "Circles",
+    "Equivalent expressions", "Nonlinear equations in one variable and systems of equations in two variables",
+    "Ratios rates proportional relationships and units", "Two-variable data: models and scatterplots",
+    "One-variable data distributions and measures of center and spread",
+    "Ratios, rates, proportional relationships and units",
+    "Problem Solving & Data Analysis", "Systems of two linear equations in two variables",
+    "Lines angles and triangles"
+];
+
+const getAITutorTopic = (line) => {
+    if (!line) return null;
+    // Clean string from HTML and extra whitespace
+    const cleanLine = line.replace(/<[^>]*>/g, ' ').replace(/\\\(|\\\)|\\\[|\\\]/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    // Sort topics by length descending to match longest possible topic first
+    const sortedTopics = [...SAT_TOPICS_LIST].sort((a, b) => b.length - a.length);
+    
+    // Check for hierarchical match
+    for (const topic of sortedTopics) {
+        if (cleanLine.toLowerCase().includes(topic.toLowerCase())) {
+            return topic;
+        }
+    }
+    
+    // Fallback regex for common topics
+    const fallbackMatch = cleanLine.match(/(?:Topic|Concept|Category)[:\s]+([^,\n]+)/i) ||
+                         cleanLine.match(/(Geometry|Algebra|Reading|Writing|Math|Percentages|Ratios|Probability|Functions)/i);
+    return fallbackMatch ? fallbackMatch[1].trim() : null;
+};
+
 console.log('🤖 Initializing AI Routes...');
 
 // Test endpoint
@@ -76,6 +121,94 @@ router.post('/tutor', async (req, res) => {
   }
 });
 
+// 1b. Dedicated AIPrep365 endpoint
+router.post('/prep365-chat', async (req, res) => {
+  try {
+    const { message, difficulty = 'Medium', count = 10, excludeIds = [] } = req.body;
+    
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message is required and must be a string' });
+    }
+
+    // Validate count parameter
+    const questionCount = parseInt(count) || 10;
+    if (questionCount < 1 || questionCount > 50) {
+      return res.status(400).json({ error: 'Question count must be between 1 and 50' });
+    }
+
+    const safeExcludeIds = Array.isArray(excludeIds) ? excludeIds : [];
+    console.log(`[Prep365 Chat] Request: ${questionCount} questions for "${message}" | Level: ${difficulty} | Excl: ${safeExcludeIds.length}`);
+
+    // Use strict KB-only search for Prep365 Chat
+    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
+    const questions = await searchExactKBQuestions(message, difficulty, questionCount, safeExcludeIds);
+
+    if (!questions || questions.length === 0) {
+      return res.json({ 
+        reply: `I couldn't find any questions in the Knowledge Base for "${message}". Please try a different topic like "Algebra" or "Geometry".`,
+        questions: []
+      });
+    }
+
+    // Return questions in exact KB format
+    res.json({ 
+      reply: `Found ${questions.length} questions from the Knowledge Base for "${message}".`,
+      questions: questions,
+      topic: message,
+      difficulty: difficulty,
+      source: 'Knowledge Base'
+    });
+
+  } catch (error) {
+    console.error('Prep365 Chat Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Direct KB Quiz Route for strict KB-only access
+router.post('/kb-quiz', async (req, res) => {
+  try {
+    const { topic, level = 'Medium', count = 10 } = req.body;
+    
+    if (!topic || typeof topic !== 'string') {
+      return res.status(400).json({ error: 'Topic is required and must be a string' });
+    }
+
+    // Validate count parameter
+    const questionCount = parseInt(count) || 10;
+    if (questionCount < 1 || questionCount > 50) {
+      return res.status(400).json({ error: 'Question count must be between 1 and 50' });
+    }
+
+    console.log(`[KB QUIZ] Direct quiz request: ${questionCount} questions for topic: "${topic}" | Level: ${level}`);
+
+    // Use strict KB-only search
+    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
+    const questions = await searchExactKBQuestions(topic, level, questionCount);
+
+    if (!questions || questions.length === 0) {
+      console.log(`[KB QUIZ] No questions found for topic: "${topic}" | Level: ${level}`);
+      return res.status(404).json({ 
+        error: `No questions found in Knowledge Base for topic: "${topic}" at ${level} level` 
+      });
+    }
+
+    console.log(`[KB QUIZ] Successfully found ${questions.length} questions for topic: "${topic}" | Level: ${level}`);
+    
+    // Return questions in exact KB format
+    res.json({ 
+      success: true,
+      topic: topic,
+      level: level,
+      count: questions.length,
+      questions: questions
+    });
+
+  } catch (error) {
+    console.error('[KB QUIZ] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // 2. Explain
 router.post('/explain', async (req, res) => {
@@ -115,23 +248,43 @@ router.post('/generate-similar', async (req, res) => {
     const originalImages = qStr.match(imgRegex) || [];
     const cleanQStrSource = qStr.replace(imgRegex, '[DIAGRAM PRESENT]');
 
+    // Prefer explicit modal metadata first to lock generation to the mistake topic.
+    const explicitTopic = typeof question === 'object'
+      ? (question.topic || question.concept || question.mistakeTopic || '')
+      : '';
+    // 🟢 DETECT STUDENT MISTAKE TOPIC
+    const topic = explicitTopic || getAITutorTopic(qStr) || "the same topic";
+    console.log(`🎯 [Generate Similar] Detected Topic: "${topic}"`);
+    const anchorDifficulty = (typeof question === 'object' && question.level) ? question.level : 'Medium';
+
+    // 🟢 USE KNOWLEDGE BASE (KB) FOR FORMAT REFERENCE
+    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
+    const kbRefs = await searchExactKBQuestions(topic, anchorDifficulty, 1);
+    const kbRef = kbRefs && kbRefs.length > 0 ? kbRefs[0] : null;
+
+    if (kbRef) {
+      console.log(`📚 [Generate Similar] Found KB Format Reference for "${topic}"`);
+    }
+
     const safePreviousQuestions = Array.isArray(previousQuestions) ? previousQuestions : [];
     let avoidanceText = safePreviousQuestions.length > 0 ? `AVOID similarity to: ${safePreviousQuestions.slice(-3).join(', ')}\n\n` : "";
 
     const forbiddenNumbers = (cleanQStrSource.match(/\d+/g) || []).join(', ');
 
-    // Extract the topic/concept from the original question
-    const topicMatch = cleanQStrSource.match(/(?:Topic|Concept|Category)[:\s]+([^,\n]+)/i) ||
-      cleanQStrSource.match(/(Geometry|Algebra|Reading|Writing|Math)/i);
-    const topic = topicMatch ? topicMatch[1] : "the same topic";
-
     const prompt = `
 ${avoidanceText}
 PERSONA: Senior SAT Content Developer creating ORIGINAL practice questions.
 
+${kbRef ? `
+KNOWLEDGE BASE (KB) FORMAT REFERENCE:
+- Follow this SAT Question Style: "${kbRef.text.substring(0, 500)}"
+- Options Format: 4 choices labeled A, B, C, D
+- Difficulty Level: ${kbRef.difficulty || anchorDifficulty || "Medium"}
+` : ""}
+
 CRITICAL REQUIREMENTS (ALL MUST BE FOLLOWED):
 
-1. ✅ SAME TOPIC ONLY: Keep the mathematical concept/topic identical (e.g., "Area of rectangle", "Linear equations", "Reading comprehension inference").
+1. ✅ SAME TOPIC ONLY: Keep the mathematical concept/topic identical to: "${topic}".
 
 2. ❌ DIFFERENT NUMBERS (MANDATORY): 
    - Change EVERY number from the original. If original has 2400, use 1800, 3200, 1500, etc.
@@ -168,7 +321,7 @@ LATEX STANDARDS (STRICT):
 ORIGINAL QUESTION (USE AS REFERENCE FOR TOPIC ONLY):
 "${cleanQStrSource.substring(0, 800)}"
 
-DIFFICULTY LEVEL: ${question.level || "Medium"}
+DIFFICULTY LEVEL: ${anchorDifficulty || "Medium"}
 RANDOM SEED: ${Math.random().toString(36).substring(7)}
 
 OUTPUT FORMAT (JSON ONLY):
@@ -254,12 +407,16 @@ OUTPUT FORMAT (JSON ONLY):
     }
 
     // --- FINAL SANITIZATION ---
+    const normalizedOptions = Array.isArray(finalData.options || finalData.choices)
+      ? (finalData.options || finalData.choices).map((opt) => String(opt)).slice(0, 4)
+      : [];
+
     const sanitized = {
       question: finalData.question || finalData.questionText || finalData.text || "Question text missing",
-      options: finalData.options || finalData.choices || [],
+      options: normalizedOptions,
       correctAnswer: finalData.correctAnswer || finalData.answer || "",
       explanation: finalData.explanation || finalData.solution || "",
-      concept: finalData.concept || question.concept || ""
+      concept: topic
     };
 
     res.json(sanitized);
@@ -703,51 +860,6 @@ router.post('/personal-tutor', async (req, res) => {
   }
 });
 
-// 15. 24/7 AI Prep365 Chat - Exact KB Questions Only
-router.post('/prep365-chat', async (req, res) => {
-  try {
-    const { message, difficulty } = req.body;
-    const user = await getUserFromRequest(req);
-
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication required for 24/7 AI Prep365 Chat.' });
-    }
-
-    if (!message || !message.trim()) {
-      return res.status(400).json({ error: 'Message is required.' });
-    }
-
-    console.log(`📚 [Prep365 Chat] User: ${user.id} | Topic: "${message}" | Difficulty: ${difficulty || 'Mixed'}`);
-
-    // Import the search function
-    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
-    
-    // Search for exact KB questions
-    const questions = await searchExactKBQuestions(message, difficulty);
-    
-    if (questions.length === 0) {
-      return res.json({ 
-        reply: `❌ No questions found in Knowledge Base for topic: **"${message}"**${difficulty ? ` at **${difficulty}** difficulty` : ''}.\n\nPlease check:\n• Topic spelling matches KB file names\n• Try different difficulty level\n• Available topics in your Knowledge Base`,
-        questions: []
-      });
-    }
-
-    // Format response with exact KB content
-    const reply = formatKBQuestionsResponse(questions, message, difficulty);
-    
-    res.json({ 
-      reply,
-      questions,
-      topic: message,
-      difficulty: difficulty || 'Mixed',
-      source: 'Knowledge Base'
-    });
-
-  } catch (error) {
-    console.error('❌ [Prep365 Chat] Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Helper function to format KB questions response
 function formatKBQuestionsResponse(questions, topic, difficulty) {

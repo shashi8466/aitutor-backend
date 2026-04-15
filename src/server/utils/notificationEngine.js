@@ -32,7 +32,7 @@ export async function sendEmail({ to, subject, html, text }) {
         return { ok: false, error: 'BREVO_API_KEY not configured' };
     }
 
-    const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'notifications@gigatechservices.org';
+    const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'ssky57771@gmail.com';
     const senderName  = process.env.APP_NAME  || 'AIPrep365';
 
     const toList = Array.isArray(to)
@@ -163,8 +163,8 @@ export async function sendSMS({ to, message }) {
     if (!to) return { ok: false, error: 'No phone number' };
     const settings = await getInternalSettings();
     const smsConfig = settings?.sms_config || {};
-    let from = (smsConfig.enabled && smsConfig.from_number) ? smsConfig.from_number : process.env.TWILIO_PHONE_NUMBER;
-    if (!from) return { ok: false, error: 'TWILIO_PHONE_NUMBER missing' };
+    let from = (smsConfig.enabled && smsConfig.from_number) ? smsConfig.from_number : (process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
+    if (!from) return { ok: false, error: 'TWILIO_FROM_NUMBER missing' };
     return twilioSend({ from, to, body: message });
 }
 
@@ -172,7 +172,7 @@ export async function sendWhatsApp({ to, message }) {
     if (!to) return { ok: false, error: 'No phone number' };
     const settings = await getInternalSettings();
     const smsConfig = settings?.sms_config || {};
-    let fromRaw = (smsConfig.enabled && smsConfig.whatsapp_number) ? (smsConfig.whatsapp_number || smsConfig.from_number) : (process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER);
+    let fromRaw = (smsConfig.enabled && smsConfig.whatsapp_number) ? (smsConfig.whatsapp_number || smsConfig.from_number) : (process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
     if (!fromRaw) return { ok: false, error: 'TWILIO_WHATSAPP_NUMBER missing' };
     const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`;
     const toWA  = to.startsWith('whatsapp:')      ? to       : `whatsapp:${to}`;
@@ -183,7 +183,11 @@ export async function sendWhatsApp({ to, message }) {
 
 export async function sendNotification({ email, phone, subject, emailHtml, smsMessage, channels }) {
     const enabledChannels = channels || ['email', 'sms', 'whatsapp'];
-    const results = { email: { ok: true }, sms: { ok: true }, whatsapp: { ok: true } };
+    const results = { 
+        email: { ok: true, skipped: true }, 
+        sms: { ok: true, skipped: true }, 
+        whatsapp: { ok: true, skipped: true } 
+    };
     const tasks = [];
 
     if (enabledChannels.includes('email')) {
@@ -217,51 +221,46 @@ const BASE_STYLES = `
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #f0f4f8; color: #1a202c; -webkit-text-size-adjust: 100%; }
-    .wrapper { max-width: 600px; margin: 0 auto; width: 100%; padding: 20px 10px; }
-    .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 24px 20px; color: #fff; text-align: center; }
-    .header h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; line-height: 1.2; }
-    .header p  { font-size: 14px; opacity: 0.9; margin: 0; }
-    .body { padding: 24px; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #ffffff; line-height: 1.6; -webkit-text-size-adjust: 100%; }
+    .wrapper { max-width: 600px; margin: 0 auto; width: 100%; padding: 20px 15px; }
+    .card { background-color: #1e293b; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; border: 1px solid rgba(255,255,255,0.05); }
+    .header { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); padding: 40px 24px 30px; color: #ffffff; text-align: center; }
+    .header h1 { font-size: 30px; font-weight: 800; margin-bottom: 12px; line-height: 1.2; letter-spacing: -0.5px; color: #ffffff; }
+    .header p  { font-size: 16px; opacity: 0.95; margin: 0; font-weight: 500; color: #ffffff; }
+    .body { padding: 32px 24px; color: #ffffff; }
+    
+    .intro-text { color: #ffffff !important; font-size: 16px !important; line-height: 1.6 !important; margin-bottom: 24px !important; }
+    .intro-heading { color: #ffffff !important; font-size: 18px !important; font-weight: 700 !important; margin-bottom: 12px !important; display: block; }
     
     /* Responsive Score Grid (Fallback for email clients) */
-    .score-row { width: 100%; text-align: center; margin: 20px 0; }
-    .score-box { display: inline-block; width: 31%; min-width: 110px; background: #f7f9fc; border-radius: 10px; padding: 16px 8px; margin: 0 1% 10px; text-align: center; border: 1px solid #e2e8f0; vertical-align: top; box-sizing: border-box; }
-    
-    .score-box .val { font-size: 24px; font-weight: 800; color: #667eea; line-height: 1.2; }
-    .score-box .lbl { font-size: 12px; color: #718096; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-    
-    .section-title { font-size: 16px; font-weight: 700; color: #2d3748; margin: 24px 0 12px; text-align: left; }
+    .score-row { width: 100%; margin: 24px 0; text-align: center; }
+    .score-box { display: inline-block; width: 30%; min-width: 100px; background: rgba(255,255,255,0.03); border-radius: 16px; padding: 20px 10px; margin: 5px; text-align: center; border: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
+    .score-box .val { font-size: 26px; font-weight: 800; color: #818cf8; line-height: 1.1; }
+    .score-box .lbl { font-size: 11px; color: #94a3b8; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+    .section-title { font-size: 18px; font-weight: 700; color: #f8fafc; margin: 32px 0 16px; text-align: left; }
     
     /* Table styling */
-    .table-container { width: 100%; overflow-x: auto; margin-bottom: 16px; }
-    table { width: 100%; min-width: 400px; border-collapse: collapse; font-size: 13px; text-align: left; }
-    th { background: #f7f9fc; color: #4a5568; padding: 12px; font-weight: 700; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
-    td { padding: 12px; border-bottom: 1px solid #e2e8f0; color: #2d3748; }
-    tr:last-child td { border-bottom: none; }
-    
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .badge-green  { background: #c6f6d5; color: #22543d; }
-    .badge-yellow { background: #fefcbf; color: #744210; }
-    .badge-red    { background: #fed7d7; color: #742a2a; }
-    
-    .cta { display: block; max-width: 250px; margin: 25px auto 10px; background: #667eea; color: #ffffff; text-decoration: none; padding: 14px 20px; border-radius: 8px; font-size: 15px; font-weight: 700; text-align: center; }
-    
-    .footer { text-align: center; padding: 20px; font-size: 12px; color: #a0aec0; background: #f8fafc; border-top: 1px solid #e2e8f0; }
-    .tip-box, .reminder-box { border-radius: 8px; padding: 14px 16px; margin: 20px 0; font-size: 14px; line-height: 1.5; text-align: left; }
-    .tip-box { background: #ebf8ff; border-left: 4px solid #3182ce; color: #2c5282; }
-    .reminder-box { background: #fff5f5; border-left: 4px solid #fc8181; color: #742a2a; }
+    .table-container { width: 100%; overflow-x: auto; margin-bottom: 20px; border-radius: 12px; background: rgba(0,0,0,0.2); }
+    table { width: 100%; min-width: 450px; border-collapse: collapse; font-size: 14px; text-align: left; }
+    th { background: rgba(255,255,255,0.05); color: #94a3b8; padding: 14px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #e2e8f0; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .badge-green  { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+    .badge-yellow { background: rgba(234, 179, 8, 0.2); color: #facc15; }
+    .badge-red    { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .cta { display: block; max-width: 280px; margin: 32px auto 8px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff !important; text-decoration: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 700; text-align: center; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+    .footer { text-align: center; padding: 24px; font-size: 12px; color: #64748b; background: rgba(0,0,0,0.1); border-top: 1px solid rgba(255,255,255,0.05); }
+    .tip-box, .reminder-box { border-radius: 12px; padding: 16px 20px; margin: 24px 0; font-size: 14px; line-height: 1.6; }
+    .tip-box { background: rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6; color: #ffffff !important; }
+    .reminder-box { background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; color: #ffffff !important; }
 
-    /* Mobile specifically */
     @media only screen and (max-width: 480px) {
-      .wrapper { padding: 10px; }
-      .header { padding: 25px 15px 15px; }
-      .body { padding: 16px; }
-      .score-box { width: 47%; min-width: 47%; margin: 0 1% 10px; padding: 14px 8px; }
-      .score-box .val { font-size: 20px; }
-      .cta { width: 100%; max-width: 100%; margin-top: 20px; }
-      th, td { padding: 10px 8px; font-size: 12px; }
+      .body { padding: 24px 16px; }
+      .header h1 { font-size: 24px; }
+      .score-box { width: 46%; margin: 2%; padding: 16px 8px; }
+      .score-box .val { font-size: 22px; }
+      .cta { width: 100%; max-width: 100%; }
+      th, td { padding: 12px 8px; font-size: 13px; }
     }
   </style>`;
 
@@ -288,7 +287,7 @@ export function buildWeeklyReportEmail({ recipientName, studentName, submissions
       ? (appUrl ? `${appUrl}/parent/child/${submissions[0]?.user_id || ''}` : '#')
       : (appUrl ? `${appUrl}/student` : '#'));
 
-    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>📊 Weekly Progress Report</h1><p>${appName} • Week of ${new Date(weekStart).toLocaleDateString('en-IN', { dateStyle: 'medium' })} – ${new Date(weekEnd).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</p></div><div class="body"><p>Hello <strong>${recipientName || 'there'}</strong>,</p><p style="margin-top:8px;">Here is the weekly performance summary${isParent ? ` for <strong>${studentName}</strong>` : ''}.</p><div class="score-row"><div class="score-box"><div class="val">${totalTests}</div><div class="lbl">Tests Taken</div></div><div class="score-box"><div class="val">${avgScore}%</div><div class="lbl">Avg Score</div></div><div class="score-box"><div class="val">${bestScore}%</div><div class="lbl">Best Score</div></div></div>${totalTests > 0 ? `<p class="section-title">Test History This Week</p><div class="table-container"><table><thead><tr><th>Date</th><th>Course</th><th>Level</th><th>Score</th><th>Scaled</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="tip-box">📚 No tests were taken this week. Encourage regular practice for better outcomes!</div>'}${totalTests === 0 ? '' : `<div class="tip-box">🎯 Consistent practice is the key to improvement. Keep going!</div>`}<a class="cta" href="${finalDashboardUrl}">${isParent ? 'Open Parent Dashboard →' : 'Open Student Dashboard →'}</a></div><div class="footer">${appName} • Weekly reports are sent every Monday.</div></div></div></body></html>`;
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>📊 Weekly Progress Report</h1><p>${appName} • Week of ${new Date(weekStart).toLocaleDateString('en-IN', { dateStyle: 'medium' })} – ${new Date(weekEnd).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</p></div><div class="body"><p>Hello <strong>${recipientName || 'there'}</strong>,</p><p style="margin-top:8px;">Here is the weekly performance summary${isParent ? ` for <strong>${studentName}</strong>` : ''}.</p><div class="score-row"><div class="score-box"><div class="val">${totalTests}</div><div class="lbl">Tests Taken</div></div><div class="score-box"><div class="val">${avgScore}%</div><div class="lbl">Avg Score</div></div><div class="score-box"><div class="val">${bestScore}%</div><div class="lbl">Best Score</div></div></div>${totalTests > 0 ? `<p class="section-title">Test History This Week</p><div class="table-container"><table><thead><tr><th>Date</th><th>Course</th><th>Level</th><th>Score</th><th>Scaled</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="tip-box">📚 No tests were taken this week. Encourage regular practice for better outcomes!</div>'}${totalTests === 0 ? '' : `<div class="tip-box">🎯 Consistent practice is the key to improvement. Keep going!</div>`}<a class="cta" href="${finalDashboardUrl}">${isParent ? 'Open Parent Dashboard →' : 'Open Student Dashboard →'}</a></div><div class="footer">${appName} • Weekly reports are sent every Saturday.</div></div></div></body></html>`;
 }
 
 export function buildDueDateReminderEmail({ recipientName, studentName, dueItems, appUrl, isParent, reportUrl }) {
@@ -309,6 +308,165 @@ export function buildWelcomeEmail({ name, appUrl }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const finalUrl = appUrl || '#';
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>Welcome to ${appName} 🎉</h1><p>Your journey starts here!</p></div><div class="body"><p>Hi <strong>${name || 'Student'}</strong>,</p><p style="margin-top:15px; font-size: 16px; line-height: 1.6;">You have successfully registered on ${appName} platform. Start learning and improve your skills 🚀</p><div class="tip-box">📚 Explore your dashboard to find assigned courses and start your first test.</div><a class="cta" href="${finalUrl}">Start Learning Now →</a><p style="margin-top:20px; font-size: 14px; color: #4a5568;">Thanks,<br><strong>AIPrep365 Team</strong></p></div><div class="footer">${appName} • Thank you for joining our community.</div></div></div></body></html>`;
+}
+
+export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetails }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const allLevels = scoreDetails?.allLevels || {};
+    const isComprehensive = scoreDetails?.comprehensive && (allLevels.easy || allLevels.medium || allLevels.hard);
+    
+    // Always prefer comprehensive data for final prediction
+    const finalPredictedScore = scoreDetails?.comprehensive?.finalPredictedScore || scoreDetails?.scaledScore || 0;
+    const overallAccuracy = scoreDetails?.comprehensive?.overallAccuracy || Math.round(scoreDetails?.currentLevelPercentage || scoreDetails?.percentage || 0);
+    const totalQuestions = scoreDetails?.comprehensive?.totalQuestions || scoreDetails?.totalQuestions || 0;
+    const totalCorrect = scoreDetails?.comprehensive?.totalCorrect || scoreDetails?.correctCount || 0;
+    
+    const performance = finalPredictedScore >= 700 ? 'Expert' : finalPredictedScore >= 550 ? 'Strong' : finalPredictedScore >= 400 ? 'Developing' : 'Starting Out';
+    const badge = finalPredictedScore >= 700 ? 'badge-green' : finalPredictedScore >= 550 ? 'badge-blue' : 'badge-yellow';
+
+    // Helper function to get detailed level score display
+    const getLevelDisplay = (levelData) => {
+        if (!levelData) return '<div class="score-box"><div class="val">—</div><div class="lbl">Not Completed</div></div>';
+        
+        const accuracy = Math.round((levelData.correctCount || 0) / (levelData.totalQuestions || 1) * 100);
+        return `
+            <div class="score-box">
+                <div class="val">${levelData.scaledScore || '—'}</div>
+                <div class="lbl">${Math.round(accuracy)}%</div>
+                <div class="lbl">${levelData.correctCount || 0}/${levelData.totalQuestions || 0}</div>
+            </div>
+        `;
+    };
+
+    // Helper function to get detailed level row display
+    const getLevelRow = (levelName, levelData) => {
+        if (!levelData) return `<div style="margin-bottom: 15px;"><strong>${levelName.toUpperCase()}:</strong> Not Completed</div>`;
+        
+        const accuracy = Math.round((levelData.correctCount || 0) / (levelData.totalQuestions || 1) * 100);
+        return `
+            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px; font-size: 16px;">
+                <strong style="min-width: 80px;">${levelName.toUpperCase()}:</strong>
+                <span style="font-weight: 600; color: #818cf8; font-size: 18px;">${levelData.scaledScore || '---'}</span>
+                <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
+                <span style="color: #64748b;">| ${levelData.correctCount || 0}/${levelData.totalQuestions || 0}</span>
+            </div>
+        `;
+    };
+
+    return `
+    <!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body>
+    <div class="wrapper"><div class="card">
+        <div class="header">
+            <h1>🎓 Final Predicted Score</h1>
+            <p>${courseName || 'SAT Practice'} • Full Demo Completed</p>
+        </div>
+        <div class="body">
+            <p class="intro-heading">Hello ${studentName || 'Student'},</p>
+            <p class="intro-text">
+                Congratulations! You have completed the intensive 3-stage demo for <strong>${courseName}</strong>. Based on your performance across all levels, here is your comprehensive final report:
+            </p>
+            
+            <!-- Individual Level Results -->
+            <p class="section-title">Performance by Level</p>
+            <div style="margin-bottom: 30px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px;">
+                ${getLevelRow('Easy', allLevels.easy)}
+                ${getLevelRow('Medium', allLevels.medium)}
+                ${getLevelRow('Hard', allLevels.hard)}
+            </div>
+
+            <!-- Overall Results -->
+            <p class="section-title">Overall Performance</p>
+            <div class="score-row">
+                <div class="score-box" style="flex: 2;"><div class="val" style="font-size: 32px; color: #E53935;">${finalPredictedScore}</div><div class="lbl">Final Combined SAT Score</div></div>
+                <div class="score-box"><div class="val">${overallAccuracy}%</div><div class="lbl">Accuracy</div></div>
+                <div class="score-box"><div class="val">${totalCorrect}/${totalQuestions}</div><div class="lbl">Questions</div></div>
+            </div>
+
+            <div class="tip-box">
+                <strong>Status: ${performance}</strong><br/>
+                Our engine analyzed your consistency and adaptive responses to calculate this final prediction. You are ready for the real test!
+            </div>
+
+            <p class="section-title">Unlock Your Potential</p>
+            <p style="font-size: 16px; color: #ffffff !important; margin-bottom: 24px; line-height: 1.6;">
+                The full AIPrep365 experience includes 5000+ practice questions, 15 full-length mock tests, and our signature <strong>Genius AI Tutor</strong> that explains every mistake in real-time.
+            </p>
+
+            <a class="cta" href="${process.env.FRONTEND_URL || 'https://aiprep365.com'}">Get Full Unlimited Access →</a>
+        </div>
+        <div class="footer">${appName} • The Ultimate AI-Powered Test Prep Platform</div>
+    </div></div></body></html>`;
+}
+
+export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName, level, scoreDetails, submittedAt }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const allLevels = scoreDetails?.allLevels || {};
+    const isComprehensive = scoreDetails?.comprehensive && (allLevels.easy || allLevels.medium || allLevels.hard);
+    
+    const finalPredictedScore = scoreDetails?.comprehensive?.finalPredictedScore || scoreDetails?.scaledScore || 0;
+    const overallAccuracy = scoreDetails?.comprehensive?.overallAccuracy || Math.round(scoreDetails?.percentage || 0);
+    
+    // Helper function for level display
+    const getLevelRow = (levelName, levelData) => {
+        if (!levelData) return `<div style="margin-bottom: 10px;"><strong>${levelName.toUpperCase()}:</strong> Not Completed</div>`;
+        
+        const accuracy = Math.round((levelData.correctCount || 0) / (levelData.totalQuestions || 1) * 100);
+        return `
+            <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <strong style="min-width: 70px;">${levelName.toUpperCase()}:</strong>
+                <span style="font-weight: 600; color: #818cf8;">${levelData.scaledScore || '---'}</span>
+                <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
+                <span style="color: #64748b;">| ${levelData.correctCount || 0}/${levelData.totalQuestions || 0}</span>
+            </div>
+        `;
+    };
+
+    const demoResultsHtml = isComprehensive ? `
+        <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 15px; margin: 15px 0;">
+            ${getLevelRow('Easy', allLevels.easy)}
+            ${getLevelRow('Medium', allLevels.medium)}
+            ${getLevelRow('Hard', allLevels.hard)}
+        </div>
+        <div style="margin: 15px 0;">
+            <strong>Final Predicted Score:</strong> <span style="color: #E53935; font-size: 18px; font-weight: 600;">${finalPredictedScore}</span>
+        </div>
+    ` : ``;
+
+    return `
+    <!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body>
+    <div class="wrapper"><div class="card">
+        <div class="header">
+            <h1>NEW DEMO LEAD</h1>
+            <p>${appName} ${courseName || 'Demo Course'} Submission</p>
+        </div>
+        <div class="body">
+            <p class="intro-heading">NEW LEAD: ${fullName}</p>
+            <p class="intro-text" style="color: #ffffff !important; font-size: 16px !important; margin-bottom: 24px;">A new user has completed the demo test and submitted their details:</p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr><td style="padding: 8px 0; font-weight: 700; width: 140px;">Full Name:</td><td>${fullName || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Grade:</td><td>${grade || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Email:</td><td><a href="mailto:${email}" style="color: #667eea; text-decoration: none;">${email || 'N/A'}</a></td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Phone:</td><td>${phone || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Course:</td><td>${courseName || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Level:</td><td>${level || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Submitted:</td><td>${new Date(submittedAt || Date.now()).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>
+            </table>
+
+            <div class="section-title">Demo Results Summary</div>
+            ${demoResultsHtml}
+            
+            <div class="tip-box">
+                <strong>Next Steps:</strong><br/>
+                1. Contact the user within 24 hours<br/>
+                2. Provide personalized feedback on their performance<br/>
+                3. Offer full course enrollment based on their results
+            </div>
+            
+            <a class="cta" href="mailto:${email}?subject=Your AIPrep365 Demo Results & Next Steps">Contact User Now</a>
+        </div>
+        <div class="footer">${appName} · New lead notification sent automatically</div>
+    </div></div></body></html>`;
 }
 
 export function buildContactSubmissionEmail({ name, email, mobile, subject, type, message, appName, additionalDetailsHtml }) {

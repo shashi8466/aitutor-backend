@@ -227,6 +227,16 @@ const KnowledgeBase = () => {
                               </div>
                             )}
 
+                            {/* Metadata / Tags */}
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[10px] font-bold border border-blue-100 uppercase tracking-wider">
+                                {q.topic || 'No Topic'}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${getLevelBadge(q.level || selectedUpload.level)}`}>
+                                {q.level || selectedUpload.level}
+                              </span>
+                            </div>
+
                             {/* Short Answer / Explanation */}
                             <div className="flex flex-wrap gap-4 mt-2 text-xs">
                               {q.type !== 'mcq' && (

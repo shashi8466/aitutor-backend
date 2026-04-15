@@ -42,30 +42,63 @@ async function getPreferences(profileId) {
 async function getProfile(profileId) {
   const { data } = await supabase
     .from('profiles')
-    .select('id, name, email, mobile, father_name, father_mobile, role')
+    .select('id, name, email, mobile, father_name, father_mobile, role, notification_preferences, phone_number, whatsapp_number')
     .eq('id', profileId)
     .single();
   return data;
 }
 
-function channelsFromPrefs(prefs, channelsRequested, eventType) {
+function channelsFromPrefs(prefs, channelsRequested, eventType, profile = null) {
   const requested = normalizeChannels(channelsRequested);
-  if (!prefs) return requested;
+  
+  // Merge profile.notification_preferences (JSONB) into prefs if available
+  const profilePrefs = profile?.notification_preferences || {};
+  
+  // FIXED: Prioritize profilePrefs (UI toggle) over legacy table. 
+  // If explicitly set to false in the profile, it stays false even if the table says true.
+  // CRITICAL: We treat null/undefined in profilePrefs as 'not set', allowing fallback.
+  // But if the UI shows 'OFF', it should ideally be explicitly 'false'.
+  const isEmailEnabled = (profilePrefs.email ?? prefs?.email_enabled ?? true) !== false;
+  const isSmsEnabled = (profilePrefs.sms ?? prefs?.sms_enabled ?? true) !== false; // DEFAULT TO TRUE for required SMS
+  const isWhatsappEnabled = (profilePrefs.whatsapp ?? prefs?.whatsapp_enabled ?? false) !== false;
 
-  // Canonical columns from `notification_preferences` (see migration)
+  // Eligibility check: IF user is inactive/suspended, no notifications go out.
+  const status = (profile?.status || 'active').toLowerCase();
+  if (status === 'inactive' || status === 'suspended') {
+    return [];
+  }
+
+  // FIXED: Event-level toggles should also be strict.
+  // Previous bug: !== false meant undefined was allowed.
+  // We prioritize profilePrefs (e.g. testCompletion) over legacy prefs.
+  const testCompEnabled = (profilePrefs.testCompletion ?? prefs?.test_completed_enabled ?? true) !== false;
+  const weeklyRepEnabled = (profilePrefs.weeklyProgress ?? prefs?.weekly_report_enabled ?? true) !== false;
+  const dueDateEnabled = (profilePrefs.testDueDate ?? prefs?.due_date_enabled ?? true) !== false;
+
   const allowEvent =
     (eventType === 'WELCOME_EMAIL') ||
     (eventType === 'CONTACT_SUBMISSION') ||
-    (eventType === 'TEST_COMPLETED' && (prefs.test_completed_enabled !== false)) ||
-    (eventType === 'WEEKLY_REPORT' && (prefs.weekly_report_enabled !== false)) ||
-    (eventType === 'DUE_DATE_REMINDER' && (prefs.due_date_enabled !== false));
+    (eventType === 'TEST_COMPLETED' && testCompEnabled) ||
+    (eventType === 'WEEKLY_REPORT' && weeklyRepEnabled) ||
+    (eventType === 'DUE_DATE_REMINDER' && dueDateEnabled);
 
-  if (!allowEvent) return [];
+  if (!allowEvent) {
+    console.log(`ℹ️ [NotificationOutbox] Blocked Event: ${profile?.email} | Event: ${eventType} | Student/Parent Toggles: testCompletion=${testCompEnabled}, weekly=${weeklyRepEnabled}, due=${dueDateEnabled}`);
+    return [];
+  }
 
   const enabled = [];
-  if (requested.includes('email') && (prefs.email_enabled !== false)) enabled.push('email');
-  if (requested.includes('sms') && (prefs.sms_enabled !== false)) enabled.push('sms');
-  if (requested.includes('whatsapp') && (prefs.whatsapp_enabled !== false)) enabled.push('whatsapp');
+  if (requested.includes('email') && isEmailEnabled) enabled.push('email');
+  if (requested.includes('sms') && isSmsEnabled) enabled.push('sms');
+  if (requested.includes('whatsapp') && isWhatsappEnabled) enabled.push('whatsapp');
+  
+  console.log(`🔍 [NotificationOutbox] Final Preference Check: ${profile?.email} | Event: ${eventType} | Requested: [${requested}] | Enabled: [${enabled}] | profilePrefs: ${JSON.stringify(profilePrefs)} | tablePrefs: ${JSON.stringify(prefs || {})}`);
+
+  if (enabled.length < requested.length) {
+    const reason = !allowEvent ? 'event_type_disabled' : 'channel_disabled';
+    console.log(`ℹ️ [NotificationOutbox] Preference Filter: ${profile?.email} | Requested: [${requested}] | Enabled: [${enabled}] | reason: ${reason}`);
+  }
+
   return enabled;
 }
 
@@ -129,7 +162,8 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     });
     const smsMessage =
       `${appName}: ${payload.studentName || 'Student'} completed ${payload.courseName || 'a test'} (${payload.level || ''}). ` +
-      `Score: ${Math.round(payload.rawPercentage || 0)}% | Scaled: ${payload.scaledScore || 'N/A'}.`;
+      `Status: Completed | Score: ${Math.round(payload.rawPercentage || 0)}% | Scaled: ${payload.scaledScore || 'N/A'} | ` +
+      `Time: ${new Date(payload.testDate || Date.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}.`;
     return { subject, emailHtml, smsMessage };
   }
 
@@ -159,8 +193,9 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
       reportUrl: finalUrl
     });
     const smsMessage =
-      `${appName}: Weekly report${isParent ? ` for ${payload.studentName}` : ''}. ` +
-      `Tests: ${payload.totalTests || 0}, Avg: ${payload.avgScore || 0}%, Best: ${payload.bestScore || 0}%.`;
+      `${appName}: Weekly Progress Summary${isParent ? ` for ${payload.studentName}` : ''}. ` +
+      `Total Tests: ${payload.totalTests || 0} | Avg Score: ${payload.avgScore || 0}% | Best: ${payload.bestScore || 0}%. ` +
+      `Keep up the great work!`;
     return { subject, emailHtml, smsMessage };
   }
 
@@ -188,8 +223,9 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     });
     const first = (payload.dueItems || [])[0];
     const smsMessage =
-      `${appName}: Upcoming test due dates${isParent ? ` for ${payload.studentName}` : ''}. ` +
-      (first ? `Next: ${first.course_name || 'Course'} due ${new Date(first.due_date).toLocaleDateString()}.` : '');
+      `${appName}: Upcoming test reminder${isParent ? ` for ${payload.studentName}` : ''}. ` +
+      (first ? `${first.course_name || 'Course'} is due on ${new Date(first.due_date).toLocaleDateString()}. ` : '') +
+      `Please complete the test on time to stay on track!`;
     return { subject, emailHtml, smsMessage };
   }
 
@@ -342,7 +378,7 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       const recipientProfile = recipientProfileId ? await getProfile(recipientProfileId) : null;
       const prefs = recipientProfileId ? await getPreferences(recipientProfileId) : null;
 
-      const enabledChannels = channelsFromPrefs(prefs, item.channels, item.event_type);
+      const enabledChannels = channelsFromPrefs(prefs, item.channels, item.event_type, recipientProfile);
       if (!enabledChannels.length) {
         await supabase
           .from('notification_outbox')
@@ -374,6 +410,10 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       if (enabledChannels.includes('email') && recipientEmails.length > 0) actualChannels.push('email');
       if (enabledChannels.includes('sms') && (phone || whatsappPhone)) actualChannels.push('sms');
       if (enabledChannels.includes('whatsapp') && (phone || whatsappPhone)) actualChannels.push('whatsapp');
+
+      if (actualChannels.length < enabledChannels.length) {
+         console.log(`ℹ️ [Outbox] Channel Missing Info: ${recipientProfile?.email} | Enabled: [${enabledChannels}] | Valid: [${actualChannels}]`);
+      }
 
       if (actualChannels.length === 0) {
         console.warn(`⚠️ [Outbox] No valid contact methods for ${item.event_type} → ${item.recipient_profile_id}. Marking sent.`);

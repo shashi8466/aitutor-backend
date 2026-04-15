@@ -61,10 +61,15 @@ router.post('/run-weekly', async (req, res) => {
   try {
     if (!requireCronSecret(req, res)) return;
 
-    // Default: last 7 days
+    // Default: last 7 days from the current moment
     const now = new Date();
-    const weekEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const weekStart = new Date(weekEnd.getTime() - 7 * 86400000);
+    console.log(`📡 [WeeklyReport] Generating reports at ${now.toISOString()}`);
+    
+    // Use the current time as weekEnd to include everything until now
+    const weekEnd = now;
+    const weekStart = new Date(now.getTime() - 7 * 86400000);
+    
+    console.log(`🔍 [WeeklyReport] Period: ${weekStart.toISOString()} to ${weekEnd.toISOString()}`);
 
     // Fetch students and all parents to resolve linking
     const [{ data: students }, { data: allParents }] = await Promise.all([

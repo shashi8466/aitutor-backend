@@ -112,6 +112,12 @@ const AdminProtectedRoute = ({ children }) => {
     return <Navigate to={`/login?redirect=${returnUrl}`} />;
   }
 
+  // Account status check - ALL protected routes require an ACTIVE status
+  if (user.status === 'pending') {
+    console.warn(`⏳ [AdminProtectedRoute] Approval pending for admin ${user.email}. Redirecting to login.`);
+    return <Navigate to="/login" replace />;
+  }
+
   // Check admin role
   if (!isAdmin) {
     console.warn('🚨 [AdminProtectedRoute] User is not admin - redirecting');

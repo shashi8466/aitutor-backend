@@ -1,8 +1,8 @@
 /* Custom styles for the educational platform */
 .app-container {
   min-height: 100vh;
-  /* Removed old gradient, keeping clean white/gray for new theme */
-  background-color: #FAFAFA;
+  /* Consistently dark theme for the entire app */
+  background-color: #020617;
 }
 
 /* Quiz interface animations */
@@ -25,20 +25,20 @@
   transition: transform 300ms ease-in, opacity 300ms ease-in;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - Dark Mode */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #0f172a;
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: #334155;
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #475569;
 }
 
 /* Loading animation */
@@ -74,7 +74,7 @@
 }
 .card-hover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
 }
 
 /* Math Content Styling */
@@ -88,7 +88,7 @@
 
 .math-content b {
   font-weight: 700;
-  color: #1f2937; /* Dark gray for headers */
+  color: #f1f5f9; /* Light color for headers in dark mode */
 }
 
 /* Progress bar animation */

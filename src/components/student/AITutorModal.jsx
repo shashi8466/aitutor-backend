@@ -180,48 +180,41 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
         const questionPayload = {
           question: question.question,
           level: question.level || "Medium",
-          concept: question.concept || ""
+          concept: question.concept || question.topic || "",
+          topic: question.topic || question.concept || ""
         };
 
         const previousQuestions = chatMessages
-          .filter(m => m.isQuestion && m.questionData)
-          .map(m => m.questionData.question);
+          .filter(m => (m.isQuestion && m.questionData) || m.questions)
+          .map(m => {
+            if (m.questionData) return m.questionData.question;
+            if (m.questions) return m.questions.map(q => q.question || q.text).join(' | ');
+            return "";
+          });
 
-        // Use strict KB search with exact topic name from original question
-        // Priority: 1) question.topic (exact KB topic), 2) question.concept, 3) fallback
-        const exactTopic = question.topic || questionPayload.concept || question.concept || "this topic";
-        console.log('🔍 [AI Tutor] Searching KB with topic:', exactTopic, 'Level:', questionPayload.level || 'Medium');
+        console.log('🎯 [AI Tutor] Generating NEW question via OpenAI with KB reference...');
         
-        const response = await aiService.prep365Chat(
-          exactTopic,
-          questionPayload.level || 'Medium'
+        const response = await aiService.generateSimilarQuestion(
+          questionPayload,
+          previousQuestions
         );
         
-        console.log('📊 [AI Tutor] KB Response:', response?.data?.questions?.length || 0, 'questions found');
-
-        if (!response || !response.data) {
-          throw new Error("Empty response from AI service");
+        const newQuestion = response.data;
+        if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
+          throw new Error("AI failed to generate a valid question");
         }
 
-        // Handle KB response format (questions array)
-        const kbQuestions = response.data.questions || [];
-        if (kbQuestions.length === 0) {
-          throw new Error("No similar questions found in Knowledge Base");
-        }
-
-        const newQuestion = kbQuestions[0]; // Take the first similar question
-
-        // Map KB response format to expected format
+        // Map AI response format to expected format
         const mappedQuestion = {
-          id: newQuestion.id,
-          question: newQuestion.text, // KB uses 'text' field
+          id: newQuestion.id || Date.now(),
+          question: newQuestion.question || newQuestion.text,
           options: newQuestion.options || [],
           correctAnswer: newQuestion.correctAnswer,
           explanation: newQuestion.explanation || '',
-          concept: newQuestion.topic || newQuestion.concept || 'this topic',
+          concept: newQuestion.topic || newQuestion.concept || questionPayload.concept || 'this topic',
           level: questionPayload.level,
           topic: newQuestion.topic,
-          source: newQuestion.source
+          source: 'AI-Generated (KB Style)'
         };
 
         setChatMessages(prev => [
@@ -229,7 +222,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           {
             id: Date.now() + 1,
             sender: 'ai',
-            text: `Here is a similar ${questionPayload.level} level question on ${mappedQuestion.concept}.`,
+            text: `I've generated a new ${questionPayload.level} level practice question for you on **${mappedQuestion.concept}**.`,
             isQuestion: true,
             questionData: mappedQuestion
           }
@@ -273,17 +266,92 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
     setLoading(true);
 
     try {
-      const response = await aiService.chatWithContent(
-        currentInput,
-        `Question: ${question?.question || ''}\nCorrect: ${correctAnswer || ''}`,
-        chatMessages
-      );
+      // Extract question count from user message with improved pattern matching
+      const countPatterns = [
+        /(\d+)\s+(?:questions?|problems?|items?|exercises?)/i,
+        /(?:give me|quiz me|want|need)\s+(\d+)/i,
+        /(\d+)\s*[-–—]\s*question/i,
+      ];
+      
+      let requestedCount = 5; // Default
+      for (const pattern of countPatterns) {
+        const match = currentInput.match(pattern);
+        if (match && match[1]) {
+          const val = parseInt(match[1]);
+          if (!isNaN(val) && val > 0) {
+            requestedCount = Math.min(val, 50); // Cap at 50 for performance
+            console.log(`[AI Tutor] Extracted count: ${requestedCount} from "${currentInput}"`);
+            break;
+          }
+        }
+      }
+      
+      // Check if user is asking for practice/questions
+      const isQuestionRequest = currentInput.toLowerCase().includes('question') || 
+                               currentInput.toLowerCase().includes('practice') ||
+                               currentInput.toLowerCase().includes('quiz') ||
+                               currentInput.toLowerCase().includes('give me');
 
-      setChatMessages(prev => [
-        ...prev,
-        { id: Date.now() + 1, sender: 'ai', text: response.data?.reply || "I couldn't understand that." }
-      ]);
+      if (isQuestionRequest) {
+        // Use AI generation with KB reference for question requests
+        const topic = question?.topic || question?.concept || "this topic";
+        console.log(`🎯 [AI Tutor] Manual question request for topic: "${topic}"`);
+        
+        const response = await aiService.generateSimilarQuestion(
+          {
+            question: question?.question || "",
+            level: question?.level || "Medium",
+            concept: topic,
+            topic
+          },
+          chatMessages.filter(m => m.isQuestion).map(m => m.questionData?.question || "")
+        );
+
+        const newQuestion = response.data;
+        if (newQuestion && (newQuestion.question || newQuestion.text)) {
+          const mappedQuestion = {
+            id: newQuestion.id || Date.now(),
+            question: newQuestion.question || newQuestion.text,
+            options: newQuestion.options || [],
+            correctAnswer: newQuestion.correctAnswer,
+            explanation: newQuestion.explanation || '',
+            concept: newQuestion.topic || newQuestion.concept || topic,
+            level: question?.level || 'Medium',
+            topic: newQuestion.topic,
+            source: 'AI-Generated (KB Style)'
+          };
+          
+          setChatMessages(prev => [
+            ...prev,
+            { 
+              id: Date.now() + 1, 
+              sender: 'ai', 
+              text: `Here is a fresh practice question on **${mappedQuestion.concept}**:`,
+              isQuestion: true,
+              questionData: mappedQuestion
+            }
+          ]);
+        } else {
+          setChatMessages(prev => [
+            ...prev,
+            { id: Date.now() + 1, sender: 'ai', text: "I tried to generate a question but something went wrong. Could you please try again?" }
+          ]);
+        }
+      } else {
+        // Use regular chat for other requests
+        const response = await aiService.chatWithContent(
+          currentInput,
+          `Original Question: ${question?.question || ''}\nCorrect Answer: ${correctAnswer || ''}\nStudent Answered: ${userAnswer || ''}`,
+          chatMessages
+        );
+
+        setChatMessages(prev => [
+          ...prev,
+          { id: Date.now() + 1, sender: 'ai', text: response.data?.reply || "I'm analyzing that..." }
+        ]);
+      }
     } catch (err) {
+      console.error("AI Chat Error:", err);
       setChatMessages(prev => [
         ...prev,
         { id: Date.now(), sender: 'ai', text: "Service unavailable. Please check your connection." }
@@ -294,19 +362,29 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden border border-gray-800 dark:border-gray-700">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-black bg-opacity-80 flex items-end md:items-center justify-center p-0 md:p-4 z-50 backdrop-blur-sm">
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-900 rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-4xl h-[100dvh] md:h-[85vh] flex flex-col overflow-hidden border border-gray-800 dark:border-gray-700 mobile-safe">
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#E53935] to-[#FF5722] p-4 flex justify-between items-center text-white shadow-md z-10">
+        <div className="bg-white/80 dark:bg-black/40 backdrop-blur-md p-3 md:p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-800 shadow-sm z-10">
           <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-2 rounded-lg"><SafeIcon icon={FiCpu} className="w-5 h-5" /></div>
+            <div className="bg-gradient-to-br from-[#E53935] to-[#FF5722] p-2.5 rounded-xl shadow-lg shadow-red-500/20">
+              <SafeIcon icon={FiCpu} className="w-5 h-5 text-white" />
+            </div>
             <div>
-              <h3 className="font-bold text-lg">AI Tutor</h3>
-              <p className="text-red-100 text-xs font-medium">Personal Assistant • {question?.level || 'Medium'} Level</p>
+              <h3 className="font-black text-base md:text-lg text-slate-900 dark:text-white tracking-tight">AI Tutor Assistant</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                Precision Mode • {question?.level || 'Medium'} Level
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors"><SafeIcon icon={FiX} className="w-6 h-6" /></button>
+          <button 
+            onClick={onClose} 
+            className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-all active:scale-90"
+          >
+            <SafeIcon icon={FiX} className="w-6 h-6 text-slate-400 dark:text-slate-500" />
+          </button>
         </div>
 
         <div className="flex-1 flex overflow-hidden">
@@ -332,7 +410,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
 
           {/* Right Panel (Chat) */}
           <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-white dark:bg-gray-900">
+            <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 bg-white dark:bg-gray-900">
               {chatMessages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`flex gap-3 max-w-[95%] md:max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -346,6 +424,50 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
 
                       {msg.isQuestion && msg.questionData && (
                         <AIQuestionCard data={msg.questionData} onComplete={handleAction} />
+                      )}
+
+                      {msg.questions && Array.isArray(msg.questions) && (
+                        <div className="mt-4 space-y-3">
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                            Found {msg.questions.length} questions from Knowledge Base:
+                          </p>
+                          {msg.questions.map((q, index) => (
+                            <div key={q.id || index} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="bg-black text-white text-xs font-bold px-2 py-1 rounded">
+                                  Q{index + 1}
+                                </span>
+                                {q.topic && (
+                                  <span className="bg-red-50 text-red-700 text-xs font-bold px-2 py-1 rounded border border-red-100">
+                                    {q.topic}
+                                  </span>
+                                )}
+                                {q.difficulty && (
+                                  <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded border border-blue-100">
+                                    {q.difficulty}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="font-medium text-sm mb-2">
+                                <MathRenderer text={q.text || q.question} />
+                              </div>
+                              {q.options && Array.isArray(q.options) && q.options.length > 0 && (
+                                <div className="space-y-1">
+                                  {q.options.map((opt, i) => (
+                                    <div key={i} className="text-sm text-gray-600 dark:text-gray-400">
+                                      {String.fromCharCode(65 + i)}. {opt}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {q.correctAnswer && (
+                                <div className="mt-2 text-sm font-medium text-green-600 dark:text-green-400">
+                                  Correct: {q.correctAnswer}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       )}
 
                       {msg.options && (
@@ -376,7 +498,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+            <div className="p-3 md:p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
               <div className="flex gap-2 relative">
                 <input
                   type="text"

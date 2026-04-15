@@ -23,7 +23,7 @@ const Toast = ({ message, type = 'success', onClose, duration = 4000 }) => {
           initial={{ opacity: 0, y: 50, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.9 }}
-          className="fixed bottom-6 right-6 z-50 flex items-start gap-3 p-4 rounded-xl shadow-2xl min-w-[300px] max-w-md backdrop-blur-md border border-white/10"
+          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 flex items-start gap-3 p-4 rounded-xl shadow-2xl sm:min-w-[300px] max-w-md backdrop-blur-md border border-white/10"
           style={{
             backgroundColor: type === 'error' ? 'rgba(239, 68, 68, 0.95)' : 'rgba(16, 185, 129, 0.95)',
             color: 'white'

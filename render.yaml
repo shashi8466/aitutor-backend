@@ -13,9 +13,9 @@ services:
       - key: BREVO_API_KEY
         value: SET_IN_RENDER_DASHBOARD
       - key: EMAIL_FROM
-        value: notifications@gigatechservices.org
+        value: ssky57771@gmail.com
       - key: ADMIN_EMAIL
-        value: notifications@gigatechservices.org
+        value: ssky57771@gmail.com
       - key: APP_NAME
         value: AIPrep365
       - key: APP_URL

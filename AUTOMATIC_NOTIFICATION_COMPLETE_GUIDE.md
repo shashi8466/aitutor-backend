@@ -26,7 +26,7 @@ Your educational platform has a **fully implemented automatic notification and r
 ---
 
 ### 2. **Weekly Progress Reports** ✅
-**Trigger:** Every Monday at 9:00 AM (automatic cron job)
+**Trigger:** Every Saturday at 6:00 PM IST (automatic cron job)
 
 **Sends to Student:**
 - 📧 Email with weekly performance summary
@@ -155,7 +155,7 @@ Follow the **[POST_DEPLOYMENT_TESTING_GUIDE.md](file://c:\Users\user\Downloads\-
 5. Check all channels for both student and parent
 
 **Option B - Wait for Cron:**
-1. Wait until Monday 9:00 AM
+1. Wait until Saturday 6:00 PM
 2. System sends automatically
 3. Check inboxes
 
@@ -225,7 +225,7 @@ Before testing, verify:
 💬 WhatsApp: Rich HTML report
 ```
 
-### After Weekly Report (Monday 9 AM):
+### After Weekly Report (Saturday 6 PM):
 
 **Student receives:**
 ```
@@ -428,7 +428,7 @@ Your automatic notification system is **fully functional and production-ready**!
 | Event | Who Gets Notified | Channels | Timing |
 |-------|------------------|----------|--------|
 | Test Completed | Student + Parents | Email, SMS, WhatsApp | 1-2 min |
-| Weekly Report | Student + Parents | Email, SMS, WhatsApp | Mon 9 AM |
+| Weekly Report | Student + Parents | Email, SMS, WhatsApp | Sat 6 PM |
 | Due Date Reminder | Student + Parents | Email, SMS | 24h before |
 | Course Completed | Student + Parents | Email, SMS, WhatsApp | Instant |
 

@@ -280,36 +280,137 @@ const AIPrep365LandingPage = () => {
         </div>
       </section>
 
-      <section id="pricing" className="scroll-mt-32 py-12 md:py-16">
-        <div className="mx-auto max-w-[1500px] px-6 md:px-10">
-          <div className="text-center mb-10 md:mb-12">
-            <p className="text-[10px] md:text-sm font-black uppercase tracking-[0.4em] text-sky-500 mb-4">Plans</p>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight uppercase">Choose your prep path</h2>
+      <section id="pricing" className="scroll-mt-32 py-20 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-sky-500/5 rounded-full blur-[120px] pointer-events-none" />
+        
+        <div className="mx-auto max-w-[1500px] px-6 md:px-10 relative z-10">
+          <div className="text-center mb-16">
+            <motion.p 
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-xs md:text-sm font-black uppercase tracking-[0.4em] text-sky-500 mb-4"
+            >
+              Support Plans
+            </motion.p>
+            <motion.h2 
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-3xl md:text-5xl font-black text-white tracking-tight uppercase"
+            >
+              Choose your prep path
+            </motion.h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { name: 'Starter', price: '49', features: ["AI practice access", "Daily study plan", "Basic progress tracking"] },
-              { name: 'Pro', price: '99', features: ["Everything in Starter", "Advanced analytics", "Targeted weak-area drills"], popular: true },
-              { name: 'Elite', price: '199', features: ["Everything in Pro", "Priority support", "Parent progress summaries"] }
-            ].map((plan) => (
-              <div key={plan.name} className={`rounded-[32px] md:rounded-[40px] p-8 md:p-10 border ${plan.popular ? 'border-orange-500/50 bg-slate-900/40 md:scale-105' : 'border-white/5 bg-slate-900/20'} relative`}>
-                {plan.popular && <span className="absolute -top-4 left-1/2 -translate-x-1/2 bg-orange-500 text-slate-950 text-[9px] md:text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">Most Popular</span>}
-                <h3 className="text-xl font-black text-white mb-4">{plan.name}</h3>
-                <div className="flex items-baseline gap-1 mb-6 md:mb-8">
-                  <span className="text-3xl font-black text-white">${plan.price}</span>
-                  <span className="text-slate-500 font-bold uppercase tracking-widest text-[9px] md:text-[10px]">/mo</span>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* Free Plan */}
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="rounded-[40px] p-8 md:p-12 border border-white/5 bg-slate-900/20 backdrop-blur-xl hover:border-white/10 transition-all flex flex-col group"
+            >
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">🆓</span>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Free Plan</h3>
                 </div>
-                <ul className="space-y-3 md:space-y-4 mb-8 md:mb-10">
-                  {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-3 text-sm text-slate-400 font-medium">
-                      <FiCheck className="text-sky-500" /> {f}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={handleSignupClick} className={`w-full py-4 rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-widest transition-all ${plan.popular ? 'bg-orange-500 text-slate-950 hover:bg-orange-600' : 'bg-white/5 text-white hover:bg-white/10'}`}>Get Started</button>
+                <p className="text-slate-400 font-bold text-sm tracking-wide">💡 Get Started – Best for beginners</p>
               </div>
-            ))}
+
+              <ul className="space-y-5 mb-12 flex-1">
+                {[
+                  { icon: "📘", text: "250+ SAT Math questions" },
+                  { icon: "📖", text: "250+ SAT Reading & Writing questions" },
+                  { icon: "📝", text: "2 Full-Length Practice Tests" },
+                  { icon: "⚡", text: "Basic practice access" },
+                  { icon: "🔒", text: "Limited feature access" }
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-4 text-slate-300 font-semibold group-hover:text-white transition-colors">
+                    <span className="text-lg opacity-80">{item.icon}</span>
+                    <span className="text-sm md:text-base">{item.text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button onClick={handleSignupClick} className="w-full py-5 rounded-2xl bg-white/5 text-white font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all border border-white/10 active:scale-[0.98]">
+                Start Free
+              </button>
+            </motion.div>
+
+            {/* Premium Plan */}
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="rounded-[40px] p-8 md:p-12 border border-orange-500/30 bg-orange-500/5 backdrop-blur-xl shadow-[0_30px_60px_-15px_rgba(249,115,22,0.15)] relative overflow-hidden flex flex-col group"
+            >
+              <div className="absolute top-0 right-0 p-3">
+                <span className="bg-orange-500 text-slate-950 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-tighter">Most Popular</span>
+              </div>
+              
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">💎</span>
+                  <h3 className="text-2xl font-black text-white uppercase tracking-tight">Premium Plan</h3>
+                </div>
+                <p className="text-orange-400 font-bold text-sm tracking-wide">🚀 Unlock Full Access – Best for serious students</p>
+              </div>
+
+              <ul className="space-y-5 mb-12 flex-1">
+                {[
+                  { icon: "🎯", text: "Full access to SAT, ACT & AP courses" },
+                  { icon: "📚", text: "All subcourses and topics unlocked" },
+                  { icon: "🔥", text: "Unlimited practice questions" },
+                  { icon: "📝", text: "10 Full-Length Tests" },
+                  { icon: "📊", text: "Advanced performance & analytics" },
+                  { icon: "🤖", text: "AI Tutor & study resources" }
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-4 text-slate-200 font-semibold group-hover:text-white transition-colors">
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-sm md:text-base">{item.text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <button onClick={handleSignupClick} className="w-full py-5 rounded-2xl bg-orange-500 text-slate-950 font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20 active:scale-[0.98]">
+                Upgrade to Premium
+              </button>
+            </motion.div>
           </div>
+
+          {/* Referral Section */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mt-16 max-w-5xl mx-auto"
+          >
+            <div className="relative overflow-hidden rounded-3xl border border-sky-500/20 bg-sky-500/5 p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 group">
+              <div className="absolute inset-0 bg-gradient-to-r from-sky-500/0 via-sky-500/5 to-sky-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+              
+              <div className="flex items-center gap-6 relative z-10">
+                <div className="w-16 h-16 rounded-2xl bg-sky-500/20 flex items-center justify-center text-3xl shadow-lg ring-1 ring-sky-500/30">
+                  🎁
+                </div>
+                <div>
+                  <h4 className="text-xl font-black text-white uppercase tracking-tight mb-1">Invite & Earn Premium for Free!</h4>
+                  <p className="text-sky-400 font-bold text-sm tracking-wide flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                    Refer 3 friends and get a Premium subscription absolutely FREE
+                  </p>
+                </div>
+              </div>
+
+              <button onClick={handleSignupClick} className="relative z-10 px-8 py-3 rounded-xl bg-sky-500 text-slate-950 font-black text-[11px] uppercase tracking-widest hover:bg-sky-400 transition-all shadow-xl shadow-sky-500/20 active:scale-95">
+                Share Referral
+              </button>
+            </div>
+          </motion.div>
         </div>
       </section>
 

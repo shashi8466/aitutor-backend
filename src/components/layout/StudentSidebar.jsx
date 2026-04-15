@@ -27,6 +27,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
       items: [
         { name: 'My Courses', path: '/student/courses', icon: FiBook },
         { name: 'Practice Test', path: '/student/practice-tests', icon: FiActivity, badge: 'Live' },
+        { name: 'Score Predictor', path: '/student/score-predictor', icon: FiZap },
         { name: 'Leaderboard', path: '/student/leaderboard', icon: FiAward },
       ]
     },

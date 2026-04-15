@@ -88,8 +88,8 @@ export const calculateTotalSATScore = (progressEntries) => {
   const calcMath = calculateSatScore(mathAcc.Easy, mathAcc.Medium, mathAcc.Hard);
   const calcRW = calculateSatScore(rwAcc.Easy, rwAcc.Medium, rwAcc.Hard);
 
-  const bestMath = Math.max(200, calcMath);
-  const bestRW = Math.max(200, calcRW);
+  const bestMath = Math.max(0, calcMath);
+  const bestRW = Math.max(0, calcRW);
 
   return {
     math: bestMath,

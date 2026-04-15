@@ -24,6 +24,7 @@ const SAT_TOPICS = [
   "Lines, angles, and triangles", "Right triangles and trigonometry", "Circles",
   "Equivalent expressions", "Nonlinear equations in one variable and systems of equations in two variables",
   "Ratios rates proportional relationships and units", "Two-variable data: models and scatterplots",
+  "One-variable data distributions and measures of center and spread",
   "Ratios, rates, proportional relationships and units",
   "Problem Solving & Data Analysis", "Systems of two linear equations in two variables",
   "Lines angles and triangles"
@@ -248,7 +249,14 @@ const parseTextToQuestions = (text) => {
     let currentQuestion = null;
 
     const normalizeForTopic = (str) => {
-      return str.replace(/\\\(|\\\)|\\\[|\\\]/g, '').replace(/&/g, 'and').replace(/[,\s.:-]+/g, ' ').trim().toLowerCase();
+      if (!str) return '';
+      return str
+        .toLowerCase()
+        .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Remove LaTeX wrappers
+        .replace(/&/g, 'and')
+        .replace(/[,\s.:\-_]+/g, ' ') // Replace commas, dots, colons, hyphens, underscores, and spaces with a single space
+        .replace(/[^a-z0-9 ]/g, '') // Remove any remaining special characters
+        .trim();
     };
 
     for (let i = 0; i < lines.length; i++) {

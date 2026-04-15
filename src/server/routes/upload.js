@@ -276,197 +276,220 @@ router.post('/', upload.single('file'), async (req, res) => {
     let finalStatus = initialUpload.status;
     let parseErrorMsg = null;
 
-    // 7. Parse questions if requested
+    // 7. BACKGROUND PROCESSING: Parse and extract questions
+    // DETACHED from main thread to prevent Render timeouts (ERR_CONNECTION_CLOSED)
     if (parse === 'true' || category === 'quiz_document') {
-      console.log('🔍 [PARSER] Starting question extraction...');
-      try {
-        // Ensure parser receives the in-memory buffer (disk storage does not attach buffer)
-        const parseResult = await parseDocument({ ...req.file, buffer: fileBuffer, path: req.file.path });
-        const parsedQuestions = parseResult.questions || [];
-        const extractedImages = parseResult.images || [];
+      console.log(`🚀 [UPLOAD] Background parsing started for uploadId ${uploadId}`);
+      
+      (async () => {
+        let questionsCount = 0;
+        let finalStatus = 'completed';
+        
+        try {
+          // Fallback topic from filename
+          const originalFileName = req.file.originalname;
+          let fileTopicFallback = originalFileName.replace(/\.[^/.]+$/, "");
+          fileTopicFallback = fileTopicFallback.replace(/\s*[-–—]\s*(Easy|Medium|Hard|Level|Practice|Quiz)\s*.*$/i, "").trim();
 
-        // Deduplicate questions to prevent double inserts (e.g., from numbering artifacts)
-        const dedupedQuestions = [];
-        const seenKeys = new Set();
+          const parseResult = await parseDocument({ ...req.file, buffer: fileBuffer, path: req.file.path });
+          const parsedQuestions = parseResult.questions || [];
+          const extractedImages = parseResult.images || [];
 
-        for (const q of parsedQuestions) {
-          const normalizedQuestion = (q.question || '').replace(/[^\S\r\n]+/g, ' ').trim();
-          const normalizedOptions = (q.options || []).map(opt => (opt || '').replace(/[^\S\r\n]+/g, ' ').trim());
-          const normalizedAnswer = (q.correctAnswer || '').toString().trim().toLowerCase();
-          const key = `${normalizedQuestion}|${normalizedOptions.join('||')}|${normalizedAnswer}`;
-          if (normalizedQuestion && !seenKeys.has(key)) {
-            seenKeys.add(key);
-            dedupedQuestions.push({
-              ...q,
-              question: normalizedQuestion,
-              options: normalizedOptions,
-              correctAnswer: q.correctAnswer
-            });
+          const dedupedQuestions = [];
+          const seenKeys = new Set();
+          for (const q of parsedQuestions) {
+            const normalizedQuestion = (q.question || '').replace(/[^\S\r\n]+/g, ' ').trim();
+            const normalizedOptions = (q.options || []).map(opt => (opt || '').replace(/[^\S\r\n]+/g, ' ').trim());
+            const normalizedAnswer = (q.correctAnswer || '').toString().trim().toLowerCase();
+            const key = `${normalizedQuestion}|${normalizedOptions.join('||')}|${normalizedAnswer}`;
+            if (normalizedQuestion && !seenKeys.has(key)) {
+              seenKeys.add(key);
+              dedupedQuestions.push({ ...q, question: normalizedQuestion, options: normalizedOptions });
+            }
           }
-        }
 
-        if (dedupedQuestions.length > 0) {
-          questionsCount = dedupedQuestions.length;
-
-          // Process and upload images
-          const imageMap = {};
-          if (extractedImages && extractedImages.length > 0) {
-            console.log(`🖼️ [UPLOAD] Found ${extractedImages.length} images to process`);
+          if (dedupedQuestions.length > 0) {
+            questionsCount = dedupedQuestions.length;
+            const imageMap = {};
+            
             for (const img of extractedImages) {
               try {
                 const storagePath = `${courseId}/question_images/${img.name}`;
-                await supabase.storage
-                  .from(BUCKET_NAME)
-                  .upload(storagePath, img.buffer, {
-                    contentType: `image/${img.extension}`,
-                    upsert: true
-                  });
-
-                const { data } = supabase.storage
-                  .from(BUCKET_NAME)
-                  .getPublicUrl(storagePath);
-
+                await supabase.storage.from(BUCKET_NAME).upload(storagePath, img.buffer, { contentType: `image/${img.extension}`, upsert: true });
+                const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(storagePath);
                 imageMap[img.id] = data.publicUrl;
-                console.log(`✅ [UPLOAD] Mapped image ${img.id} -> ${data.publicUrl}`);
-              } catch (imgErr) {
-                console.warn(`❌ [UPLOAD] Image upload failed for ${img.id}:`, imgErr.message);
-              }
+              } catch (e) {}
             }
-          }
-          console.log('🗺️ [UPLOAD] Final Image Map:', Object.keys(imageMap));
 
-          const questionsToInsert = dedupedQuestions.map(q => {
-            let processedQuestion = q.question;
-            let processedExplanation = q.explanation || '';
-            let mainImage = null;
-
-            const imageRegex = /\[IMAGE:\s*([^\]]+)\]/g;
-
-            // Create a case-insensitive map
             const ciImageMap = {};
-            Object.keys(imageMap).forEach(key => {
-              ciImageMap[key.toLowerCase()] = imageMap[key];
+            Object.keys(imageMap).forEach(key => { ciImageMap[key.toLowerCase()] = imageMap[key]; });
+
+            const questionsToInsert = dedupedQuestions.map(q => {
+              let processedQuestion = q.question;
+              let processedExplanation = q.explanation || '';
+              let mainImage = null;
+              const imageRegex = /\[IMAGE:\s*([^\]]+)\]/g;
+
+              const replaceImages = (text, isExplanation = false) => {
+                if (!text) return text;
+                return text.replace(imageRegex, (match, fullId) => {
+                  const imageId = fullId.split('.')[0].toLowerCase();
+                  if (ciImageMap[imageId]) {
+                    const url = ciImageMap[imageId];
+                    if (!mainImage && !isExplanation) mainImage = url;
+                    return `<div class="${isExplanation ? "explanation-image" : "question-image"}" style="margin:15px 0; text-align:center;"><img src="${url}" alt="Diagram" style="max-width:100%; height:auto; border-radius:8px;" /></div>`;
+                  }
+                  return match;
+                });
+              };
+
+              processedQuestion = replaceImages(processedQuestion);
+              processedExplanation = replaceImages(processedExplanation, true);
+              const processedOptions = (q.options || []).map(opt => replaceImages(opt));
+              const qLevel = level === 'All' ? (q.level || 'Medium') : (q.level || level);
+              const normalizedLevel = qLevel.charAt(0).toUpperCase() + qLevel.slice(1).toLowerCase();
+
+              return {
+                course_id: parseInt(courseId),
+                level: normalizedLevel,
+                type: (q.options && q.options.length >= 2) ? 'mcq' : 'short_answer',
+                question: processedQuestion,
+                question_html: processedQuestion, // CRITICAL: Populate this for frontend checks
+                options: processedOptions,
+                correct_answer: q.correctAnswer || '',
+                explanation: processedExplanation,
+                upload_id: uploadId,
+                image: mainImage,
+                topic: q.topic || fileTopicFallback || null
+              };
             });
 
-            // Helper to replace image placeholders with HTML
-            const replaceImages = (text, isExplanation = false) => {
-              if (!text) return text;
-              return text.replace(imageRegex, (match, fullId) => {
-                const imageId = fullId.split('.')[0].toLowerCase();
-                if (ciImageMap[imageId]) {
-                  const url = ciImageMap[imageId];
-                  if (!mainImage && !isExplanation) mainImage = url;
-                  const className = isExplanation ? "explanation-image" : "question-image";
-                  const style = isExplanation ? "margin:10px 0; text-align:center;" : "margin:15px 0; text-align:center;";
-                  const imgStyle = isExplanation ? "max-width:100%; height:auto; border-radius:8px;" : "max-width:100%; height:auto; border-radius:8px;";
-                  return `<div class="${className}" style="${style}"><img src="${url}" alt="Diagram" style="${imgStyle}" /></div>`;
-                }
-                return match; // Keep the placeholder if image not found, don't delete it
-              });
-            };
-
-            processedQuestion = replaceImages(processedQuestion);
-            processedExplanation = replaceImages(processedExplanation, true);
-            const processedOptions = (q.options || []).map(opt => replaceImages(opt));
-
-            let questionLevel;
-            if (level === 'All') {
-              questionLevel = q.level || 'Medium';
-            } else {
-              questionLevel = q.level || level;
-            }
-            const normalizedLevel = questionLevel.charAt(0).toUpperCase() + questionLevel.slice(1).toLowerCase();
-
-            return {
-              course_id: parseInt(courseId),
-              level: normalizedLevel,
-              type: (q.options && q.options.length >= 2) ? 'mcq' : 'short_answer',
-              question: processedQuestion,
-              options: processedOptions,
-              correct_answer: q.correctAnswer || '',
-              explanation: processedExplanation,
-              upload_id: uploadId,
-              image: mainImage,
-              topic: q.topic || null
-            };
-          });
-
-          const { error: qError } = await supabase
-            .from('questions')
-            .insert(questionsToInsert);
-
-          if (qError) throw new Error(`Database error: ${qError.message}`);
-          console.log(`✅ [DB] Inserted ${questionsToInsert.length} questions`);
-
-          // Log sample question data for debugging
-          if (questionsToInsert.length > 0) {
-            const sampleQ = questionsToInsert[0];
-            console.log(`📝 [DB] Sample question inserted:`, {
-              course_id: sampleQ.course_id,
-              level: sampleQ.level,
-              upload_id: sampleQ.upload_id,
-              type: sampleQ.type
-            });
-
-            // Verify questions were inserted
-            const { data: verifyQuestions, error: verifyErr } = await supabase
-              .from('questions')
-              .select('id, course_id, level, upload_id')
-              .eq('upload_id', uploadId)
-              .limit(5);
-
-            if (!verifyErr && verifyQuestions) {
-              console.log(`✅ [DB] Verified ${verifyQuestions.length} question(s) in database for upload ${uploadId}`);
-            }
+            const { error: qError } = await supabase.from('questions').insert(questionsToInsert);
+            if (qError) throw qError;
+            console.log(`✅ [DB] Background Parser: Inserted ${questionsToInsert.length} questions.`);
+            finalStatus = 'completed';
+          } else {
+            finalStatus = 'warning';
           }
-
-          finalStatus = 'completed';
-        } else {
-          parseErrorMsg = 'No questions found in document after parsing.';
-          finalStatus = 'warning';
+        } catch (err) {
+          console.error(`❌ [PARSER] Background Loop Error:`, err.message);
+          finalStatus = 'error';
+        } finally {
+          await supabase.from('uploads').update({ status: finalStatus, questions_count: questionsCount }).eq('id', uploadId);
+          if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
         }
-      } catch (parseError) {
-        console.error('❌ [PARSER] Error:', parseError);
-        finalStatus = 'error';
-        parseErrorMsg = parseError.message;
-      }
-
-      // Update upload record with results
-      await supabase
-        .from('uploads')
-        .update({
-          status: finalStatus,
-          questions_count: questionsCount
-        })
-        .eq('id', uploadId);
+      })();
+    } else {
+      if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
     }
 
-    console.log('✅ [UPLOAD] Completed successfully');
-
-    res.json({
+    // IMMEDIATE RESPONSE to prevent timeouts
+    return res.json({
       success: true,
-      message: questionsCount > 0
-        ? `Successfully imported ${questionsCount} questions!`
-        : `File uploaded successfully.`,
-      count: questionsCount,
-      upload: { ...initialUpload, status: finalStatus, questions_count: questionsCount }
+      message: 'File upload successful. Question extraction is running in the background. Status: "processing".',
+      upload: { ...initialUpload, status: 'processing' }
     });
 
   } catch (error) {
-    console.error('❌ [UPLOAD] Fatal error:', error);
-    res.status(500).json({
-      error: error.message || 'Internal Server Error during upload.',
-      hint: 'Check server logs for details.'
-    });
-  } finally {
-    // Ensure temp file is always cleaned up
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
+    console.error('❌ [UPLOAD] Router Fatal error:', error);
+    if (tempFilePath && fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+    res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+});
+
+/**
+ * 🔴 DELETE UPLOAD
+ * Deletes the storage file, all related questions, and the upload record itself.
+ */
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  console.log(`\n🗑️ [DELETE] Request to delete upload ID: ${id}`);
+  
+  if (!id) {
+    return res.status(400).json({ error: 'Upload ID is required' });
+  }
+
+  try {
+    const supabase = getSupabase(req.headers.authorization);
+
+    // 1. Fetch record to get storage path
+    const { data: upload, error: fetchError } = await supabase
+      .from('uploads')
+      .select('file_url')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('❌ [DELETE] Fetch error:', fetchError);
+      return res.status(500).json({ error: `Fetch failed: ${fetchError.message}` });
+    }
+
+    if (!upload) {
+      console.warn('⚠️ [DELETE] Upload record not found in DB');
+      return res.status(404).json({ error: 'Upload record not found' });
+    }
+
+    console.log(` - File URL: ${upload.file_url}`);
+
+    // 2. CRITICAL: Delete all questions associated with this upload
+    console.log(` - Purging related questions from 'questions' table...`);
+    const { error: qDeleteError, count } = await supabase
+      .from('questions')
+      .delete({ count: 'exact' }) // Using count: exact to know how many were deleted
+      .eq('upload_id', id);
+
+    if (qDeleteError) {
+      console.error('❌ [DELETE] Question purge failed:', qDeleteError);
+      // We stop here if question deletion fails to prevent orphans if upload is deleted
+      return res.status(500).json({ error: `Failed to purge related questions: ${qDeleteError.message}` });
+    }
+    console.log(` ✅ Purged ${count || 0} questions.`);
+
+    // 3. Delete from Storage
+    if (upload.file_url) {
       try {
-        fs.unlinkSync(tempFilePath);
-      } catch (cleanupErr) {
-        console.warn('⚠️ [UPLOAD] Failed to clean temp file:', cleanupErr.message);
+        // Extract storage path from URL (Assuming documents bucket)
+        const pathMatch = upload.file_url.split(`/${BUCKET_NAME}/`);
+        if (pathMatch.length > 1) {
+          const storagePath = pathMatch[1];
+          console.log(` - Deleting from storage: ${storagePath}`);
+          const { error: storageDeleteError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .remove([storagePath]);
+          
+          if (storageDeleteError) {
+            console.warn('⚠️ [DELETE] Storage file removal failed (continuing):', storageDeleteError.message);
+          } else {
+            console.log(' ✅ Storage file deleted.');
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ [DELETE] Error during storage deletion path parsing:', err.message);
       }
     }
+
+    // 4. Delete the upload record itself
+    console.log(` - Deleting upload record from 'uploads' table...`);
+    const { error: recordDeleteError } = await supabase
+      .from('uploads')
+      .delete()
+      .eq('id', id);
+
+    if (recordDeleteError) {
+      console.error('❌ [DELETE] Record deletion failed:', recordDeleteError);
+      return res.status(500).json({ error: `Failed to delete record: ${recordDeleteError.message}` });
+    }
+
+    console.log('🎉 [DELETE] Successfully purged everything related to upload', id);
+    res.json({
+      success: true,
+      message: 'Upload and all associated questions deleted successfully.',
+      deletedQuestions: count
+    });
+
+  } catch (error) {
+    console.error('💥 [DELETE] Fatal error:', error);
+    res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 });
 

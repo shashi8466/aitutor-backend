@@ -11,37 +11,16 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    try {
-      // Check localStorage first
-      const saved = localStorage.getItem('theme');
-      if (saved) return saved;
-    } catch (e) {
-      console.warn('Storage access blocked, using default theme');
-    }
-    // Fallback to system preference
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
+  const [theme] = useState('dark');
 
   useEffect(() => {
     const root = window.document.documentElement;
-    
-    // Remove both to prevent conflicts
-    root.classList.remove('light', 'dark');
-    
-    // Add the current theme class
-    root.classList.add(theme);
-    
-    // Save to localStorage
-    try {
-      localStorage.setItem('theme', theme);
-    } catch (e) {
-      // Ignore storage errors
-    }
-  }, [theme]);
+    root.classList.remove('light');
+    root.classList.add('dark');
+  }, []);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    // Theme is now forced to dark
   };
 
   return (

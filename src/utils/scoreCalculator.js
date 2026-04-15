@@ -4,16 +4,16 @@ const SCORING_CONFIG = {
     QUESTIONS: 22,
     LEVELS: {
       'Easy': { min: 200, max: 500 },
-      'Medium': { min: 200, max: 650 },
-      'Hard': { min: 200, max: 800 }
+      'Medium': { min: 400, max: 650 },
+      'Hard': { min: 550, max: 800 }
     }
   },
   RW: {
     QUESTIONS: 27,
     LEVELS: {
       'Easy': { min: 200, max: 500 },
-      'Medium': { min: 200, max: 650 },
-      'Hard': { min: 200, max: 800 }
+      'Medium': { min: 400, max: 650 },
+      'Hard': { min: 550, max: 800 }
     }
   }
 };
@@ -63,19 +63,19 @@ export const calculateSessionScore = (category, levelName, percentageScore) => {
 };
 
 export const calculateSatScore = (easy, medium, hard) => {
-  // SAT-style weighted model across levels:
-  // Easy 20%, Medium 35%, Hard 45%
-  // finalScore = (easyAccuracy * 0.20 + mediumAccuracy * 0.35 + hardAccuracy * 0.45) / 100 * 800
+  // FINAL REQUIREMENT: SAT-Style Score Calculation (Apply Across Entire Application)
+  // ⚖️ Weighted Model: Easy 20%, Medium 35%, Hard 45%
+  // 🧮 Final Score Formula: ((E*0.20 + M*0.35 + H*0.45) / 100) * 800
+  
   const e = Number(easy) || 0;
   const m = Number(medium) || 0;
   const h = Number(hard) || 0;
 
   const weightedAccuracy = (e * 0.20) + (m * 0.35) + (h * 0.45); // 0–100 range
-  // Map 0–100 → 0–800 (as per user formula)
-  const rawScore = (weightedAccuracy / 100) * 800;
+  
+  // Apply the 800-point scale mapping specifically requested by user
+  const finalScore = (weightedAccuracy / 100) * 800;
 
-  // Clamp defensively to valid SAT section bounds (800 ceiling)
-  const finalScore = Math.min(800, Math.max(0, rawScore));
   return Math.round(finalScore);
 };
 
@@ -87,8 +87,8 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
   }
 
   // 2. Identify Section Baselines (From Diagnostics)
-  const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 200) : 200;
-  const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 200) : 200;
+  const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 0) : 0;
+  const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 0) : 0;
 
   // 3. Aggregate BEST accuracy per level (Easy/Medium/Hard) across all courses
   // for each category (MATH, RW). This powers the weighted SAT formula.
@@ -141,8 +141,8 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
 
   // 5. Final section scores for dashboards: pure weighted SAT-style scores
   // based on Easy/Medium/Hard performance (or diagnostic baselines).
-  const displayMath = Math.min(800, Math.max(200, satMath));
-  const displayRW = Math.min(800, Math.max(200, satRW));
+  const displayMath = Math.min(800, Math.max(0, satMath));
+  const displayRW = Math.min(800, Math.max(0, satRW));
 
   const total = displayMath + displayRW;
   const baselineTotal = baselineMath + baselineRW;

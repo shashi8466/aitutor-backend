@@ -16,6 +16,7 @@ const requireAdmin = async (req, res, next) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
+    const token = authHeader.substring(7);
     const { data: authData, error } = await supabase.auth.getUser(token);
     const user = authData?.user;
 

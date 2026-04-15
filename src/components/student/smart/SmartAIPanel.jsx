@@ -198,8 +198,8 @@ const SmartAIPanel = ({ content, summary }) => {
         console.log(`Generating ${difficulty} batch: ${currentLoaded}/${targetCount} (Attempt ${attempts})`);
 
         try {
-          // Use strict KB search instead of AI generation
-          const res = await aiService.prep365Chat(safeContent, difficulty);
+          // Use strict KB search instead of AI generation, requesting currentBatchSize questions
+          const res = await aiService.prep365Chat(safeContent, difficulty, currentBatchSize);
           const newQuestions = res.data?.questions || [];
 
           if (newQuestions.length > 0) {

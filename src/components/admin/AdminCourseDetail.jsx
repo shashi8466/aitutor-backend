@@ -92,22 +92,22 @@ const AdminCourseDetail = () => {
   if (!course) return <div className="p-8 text-center">Course not found</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 pb-8 md:pb-12 mobile-safe">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 md:py-8">
         {/* Header */}
         <div className="mb-8">
           <Link to="/admin/courses" className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4">
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4 mr-1" /> Back to Courses
           </Link>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 flex justify-between items-start">
-            <div className="flex items-start space-x-4">
-              <div className="bg-blue-100 p-4 rounded-xl">
-                <SafeIcon icon={FiBook} className="w-8 h-8 text-blue-600" />
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-8 flex flex-col md:flex-row gap-4 md:justify-between md:items-start">
+            <div className="flex items-start space-x-3 md:space-x-4 min-w-0">
+              <div className="bg-blue-100 p-3 md:p-4 rounded-xl">
+                <SafeIcon icon={FiBook} className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">{course.name}</h1>
-                <p className="text-gray-600 text-lg mb-2">{course.description}</p>
-                <div className="flex items-center space-x-4 text-sm text-gray-500">
+              <div className="min-w-0">
+                <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 break-words">{course.name}</h1>
+                <p className="text-gray-600 text-sm md:text-lg mb-2 break-words">{course.description}</p>
+                <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-gray-500">
                   <span className="bg-gray-100 px-2 py-1 rounded">{course.tutor_type}</span>
                   <span className="bg-green-100 text-green-800 px-2 py-1 rounded capitalize">{course.status}</span>
                   <span>{questionsCount} Questions</span>
@@ -117,7 +117,7 @@ const AdminCourseDetail = () => {
             </div>
             <button
               onClick={() => setShowEditForm(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
             >
               <SafeIcon icon={FiEdit} className="w-4 h-4" /> Edit Course
             </button>
@@ -126,7 +126,7 @@ const AdminCourseDetail = () => {
 
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-gray-200 overflow-x-auto">
             <TabButton
               active={activeTab === 'content'}
               onClick={() => setActiveTab('content')}
@@ -169,9 +169,9 @@ const AdminCourseDetail = () => {
               <UploadsGroup level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">All Uploaded Files</h3>
-              <div className="overflow-x-auto">
+              <div className="responsive-table-container">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
                     <tr>
@@ -214,8 +214,8 @@ const AdminCourseDetail = () => {
 
         {/* Enrolled Students Tab - FIXED */}
         {activeTab === 'students' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Enrolled Students</h3>
                 <p className="text-xs text-gray-400">Actual students enrolled via the platform</p>
@@ -239,7 +239,7 @@ const AdminCourseDetail = () => {
                 <p className="text-sm text-gray-400">Students will appear here once they enroll in this course.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="responsive-table-container">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -290,15 +290,15 @@ const AdminCourseDetail = () => {
 
         {/* Enrollment Keys Tab */}
         {activeTab === 'keys' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-8">
             <EnrollmentKeyManager courseId={id} courseName={course.name} />
           </div>
         )}
 
         {/* Tutors Tab */}
         {activeTab === 'tutors' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-8">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">Course Tutors & Staff</h3>
                 <p className="text-sm text-gray-500">Manage instructors authorized to view this course's analytics</p>
@@ -399,7 +399,7 @@ const AdminCourseDetail = () => {
 const TabButton = ({ active, onClick, icon, label }) => (
   <button
     onClick={onClick}
-    className={`flex-1 py-4 px-6 text-center font-medium transition-colors flex items-center justify-center gap-2 ${active
+    className={`shrink-0 md:flex-1 py-3 md:py-4 px-3 md:px-6 text-center text-xs md:text-sm font-medium whitespace-nowrap transition-colors flex items-center justify-center gap-2 ${active
       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
       }`}

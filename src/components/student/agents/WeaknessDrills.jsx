@@ -27,6 +27,7 @@ const WeaknessDrills = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const [selectedDrill, setSelectedDrill] = useState(null);
+  const [drillError, setDrillError] = useState('');
 
   useEffect(() => {
     if (user?.id) loadWeaknesses();
@@ -66,46 +67,102 @@ const WeaknessDrills = () => {
     }
   };
 
-  const handleGenerateDrill = async (topic) => {
+  const normalizeDifficulty = (level) => {
+    const raw = String(level || 'Medium').toLowerCase();
+    if (raw.includes('easy')) return 'Easy';
+    if (raw.includes('hard')) return 'Hard';
+    return 'Medium';
+  };
+
+  const resolveCorrectLetter = (options = [], rawAnswer = '') => {
+    const letters = ['A', 'B', 'C', 'D'];
+    const answer = String(rawAnswer || '').trim();
+    if (letters.includes(answer.toUpperCase())) return answer.toUpperCase();
+    const idx = options.findIndex((opt) => String(opt).trim().toLowerCase() === answer.toLowerCase());
+    return idx >= 0 ? letters[idx] : 'A';
+  };
+
+  const handleGenerateDrill = async (weakness) => {
+    const topic = weakness?.topic || '';
+    const difficulty = normalizeDifficulty(weakness?.level);
+    const topicKey = `${topic}::${difficulty}`;
     setLoading(true);
+    setDrillError('');
     setGenerated(false);
     setCurrentDrillIndex(0);
-    setActiveTopic(topic);
+    setActiveTopic(topicKey);
     setSelectedOption(null);
     setIsSubmitted(false);
 
     try {
-      const context = `You are an expert Digital SAT tutor. Generate exactly 10 high-quality SAT practice questions on the topic: "${topic}".
+      if (!topic) throw new Error('Missing weakness topic');
 
-Strict requirements:
-- Questions MUST follow the official College Board Digital SAT format and difficulty
-- Each question should test genuine SAT-level reasoning, not just memorization
-- Include a mix of difficulty (3 Easy, 4 Medium, 3 Hard) within this SAT topic
-- Each question must have exactly 4 answer choices (A, B, C, D)
-- Provide a detailed explanation that teaches the underlying concept
-- Avoid yes/no questions; all questions should require analytical thinking
-- No questions about personal opinions or current events
-- If the topic is Math: use multi-step problem solving aligned to SAT Math standards
-- If the topic is English/Reading/Writing: use SAT-style passages and rhetorical skills questions`;
-      
-      // Use strict KB-only search instead of AI generation
-      const res = await aiService.prep365Chat(context, 'Medium');
+      // KB defines SAT format/style only. We do NOT copy KB questions.
+      // Some deployments may not expose /api/kb-quiz; fallback to prep365-chat KB endpoint.
+      let kbRef = null;
+      try {
+        const kbRes = await aiService.kbQuiz(topic, difficulty, 1, []);
+        kbRef = (kbRes?.data?.questions || [])[0] || null;
+      } catch (kbErr) {
+        if (kbErr?.response?.status !== 404) throw kbErr;
+        const fallbackRes = await aiService.prep365Chat(topic, difficulty, 1, []);
+        kbRef = (fallbackRes?.data?.questions || [])[0] || null;
+      }
+      const kbFormatReference = kbRef
+        ? `KB SAT FORMAT REFERENCE (DO NOT COPY):
+- Topic reference: ${kbRef.topic || topic}
+- Difficulty reference: ${kbRef.difficulty || difficulty}
+- Stem style sample: ${(kbRef.text || '').slice(0, 260)}
+- Option style sample: ${(kbRef.options || []).slice(0, 4).join(' | ')}
+- Explanation style sample: ${(kbRef.explanation || '').slice(0, 220)}`
+        : `KB SAT FORMAT REFERENCE (DO NOT COPY):
+- Topic reference: ${topic}
+- Difficulty reference: ${difficulty}
+- Structure: question + 4 options (A-D) + correct answer + explanation`;
 
-      const rawQuiz = res.data?.questions || [];
-      const drillSet = rawQuiz.map((q, i) => ({
+      const context = `Generate a new SAT practice drill.
+
+TOPIC LOCK (MANDATORY): ${topic}
+DIFFICULTY LOCK (MANDATORY): ${difficulty}
+
+${kbFormatReference}
+
+STRICT REQUIREMENTS:
+1) Create EXACTLY 10 NEW questions (never copy KB text).
+2) Keep ALL 10 questions on the SAME topic: "${topic}".
+3) Keep ALL 10 questions at ${difficulty} difficulty only.
+4) Return SAT-style MCQ with exactly 4 options (A, B, C, D).
+5) Return clear explanation for each answer.
+6) Topic drift is forbidden.`;
+
+      const res = await aiService.generateExam(context, difficulty, 10);
+      const rawQuiz = Array.isArray(res?.data?.questions) ? res.data.questions : [];
+
+      const drillSet = rawQuiz
+        .map((q, i) => {
+          const options = Array.isArray(q.options) ? q.options.map((opt) => String(opt)).slice(0, 4) : [];
+          if (!q?.question || options.length !== 4) return null;
+          const letter = resolveCorrectLetter(options, q.correctAnswer);
+          return {
         id: q.id || i + 1,
-        question: q.text,
-        options: q.options || [],
-        answer: q.correctAnswer,
-        explanation: q.explanation || "No explanation provided."
-      }));
+            question: q.question,
+            options,
+            answer: letter,
+            explanation: q.explanation || "No explanation provided.",
+            topic,
+            level: difficulty,
+            concept: q.concept || topic
+          };
+        })
+        .filter(Boolean);
 
       if (drillSet.length === 0) throw new Error("AI returned empty drills");
       setDrills(drillSet);
+      setActiveTopic(topic);
       setGenerated(true);
     } catch (err) {
       console.error("Drill gen failed", err);
-      alert("Failed to generate drills. Please try again.");
+      setDrillError("Unable to generate a valid practice drill right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -133,7 +190,9 @@ Strict requirements:
       correct_answer: drill.answer,
       explanation: drill.explanation,
       type: 'mcq',
-      level: 'Adaptive'
+      level: drill.level || 'Medium',
+      topic: drill.topic || activeTopic,
+      concept: drill.concept || drill.topic || activeTopic
     });
     setShowAI(true);
   };
@@ -158,6 +217,12 @@ Strict requirements:
         </div>
         <div className="absolute right-[-10%] top-[-20%] w-[500px] h-[500px] bg-purple-600/20 blur-[130px] rounded-full"></div>
       </div>
+
+      {drillError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm font-semibold">
+          {drillError}
+        </div>
+      )}
 
       {loadingContext ? (
         <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-gray-900 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm">
@@ -218,11 +283,11 @@ Strict requirements:
                         </div>
 
                         <button
-                          onClick={() => handleGenerateDrill(w.topic)}
+                          onClick={() => handleGenerateDrill(w)}
                           disabled={loading}
                           className="w-full md:w-auto px-10 py-5 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black text-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group disabled:opacity-50"
                         >
-                          {loading && activeTopic === w.topic ? (
+                          {loading && activeTopic === `${w.topic}::${normalizeDifficulty(w.level)}` ? (
                             <FiLoader className="animate-spin" />
                           ) : (
                             <SafeIcon icon={FiZap} className="group-hover:text-yellow-400" />

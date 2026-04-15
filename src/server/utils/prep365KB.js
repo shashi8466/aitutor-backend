@@ -9,112 +9,191 @@ import supabase from '../../supabase/supabaseAdmin.js';
 //  TOPIC MATCHING ENGINE
 // ============================================================
 
+const normalizeTopic = (str) => {
+    if (!str) return '';
+    
+    // Common filler words and phrases to strip
+    const fillerWords = [
+        'questions', 'question', 'quiz', 'me', 'on', 'about', 'give', 'want', 
+        'practice', 'drill', 'test', 'regarding', 'showing', 'show', 'for', 'to',
+        'entries', 'related', 'a', 'an', 'the', 'and', 'with', 'by', 'of', 'in'
+    ];
+    
+    if (str.length > 150) return '___JUNK___';
+    
+    let normalized = str.toLowerCase().replace(/[&]/g, 'and').replace(/[+]/g, ' ');
+    
+    // Replace punctuation with space - handling hyphens and commas specifically as requested
+    normalized = normalized.replace(/[-,]/g, ' '); 
+    normalized = normalized.replace(/[.\s.:\-_\\/|()\[\]]+/g, ' ');
+    
+    // 2. Remove any other weird special chars
+    normalized = normalized.replace(/[^a-z0-9 ]/g, '');
+    
+    // 3. Strip filler words and normalize plurals (basic)
+    const words = normalized.split(' ').filter(word => {
+        return word.length > 0 && !fillerWords.includes(word);
+    }).map(word => {
+        // Simple plural normalization
+        if (word.length > 4 && word.endsWith('s')) return word.slice(0, -1);
+        return word;
+    });
+    
+    return words.join(' ').trim();
+};
+
+const buildSupabaseInList = (ids = []) => {
+    const validIds = (Array.isArray(ids) ? ids : []).filter((id) => id != null);
+    if (validIds.length === 0) return null;
+    return validIds.map((id) => {
+        const asString = String(id).trim();
+        return /^\d+$/.test(asString) ? asString : `'${asString}'`;
+    }).join(',');
+};
+const MATH_TOPICS = [
+    'Area and volume', 'Circles', 'Equivalent expressions', 'Evaluating statistical claims',
+    'Inference from sample statistics', 'Linear equations in one variable',
+    'Linear equations in two variables', 'Linear functions', 'Linear inequalities - in one or two variables',
+    'Lines, angles, and triangles', 'Nonlinear equations in one variable and systems of equations in two variables',
+    'Nonlinear functions', 'One-variable data', 'Percentages', 'Probability',
+    'Problem-Solving and Data Analysis', 'Ratios, rates, proportional relationships and units', 
+    'Systems of two linear equations in two variables', 'Two-variable data: models and scatterplots'
+];
+
+const ENGLISH_TOPICS = [
+    'Boundaries', 'Central Ideas and Details', 'Command of Evidence',
+    'Command of quantitative evidence', 'Command of textual evidence', 
+    'Cross-Text Connections', 'Form, Structure, and Sense', 'Inferences', 
+    'Rhetorical synthesis', 'Transitions', 'Words in Context'
+];
+
+// Topic Alias Map for common user terms that don't match formal SAT topic names
+const TOPIC_ALIASES = {
+    'math': MATH_TOPICS,
+    'mathematics': MATH_TOPICS,
+    'maths': MATH_TOPICS,
+    'english': ENGLISH_TOPICS,
+    'reading and writing': ENGLISH_TOPICS,
+    'reading & writing': ENGLISH_TOPICS,
+    'reading': ENGLISH_TOPICS,
+    'writing': ENGLISH_TOPICS,
+    'grammar': ['Boundaries', 'Form, Structure, and Sense', 'Transitions', 'Words in Context'],
+    'algebra': ['Linear equations in one variable', 'Linear equations in two variables', 'Linear functions', 'Linear inequalities - in one or two variables', 'Systems of two linear equations in two variables', 'Nonlinear functions'],
+    'geometry': ['Area and volume', 'Circles', 'Lines, angles, and triangles', 'Right triangles and trigonometry'],
+    'trigonometry': ['Right triangles and trigonometry'],
+    'statistics': ['One-variable data', 'Two-variable data: models and scatterplots', 'Probability'],
+    'data analysis': ['Problem-Solving and Data Analysis', 'One-variable data', 'Two-variable data: models and scatterplots'],
+    'percentage': ['Percentages'],
+    'ratio': ['Ratios, rates, proportional relationships and units'],
+    'ratios': ['Ratios, rates, proportional relationships and units'],
+    'probability': ['Probability'],
+};
+
 /**
- * Matches user topic to KB file names and content exactly
- * Follows the rule: User topic must match KB file name or content
- * Example: "One-variable data Distributions" matches files with that exact topic
+ * Matches user topic to KB topics following multiple strategies
+ * RETURNS AN ARRAY of matched topics to allow broad alias matching (e.g. Algebra -> multiple sub-topics)
  */
 const matchTopicToKB = async (userTopic) => {
-    const topicLower = userTopic.toLowerCase().trim();
+    const topicNorm = normalizeTopic(userTopic);
+    console.log(`🧠 [KB Match] Normalizing "${userTopic}" -> "${topicNorm}"`);
     
     try {
-        // Step 1: Get all available topics from KB
         const { data: allTopics, error: topicsError } = await supabase
             .from('questions')
-            .select('topic, source, level')
+            .select('topic')
             .not('topic', 'is', null);
 
-        if (topicsError) {
-            console.error('❌ [Prep365 KB] Error fetching questions for topic matching:', topicsError.message);
-            return null;
-        }
-
-        console.log(`📊 [Prep365 KB] Found ${allTopics?.length || 0} total questions with topics in database.`);
-
-        if (!allTopics || allTopics.length === 0) {
-            console.log(`❌ [Prep365 KB] No questions found in the "questions" table.`);
-            return null;
-        }
-
-        // Step 2: Extract unique topics and sources
+        if (topicsError) throw topicsError;
         const uniqueTopics = [...new Set(allTopics.map(item => item.topic))];
-        const uniqueSources = [...new Set(allTopics.map(item => item.source))];
+        
+        // --- PRIORITY 1: PRECISE TOPIC MATCHES ---
+        let preciseMatches = new Set();
+        for (const topic of uniqueTopics) {
+            if (topic.length > 150) continue; // Skip suspected junk topics
+            const tNorm = normalizeTopic(topic);
+            if (tNorm === '___JUNK___') continue;
+            
+            // Check if user exactly named this topic or the topic is a significant part of the query
+            if (topicNorm === tNorm || (topicNorm.length > 5 && topicNorm.includes(tNorm))) {
+                console.log(`🎯 [KB Match] Precise match: "${topic}"`);
+                preciseMatches.add(topic);
+            }
+        }
 
-        console.log(`🔍 [KB Search] User Topic: "${userTopic}"`);
-        console.log(`📚 [KB Search] Available Topics: ${uniqueTopics.slice(0, 10).join(', ')}...`);
+        if (preciseMatches.size > 0) {
+            return Array.from(preciseMatches);
+        }
 
-        // Step 3: Exact matching algorithm
+        // --- PRIORITY 2: BROAD CATEGORY ALIASES ---
+        let mathHits = false;
+        let englishHits = false;
+        let multiAliasMatches = new Set();
+
+        const aliasKeys = Object.keys(TOPIC_ALIASES).sort((a,b) => b.length - a.length);
+        for (const alias of aliasKeys) {
+            const aliasNorm = normalizeTopic(alias);
+            if (topicNorm.includes(aliasNorm)) {
+                console.log(`🎯 [KB Match] Alias hit: "${alias}"`);
+                
+                // Track which subjects are being requested
+                const targetTopics = TOPIC_ALIASES[alias];
+                if (targetTopics === MATH_TOPICS) mathHits = true;
+                if (targetTopics === ENGLISH_TOPICS) englishHits = true;
+                
+                targetTopics.forEach(t => multiAliasMatches.add(t));
+            }
+        }
+
+        // SUBJECT ISOLATION: If "English" was found and "Math" was NOT, ensure no math topics are returned.
+        // This fixes the "English returning Math" bug.
+        if (englishHits && !mathHits) {
+            return ENGLISH_TOPICS;
+        }
+        if (mathHits && !englishHits) {
+            return MATH_TOPICS;
+        }
+
+        if (multiAliasMatches.size > 0) {
+            return Array.from(multiAliasMatches);
+        }
+
+        // --- PRIORITY 3: CONTAINMENT MATCH ---
         let bestMatch = null;
         let bestScore = -1;
-
-        // Rule 1: Exact topic match (highest priority) - Check for complete topic matches first
         for (const topic of uniqueTopics) {
-            const topicLowerItem = topic.toLowerCase();
-            const userTopicWords = topicLower.split(/\s+/).filter(w => w.length > 2);
-            
-            // Check for exact match or if user topic is contained in KB topic
-            if (topicLowerItem === topicLower || 
-                topicLowerItem.includes(topicLower) || 
-                topicLower.includes(topicLowerItem) ||
-                // Check if all significant words from user topic are in KB topic
-                userTopicWords.every(word => topicLowerItem.includes(word))) {
-                const score = topicLowerItem === topicLower ? 100 : 90;
+            const tNorm = normalizeTopic(topic);
+            if (tNorm.includes(topicNorm) || topicNorm.includes(tNorm)) {
+                const score = 100 - Math.abs(tNorm.length - topicNorm.length);
                 if (score > bestScore) {
                     bestScore = score;
-                    bestMatch = { type: 'topic', value: topic };
+                    bestMatch = topic;
                 }
             }
         }
-
-        // Rule 2: Exact file name match (medium priority) - Only if no topic match found
-        if (bestScore < 90) {
-            for (const source of uniqueSources) {
-                const sourceLower = source.toLowerCase();
-                if (sourceLower.includes(topicLower) || topicLower.includes(sourceLower)) {
-                    const score = Math.max(sourceLower.length, topicLower.length);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestMatch = { type: 'filename', value: source };
-                    }
-                }
-            }
-        }
-
-        // Rule 3: Partial matching with word boundaries (medium priority)
-        if (bestScore < 50) {
-            const topicWords = topicLower.split(/\s+/);
-            for (const topic of uniqueTopics) {
-                const topicLowerItem = topic.toLowerCase();
-                const topicWords = topicLowerItem.split(/\s+/);
-                
-                let matchCount = 0;
-                for (const userWord of topicWords) {
-                    if (topicWords.some(topicWord => 
-                        topicWord.includes(userWord) || userWord.includes(topicWord)
-                    )) {
-                        matchCount++;
-                    }
-                }
-                
-                const score = (matchCount / Math.max(topicWords.length, topicWords.length)) * 50;
-                if (score > bestScore && matchCount > 0) {
-                    bestScore = score;
-                    bestMatch = { type: 'partial', value: topic };
-                }
-            }
-        }
-
         if (bestMatch) {
-            console.log(`✅ [KB Match] Found: "${bestMatch.value}" (Type: ${bestMatch.type}, Score: ${bestScore})`);
-            return bestMatch.value;
+            console.log(`🎯 [KB Match] Containment match: "${bestMatch}"`);
+            return [bestMatch];
         }
 
-        console.log(`❌ [KB Match] No match found for "${userTopic}"`);
-        return null;
+        // 4. Multi-keyword search support (Fallback)
+        const keywords = userTopic.split(/,|\sand\s|\sor\s|\s\+\s|\s\&\s/).map(k => normalizeTopic(k)).filter(k => k.length > 3);
+        if (keywords.length > 0) {
+            const keywordMatches = new Set();
+            for (const kw of keywords) {
+                for (const topic of uniqueTopics) {
+                    if (normalizeTopic(topic).includes(kw)) keywordMatches.add(topic);
+                }
+            }
+            if (keywordMatches.size > 0) {
+                console.log(`🎯 [KB Match] Keyword matches: [${Array.from(keywordMatches).join(', ')}]`);
+                return Array.from(keywordMatches);
+            }
+        }
 
+        return [];
     } catch (error) {
-        console.error('❌ [KB Match] Error:', error);
-        return null;
+        console.error('❌ [KB Match Error]:', error);
+        return [];
     }
 };
 
@@ -127,31 +206,80 @@ const matchTopicToKB = async (userTopic) => {
  * - Match: topic + difficulty (Easy/Medium/Hard)
  * - If level not specified → return mixed from same topic only
  */
-const filterByDifficulty = async (topic, difficulty) => {
+const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimit = null, excludeIds = []) => {
     try {
+        console.log(`🔍 [KB Filter] Topic: "${topic}" | Diff: ${difficulty} | Limit: ${returnLimit} | Excl: ${excludeIds.length}`);
+        
         let query = supabase
             .from('questions')
             .select('*')
             .eq('topic', topic);
 
+        // Apply exclusion filter if IDs are provided
+        if (excludeIds && excludeIds.length > 0) {
+            // Using the string format (id1, id2, ...) is more robust across Supabase client versions
+            // and handles both integer and UUID IDs correctly if joined properly.
+            const validIds = excludeIds.filter(id => id != null);
+            if (validIds.length > 0) {
+                const idList = validIds.map((id) => {
+                    // Keep numeric IDs unquoted for integer columns; quote only non-numeric IDs (e.g. UUID).
+                    const asString = String(id).trim();
+                    return /^\d+$/.test(asString) ? asString : `'${asString}'`;
+                }).join(',');
+                query = query.not('id', 'in', `(${idList})`);
+            }
+        }
+
         // Apply difficulty filter if specified
         if (difficulty && difficulty !== 'Mixed') {
             const diffCapitalized = difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
             query = query.eq('level', diffCapitalized);
-            console.log(`🎯 [KB Filter] Topic: "${topic}" | Difficulty: ${diffCapitalized}`);
-        } else {
-            console.log(`🎯 [KB Filter] Topic: "${topic}" | Difficulty: Mixed (all levels)`);
         }
 
-        const { data: questions, error } = await query.orderBy('created_at', { ascending: false }).limit(50);
-
+        // Use provided fetchLimit or calculate it - increase for better variety
+        const actualFetchLimit = fetchLimit || Math.max(returnLimit * 10, 100);
+        
+        // IMPORTANT: Don't use orderBy with limit - it always returns the same questions!
+        // Instead, fetch more than needed and shuffle client-side
+        const { data: questions, error } = await query.limit(actualFetchLimit);
+        
         if (error) {
-            console.error('❌ [KB Filter] Database error:', error);
+            console.error('[KB Filter] Database error:', error);
             return [];
         }
 
-        console.log(`📊 [KB Filter] Found ${questions?.length || 0} questions from exact topic: "${topic}"`);
-        return questions || [];
+        console.log(`📊 [KB Filter] Exact match returned ${questions?.length || 0} questions`);
+
+        // If no questions found, try partial match
+        if (!questions || questions.length === 0) {
+            console.log(`⚠️ [KB Filter] Exact match returned 0. Trying partial match...`);
+            
+            const { data: partialData, error: partialError } = await supabase
+                .from('questions')
+                .select('*')
+                .ilike('topic', `%${topic}%`);
+            
+            if (!partialError && partialData && partialData.length > 0) {
+                console.log(`✅ [KB Filter] Partial match found ${partialData.length} questions`);
+                
+                // Apply difficulty filter to partial results if needed
+                let filteredData = partialData;
+                if (difficulty && difficulty !== 'Mixed') {
+                    const diffCapitalized = difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
+                    filteredData = partialData.filter(q => 
+                        q.level && q.level.toLowerCase() === diffCapitalized.toLowerCase()
+                    );
+                    console.log(`🎯 [KB Filter] Partial match filtered to ${filteredData.length} with difficulty ${diffCapitalized}`);
+                }
+                
+                return processAndReturnQuestions(filteredData, returnLimit, excludeIds);
+            }
+            
+            return [];
+        }
+
+        // Process and return the results
+        return processAndReturnQuestions(questions, returnLimit, excludeIds);
 
     } catch (error) {
         console.error('❌ [KB Filter] Error:', error);
@@ -159,66 +287,172 @@ const filterByDifficulty = async (topic, difficulty) => {
     }
 };
 
-// ============================================================
-//  MAIN SEARCH FUNCTION
-// ============================================================
+/**
+ * Helper function to shuffle, deduplicate, and limit questions
+ * Uses Fisher-Yates shuffle for better randomization
+ */
+const processAndReturnQuestions = (questions, returnLimit, excludeIds = []) => {
+    if (!questions || questions.length === 0) {
+        return [];
+    }
+
+    // Flatten and normalize IDs for a robust exclusion set
+    const flatExcludeIds = (Array.isArray(excludeIds) ? excludeIds : []).flat(Infinity);
+    const excludeIdSet = new Set(flatExcludeIds.map(id => String(id).trim()));
+
+    // Step 1: Remove duplicates based on ID (handles both number and string ID types)
+    const uniqueQuestions = [];
+    const seenIds = new Set();
+    
+    for (const q of questions) {
+        const qIdNormalized = String(q.id).trim();
+        
+        if (excludeIdSet.has(qIdNormalized)) {
+            continue;
+        }
+        
+        if (seenIds.has(qIdNormalized)) {
+            continue;
+        }
+        
+        seenIds.add(qIdNormalized);
+        uniqueQuestions.push(q);
+    }
+
+    // Step 2: Fisher-Yates shuffle for better randomization
+    for (let i = uniqueQuestions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [uniqueQuestions[i], uniqueQuestions[j]] = [uniqueQuestions[j], uniqueQuestions[i]];
+    }
+    
+    // Step 3: Return exactly the requested number (or fewer if not available)
+    const finalQuestions = uniqueQuestions.slice(0, returnLimit);
+
+    console.log(`[KB Process] Input ${questions.length} total, excluded ${excludeIds.length}, filtered to ${uniqueQuestions.length} unique. Returning ${finalQuestions.length} (requested: ${returnLimit})`);
+    
+    // Log the IDs being returned for debugging
+    if (finalQuestions.length > 0) {
+        console.log(`[KB Process] Returning question IDs: ${finalQuestions.map(q => q.id).join(', ')}`);
+    }
+    
+    return finalQuestions;
+};
 
 /**
  * Main search function for 24/7 AI Prep365 Chat
  * Returns exact KB questions only - no AI generation
  */
-export const searchExactKBQuestions = async (userTopic, difficulty = null, count = null) => {
+export const searchExactKBQuestions = async (userTopic, difficulty = null, count = null, excludeIds = []) => {
     try {
-        console.log(`🚀 [Prep365 KB] Search initiated for: "${userTopic}" | Difficulty: ${difficulty || 'Mixed'}`);
-
-        // Step 1: Match topic to KB
-        const matchedTopic = await matchTopicToKB(userTopic);
-        console.log(`🎯 [Prep365 KB] Topic match result:`, matchedTopic);
+        const requestedCount = Number(count) || 10;
+        const safeExcludeIds = Array.isArray(excludeIds) ? excludeIds : [];
         
-        if (!matchedTopic) {
-            console.log(`❌ [Prep365 KB] No topic match found for: "${userTopic}"`);
-            return [];
+        console.log(`🚀 [Prep365 KB] Search initiated for: "${userTopic}" | Difficulty: ${difficulty || 'Mixed'} | Count: ${requestedCount} | Excl: ${safeExcludeIds.length}`);
+
+        // Step 1: Match topic to KB (returns array of topics)
+        const matchedTopics = await matchTopicToKB(userTopic);
+        console.log(`🎯 [Prep365 KB] matchedTopics:`, matchedTopics);
+        
+        let questions = [];
+        let allPotentialQuestions = [];
+
+        if (matchedTopics && matchedTopics.length > 0) {
+            // Step 2: Shuffle matched topics for variety
+            const shuffledTopics = [...matchedTopics].sort(() => Math.random() - 0.5);
+            
+            // Step 3: Fetch questions from matched topics
+            for (const topic of shuffledTopics) {
+                // Fetch a small batch from each topic to ensure variety
+                const perTopicLimit = Math.max(2, Math.ceil(requestedCount / 3));
+                const topicQuestions = await filterByDifficulty(topic, difficulty, perTopicLimit, perTopicLimit * 5, safeExcludeIds);
+                allPotentialQuestions = [...allPotentialQuestions, ...topicQuestions];
+                
+                // Keep fetching until we have a healthy pool for variety, but don't over-fetch
+                if (allPotentialQuestions.length >= requestedCount * 5) break;
+            }
+            
+            // Randomize and limit the aggregated results
+            questions = processAndReturnQuestions(allPotentialQuestions, requestedCount, safeExcludeIds);
         }
 
-        // Step 2: Filter by difficulty with count limit
-        const questions = await filterByDifficulty(matchedTopic, difficulty);
+        // ADDITIONAL LOGIC: If still not enough questions, try fallback searches
+        if (questions.length < requestedCount) {
+            console.log(`[Prep365 KB] Found only ${questions.length}/${requestedCount}. Attempting broader searches...`);
+            
+            const remainingNeeded = requestedCount - questions.length;
+            const currentExcludeIds = [...safeExcludeIds, ...questions.map(q => q.id)];
+            const topicNorm = normalizeTopic(userTopic);
+            
+            // Fallback 1: ilike match on the first matched topic
+            const fallbackTopic = (matchedTopics && matchedTopics.length > 0) ? matchedTopics[0] : topicNorm;
+            let widerQuery = supabase
+                .from('questions')
+                .select('*')
+                .ilike('topic', `%${fallbackTopic}%`);
+            
+            if (currentExcludeIds.length > 0) {
+                const idList = buildSupabaseInList(currentExcludeIds);
+                if (idList) {
+                    widerQuery = widerQuery.not('id', 'in', `(${idList})`);
+                }
+            }
+                
+            const { data: widerResults } = await widerQuery.limit(remainingNeeded * 2);
+                
+            if (widerResults && widerResults.length > 0) {
+                console.log(`[Prep365 KB] Broader search found ${widerResults.length} new matches.`);
+                const processedWider = processAndReturnQuestions(widerResults, remainingNeeded, currentExcludeIds);
+                questions = [...questions, ...processedWider].slice(0, requestedCount);
+            }
+        }
 
-        // Step 3: Enforce question count limit
-        const limitedQuestions = questions.slice(0, count || 5);
+        // FINAL FALLBACK: Raw keyword search if still short
+        if (questions.length < requestedCount) {
+            const remainingNeeded = requestedCount - questions.length;
+            const currentExcludeIds = [...safeExcludeIds, ...questions.map(q => q.id)];
+            const topicNorm = normalizeTopic(userTopic);
+            
+            console.log(`Still short (${questions.length}/${requestedCount}). Final keyword fallback for "${topicNorm}"...`);
+            let fallbackQuery = supabase
+                .from('questions')
+                .select('*')
+                .or(`topic.ilike.%${topicNorm}%,question.ilike.%${topicNorm}%`);
+            
+            if (currentExcludeIds.length > 0) {
+                const idList = buildSupabaseInList(currentExcludeIds);
+                if (idList) {
+                    fallbackQuery = fallbackQuery.not('id', 'in', `(${idList})`);
+                }
+            }
+
+            const { data: finalFallback } = await fallbackQuery.limit(remainingNeeded);
+                
+            if (finalFallback && finalFallback.length > 0) {
+                const processedFallback = processAndReturnQuestions(finalFallback, remainingNeeded, currentExcludeIds);
+                questions = [...questions, ...processedFallback].slice(0, requestedCount);
+            }
+        }
+        
+        console.log(`✅ [Prep365 KB] Final results: Found ${questions.length}/${requestedCount} unique questions.`);
 
         // Step 4: Preserve exact content formatting
-        const formattedQuestions = limitedQuestions.map(q => ({
+        return questions.map(q => ({
             id: q.id,
             topic: q.topic,
             difficulty: q.level,
-            text: q.text || q.question, // Exact text as stored
+            type: q.type || 'mcq', // MCQ or short_answer
+            text: q.question || q.text, // Exact text as stored
+            questionHtml: q.question_html, // HTML formatted question (with tables/images)
             options: q.options || [], // Exact options as stored
             correctAnswer: q.correct_answer, // Exact answer as stored
             explanation: q.explanation || '', // Exact explanation as stored
-            source: q.source, // Source file name
             createdAt: q.created_at,
-            // Preserve any additional formatting or metadata
+            imageUrl: q.image_url || q.image, // Consistently map image
             images: q.images || [],
             tables: q.tables || [],
             formulas: q.formulas || [],
             formatting: q.formatting || {}
         }));
-
-        // Step 5: Validate strict KB compliance
-        const validation = validateKBQuizCompliance(userTopic, difficulty, count, matchedTopic, limitedQuestions.length);
-        
-        if (!validation.isCompliant) {
-            console.error('❌ [KB Compliance Violation]:', validation.violations.join(', '));
-            return [];
-        }
-
-        if (validation.warnings.length > 0) {
-            console.warn('⚠️ [KB Compliance Warnings]:', validation.warnings.join(', '));
-        }
-
-        console.log(`✅ [Prep365 KB] Successfully validated: Returning ${limitedQuestions.length} exact questions from: "${matchedTopic}"`);
-        console.log(`🔒 [KB Compliance] Strict KB-only: No AI generation, no topic mixing, no content modification`);
-        return formattedQuestions;
 
     } catch (error) {
         console.error('❌ [Prep365 KB] Search error:', error);
@@ -277,10 +511,11 @@ export const validateKBQuizCompliance = (userTopic, difficulty, count, matchedTo
         warnings: []
     };
 
-    // Check 1: Topic must match exactly (no AI generation)
-    if (!matchedTopic || matchedTopic.toLowerCase() !== userTopic.toLowerCase()) {
+    // Check 1: Topic must match (either exactly or via fuzzy match returned by engine)
+    // If matchedTopic exists, it means the engine already determined it was a valid match
+    if (!matchedTopic) {
         validation.isCompliant = false;
-        validation.violations.push(`Topic mismatch: Requested "${userTopic}" vs Matched "${matchedTopic}"`);
+        validation.violations.push(`No topic match found for requested: "${userTopic}"`);
     }
 
     // Check 2: Questions must come from KB (no mixing)

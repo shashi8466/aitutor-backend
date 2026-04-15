@@ -23,6 +23,7 @@ import settingsRoutes from './routes/settings.js';
 import authRoutes from './routes/auth.js';
 import sendEmailRoute from './routes/send-email.js';
 import kbQuizRoutes from './routes/kb-quiz.js';
+import demoRoutes from './routes/demo.js';
 
 // Background Processors
 import WelcomeEmailProcessor from './services/WelcomeEmailProcessor.js';
@@ -47,6 +48,7 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
+  "http://localhost:5176",
   "http://localhost:3000",
   "http://localhost:3001"
 ];
@@ -94,24 +96,9 @@ app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// 6. Request logging & Auth Middleware
-app.use(async (req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.url}`);
-  try {
-    const user = await getUserFromRequest(req);
-    if (user) req.user = user;
-  } catch (error) {
-    console.warn(`[${timestamp}] Auth middleware warning:`, error.message);
-  }
-  next();
-});
-
-// 7. Static File Serving (Vite Build)
-app.use(express.static(DIST_PATH));
-
-// 8. API Routes
-app.get('/api/health', (req, res) => {
+// 6. Public Routes (NO AUTH required)
+app.use('/api/demo', demoRoutes);
+app.use('/api/health', (req, res) => {
   try {
     res.status(200).json({
       status: 'ok',
@@ -124,6 +111,23 @@ app.get('/api/health', (req, res) => {
   }
 });
 
+// 7. Request logging & Auth Middleware (for protected routes)
+app.use(async (req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url}`);
+  try {
+    const user = await getUserFromRequest(req);
+    if (user) req.user = user;
+  } catch (error) {
+    console.warn(`[${timestamp}] Auth middleware warning:`, error.message);
+  }
+  next();
+});
+
+// 8. Static File Serving (Vite Build)
+app.use(express.static(DIST_PATH));
+
+// 9. API Routes (PROTECTED)
 app.use('/api/ai', aiRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/payment', paymentRoutes);

@@ -207,11 +207,9 @@ const StudentDashboard = () => {
           levelScores.Hard
         );
 
-        // Fallback: If no activity yet, show diagnostic baseline
+        // Fallback: If no activity yet, show 0 by default
         if (courseScaledScore === 0) {
-          courseScaledScore = courseCategory === 'MATH'
-              ? (diagnosticData ? parseInt(diagnosticData.mathScore) || 200 : 200)
-              : (diagnosticData ? parseInt(diagnosticData.rwScore) || 200 : 200);
+          courseScaledScore = 0;
         }
 
         return {
@@ -252,10 +250,10 @@ const StudentDashboard = () => {
       return {
         scores: {
           total: 0,
-          math: 200,
-          rw: 200,
-          latestMath: 200,
-          latestRw: 200,
+          math: 0,
+          rw: 0,
+          latestMath: 0,
+          latestRw: 0,
           target: 1500,
           totalImprovement: 0
         },
@@ -450,13 +448,13 @@ const StudentDashboard = () => {
                           <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
                             <motion.div
                               initial={{ width: 0 }}
-                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.latestMath) - 200) / 600) * 100)}%` }}
+                              animate={{ width: `${Math.min(100, Math.max(2, (scores.latestMath / 800) * 100))}%` }}
                               transition={{ duration: 1, ease: 'easeOut' }}
                               className="h-full bg-gradient-to-r from-sky-400 to-sky-600 rounded-full shadow-sm"
                             />
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-300 dark:text-slate-600 font-bold mt-1 px-1 tracking-tighter">
-                            <span>200</span><span>500</span><span>800</span>
+                            <span>0</span><span>400</span><span>800</span>
                           </div>
                         </div>
                         {/* RW */}
@@ -471,13 +469,13 @@ const StudentDashboard = () => {
                           <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
                             <motion.div
                               initial={{ width: 0 }}
-                              animate={{ width: `${Math.max(25, ((Math.max(200, scores.latestRw) - 200) / 600) * 100)}%` }}
+                              animate={{ width: `${Math.min(100, Math.max(2, (scores.latestRw / 800) * 100))}%` }}
                               transition={{ duration: 1, ease: 'easeOut', delay: 0.1 }}
                               className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full shadow-sm"
                             />
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-300 dark:text-slate-600 font-bold mt-1 px-1 tracking-tighter">
-                            <span>200</span><span>500</span><span>800</span>
+                            <span>0</span><span>400</span><span>800</span>
                           </div>
                         </div>
                       </div>

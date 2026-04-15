@@ -131,6 +131,17 @@ const ProtectedRoute = ({ children, role }) => {
     return <Navigate to={`/login?redirect=${returnUrl}`} />;
   }
 
+  // Account status check - ALL protected routes require an ACTIVE status
+  if (user.status === 'pending') {
+    console.warn(`⏳ [ProtectedRoute] Approval pending for ${user.email}. Redirecting to login.`);
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (user.status === 'suspended' || user.status === 'inactive') {
+    console.warn(`🚨 [ProtectedRoute] Account ${user.status} for ${user.email}. Redirecting to login.`);
+    return <Navigate to="/login" replace />;
+  }
+
   // Prevent redirect loops during the first render after signup or refresh.
   // Supabase may briefly set role to `authenticated` (or an empty value),
   // while the user is actually expected to be a different role.

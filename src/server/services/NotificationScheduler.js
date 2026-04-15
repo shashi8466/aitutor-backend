@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import axios from 'axios';
 import supabase from '../../supabase/supabaseAdmin.js';
 import { enqueueNotification } from '../utils/notificationOutbox.js';
 
@@ -42,33 +43,50 @@ class NotificationScheduler {
         console.log('ℹ️ [Cron] Outbox processor disabled locally (NODE_ENV != production)');
     }
 
-    // Weekly progress report - Every Saturday at 7 PM
-    cron.schedule('0 19 * * 6', async () => {
-      console.log('Weekly progress report job triggered');
+    // Weekly progress report - Every Saturday at 6 PM IST
+    cron.schedule('0 18 * * 6', async () => {
+      console.log('📬 [Cron] Weekly progress report job triggered');
       try {
         const port = process.env.PORT || 3001;
-        await fetch(`http://localhost:${port}/api/notifications/run-weekly`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || '' }
+        const secret = process.env.CRON_SECRET || '';
+        const url = `http://127.0.0.1:${port}/api/notifications/run-weekly`;
+        
+        console.log(`📡 [Cron] Calling weekly report endpoint: ${url}`);
+        const response = await axios.post(url, {}, {
+          headers: { 'x-cron-secret': secret },
+          timeout: 600000 // 10 minutes for large report processing
         });
+        
+        console.log('✅ [Cron] Weekly report response:', response.data);
       } catch (e) {
-        console.error('Error running weekly report from cron:', e.message);
+        console.error('❌ [Cron] Error running weekly report:', e.message);
+        if (e.response) {
+          console.error('❌ [Cron] Status:', e.response.status, 'Data:', e.response.data);
+        }
       }
     }, {
-      timezone: 'America/New_York'
+      timezone: 'Asia/Kolkata'
     });
 
     // Test due date reminders - Every two days at 9 AM
     cron.schedule('0 9 */2 * *', async () => {
-      console.log('Due date reminder job triggered');
+      console.log('📬 [Cron] Due date reminder job triggered');
       try {
         const port = process.env.PORT || 3001;
-        await fetch(`http://localhost:${port}/api/notifications/run-due-reminders`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-cron-secret': process.env.CRON_SECRET || '' }
+        const secret = process.env.CRON_SECRET || '';
+        const url = `http://127.0.0.1:${port}/api/notifications/run-due-reminders`;
+
+        console.log(`📡 [Cron] Calling due reminders endpoint: ${url}`);
+        const response = await axios.post(url, {}, {
+          headers: { 'x-cron-secret': secret }
         });
+        
+        console.log('✅ [Cron] Due reminders response:', response.data);
       } catch (e) {
-        console.error('Error running reminders from cron:', e.message);
+        console.error('❌ [Cron] Error running reminders from cron:', e.message);
+        if (e.response) {
+          console.error('❌ [Cron] Status:', e.response.status, 'Data:', e.response.data);
+        }
       }
     }, {
       timezone: 'America/New_York'

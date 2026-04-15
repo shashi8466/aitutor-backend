@@ -28,10 +28,10 @@ const Navbar = () => {
   const closeMenu = () => setIsMenuOpen(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[100] p-4 lg:p-5 transition-all duration-300">
-      <nav className="mx-auto flex max-w-[1500px] items-center justify-between rounded-[24px] border border-white/5 bg-slate-900/40 px-10 py-4 backdrop-blur-2xl shadow-2xl w-full">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="flex items-center gap-4 group" onClick={closeMenu}>
+    <header className="fixed top-0 left-0 right-0 z-[100] p-2 sm:p-4 lg:p-5 transition-all duration-300 mobile-safe">
+      <nav className="mx-auto flex max-w-[1500px] items-center justify-between rounded-2xl sm:rounded-[24px] border border-white/5 bg-slate-900/40 px-3 sm:px-6 lg:px-10 py-3 sm:py-4 backdrop-blur-2xl shadow-2xl w-full">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <Link to="/" className="flex items-center gap-2 sm:gap-4 group min-w-0" onClick={closeMenu}>
             {(settings.logo_url || settings.logoUrl) ? (
               <div className="h-13 w-auto max-w-[140px] flex items-center justify-center">
                 <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
@@ -41,7 +41,7 @@ const Navbar = () => {
                  <span className="text-white font-black italic text-xs tracking-tighter shadow-sm">AI</span>
               </div>
             )}
-            <div className="text-2xl font-black tracking-tight text-white flex items-center">
+            <div className="text-base sm:text-xl lg:text-2xl font-black tracking-tight text-white flex items-center truncate">
               {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName /> : settings.appName}
             </div>
           </Link>
@@ -60,7 +60,7 @@ const Navbar = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2 sm:gap-6">
           {user ? (
             <div className="flex items-center gap-4">
               <span className="text-sm font-bold text-slate-300 hidden sm:block">{user.name}</span>
@@ -70,8 +70,8 @@ const Navbar = () => {
             </div>
           ) : (
             <>
-              <button onClick={() => navigate('/login')} className="px-8 py-2.5 rounded-full border border-sky-500 text-sky-500 text-sm font-semibold tracking-wide hover:bg-sky-500/10 transition-all">LOGIN</button>
-              <button onClick={() => navigate('/signup')} className="px-8 py-2.5 rounded-full bg-orange-500 text-slate-950 text-sm font-bold tracking-wide hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20 active:scale-95">SIGN UP</button>
+              <button onClick={() => navigate('/login')} className="hidden sm:block px-5 lg:px-8 py-2.5 rounded-full border border-sky-500 text-sky-500 text-xs sm:text-sm font-semibold tracking-wide hover:bg-sky-500/10 transition-all">LOGIN</button>
+              <button onClick={() => navigate('/signup')} className="hidden sm:block px-5 lg:px-8 py-2.5 rounded-full bg-orange-500 text-slate-950 text-xs sm:text-sm font-bold tracking-wide hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20 active:scale-95">SIGN UP</button>
             </>
           )}
           <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="lg:hidden p-2 rounded-lg text-slate-400 hover:bg-white/5 transition-all">
@@ -98,7 +98,7 @@ const Navbar = () => {
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: '100%', opacity: 0 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="lg:hidden fixed top-0 right-0 bottom-0 w-[85%] max-w-[400px] bg-slate-900 border-l border-white/5 shadow-2xl z-[200] overflow-y-auto"
+                className="lg:hidden fixed top-0 right-0 bottom-0 w-[92%] max-w-[400px] bg-slate-900 border-l border-white/5 shadow-2xl z-[200] overflow-y-auto"
               >
                 <div className="flex flex-col h-full p-8">
                   <div className="flex items-center justify-between mb-10">

@@ -12,7 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const {
   FiArrowLeft, FiCheck, FiX, FiMessageCircle, FiClock, FiTarget,
   FiSkipForward, FiInfo, FiImage, FiAward, FiRefreshCw, FiShield,
-  FiTrendingUp, FiChevronLeft, FiChevronRight, FiGrid
+  FiTrendingUp, FiChevronLeft, FiChevronRight, FiGrid, FiZap
 } = FiIcons;
 
 // Helper to get clean question text (removes duplicate images already in the image column)
@@ -367,6 +367,9 @@ const QuizInterface = () => {
           </div>
 
           <div className="flex flex-col gap-3">
+            <Link to={`/student/score-predictor?courseId=${courseId}`} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
+              <SafeIcon icon={FiZap} className="w-5 h-5" /> View Score Prediction
+            </Link>
             <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
               <SafeIcon icon={FiSkipForward} className="w-5 h-5" /> Next Level / Dashboard
             </Link>
@@ -640,13 +643,15 @@ const QuizInterface = () => {
                       <SafeIcon icon={FiShield} className="w-3.5 h-3.5" />
                       <span>Analysis Verified by AI Scoring Engine</span>
                     </div>
-                    <button 
-                      onClick={() => setShowAITutor(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-[#E53935] hover:text-[#E53935] transition-all shadow-sm"
-                    >
-                      <SafeIcon icon={FiMessageCircle} className="w-4 h-4" />
-                      Ask AI for Deep Analysis
-                    </button>
+                    {!isCorrectAnswer() && (
+                      <button 
+                        onClick={() => setShowAITutor(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-[#E53935] hover:text-[#E53935] transition-all shadow-sm"
+                      >
+                        <SafeIcon icon={FiMessageCircle} className="w-4 h-4" />
+                        Chat with AI
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>

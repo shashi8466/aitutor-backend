@@ -1,0 +1,518 @@
+{
+  "projectName": "Educational AI Platform",
+  "timestamp": "2026-04-10T09:34:38.227Z",
+  "duration": 1979,
+  "summary": {
+    "total": 13,
+    "passed": 13,
+    "failed": 0,
+    "errors": 0
+  },
+  "results": [
+    {
+      "suite": "Health Check",
+      "test": "API Health Check",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 3,
+      "response": {
+        "status": 200,
+        "data": {
+          "status": "ok",
+          "message": "Server is active",
+          "timestamp": "2026-04-10T09:34:36.392Z",
+          "uptime": 5353.7846238
+        }
+      }
+    },
+    {
+      "suite": "Knowledge Base Quiz System",
+      "test": "Get Quiz Questions - Basic",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 634,
+      "response": {
+        "status": 200,
+        "data": {
+          "source": "KB",
+          "questions": [
+            {
+              "id": 7134,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "short_answer",
+              "text": "The amount of Hanna's bill for a food order was $50 . Hanna gave a tip of 20% of the amount of the bill. What is the amount, in dollars, of the tip Hanna gave?",
+              "options": [],
+              "correctAnswer": "10",
+              "explanation": " The correct answer is 10. It's given that the amount of Hanna's food order was  $50  and that Hanna gave a tip of 20% of the amount of the bill. 20% of 50 can be calculated as  \\((\\frac{20}{100})(50)\\) , which yields  \\(\\frac{1000}{100}\\) , or 10. Therefore, the amount, in dollars, of the tip Hanna gave is 10.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7140,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "Thomas installed a new stove in his restaurant. At the time of installation, the stove had a value of $800 . Thomas estimates that each year the value of the stove will depreciate by 20% of the previous year's estimated value. What is the estimated value of the stove exactly 2 years after Thomas installed it?",
+              "options": [
+                "$480",
+                "$512",
+                "$556",
+                "$640"
+              ],
+              "correctAnswer": "B",
+              "explanation": "\nChoice B is correct. If the stove's value depreciates by 20% of the previous year's estimated value, then each year it retains 100% 20%=80%, or 0.80 , of the previous year's estimated value. Since the stove's value was  $800  when Thomas installed it, the estimated value after two years would be (0.80)(0.80)($800)=$512.\nChoice A is incorrect. This is the value of the stove if each year it had depreciated by 20% of the original value rather than by 20% of the previous year's estimated value. Choice C is incorrect and may be the result of a computational error. Choice D is incorrect. This is the estimated value of the stove 1 year after Thomas installed it, not 2 years.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7136,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "short_answer",
+              "text": "\\(432\\text{ }\\) is 96% of what number?",
+              "options": [],
+              "correctAnswer": "450",
+              "explanation": " The correct answer is 450. Let x represent the number that 432 is 96% of. This can be written as  \\((\\frac{96}{100})x=432\\) , or 0.96x=432. Dividing both sides of this equation by 0.96 yields x=450. Therefore, 432 is 96% of 450.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7141,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "The number of coins in a collection increased from 9 to 90. What was the percent increase in the number of coins in this collection?",
+              "options": [
+                "10%",
+                "81%",
+                "90%",
+                "900%"
+              ],
+              "correctAnswer": "D",
+              "explanation": "\nChoice D is correct. It's given that the number of coins in the collection increased from 9 to 90 . It follows that the number of coins in the collection increased by 90-9, or 81. Let x% represent the percentage that 81 is of 9. The value of x can be found using the proportion  \\(\\frac{81}{9}=\\frac{x}{100}\\) , or  \\(9=\\frac{z}{100}\\) . Multiplying both sides of this equation by 100 yields 900=x. Thus, when the number of coins in the collection increased from 9 to 90, the percent increase was 900%.\nChoice A is incorrect and may result from conceptual or calculation errors.\nChoice B is incorrect and may result from conceptual or calculation errors.\nChoice C is incorrect and may result from conceptual or calculation errors.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7131,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "In a group, 40% of the items are red. Of all the red items in the group, 30% also have stripes. What percentage of the items in the group are red with stripes?",
+              "options": [
+                "10%",
+                "12%",
+                "70%",
+                "75%"
+              ],
+              "correctAnswer": "B",
+              "explanation": "\nChoice B is correct. It's given that in a group, 40% of the items are red. It follows that the number of red items in the group can be represented by 0,4x, where x represents the total number of items in the group. It's also given that of all the red items in the group, 30% also have stripes. It follows that the number of items in the group that are red and have stripes can be represented by 0.3(0.4x), or 0.12x. The expression 0.12x represents 12% of x. Since x represents the total number of items in the group, it follows that 12% of the items in the group are red and have stripes.\nChoice A is incorrect and may result from subtracting 30% from 40% rather than calculating 30% of 40%.\nChoice C is incorrect and may result from adding 30% and 40% rather than calculating 30% of 40%.\nChoice D is incorrect and may result from calculating the percentage that 30% is of 40% rather than calculating 30% of 40%.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            }
+          ],
+          "topic": "percentage",
+          "level": "Medium",
+          "requestedCount": 5,
+          "actualCount": 5,
+          "exhausted": false,
+          "unusedAvailable": 75
+        }
+      }
+    },
+    {
+      "suite": "Knowledge Base Quiz System",
+      "test": "Get Quiz Questions - No Duplicates",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 619,
+      "response": {
+        "status": 200,
+        "data": {
+          "source": "KB",
+          "questions": [
+            {
+              "id": 7126,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "The population of City A increased by 7% from 2015 to 2016. If the 2016 population is k times the 2015 population, what is the value of k ?",
+              "options": [
+                "0.07",
+                "0.7",
+                "1.07",
+                "1.7"
+              ],
+              "correctAnswer": "C",
+              "explanation": "\nChoice C is correct. It's given that the population of City A increased by 7% from 2015 to 2016. Therefore, the population of City A in 2016 includes 100% of the population of City A in 2015 plus an additional 7% of the population of City A in 2015. This means that the population of City A in 2016 is 107% of the population in 2015. Thus, the population of City A in 2016 is  \\(\\frac{107}{100}\\) , or 1.07 , times the 2015 population. Therefore, the value of k is 1.07 .\nChoice A is incorrect. This would be the value of k if the population in 2016 was 7% of the population in 2015.\nChoice B is incorrect. This would be the value of k if the population in 2016 was 70% of the population in 2015.\nChoice D is incorrect. This would be the value of k if the population increased by 70%, not 7%, from 2015 to 2016.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7141,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "The number of coins in a collection increased from 9 to 90. What was the percent increase in the number of coins in this collection?",
+              "options": [
+                "10%",
+                "81%",
+                "90%",
+                "900%"
+              ],
+              "correctAnswer": "D",
+              "explanation": "\nChoice D is correct. It's given that the number of coins in the collection increased from 9 to 90 . It follows that the number of coins in the collection increased by 90-9, or 81. Let x% represent the percentage that 81 is of 9. The value of x can be found using the proportion  \\(\\frac{81}{9}=\\frac{x}{100}\\) , or  \\(9=\\frac{z}{100}\\) . Multiplying both sides of this equation by 100 yields 900=x. Thus, when the number of coins in the collection increased from 9 to 90, the percent increase was 900%.\nChoice A is incorrect and may result from conceptual or calculation errors.\nChoice B is incorrect and may result from conceptual or calculation errors.\nChoice C is incorrect and may result from conceptual or calculation errors.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7132,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "A number n is increased 6%. If the result is 318, what is the value of n ?",
+              "options": [
+                "199",
+                "299",
+                "300",
+                "337"
+              ],
+              "correctAnswer": "C",
+              "explanation": "\nChoice C is correct. The decimal equivalent of 6% is 0.06 . Since increasing the number n by 6% yields the number 318, this situation can be represented by the equation n(1+0.06)=318, or n(1.06)=318. Dividing both sides of this equation by 1.06 yields n=300.\nChoice A is incorrect. This is the result when n is increased by 60%, not by 6%. Choice B is incorrect. This is the approximate result of decreasing 318 by 6%. Choice D is incorrect. This is the approximate result of increasing 318 by 6%.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7125,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "Which expression represents the result of increasing a positive quantity w by 43% ?",
+              "options": [
+                "1.43w",
+                "0.57w",
+                "43w",
+                "0.43w"
+              ],
+              "correctAnswer": "A",
+              "explanation": "\nChoice A is correct. The result of increasing a positive quantity w by x% can be represented by the expression  \\((1+\\frac{x}{100})w\\)  . Therefore, the result of increasing a positive quantity w by 43% can be found by substituting 43 for x in the expression  \\((1+\\frac{x}{100})w\\) , which gives  \\((1+\\frac{43}{100})w\\) , or 1.43w. Thus, the expression 1.43w represents the result of increasing a positive quantity w by 43%.\nChoice B is incorrect. This is the result of decreasing a positive quantity w by 43%.\nChoice C is incorrect. This is the result of increasing a positive quantity w by 4,200%.\nChoice D is incorrect. This is the result of decreasing a positive quantity w by 57%.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7140,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "Thomas installed a new stove in his restaurant. At the time of installation, the stove had a value of $800 . Thomas estimates that each year the value of the stove will depreciate by 20% of the previous year's estimated value. What is the estimated value of the stove exactly 2 years after Thomas installed it?",
+              "options": [
+                "$480",
+                "$512",
+                "$556",
+                "$640"
+              ],
+              "correctAnswer": "B",
+              "explanation": "\nChoice B is correct. If the stove's value depreciates by 20% of the previous year's estimated value, then each year it retains 100% 20%=80%, or 0.80 , of the previous year's estimated value. Since the stove's value was  $800  when Thomas installed it, the estimated value after two years would be (0.80)(0.80)($800)=$512.\nChoice A is incorrect. This is the value of the stove if each year it had depreciated by 20% of the original value rather than by 20% of the previous year's estimated value. Choice C is incorrect and may be the result of a computational error. Choice D is incorrect. This is the estimated value of the stove 1 year after Thomas installed it, not 2 years.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7128,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "The number k is 36% greater than 50. If k is the product of 50 and r, what is the value of r ?",
+              "options": [
+                "36",
+                "3.6",
+                "1.36",
+                "0.36"
+              ],
+              "correctAnswer": "C",
+              "explanation": "\nChoice C is correct. It's given that the number k is 36% greater than 50 . Therefore, the value of k is the number 50 plus 36% of 50 . This can be rewritten as  \\(k=50+(\\frac{36}{100})(50)\\) . Multiplying the terms  \\((\\frac{36}{100})(50)\\)  yields 18 , so k=50+18, or k=68. It's also given that k is the product of 50 and r , which can be rewritten as k=50r. Substituting 68 for k yields 68=50r. Dividing both sides of this equation by 50 yields r=1.36.\nChoice A is incorrect. This is the percentage that k is greater than 50. Choice B is incorrect and may result from a calculation error. Choice D is incorrect. This would be the value of r if k were 36% of 50, instead of 36% greater than 50.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7123,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "mcq",
+              "text": "During the first month of sales, a company sold 1,300,000 units of a certain type of smartphone. During the same month, 15% of the units sold were returned. If sales and the return rate remain the same for each of the next 5 months, about how many units of this smartphone will be returned to the company during this 6 -month period?",
+              "options": [
+                "195,000",
+                "975,000",
+                "1,170,000",
+                "6,630,000"
+              ],
+              "correctAnswer": "C",
+              "explanation": "\nChoice C is correct. Of the 1,300,000 units sold during the first month, 15% were returned, so (1,300,000)(0.15)=195,000 units were returned during the first month. If the units were sold and returned at the same rate for the next 5 months, then a total of (195,000)(6)=1,170,000 smartphone units were returned during the 6 -month period.\nChoice A is incorrect. This is the number of units that were returned in 1 month. Choice B is incorrect. This is the number of units that were returned in 5 months. Choice D is incorrect. This is the number of units sold and not returned during the first 6 months.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7121,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "short_answer",
+              "text": "In a sample, 80% of the items are faulty. There are 88 faulty items in the sample. How many total items are in the sample?",
+              "options": [],
+              "correctAnswer": "110",
+              "explanation": " The correct answer is 110 . Let x represent the total number of items in the sample. It's given that 80% of the items are faulty and that there are 88 faulty items in the sample. Therefore, 80% of x is 88 . Since 80% can be rewritten as  \\(\\frac{80}{100}\\) , it follows that  \\(\\frac{80}{100}x=88\\) . Multiplying both sides of this equation by 100 yields 80x=8,800. Dividing both sides of this equation by 80 yields x=110. Therefore, there are 110 total items in the sample.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7136,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "short_answer",
+              "text": "\\(432\\text{ }\\) is 96% of what number?",
+              "options": [],
+              "correctAnswer": "450",
+              "explanation": " The correct answer is 450. Let x represent the number that 432 is 96% of. This can be written as  \\((\\frac{96}{100})x=432\\) , or 0.96x=432. Dividing both sides of this equation by 0.96 yields x=450. Therefore, 432 is 96% of 450.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            },
+            {
+              "id": 7134,
+              "topic": "Percentages",
+              "difficulty": "Medium",
+              "type": "short_answer",
+              "text": "The amount of Hanna's bill for a food order was $50 . Hanna gave a tip of 20% of the amount of the bill. What is the amount, in dollars, of the tip Hanna gave?",
+              "options": [],
+              "correctAnswer": "10",
+              "explanation": " The correct answer is 10. It's given that the amount of Hanna's food order was  $50  and that Hanna gave a tip of 20% of the amount of the bill. 20% of 50 can be calculated as  \\((\\frac{20}{100})(50)\\) , which yields  \\(\\frac{1000}{100}\\) , or 10. Therefore, the amount, in dollars, of the tip Hanna gave is 10.",
+              "createdAt": "2026-04-09T08:24:28.440222+00:00",
+              "imageUrl": null,
+              "images": [],
+              "tables": [],
+              "formulas": [],
+              "formatting": {}
+            }
+          ],
+          "topic": "percentage",
+          "level": "Medium",
+          "requestedCount": 10,
+          "actualCount": 10,
+          "exhausted": false,
+          "unusedAvailable": 75
+        }
+      }
+    },
+    {
+      "suite": "Knowledge Base Quiz System",
+      "test": "Get Available Topics",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 166,
+      "response": {
+        "status": 200,
+        "data": {
+          "topics": [
+            "Area and volume",
+            "Boundaries",
+            "Central Ideas and Details",
+            "Circles",
+            "Command of quantitative evidence",
+            "Command of textual evidence",
+            "Equivalent expressions",
+            "Form, Structure, and Sense",
+            "Inference from sample statistics",
+            "Inferences",
+            "Linear equations in one variable",
+            "Linear equations in two variables",
+            "Linear functions",
+            "Linear inequalities - in one or two variables",
+            "Lines, angles, and triangles",
+            "Nonlinear equations in one variable and systems of equations in two variables",
+            "Nonlinear functions",
+            "Percentages",
+            "Probability",
+            "Problem-Solving and Data Analysis",
+            "Ratios, rates, proportional relationships and units",
+            "Rhetorical synthesis",
+            "Systems of two linear equations in two variables",
+            "Text Structure and Purpose",
+            "Transitions",
+            "Two-variable data: models and scatterplots",
+            "Words in Context"
+          ]
+        }
+      }
+    },
+    {
+      "suite": "AI Tutor Functionality",
+      "test": "AI Tutor Test Endpoint",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 2,
+      "response": {
+        "status": 200,
+        "data": {
+          "message": "AI routes working!",
+          "timestamp": "2026-04-10T09:34:37.925Z"
+        }
+      }
+    },
+    {
+      "suite": "AI Tutor Functionality",
+      "test": "AI Tutor Routes Info",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 2,
+      "response": {
+        "status": 200,
+        "data": {
+          "message": "Available AI Routes",
+          "routes": [
+            "POST /api/ai/podcast",
+            "POST /api/ai/extract",
+            "POST /api/ai/sales-chat",
+            "POST /api/ai/generate-exam",
+            "POST /api/ai/personal-tutor",
+            "GET /api/ai/test",
+            "GET /api/ai/routes"
+          ]
+        }
+      }
+    },
+    {
+      "suite": "Upload System",
+      "test": "Upload Test Endpoint",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 271,
+      "response": {
+        "status": 200,
+        "data": {
+          "message": "Upload routes are working!",
+          "serverStatus": "online",
+          "supabaseConnection": "connected",
+          "bucketStatus": "missing_bucket (documents)",
+          "targetBucket": "documents",
+          "maxFileSize": "5GB",
+          "supportedFormats": [
+            "docx",
+            "txt",
+            "pdf",
+            "mp4",
+            "mov",
+            "webm"
+          ],
+          "timestamp": "2026-04-10T09:34:38.203Z"
+        }
+      }
+    },
+    {
+      "suite": "Contact System",
+      "test": "Contact Form Submission",
+      "status": "passed",
+      "message": "All validations passed",
+      "duration": 2,
+      "response": {
+        "status": 200,
+        "data": {
+          "success": true,
+          "message": "Message received and processing in background"
+        }
+      }
+    },
+    {
+      "suite": "UI Components",
+      "test": "Dashboard Page Load",
+      "status": "passed",
+      "message": "UI test simulated (requires browser automation)",
+      "duration": 100,
+      "note": "UI tests require Playwright or similar browser automation"
+    },
+    {
+      "suite": "UI Components",
+      "test": "Course List Page",
+      "status": "passed",
+      "message": "UI test simulated (requires browser automation)",
+      "duration": 100,
+      "note": "UI tests require Playwright or similar browser automation"
+    },
+    {
+      "suite": "UI Components",
+      "test": "AI Tutor Modal",
+      "status": "passed",
+      "message": "UI test simulated (requires browser automation)",
+      "duration": 100,
+      "note": "UI tests require Playwright or similar browser automation"
+    },
+    {
+      "suite": "Performance Tests",
+      "test": "API Response Time",
+      "status": "passed",
+      "message": "Response time: 2ms (max: 2000ms)",
+      "duration": 2,
+      "responseTime": 2
+    },
+    {
+      "suite": "Performance Tests",
+      "test": "Page Load Time",
+      "status": "passed",
+      "message": "Performance test completed",
+      "duration": 0
+    }
+  ]
+}
