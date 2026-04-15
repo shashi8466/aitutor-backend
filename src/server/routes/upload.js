@@ -354,13 +354,14 @@ router.post('/', upload.single('file'), async (req, res) => {
                 level: normalizedLevel,
                 type: (q.options && q.options.length >= 2) ? 'mcq' : 'short_answer',
                 question: processedQuestion,
-                question_html: processedQuestion, // CRITICAL: Populate this for frontend checks
                 options: processedOptions,
                 correct_answer: q.correctAnswer || '',
                 explanation: processedExplanation,
                 upload_id: uploadId,
                 image: mainImage,
-                topic: q.topic || fileTopicFallback || null
+                topic: q.topic || fileTopicFallback || null,
+                section: q.section || 'math',
+                difficulty_weight: 1.0
               };
             });
 
