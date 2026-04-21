@@ -227,7 +227,7 @@ router.post('/validate-key', async (req, res) => {
 router.post('/use-key', async (req, res) => {
     try {
         const userId = req.user?.id;
-        let { keyCode } = req.body;
+        let { keyCode, courseId } = req.body;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -243,11 +243,35 @@ router.post('/use-key', async (req, res) => {
             return res.status(400).json({ error: 'Invalid key format. Keys must be between 4 and 12 characters.' });
         }
 
+        // 1. First, validate the key and its course binding
+        const { data: keyData, error: keyError } = await supabaseAdmin
+            .from('enrollment_keys')
+            .select('id, course_id, is_active')
+            .eq('key_code', keyCode)
+            .maybeSingle();
+
+        if (keyError || !keyData) {
+            return res.status(400).json({ error: 'Invalid enrollment key. Please check the code and try again.' });
+        }
+
+        if (!keyData.is_active) {
+            return res.status(400).json({ error: 'This enrollment key has been deactivated.' });
+        }
+
+        // 🎯 THE FIX: Verify the key belongs to the PROVIDED course
+        // If courseId is provided (standard for CourseView enrollment), enforce strict match
+        if (courseId && Number(keyData.course_id) !== Number(courseId)) {
+            return res.status(400).json({ 
+                error: 'This key is for a different course. Please use the correct key for this course.' 
+            });
+        }
+
         // Use the database function to enroll via Admin Client to bypass RLS
         const { data, error } = await supabaseAdmin
             .rpc('use_enrollment_key', {
                 p_key_code: keyCode,
-                p_user_id: userId
+                p_user_id: userId,
+                p_intended_course_id: courseId ? parseInt(courseId) : null
             });
 
         if (error) {

@@ -751,8 +751,8 @@ export const enrollmentService = {
   },
 
   // Use an enrollment key to enroll in a course
-  useKey: async (keyCode) => {
-    return axios.post('/api/enrollment/use-key', { keyCode });
+  useKey: async (keyCode, courseId = null) => {
+    return axios.post('/api/enrollment/use-key', { keyCode, courseId });
   },
 
   getKeys: async (courseId = null) => {

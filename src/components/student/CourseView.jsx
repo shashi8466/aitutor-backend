@@ -127,7 +127,7 @@ const CourseView = () => {
     setEnrollmentError('');
 
     try {
-      const response = await enrollmentService.useKey(keyCode);
+      const response = await enrollmentService.useKey(keyCode, courseId);
 
       if (response.data.enrolled) {
         setEnrollmentSuccess(true);
