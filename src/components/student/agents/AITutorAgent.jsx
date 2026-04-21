@@ -540,7 +540,7 @@ const AITutorAgent = () => {
         const requestedCount = extractQuizCount(msgText);
 
         // 1. Topic Gating Check
-        const hasAccess = await planService.checkAccess(user.id, 'topic', topic);
+        const hasAccess = await planService.checkAccess(user.id, 'topic', topic, user.plan_type);
         if (!hasAccess) {
           setMessages(prev => [...prev, {
             id: Date.now() + 1,
@@ -553,15 +553,14 @@ const AITutorAgent = () => {
 
         // 2. Question Limit Check
         const usage = await planService.getUsageStats(user.id);
-        const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', user.id).single();
         const { data: settings } = await planService.getSettings();
-        const userPlan = (profile?.plan_type || user?.plan_type || 'free').toLowerCase();
+        const userPlan = (user?.plan_type || 'free').toLowerCase();
         const planSettings = (settings || []).find(s => s.plan_type === userPlan);
 
         // For Math/RW specific limits, we'd need more complex logic, but for simplicity:
         const totalLimit = (planSettings?.max_questions_math || 250) + (planSettings?.max_questions_rw || 250);
 
-        if (usage.totalQuestions >= totalLimit) {
+        if (userPlan !== 'premium' && usage.totalQuestions >= totalLimit) {
           setMessages(prev => [...prev, {
             id: Date.now() + 1,
             sender: 'ai',

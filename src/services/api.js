@@ -879,65 +879,71 @@ export const planService = {
     
     return { totalQuestions: questionCount, totalTests: uniqueTests.size };
   },
-  checkAccess: async (userId, contentType, contentId, planType = 'free') => {
-    // 1. Get user profile
-    const { data: profile } = await supabase.from('profiles').select('plan_type, plan_status').eq('id', userId).single();
-    const userPlan = (profile?.plan_type || 'free').toLowerCase();
-    
-    // Premium tier gets full access to all topics and tests by default
-    if (userPlan === 'premium') return true;
-    
-    // 2. Direct whitelist check
-    const { data: directAccess } = await supabase
-      .from('plan_content_access')
-      .select('id')
-      .eq('content_type', contentType)
-      .eq('content_id', contentId)
-      .eq('plan_type', userPlan)
-      .maybeSingle();
+  checkAccess: async (userId, contentType, contentId, planType = null) => {
+    // 1. Prioritize provided planType (fast path)
+    const effectivePlan = (planType || 'free').toLowerCase();
+    if (effectivePlan === 'premium') return true;
+
+    // 2. Fallback to fetching from DB if no conclusive planType provided
+    try {
+      const { data: profile } = await supabase.from('profiles').select('plan_type, plan_status').eq('id', userId).single();
+      const userPlan = (profile?.plan_type || effectivePlan || 'free').toLowerCase();
       
-    if (directAccess) return true;
-
-    // 3. Inherited logic: If course is assigned, so are its topics/tests
-    if (contentType === 'topic') {
-      // Find courses that contain this topic
-      const { data: coursesWithTopic } = await supabase
-        .from('questions')
-        .select('course_id')
-        .eq('topic', contentId);
-        
-      const courseIds = (coursesWithTopic || []).map(q => q.course_id).filter(Boolean);
-      if (courseIds.length > 0) {
-        const { data: courseAccess } = await supabase
-          .from('plan_content_access')
-          .select('id')
-          .eq('content_type', 'course')
-          .in('content_id', courseIds)
-          .eq('plan_type', userPlan);
-          
-        if (courseAccess?.length > 0) return true;
-      }
-    }
-
-    if (contentType === 'test') {
-      // Find course for this test (upload)
-      const { data: upload } = await supabase
-        .from('uploads')
-        .select('course_id')
-        .eq('id', contentId)
+      // Premium tier gets full access to all topics and tests by default
+      if (userPlan === 'premium') return true;
+      
+      // 2. Direct whitelist check
+      const { data: directAccess } = await supabase
+        .from('plan_content_access')
+        .select('id')
+        .eq('content_type', contentType)
+        .eq('content_id', contentId)
+        .eq('plan_type', userPlan)
         .maybeSingle();
         
-      if (upload?.course_id) {
-        const { data: courseAccess } = await supabase
-          .from('plan_content_access')
-          .select('id')
-          .eq('content_type', 'course')
-          .eq('content_id', upload.course_id)
-          .eq('plan_type', userPlan)
+      if (directAccess) return true;
+
+      // 3. Inherited logic: If course is assigned, so are its topics/tests
+      if (contentType === 'topic') {
+        const { data: coursesWithTopic } = await supabase
+          .from('questions')
+          .select('course_id')
+          .eq('topic', contentId);
+          
+        const courseIds = (coursesWithTopic || []).map(q => q.course_id).filter(Boolean);
+        if (courseIds.length > 0) {
+          const { data: courseAccess } = await supabase
+            .from('plan_content_access')
+            .select('id')
+            .eq('content_type', 'course')
+            .in('content_id', courseIds)
+            .eq('plan_type', userPlan);
+            
+          if (courseAccess?.length > 0) return true;
+        }
+      }
+
+      if (contentType === 'test') {
+        const { data: upload } = await supabase
+          .from('uploads')
+          .select('course_id')
+          .eq('id', contentId)
           .maybeSingle();
           
-        if (courseAccess) return true;
+        if (upload?.course_id) {
+          const { data: courseAccess } = await supabase
+            .from('plan_content_access')
+            .select('id')
+            .eq('content_type', 'course')
+            .eq('content_id', upload.course_id)
+            .eq('plan_type', userPlan)
+            .maybeSingle();
+            
+          if (courseAccess) return true;
+        }
       }
+    } catch (err) {
+      console.warn('⚠️ [checkAccess] Error or no profile found:', err.message);
     }
       
     return false;

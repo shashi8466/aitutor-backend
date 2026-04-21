@@ -99,7 +99,7 @@ const WeaknessDrills = () => {
       if (!topic) throw new Error('Missing weakness topic');
 
       // 1. Access Check
-      const hasAccess = await planService.checkAccess(user.id, 'topic', topic);
+      const hasAccess = await planService.checkAccess(user.id, 'topic', topic, user.plan_type);
       if (!hasAccess) {
         setDrillError(`🔒 Topic Restricted: "${topic}" is only available for Premium students. Please upgrade to unlock!`);
         setLoading(false);
@@ -108,14 +108,13 @@ const WeaknessDrills = () => {
 
       // 2. Limit Check
       const usage = await planService.getUsageStats(user.id);
-      const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', user.id).single();
       const { data: settings } = await planService.getSettings();
-      const userPlan = profile?.plan_type || 'free';
+      const userPlan = (user?.plan_type || 'free').toLowerCase();
       const planSettings = (settings || []).find(s => s.plan_type === userPlan);
       const totalLimit = (planSettings?.max_questions_math || 250) + (planSettings?.max_questions_rw || 250);
       
-      if (usage.totalQuestions >= totalLimit && userPlan !== 'premium') {
-        setDrillError(`⚠️ Limit Reached: You've completed your ${userPlan} plan limit of ${totalLimit} questions. Upgrade for more!`);
+      if (userPlan !== 'premium' && usage.totalQuestions >= totalLimit) {
+        setDrillError(`⚠️ Limit Reached: You've completed your ${userPlan.toUpperCase()} plan limit of ${totalLimit} questions. Upgrade for more!`);
         setLoading(false);
         return;
       }

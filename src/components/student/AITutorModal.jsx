@@ -16,12 +16,29 @@ const AIQuestionCard = ({ data, onComplete }) => {
   if (!data) return <div className="text-red-500">Error: Invalid question data</div>;
 
   // Try to find the question text across common key variations
-  const questionText = data.question || data.questionText || data.question_text ||
+  let baseQuestion = data.question || data.questionText || data.question_text ||
     data.text || data.Question || "Question text missing";
 
   // Try to find options
   let safeOptions = data.options || data.choices || data.Options || data.Choices || [];
   if (!Array.isArray(safeOptions)) safeOptions = [];
+
+  // --- LEAKAGE DETECTION LOGIC ---
+  // If the first option contains significant text before its label, it's likely a spilled question part.
+  const firstOpt = safeOptions[0];
+  let leakage = "";
+  if (typeof firstOpt === 'string' && firstOpt.length > 5) {
+    const letter = 'A';
+    const labelMatch = firstOpt.match(new RegExp(`(?:^|\\s)(${letter}[\\)|\\.\\s]|\\(${letter}\\)|Choice\\s+${letter})`, 'i'));
+    
+    // If we find "A)" but it's not at the very start (at least 3 chars in)
+    if (labelMatch && labelMatch.index > 3) {
+      leakage = firstOpt.substring(0, labelMatch.index).trim();
+      console.log(`🔍 [Leakage Detected] Found spilling text: "${leakage}"`);
+    }
+  }
+
+  const questionText = leakage ? `${baseQuestion} ${leakage}` : baseQuestion;
 
   const effectiveIsMCQ = safeOptions.length > 1;
 
@@ -30,20 +47,43 @@ const AIQuestionCard = ({ data, onComplete }) => {
   let correctLetter = '';
 
   // Determine correct letter/index
-  if (letters.includes(rawCorrect.toUpperCase())) {
-    correctLetter = rawCorrect.toUpperCase();
-  } else {
-    const index = safeOptions.findIndex(opt =>
-      opt.toString().trim() === rawCorrect || opt.toString().trim().includes(rawCorrect)
-    );
-    if (index !== -1) correctLetter = letters[index];
+  if (effectiveIsMCQ) {
+    if (letters.includes(rawCorrect.toUpperCase())) {
+      correctLetter = rawCorrect.toUpperCase();
+    } else {
+      const index = safeOptions.findIndex(opt =>
+        opt.toString().trim() === rawCorrect || opt.toString().trim().includes(rawCorrect)
+      );
+      if (index !== -1) correctLetter = letters[index];
+    }
   }
 
-  const isCorrect = submitted && (selected === correctLetter);
+  const isCorrect = submitted && (
+    effectiveIsMCQ 
+      ? (selected === correctLetter)
+      : (selected.trim().toLowerCase() === rawCorrect.toLowerCase())
+  );
 
   const handleSubmit = () => {
     if (!selected) return;
     setSubmitted(true);
+  };
+
+  // Helper to clean options (strip "A) ", "A. ", etc and any leakage text)
+  const cleanOption = (text, index) => {
+    if (typeof text !== 'string') return text;
+    const letter = String.fromCharCode(65 + index);
+    
+    // Pattern to match labels like "A)", "A.", "(A)", or "Choice A"
+    const labelPattern = new RegExp(`(?:^|\\s)(${letter}[\\)|\\.\\s]|\\(${letter}\\)|Choice\\s+${letter})`, 'i');
+    
+    const match = text.match(labelPattern);
+    if (match) {
+      // Return everything after the label
+      return text.substring(match.index + match[0].length).trim();
+    }
+    
+    return text.trim();
   };
 
   return (
@@ -95,35 +135,44 @@ const AIQuestionCard = ({ data, onComplete }) => {
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${submitted && letter === correctLetter ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
                   {letter}
                 </span>
-                <span className="flex-1 text-sm"><MathRenderer text={opt} /></span>
+                <span className="flex-1 text-sm"><MathRenderer text={cleanOption(opt, i)} /></span>
                 {submitted && letter === correctLetter && <SafeIcon icon={FiCheck} className="text-green-600 w-4 h-4" />}
               </button>
             );
           })}
         </div>
       ) : (
-        <div className="mb-4 text-gray-500 text-sm italic">
-          (Short answer practice not fully supported in preview mode)
+        <div className="space-y-3 mb-6">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Your Answer</label>
+          <input
+            type="text"
+            disabled={submitted}
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            placeholder="Type your answer here..."
+            className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-900/40 border-2 border-gray-100 dark:border-gray-800 rounded-2xl focus:border-red-500 outline-none font-medium transition-all disabled:opacity-70 disabled:bg-gray-100 dark:disabled:bg-gray-800"
+          />
         </div>
       )}
 
       {!submitted ? (
-        <button onClick={handleSubmit} disabled={!selected} className="w-full py-2 bg-black text-white rounded-lg font-bold hover:bg-gray-800 disabled:opacity-50 transition-colors">
+        <button onClick={handleSubmit} disabled={!selected.toString().trim()} className="w-full py-4 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 disabled:opacity-30 transition-all active:scale-[0.98]">
           Check Answer
         </button>
       ) : (
         <div className="animate-fade-in">
-          <div className={`p-3 rounded-lg mb-4 text-sm ${isCorrect ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400'}`}>
-            <p className="font-bold mb-1 flex items-center gap-2">
-              <SafeIcon icon={isCorrect ? FiCheck : FiAlertCircle} className="w-4 h-4" />
-              {isCorrect ? "Correct! Great job." : "Not quite right."}
+          <div className={`p-4 rounded-2xl mb-4 text-sm ${isCorrect ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-900/30' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-900/30'}`}>
+            <p className="font-bold mb-1 flex items-center gap-2 text-base">
+              <SafeIcon icon={isCorrect ? FiCheck : FiAlertCircle} className="w-5 h-5" />
+              {isCorrect ? "Correct answer!" : "Incorrect"}
             </p>
-            <p className="text-gray-700 dark:text-gray-300 mt-2 border-t border-black/5 dark:border-white/5 pt-2 overflow-x-auto whitespace-pre-line break-words max-w-full">
+            {!isCorrect && <p className="text-sm font-semibold opacity-80 mt-1">Correct Answer: {rawCorrect}</p>}
+            <div className="text-gray-700 dark:text-gray-300 mt-3 border-t border-black/5 dark:border-white/10 pt-3 overflow-x-auto whitespace-pre-line break-words max-w-full leading-relaxed">
               <strong>Explanation:</strong> <MathRenderer text={data.explanation || "No explanation provided."} />
-            </p>
+            </div>
           </div>
-          <button onClick={() => onComplete('practice')} className="w-full py-2 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg font-bold text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2">
-            <SafeIcon icon={FiRefreshCw} className="w-4 h-4" /> Generate Another
+          <button onClick={() => onComplete('practice')} className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-2xl font-bold text-sm hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2">
+            <SafeIcon icon={FiRefreshCw} className="w-4 h-4" /> Next Question
           </button>
         </div>
       )}
@@ -206,13 +255,17 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
       } else if (action === 'practice') {
         if (!question) throw new Error("Question context missing");
 
-        // CLEAN PAYLOAD: Only send essential text to avoid circular references or token limits
+        // CLEAN PAYLOAD: Send all question metadata so backend can infer image values
         const questionPayload = {
           question: question.question,
           level: question.level || "Medium",
           concept: question.concept || question.topic || "",
           topic: question.topic || question.concept || "",
-          // Pass image URL so backend can replace [DIAGRAM PRESENT] with the actual image
+          // Pass original answer choices & correct answer so AI can infer the triangle's actual values
+          options: question.options || [],
+          correctAnswer: question.correctAnswer || "",
+          explanation: question.explanation || "",
+          // Pass image URL so backend can re-inject the original diagram
           imageUrl: question.image || question.image_url || question.imageUrl || null
         };
 
@@ -224,7 +277,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
             return "";
           });
 
-        console.log('🎯 [AI Tutor] Generating NEW question via OpenAI with KB reference...');
+        console.log('🎯 [AI Tutor] Fetching similar practice question from Knowledge Base...');
         
         const response = await aiService.generateSimilarQuestion(
           questionPayload,
@@ -233,10 +286,9 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
         
         const newQuestion = response.data;
         if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
-          throw new Error("AI failed to generate a valid question");
+          throw new Error("Failed to fetch a practice question from the Knowledge Base.");
         }
 
-        // Map AI response format to expected format
         const mappedQuestion = {
           id: newQuestion.id || Date.now(),
           question: newQuestion.question || newQuestion.text,
@@ -247,7 +299,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           level: questionPayload.level,
           topic: newQuestion.topic,
           imageUrl: newQuestion.imageUrl || null,
-          source: 'AI-Generated (KB Style)'
+          source: 'Knowledge Base'
         };
 
         setChatMessages(prev => [
@@ -255,7 +307,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           {
             id: Date.now() + 1,
             sender: 'ai',
-            text: `I've generated a new ${questionPayload.level} level practice question for you on **${mappedQuestion.concept}**.`,
+            text: `I've found a ${questionPayload.level} level practice question for you from the Knowledge Base on **${mappedQuestion.concept}**.`,
             isQuestion: true,
             questionData: mappedQuestion
           }

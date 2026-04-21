@@ -6,27 +6,31 @@ import { getUserFromRequest } from '../utils/authHelper.js';
 const router = express.Router();
 
 const SAT_TOPICS_LIST = [
-    "Craft and Structure", "Information and Ideas", "Standard English Conventions",
-    "Expression of Ideas", "Words in Context", "Command of Evidence", "Inferences",
-    "Central Ideas and Details", "Text Structure", "Purpose", "Algebra", "Advanced Math",
-    "Rhetorical synthesis", "Text Structure and Purpose", "Transitions", "Boundaries",
-    "Form, Structure, and Sense", "Cross-Text Connections", "Textual Evidence",
-    "Command of textual evidence", "Command of quantitative evidence", "Quantitative evidence",
-    "Linear equations in one variable", "Linear equations in two variables", "Linear functions",
-    "Systems of two linear equations", "Linear inequalities", "Nonlinear functions",
-    "Quadratic equations", "Exponential functions", "Polynomials", "Radicals",
-    "Rational exponents", "Problem-Solving and Data Analysis",
-    "Ratios, rates, proportional relationships", "Percentages", "One-variable data",
-    "Two-variable data", "Probability", "Conditional probability",
-    "Inference from sample statistics", "Evaluating statistical claims",
-    "Geometry and Trigonometry", "Geometry & Trigonometry", "Area and volume",
-    "Lines, angles, and triangles", "Right triangles and trigonometry", "Circles",
-    "Equivalent expressions", "Nonlinear equations in one variable and systems of equations in two variables",
-    "Ratios rates proportional relationships and units", "Two-variable data: models and scatterplots",
-    "One-variable data distributions and measures of center and spread",
-    "Ratios, rates, proportional relationships and units",
-    "Problem Solving & Data Analysis", "Systems of two linear equations in two variables",
-    "Lines angles and triangles"
+    // SAT MATH: Algebra
+    "Linear equations in one variable", "Linear functions", "Linear equations in two variables",
+    "Systems of two linear equations in two variables", "Linear inequalities in one or two variables",
+    
+    // SAT MATH: Advanced Math
+    "Nonlinear functions", "Nonlinear equations in one variable and systems of equations in two variables",
+    "Equivalent expressions", "Algebra", "Advanced Math",
+    
+    // SAT MATH: Problem-Solving and Data Analysis
+    "Ratios, rates, proportional relationships, and units", "Percentages",
+    "One-variable data: Distributions and measures of center and spread",
+    "Two-variable data: Models and scatterplots", "Probability and conditional probability",
+    "Inference from sample statistics and margin of error",
+    "Evaluating statistical claims: Observational studies and experiments",
+    "Problem-Solving and Data Analysis", "Problem Solving & Data Analysis",
+    
+    // SAT MATH: Geometry and Trigonometry
+    "Area and volume", "Lines, angles, and triangles", "Right triangles and trigonometry", "Circles",
+    "Geometry and Trigonometry", "Geometry & Trigonometry",
+    
+    // SAT READING & WRITING
+    "Words in Context", "Text Structure and Purpose", "Cross-Text Connections", "Craft and Structure",
+    "Central Ideas and Details", "Command of Evidence", "Inferences", "Information and Ideas",
+    "Boundaries", "Form, Structure, and Sense", "Standard English Conventions",
+    "Transitions", "Rhetorical Synthesis", "Expression of Ideas"
 ];
 
 const getAITutorTopic = (line) => {
@@ -37,17 +41,26 @@ const getAITutorTopic = (line) => {
     // Sort topics by length descending to match longest possible topic first
     const sortedTopics = [...SAT_TOPICS_LIST].sort((a, b) => b.length - a.length);
     
-    // Check for hierarchical match
+    // Check for exact or close matches
     for (const topic of sortedTopics) {
         if (cleanLine.toLowerCase().includes(topic.toLowerCase())) {
             return topic;
         }
     }
     
-    // Fallback regex for common topics
-    const fallbackMatch = cleanLine.match(/(?:Topic|Concept|Category)[:\s]+([^,\n]+)/i) ||
-                         cleanLine.match(/(Geometry|Algebra|Reading|Writing|Math|Percentages|Ratios|Probability|Functions)/i);
-    return fallbackMatch ? fallbackMatch[1].trim() : null;
+    // Fallback regex for common keywords
+    const fallbackKeywords = [
+        "Algebra", "Geometry", "Trigonometry", "Circles", "Linear", "Functions", 
+        "Probability", "Statistics", "Ratios", "Percentages", "Reading", "Writing",
+        "Grammar", "Punctuation"
+    ];
+    
+    for (const kw of fallbackKeywords) {
+        if (cleanLine.toLowerCase().includes(kw.toLowerCase())) return kw;
+    }
+
+    const fallbackMatch = cleanLine.match(/(?:Topic|Concept|Category)[:\s]+([^,\n]+)/i);
+    return fallbackMatch ? fallbackMatch[1].trim() : "SAT Practice";
 };
 
 console.log('🤖 Initializing AI Routes...');
@@ -237,287 +250,96 @@ Return JSON ONLY: {"concept": "...", "explanation": "...", "steps": ["..."]}
   }
 });
 
-// --- CHART UTILITIES ---
-const generateChartUrl = (config) => {
-  if (!config) return null;
-  try {
-    const encodedConfig = encodeURIComponent(JSON.stringify(config));
-    return `https://quickchart.io/chart?c=${encodedConfig}`;
-  } catch (err) {
-    return null;
-  }
-};
-
-// 3. Generate Similar (HARDENED VARIETY VERSION)
+// 3. Generate Similar (STRICT KB-ONLY VERSION with IMAGE CONSISTENCY)
 router.post('/generate-similar', async (req, res) => {
   try {
     const { question, previousQuestions } = req.body;
     if (!question) return res.status(400).json({ error: "Missing question content" });
 
     const qStr = typeof question === 'string' ? question : (question.question || JSON.stringify(question));
-
-    const allPlaceholderRegex = /<div class="question-image"[^>]*>.*?<\/div>|\[DIAGRAM(?:\s+PRESENT)?\]|\[IMAGE\]|\[GRAPH\]|\[CHART\]|<img[^>]+>/gi;
-    const payloadImageUrl = typeof question === 'object' ? (question.imageUrl || question.image_url || question.image || null) : null;
-    const inlineImages = qStr.match(/<div class="question-image"[^>]*>.*?<\/div>|<img[^>]+>/gi) || [];
-    const hasDiagram = !!(payloadImageUrl || inlineImages.length > 0 || allPlaceholderRegex.test(qStr));
-    
-    // Build the original image HTML to re-inject
-    let originalImageHtml = inlineImages[0] || '';
-    if (!originalImageHtml && payloadImageUrl) {
-      originalImageHtml = `<div class="question-image" style="margin:12px 0;text-align:center;"><img src="${payloadImageUrl}" alt="Question diagram" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;" /></div>`;
-    }
-
-    // Strip placeholders for the AI prompt
-    const cleanQStrSource = qStr.replace(allPlaceholderRegex, '[DIAGRAM PRESENT]');
-
-    // Prefer explicit modal metadata first to lock generation to the mistake topic.
-    const explicitTopic = typeof question === 'object'
-      ? (question.topic || question.concept || question.mistakeTopic || '')
-      : '';
-    // 🟢 DETECT STUDENT MISTAKE TOPIC
-    const topic = explicitTopic || getAITutorTopic(qStr) || "the same topic";
-    console.log(`🎯 [Generate Similar] Detected Topic: "${topic}" | hasDiagram: ${hasDiagram}`);
     const anchorDifficulty = (typeof question === 'object' && question.level) ? question.level : 'Medium';
+    
+    // Detect topic
+    const explicitTopic = typeof question === 'object' ? (question.topic || question.concept || question.mistakeTopic || '') : '';
+    const topic = explicitTopic || getAITutorTopic(qStr) || "SAT Practice";
+    
+    // 🖼️ Detect visual types (Diagram vs Chart)
+    const isChart = (text) => !!(text && (text.includes('id="chart"') || text.includes('[CHART]') || text.includes('[GRAPH]') || text.includes('quickchart.io') || text.includes('type=bar') || text.includes('type=line')));
+    const isDiagram = (text) => !!(text && (text.includes('<img') || text.includes('[DIAGRAM]') || text.includes('[IMAGE]')));
 
-    // 🟢 USE KNOWLEDGE BASE (KB) FOR FORMAT REFERENCE
-    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
-    const kbRefs = await searchExactKBQuestions(topic, anchorDifficulty, 1);
-    const kbRef = kbRefs && kbRefs.length > 0 ? kbRefs[0] : null;
-
-    if (kbRef) {
-      console.log(`📚 [Generate Similar] Found KB Format Reference for "${topic}"`);
-    }
+    const originalHasChart = isChart(qStr) || isChart(question.imageUrl);
+    const originalHasDiagram = isDiagram(qStr) || isDiagram(question.imageUrl);
+    const originalHasAnyImage = originalHasChart || originalHasDiagram || !!question.imageUrl || !!question.image_url || !!question.image;
+    
+    console.log(`🎯 [Generate Similar] KB-ONLY Mode | Topic: "${topic}" | Image: ${originalHasAnyImage} | Chart: ${originalHasChart}`);
 
     const safePreviousQuestions = Array.isArray(previousQuestions) ? previousQuestions : [];
-    let avoidanceText = safePreviousQuestions.length > 0 ? `AVOID similarity to: ${safePreviousQuestions.slice(-3).join(', ')}\n\n` : "";
 
-    const forbiddenNumbers = (cleanQStrSource.match(/\d+/g) || []).join(', ');
+    // 🟢 FETCH EXACT KB QUESTIONS
+    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
+    const kbQuestions = await searchExactKBQuestions(topic, anchorDifficulty, 50); // High limit for granular filtering
 
-    // Build two completely different prompts based on whether the question has a diagram
-    let prompt;
-
-    if (hasDiagram) {
-      // ── DIAGRAM PATH: The image IS the question. 
-      // We now allow two modes: 
-      // 1. RE-USE ORIGINAL: Use EXACT same context/data.
-      // 2. GENERATE NEW CHART: Create a matching chart for new data.
-      
-      prompt = `
-${avoidanceText}
-PERSONA: Senior SAT Content Specialist (Math/Data Analysis).
-
-MISSION: The student just answered a question involving a DIAGRAM (graph, chart, or plot). You must generate a NEW, SAT-LEVEL practice question.
-
-YOU HAVE TWO OPTIONS FOR THE VISUAL:
-
-OPTION A: RE-USE THE ORIGINAL DIAGRAM
-- Use this if you want to ask a DIFFERENT question about the SAME data.
-- ✅ YOU MUST use the EXACT same subject, units, and categories as the original (e.g., if it was about "Number of books", stay with "Number of books").
-- ✅ DO NOT change any values shown in the original context.
-- ✅ Place [ORIGINAL_DIAGRAM] where the image should appear.
-
-OPTION B: GENERATE A NEW UNIQUE SCENARIO (MANDATORY FOR VARIETY)
-- 🎯 TOPIC CONSISTENCY: The new question MUST strictly stay within the topic: "${topic}".
-- 🚀 UNIQUE SCENARIO: Change the entire context (different objects, people, or real-world situation).
-- ✅ MATCHING CHART: If the original had a visual, you MUST generate a new matching chart.
-- ✅ YOU MUST provide a "chartConfig" object in your JSON response for QuickChart.io.
-- ✅ The chart data MUST be perfectly consistent with the values used in your question text.
-- ✅ Supported types: 'bar', 'line', 'scatter', 'pie', 'radar'.
-- ✅ Place [NEW_DIAGRAM] exactly where the image should appear in the question.
-
-STRICT SAT STANDARDS:
-- Match Digital SAT difficulty: ${anchorDifficulty}.
-- Complexity: ${anchorDifficulty === 'Hard' ? 'Use abstract reasoning and multiple steps.' : 'Standard SAT-style problem.'}
-- Use \\( ... \\) for all math.
-
-ORIGINAL TOPIC/CONTEXT (FOR REFERENCE):
-"${topic}" - Original: "${cleanQStrSource.substring(0, 500)}"
-
-OUTPUT FORMAT (JSON ONLY):
-{
-  "question": "A unique SAT-level question about ${topic} with a new scenario using [NEW_DIAGRAM]",
-  "options": ["A", "B", "C", "D"],
-  "correctAnswer": "A",
-  "explanation": "Detailed step-by-step SAT-style logic.",
-  "chartConfig": { 
-     "type": "bar", 
-     "data": { 
-        "labels": ["Label 1", "Label 2"], 
-        "datasets": [{ "label": "Dataset Label", "data": [10, 20] }] 
-     },
-     "options": { "title": { "display": true, "text": "Relevant Chart Title" } }
-  }
-}
-`;
-    } else {
-      // ── NON-DIAGRAM PATH: Standard variety question
-      prompt = `
-${avoidanceText}
-PERSONA: Senior SAT Content Developer creating ORIGINAL practice questions.
-
-${kbRef ? `
-KNOWLEDGE BASE (KB) FORMAT REFERENCE:
-- Follow this SAT Question Style: "${kbRef.text.substring(0, 500)}"
-- Options Format: 4 choices labeled A, B, C, D
-- Difficulty Level: ${kbRef.difficulty || anchorDifficulty || "Medium"}
-` : ""}
-
-CRITICAL REQUIREMENTS (ALL MUST BE FOLLOWED):
-
-1. ✅ SAME TOPIC ONLY: Keep the mathematical concept/topic identical to: "${topic}".
-
-2. ❌ DIFFERENT NUMBERS (MANDATORY): 
-   - Change EVERY number from the original. If original has 2400, use 1800, 3200, 1500, etc.
-   - FORBIDDEN NUMBERS (DO NOT USE): [${forbiddenNumbers}]
-   - Generate completely new numeric values that make sense for the problem.
-
-3. ❌ DIFFERENT UNKNOWN (MANDATORY):
-   - If original asks for "length", ask for "width", "perimeter", "area", or "diagonal".
-   - If original asks for "x", ask for "y", "slope", "y-intercept", or a different variable.
-   - Change what the student is solving for.
-
-4. ❌ DIFFERENT QUESTION FRAMING (MANDATORY):
-   - Change the scenario/context entirely (different object, place, or real-world context).
-   - Reword the entire question - do NOT copy sentence structure or phrasing.
-   - Use different units or measurements if applicable.
-
-LATEX STANDARDS (STRICT):
-- Use EXACTLY \\\\frac{num}{den} for all fractions. 
-- Use \\\\( ... \\\\) for ALL math, including variables.
-- Do NOT use plain text for math.
-
-ORIGINAL QUESTION (USE AS REFERENCE FOR TOPIC ONLY):
-"${cleanQStrSource.substring(0, 800)}"
-
-DIFFICULTY LEVEL: ${anchorDifficulty || "Medium"}
-RANDOM SEED: ${Math.random().toString(36).substring(7)}
-
-OUTPUT FORMAT (JSON ONLY):
-{
-  "question": "Completely new question text with different numbers and framing",
-  "options": ["Val 1", "Val 2", "Val 3", "Val 4"],
-  "correctAnswer": "Val 1",
-  "explanation": "Expert SAT logic...",
-  "concept": "${topic}"
-}
-`;
+    if (!kbQuestions || kbQuestions.length === 0) {
+      return res.status(404).json({ 
+        error: `I've exhausted all available practice questions for "${topic}" at the ${anchorDifficulty} level.` 
+      });
     }
 
-    // --- IMPROVED SIMILARITY CHECK ---
-    const checkSimilarity = (genText, origText) => {
-      const norm = (t) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const normOrig = norm(origText);
-      const normGen = norm(genText);
+    // Filter out previous questions by text similarity
+    const stripHtml = (html) => (html || "").replace(/<[^>]*>/g, "").toLowerCase().trim();
+    const unusedQuestions = kbQuestions.filter(kbQ => {
+      const kbText = stripHtml(kbQ.questionHtml || kbQ.text || kbQ.question);
+      if (!kbText) return false;
+      return !safePreviousQuestions.some(prev => {
+        const prevText = stripHtml(prev);
+        return prevText.includes(kbText.substring(0, 100)) || kbText.includes(prevText.substring(0, 100));
+      });
+    });
 
-      // 1. Text cloning check
-      if (normGen.includes(normOrig.substring(0, 30)) || normGen === normOrig) {
-        return { error: "AI generated a copy." };
-      }
+    // 🟢 ENFORCE GRANULAR VISUAL CONSISTENCY (STRICT)
+    let finalQuestion = null;
+    const qIsChart = (q) => isChart(q.questionHtml || q.imageUrl || "");
+    const qIsDiagram = (q) => isDiagram(q.questionHtml || q.imageUrl || "") || !!q.imageUrl;
 
-      // 2. Numbers check (Ignore 0-9 as they are often exponents or basic constants)
-      const genNums = (genText.match(/\d+/g) || []).map(n => parseInt(n)).filter(n => n > 9);
-      const origNums = (origText.match(/\d+/g) || []).map(n => parseInt(n)).filter(n => n > 9);
-
-      const reused = origNums.filter(n => genNums.includes(n));
-      const reuseRatio = origNums.length > 0 ? reused.length / origNums.length : 0;
-
-      if (origNums.length > 0 && reuseRatio > 0.5) {
-        return { error: `Too many numbers reused (${reused.length} numbers).` };
-      }
-
-      // 3. Structural similarity
-      const origWords = origText.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-      const genWords = genText.toLowerCase().split(/\s+/).filter(w => w.length > 4);
-      const commonLongWords = origWords.filter(w => genWords.includes(w));
-      if (commonLongWords.length > origWords.length * 0.6) {
-        return { error: "Question structure too similar." };
-      }
-
-      return null;
-    };
-
-    let attempts = 0;
-    let finalData = null;
-    let lastCheckError = null;
-
-    while (attempts < 2) {
-      attempts++;
-      console.log(`🔄 Similar Question Attempt ${attempts}/2...`);
-
-      const text = await generateAIResponse([{ role: "user", content: prompt }], true, 1.0);
-      const data = extractJSON(text);
-
-      if (!data || !data.options) {
-        lastCheckError = "Invalid AI output";
-        continue;
-      }
-
-      const simError = checkSimilarity(data.question, cleanQStrSource);
-      if (simError) {
-        lastCheckError = simError.error;
-        console.warn(`⚠️ Attempt ${attempts} rejected: ${simError.error}`);
-        continue;
-      }
-
-      // Success!
-      finalData = data;
-      break;
-    }
-
-    if (!finalData) {
-      throw new Error(lastCheckError || "Failed to generate a sufficiently different question. Please try again.");
-    }
-
-    // ── DIAGRAM INJECTION ─────────────────────────────────────────────────
-    if (hasDiagram) {
-      const originalPlaceholderRegex = /\[ORIGINAL_DIAGRAM\]|\[DIAGRAM(?:_HERE|(?:\s+PRESENT))?\]|\[IMAGE\]|\[GRAPH\]|\[CHART\]/gi;
-      const newPlaceholderRegex = /\[NEW_DIAGRAM\]/gi;
-      
-      const genHasOriginal = originalPlaceholderRegex.test(finalData.question);
-      const genHasNew = newPlaceholderRegex.test(finalData.question);
-      
-      let generatedChartUrl = null;
-      if (finalData.chartConfig) {
-        generatedChartUrl = generateChartUrl(finalData.chartConfig);
-      }
-
-      if (generatedChartUrl && (genHasNew || !genHasOriginal)) {
-        // Use the new generated chart
-        const chartHtml = `<div class="question-image" style="margin:12px 0;text-align:center;"><img src="${generatedChartUrl}" alt="Generated chart" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;" /></div>`;
-        if (genHasNew) {
-           finalData.question = finalData.question.replace(newPlaceholderRegex, chartHtml);
-        } else {
-           finalData.question = chartHtml + "\n" + finalData.question;
-        }
-        finalData.imageUrl = generatedChartUrl;
-        console.log('📊 [Generate Similar] Created NEW dynamic chart via QuickChart');
+    if (originalHasAnyImage) {
+      if (originalHasChart) {
+        // Original was a chart -> Find a chart
+        finalQuestion = unusedQuestions.find(q => qIsChart(q)) || kbQuestions.find(q => qIsChart(q));
       } else {
-        // Fallback to original image
-        if (genHasOriginal) {
-          finalData.question = finalData.question.replace(originalPlaceholderRegex, originalImageHtml);
-        } else {
-          finalData.question = originalImageHtml + "\n" + finalData.question;
-        }
-        finalData.imageUrl = payloadImageUrl;
-        console.log('🖼️  [Generate Similar] Re-injected original diagram');
+        // Original was likely a Geometry Diagram -> Find a Diagram but NO Chart
+        finalQuestion = unusedQuestions.find(q => qIsDiagram(q) && !qIsChart(q)) || 
+                        kbQuestions.find(q => qIsDiagram(q) && !qIsChart(q));
+        
+        // Final fallback for images if strict no-chart match fails
+        if (!finalQuestion) finalQuestion = unusedQuestions.find(q => qIsDiagram(q)) || kbQuestions.find(q => qIsDiagram(q));
       }
+    } else {
+      // Original was Text Only -> Find Text Only
+      finalQuestion = unusedQuestions.find(q => !qIsDiagram(q) && !qIsChart(q)) || 
+                      kbQuestions.find(q => !qIsDiagram(q) && !qIsChart(q));
     }
 
-    // --- FINAL SANITIZATION ---
-    const normalizedOptions = Array.isArray(finalData.options || finalData.choices)
-      ? (finalData.options || finalData.choices).map((opt) => String(opt)).slice(0, 4)
-      : [];
+    // Final fallback: any unused or anything at all
+    if (!finalQuestion) {
+      console.log('⚠️ [Generate Similar] Using best available fallback.');
+      finalQuestion = unusedQuestions[0] || kbQuestions[0];
+    }
 
+    // Format for frontend (KB exact content)
     const sanitized = {
-      question: finalData.question || finalData.questionText || finalData.text || "Question text missing",
-      options: normalizedOptions,
-      correctAnswer: finalData.correctAnswer || finalData.answer || "",
-      explanation: finalData.explanation || finalData.solution || "",
-      concept: topic,
-      imageUrl: payloadImageUrl || null
+      id: finalQuestion.id,
+      question: finalQuestion.questionHtml || finalQuestion.text || finalQuestion.question,
+      options: Array.isArray(finalQuestion.options) ? finalQuestion.options.map(String) : [],
+      correctAnswer: finalQuestion.correctAnswer || "",
+      explanation: finalQuestion.explanation || "",
+      concept: finalQuestion.topic || topic,
+      imageUrl: finalQuestion.imageUrl || null,
+      source: 'Knowledge Base'
     };
 
+    console.log(`✅ [Generate Similar] Selection: ${sanitized.id} | ResultHasImage: ${hasImage(finalQuestion)}`);
     res.json(sanitized);
+
   } catch (error) {
     console.error("❌ Generate Similar Error:", error);
     res.status(500).json({ error: error.message });
