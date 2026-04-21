@@ -86,6 +86,39 @@ router.get('/test', async (req, res) => {
   });
 });
 
+/**
+ * 🟢 GET ALL UPLOADS
+ * This route allows fetching uploads for a specific course or category.
+ * Used by Admin Preview to bypass RLS issues in frontend.
+ */
+router.get('/', async (req, res) => {
+    try {
+        const { courseId, courseIds } = req.query;
+        const supabase = getSupabase(req.headers.authorization);
+
+        let query = supabase.from('uploads')
+            .select('*, courses(name)')
+            .order('created_at', { ascending: false });
+
+        if (courseId) {
+            query = query.eq('course_id', courseId);
+        } else if (courseIds) {
+            const ids = String(courseIds).split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+            if (ids.length > 0) {
+                query = query.in('course_id', ids);
+            }
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        res.json({ data: data || [] });
+    } catch (error) {
+        console.error('❌ [GET ALL] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.post('/', upload.single('file'), async (req, res) => {
   console.log('\n📤 [UPLOAD] New upload request received');
   console.log('✨ [DEBUG] Using UPDATED upload handler with topic support! ✨');

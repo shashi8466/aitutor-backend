@@ -111,9 +111,12 @@ const StudentDashboard = () => {
         });
       
       // 4. Submissions
-      gradingService.getAllMyScores()
+      console.log(`📡 [Dashboard] Fetching scores for user: ${user.id}`);
+      gradingService.getAllMyScores(user.id)
         .then(res => {
-          setRawData(prev => ({ ...prev, submissions: res.data?.submissions || [] }));
+          const subs = res.data?.submissions || [];
+          console.log(`✅ [Dashboard] Received ${subs.length} submissions for ${user.id}`);
+          setRawData(prev => ({ ...prev, submissions: subs }));
           setSubmissionsLoaded(true);
         })
         .catch(err => {
@@ -354,6 +357,37 @@ const StudentDashboard = () => {
 
         {/* Dashboard Notifications */}
         <DashboardNotifications limit={3} />
+
+        {/* 🕵️ ADMIN PREVIEW DEBUG OVERLAY */}
+        {user?.isPreview && (
+          <div className="mb-8 p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">🕵️</span>
+              <h4 className="text-amber-800 dark:text-amber-400 font-bold">Admin Preview Debug Mode</h4>
+              <span className="text-[10px] px-2 py-0.5 bg-amber-200 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 rounded-full font-bold uppercase tracking-wider border border-amber-300 dark:border-amber-800">
+                Data Authenticated & Synced
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/20 shadow-sm">
+                <span className="text-amber-600 dark:text-amber-500 block mb-1 font-bold uppercase text-[9px]">Target User Account</span>
+                <span className="break-all font-bold text-slate-700 dark:text-slate-300">{user.id}</span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/20 shadow-sm">
+                <span className="text-amber-600 dark:text-amber-500 block mb-1 font-bold uppercase text-[9px]">Quiz Submissions</span>
+                <span className="text-lg font-black text-slate-900 dark:text-white">{rawData.submissions?.length || 0}</span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/20 shadow-sm">
+                <span className="text-amber-600 dark:text-amber-500 block mb-1 font-bold uppercase text-[9px]">Academic Progress Rows</span>
+                <span className="text-lg font-black text-slate-900 dark:text-white">{rawData.progress?.length || 0}</span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-100 dark:border-amber-900/20 shadow-sm">
+                <span className="text-amber-600 dark:text-amber-500 block mb-1 font-bold uppercase text-[9px]">Data Source Status</span>
+                <span className="text-lg font-black text-green-600 dark:text-green-400">{rawData.plan ? 'LIVE SYNC' : 'CHECKING...'}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 2. Profile Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mb-8 flex flex-col md:flex-row items-center justify-between gap-6">

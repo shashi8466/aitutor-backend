@@ -4,6 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
 import AITutorModal from '../AITutorModal';
 import { aiService, planService, progressService, gradingService } from '../../../services/api';
+import supabase from '../../../supabase/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import MathRenderer from '../../../common/MathRenderer';
 
@@ -96,6 +97,28 @@ const WeaknessDrills = () => {
 
     try {
       if (!topic) throw new Error('Missing weakness topic');
+
+      // 1. Access Check
+      const hasAccess = await planService.checkAccess(user.id, 'topic', topic);
+      if (!hasAccess) {
+        setDrillError(`🔒 Topic Restricted: "${topic}" is only available for Premium students. Please upgrade to unlock!`);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Limit Check
+      const usage = await planService.getUsageStats(user.id);
+      const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', user.id).single();
+      const { data: settings } = await planService.getSettings();
+      const userPlan = profile?.plan_type || 'free';
+      const planSettings = (settings || []).find(s => s.plan_type === userPlan);
+      const totalLimit = (planSettings?.max_questions_math || 250) + (planSettings?.max_questions_rw || 250);
+      
+      if (usage.totalQuestions >= totalLimit && userPlan !== 'premium') {
+        setDrillError(`⚠️ Limit Reached: You've completed your ${userPlan} plan limit of ${totalLimit} questions. Upgrade for more!`);
+        setLoading(false);
+        return;
+      }
 
       // KB defines SAT format/style only. We do NOT copy KB questions.
       // Some deployments may not expose /api/kb-quiz; fallback to prep365-chat KB endpoint.

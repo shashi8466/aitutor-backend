@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { enrollmentService } from '../../services/api';
+import { enrollmentService, planService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import EnrollmentKeyInput from './EnrollmentKeyInput';
@@ -16,6 +16,11 @@ const PracticeTests = () => {
     const [tests, setTests] = useState([]);
     const [availableCourses, setAvailableCourses] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [planSettings, setPlanSettings] = useState(null);
+    const [planAccess, setPlanAccess] = useState([]);
+
+    const userPlan = user?.plan_type || 'free';
+    const isPremium = userPlan === 'premium' && user?.plan_status === 'active';
 
     useEffect(() => {
         if (user) loadPracticeTests();
@@ -23,16 +28,24 @@ const PracticeTests = () => {
 
     const loadPracticeTests = async () => {
         try {
-            setLoading(true);
+            // 0. Fetch Plan Settings and Access
+            const [settingsRes, accessRes] = await Promise.all([
+                planService.getSettings(),
+                planService.getContentAccess()
+            ]);
+            
+            const currentSettings = (settingsRes.data || []).find(s => s.plan_type === userPlan);
+            setPlanSettings(currentSettings);
+            const currentAccess = (accessRes.data || []);
+            setPlanAccess(currentAccess);
+
             // 1. Get ALL practice courses
-            const { data: allPracticeCourses } = await supabase
-                .from('courses')
-                .select('*')
-                .eq('is_practice', true);
+            const { data: allPracticeCourses } = await courseService.getAll({ isPractice: true });
 
             // 2. Get student's enrolled course IDs
-            const { data: enrollments } = await enrollmentService.getStudentEnrollments(user.id);
-            const enrolledIds = (enrollments || []).map(e => e.course_id);
+            const { data: enrollmentsRes } = await enrollmentService.getStudentEnrollments(user.id);
+            const enrollments = enrollmentsRes || [];
+            const enrolledIds = enrollments.map(e => e.course_id);
 
             // 3. Filter into Enrolled and Available
             const enrolledPractice = (allPracticeCourses || []).filter(c => enrolledIds.includes(c.id));
@@ -42,30 +55,26 @@ const PracticeTests = () => {
 
             // 4. Fetch uploads for enrolled courses (including manual is_practice uploads)
             if (enrolledIds.length > 0) {
-                let query = supabase
-                    .from('uploads')
-                    .select(`
-                                id, 
-                                course_id, 
-                                level, 
-                                questions_count, 
-                                created_at,
-                                courses:course_id(name)
-                            `)
-                    .in('course_id', enrolledIds)
-                    .in('status', ['completed', 'warning'])
-                    .order('created_at', { ascending: false });
+                const { data: uploads } = await uploadService.getAll({ 
+                    courseIds: enrolledIds // The backend service should be updated to handle this if needed, or we fetch all and filter
+                });
+                
+                const filteredUploads = (uploads || []).filter(u => 
+                    enrolledIds.includes(Number(u.course_id)) && 
+                    (u.status === 'completed' || u.status === 'warning')
+                );
+                
+                // 5. Apply Plan Gating to the uploads
+                const filteredTests = (uploads || []).map(test => {
+                    // Check direct test access OR course-level access
+                    const hasDirectAccess = currentAccess.some(a => a.content_type === 'test' && a.content_id === test.id && a.plan_type === userPlan);
+                    const hasCourseAccess = currentAccess.some(a => a.content_type === 'course' && a.content_id === test.course_id && a.plan_type === userPlan);
+                    
+                    const hasAccess = isPremium || hasDirectAccess || hasCourseAccess;
+                    return { ...test, locked: !hasAccess };
+                });
 
-                const practiceCourseIds = enrolledPractice.map(c => c.id);
-                if (practiceCourseIds.length > 0) {
-                    query = query.or(`is_practice.eq.true,course_id.in.(${practiceCourseIds.join(',')})`);
-                } else {
-                    query = query.eq('is_practice', true);
-                }
-
-                const { data: uploads, error } = await query;
-                if (error) throw error;
-                setTests(uploads || []);
+                setTests(filteredTests);
             } else {
                 setTests([]);
             }
@@ -135,15 +144,49 @@ const PracticeTests = () => {
                                         <span>{new Date(test.created_at).toLocaleDateString()}</span>
                                     </div>
                                     <button
-                                        onClick={() => navigate(`/student/course/${test.course_id}/level/${(test.level || 'all').toLowerCase()}/quiz`)}
-                                        className="flex items-center gap-1 text-sm font-bold text-[#E53935] hover:gap-2 transition-all"
+                                        onClick={async () => {
+                                            if (test.locked) {
+                                                navigate('/student/upgrade');
+                                                return;
+                                            }
+
+                                            // Limit Check
+                                            const usage = await planService.getUsageStats(user.id);
+                                            const limit = planSettings?.max_tests || 2;
+                                            if (usage.totalTests >= limit && userPlan !== 'premium') {
+                                                alert(`⚠️ Test Limit Reached: You've attempted ${usage.totalTests}/${limit} tests allowed on your current plan. Upgrade for more!`);
+                                                navigate('/student/upgrade');
+                                                return;
+                                            }
+
+                                            navigate(`/student/course/${test.course_id}/level/${(test.level || 'all').toLowerCase()}/quiz`);
+                                        }}
+                                        className={`flex items-center gap-1 text-sm font-bold transition-all ${test.locked ? 'text-gray-400' : 'text-[#E53935] hover:gap-2'}`}
                                     >
-                                        Start Test <SafeIcon icon={FiArrowRight} />
+                                        {test.locked ? (
+                                            <><SafeIcon icon={FiIcons.FiLock} className="w-3 h-3" /> Locked</>
+                                        ) : (
+                                            <>Start Test <SafeIcon icon={FiArrowRight} /></>
+                                        )}
                                     </button>
                                 </div>
                             </motion.div>
                         ))}
                     </div>
+                    {!isPremium && planSettings && (
+                         <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-4 rounded-2xl flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg text-amber-600">
+                                    <SafeIcon icon={FiIcons.FiZap} className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white">Free Plan Limit: {planSettings.max_tests} Tests</p>
+                                    <p className="text-xs text-gray-500">Upgrade to Premium for up to 10 full-length practice exams.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => navigate('/student/upgrade')} className="px-4 py-2 bg-amber-600 text-white text-xs font-black uppercase rounded-xl hover:bg-amber-700 transition-all">Upgrade Now</button>
+                         </div>
+                    )}
                 </div>
             )}
 

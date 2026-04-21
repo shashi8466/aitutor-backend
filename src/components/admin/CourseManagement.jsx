@@ -16,6 +16,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
   const [filters, setFilters] = useState({ status: '', search: '' });
   const [activeCategory, setActiveCategory] = useState('SAT');
   const [activeSubcategory, setActiveSubcategory] = useState('All');
+  const [allCoursesRaw, setAllCoursesRaw] = useState([]);
 
   const COURSE_CATEGORIES = {
     'SAT': ['SAT Math', 'SAT Reading & Writing'],
@@ -31,7 +32,9 @@ const CourseManagement = ({ onStatsUpdate }) => {
     setLoading(true);
     try {
       const response = await courseService.getAll();
-      let filteredCourses = response?.data || [];
+      const rawData = response?.data || [];
+      setAllCoursesRaw(rawData);
+      let filteredCourses = [...rawData];
 
       if (filters.status) {
         filteredCourses = filteredCourses.filter(c => c.status === filters.status);
@@ -90,6 +93,77 @@ const CourseManagement = ({ onStatsUpdate }) => {
           <SafeIcon icon={FiPlus} className="w-4 h-4" />
           <span>Add New Course</span>
         </motion.button>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-700">
+          {/* Dynamic Subject Cards based on Category */}
+          {activeCategory === 'SAT' ? (
+            <>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#E53935] mb-1">SAT MATH</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('math') && !(c.tutor_type || '').toLowerCase().includes('act')).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+                  </span>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-1">SAT R&W</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('reading')).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+                  </span>
+              </div>
+            </>
+          ) : activeCategory === 'ACT' ? (
+            <>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">ACT MATH</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('act math')).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+                  </span>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">ACT ENGLISH/SCIENCE</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('act') && !((c.tutor_type || '').toLowerCase().includes('math'))).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+                  </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-1">{activeCategory} SCIENCES</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {allCoursesRaw.filter(c => ['physics', 'chemistry', 'biology'].some(s => (c.tutor_type || '').toLowerCase().includes(s))).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+                  </span>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">{activeCategory} MATH/HUMANITIES</span>
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">
+                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('ap') && !['physics', 'chemistry', 'biology'].some(s => (c.tutor_type || '').toLowerCase().includes(s))).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+                  </span>
+              </div>
+            </>
+          )}
+
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{activeCategory} TOTAL</span>
+              <span className="text-2xl font-black text-gray-900 dark:text-white">
+                {allCoursesRaw.filter(c => {
+                   const mainCat = c.main_category || (
+                    (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
+                    (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' : 'AP'
+                  );
+                  return mainCat === activeCategory;
+                }).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+              </span>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">GRAND TOTAL</span>
+              <span className="text-2xl font-black text-gray-900 dark:text-white">
+                {allCoursesRaw.reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
+              </span>
+          </div>
       </div>
 
       {/* Category Tabs */}

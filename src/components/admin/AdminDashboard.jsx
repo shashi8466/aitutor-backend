@@ -19,11 +19,13 @@ const AdminGroupManagement = lazy(() => import('./AdminGroupManagement'));
 const AdminParentManagement = lazy(() => import('./AdminParentManagement'));
 const AdminNotificationManager = lazy(() => import('./AdminNotificationManager'));
 const AdminParentNotificationManager = lazy(() => import('./AdminParentNotificationManager'));
+const AdminPlanManagement = lazy(() => import('./AdminPlanManagement'));
 
 import { courseService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import DashboardPreviewer from './DashboardPreviewer';
 
-const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut, FiLayers } = FiIcons;
+const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut, FiLayers, FiShield } = FiIcons;
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalCourses: 0, totalQuestions: 0, totalUploads: 0, activeUsers: 0 });
@@ -31,6 +33,7 @@ const AdminDashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const [showPreviewer, setShowPreviewer] = useState(false);
 
   useEffect(() => {
     if (location.pathname === '/admin') {
@@ -45,9 +48,13 @@ const AdminDashboard = () => {
         uploadService.getStats()
       ]);
       const courses = coursesResponse.data || [];
+      
+      // Sum the dynamic question counts from each course to match Course Management's "Grand Total"
+      const totalActiveQuestions = courses.reduce((sum, c) => sum + (c.questions_count || 0), 0);
+
       setStats({
         totalCourses: courses.length,
-        totalQuestions: courses.reduce((sum, c) => sum + (c.questions_count || 0), 0),
+        totalQuestions: totalActiveQuestions,
         totalUploads: uploadStats.uploadsCount || 0,
         activeUsers: uploadStats.usersCount || 0
       });
@@ -75,6 +82,7 @@ const AdminDashboard = () => {
     { name: 'Knowledge Base', path: '/admin/knowledge-base', icon: FiDatabase },
     { name: 'Upload New', path: '/admin/upload', icon: FiUpload },
     { name: 'Files', path: '/admin/uploads', icon: FiFolder },
+    { name: 'Plan Management', path: '/admin/plans', icon: FiShield },
     { name: 'Settings', path: '/admin/settings', icon: FiSettings },
   ];
 
@@ -100,13 +108,23 @@ const AdminDashboard = () => {
               <p className="text-slate-600 dark:text-slate-400 mt-2">Manage courses, questions, content, and settings</p>
             </div>
 
-            <button
-              onClick={handleLogout}
-              className="flex items-center px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors font-medium border border-orange-200 dark:border-orange-800 self-start md:self-auto shadow-sm"
-            >
-              <SafeIcon icon={FiLogOut} className="w-4 h-4 mr-2" />
-              Logout
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowPreviewer(true)}
+                className="flex items-center px-4 py-2 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors font-black text-xs uppercase tracking-widest border border-sky-200 dark:border-sky-800 shadow-sm"
+              >
+                <SafeIcon icon={FiIcons.FiEye} className="w-4 h-4 mr-2" />
+                Switch View
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors font-medium border border-orange-200 dark:border-orange-800 shadow-sm"
+              >
+                <SafeIcon icon={FiLogOut} className="w-4 h-4 mr-2" />
+                Logout
+              </button>
+            </div>
           </div>
 
           {/* Navigation */}
@@ -173,9 +191,12 @@ const AdminDashboard = () => {
             <Route path="/knowledge-base" element={<KnowledgeBase />} />
             <Route path="/upload" element={<FileUpload />} />
             <Route path="/uploads" element={<UploadManagement />} />
+            <Route path="/plans" element={<AdminPlanManagement />} />
             <Route path="/settings" element={<AdminSettings />} />
           </Routes>
         </Suspense>
+
+        <DashboardPreviewer isOpen={showPreviewer} onClose={() => setShowPreviewer(false)} />
       </div>
     </div>
   );
@@ -230,15 +251,27 @@ const DashboardHome = ({ stats, loading }) => {
               { to: '/admin/users', icon: FiUsers, color: 'bg-orange-500', title: 'Manage Users', desc: 'View all users' },
               { to: '/admin/parents', icon: FiUsers, color: 'bg-amber-500', title: 'Parents', desc: 'Create & link parents' },
               { to: '/admin/notifications', icon: FiBook, color: 'bg-teal-500', title: 'Notifications', desc: 'Manage student notifications' },
+              { to: '/admin/plans', icon: FiShield, color: 'bg-red-600', title: 'Plan Management', desc: 'Control content distribution' },
               { to: '/admin/settings', icon: FiSettings, color: 'bg-slate-700', title: 'Settings', desc: 'Update app name/logo' },
+              { onClick: () => setShowPreviewer(true), icon: FiIcons.FiEye, color: 'bg-emerald-500', title: 'Switch View', desc: 'Preview other roles' },
             ].map(item => (
-              <Link key={item.title} to={item.to} className="p-4 border border-slate-100 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group shadow-sm">
-                <div className={`${item.color} w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform shadow-lg`}>
-                  <SafeIcon icon={item.icon} />
-                </div>
-                <h3 className="font-bold text-slate-900 dark:text-white text-sm">{item.title}</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{item.desc}</p>
-              </Link>
+              item.to ? (
+                <Link key={item.title} to={item.to} className="p-4 border border-slate-100 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group shadow-sm">
+                  <div className={`${item.color} w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform shadow-lg`}>
+                    <SafeIcon icon={item.icon} />
+                  </div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">{item.title}</h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{item.desc}</p>
+                </Link>
+              ) : (
+                <button key={item.title} onClick={item.onClick} className="text-left p-4 border border-slate-100 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group shadow-sm">
+                  <div className={`${item.color} w-10 h-10 rounded flex items-center justify-center text-white mb-2 group-hover:scale-110 transition-transform shadow-lg`}>
+                    <SafeIcon icon={item.icon} />
+                  </div>
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">{item.title}</h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{item.desc}</p>
+                </button>
+              )
             ))}
           </div>
         </div>

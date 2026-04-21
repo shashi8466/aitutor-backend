@@ -10,19 +10,35 @@ const MathRenderer = ({ text, className = '' }) => {
     let processedText = (text || '').toString();
 
     // ---------------------------------------------------------
+    // 0. Pre-Sanitization & Decoding
+    // ---------------------------------------------------------
+    // Decode common HTML entities that might be trapped in the text
+    const decodeEntities = (str) => {
+      const entities = {
+        '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'",
+        '&ge;': '≥', '&le;': '≤', '&ne;': '≠', '&deg;': '°', '&plusmn;': '±',
+        '&times;': '×', '&div;': '÷', '&alpha;': 'α', '&beta;': 'β', '&pi;': 'π',
+        '&theta;': 'θ', '&omega;': 'ω', '&delta;': 'δ', '&Delta;': 'Δ', '&sigma;': 'σ'
+      };
+      return str.replace(/&[a-z0-9#]+;/gi, (match) => entities[match.toLowerCase()] || match);
+    };
+    
+    // First decode entities, then handle common "joined" symbols from broken AI output
+    processedText = decodeEntities(processedText);
+    
+    // Recovery for common "hidden" line breaks that AI sometimes outputs as literals
+    processedText = processedText.replace(/\\n/g, '\n');
+
+    // ---------------------------------------------------------
     // 0a. Currency Protection
     // ---------------------------------------------------------
     // Prevent dollar signs matched with numbers (like $2,200) from being seen as math delimiters
-    processedText = processedText.replace(/\$(\d+(?:[,.]\d+)?)\b/g, '<span>$</span>$1');
-    processedText = processedText.replace(/\$(\d+(?:[,.]\d+)?)\s/g, '<span>$</span>$1 ');
+    // Use a negative lookahead to ensure it's not a math variable like $x$
+    processedText = processedText.replace(/\$(?=\d)/g, '<span>$</span>');
 
     // ---------------------------------------------------------
-    // 0. Pre-Sanitization (Advanced Recovery for Broken AI JSON)
+    // 0b. Broken LaTeX Recovery (Advanced Recovery for Broken AI JSON)
     // ---------------------------------------------------------
-    // The AI often outputs single backslashes in JSON, which JS interprets as control chars.
-    // We must reverse this damage before MathJax sees it.
-
-    // FIX: Common LaTeX command corruption from JSON/Word extraction
     // Only recover if followed by { or [ to avoid breaking common words
     processedText = processedText.replace(/(\\?[\t\v\f\r])frac(?=[{[])/g, '\\frac');
     processedText = processedText.replace(/(\\?[\t\v\f\r])text(?=\{)/g, '\\text');
@@ -32,58 +48,38 @@ const MathRenderer = ({ text, className = '' }) => {
     // Recovery for lost backslashes in front of common commands
     const mathCommands = ['frac', 'sqrt', 'times', 'tau', 'tan', 'theta', 'alpha', 'beta', 'gamma'];
     mathCommands.forEach(cmd => {
-      // Improved: Match cmd only if it's at the start of a word (start of string or non-word char)
-      // and NOT already preceded by a backslash.
       const regex = new RegExp('(^|[^a-zA-Z\\\\])' + cmd + '(?=[\\{\\[\\s])', 'g');
       processedText = processedText.replace(regex, '$1\\' + cmd);
     });
 
-    // Special case for 'text' - ONLY fix if followed by { (to avoid breaking the word "Context")
     processedText = processedText.replace(/(^|[^\\])text(?=\{)/g, '$1\\text');
-
-    // Remove empty text commands
-    // Remove empty text commands
     processedText = processedText.replace(/\\text\{\s*\}/g, '');
 
     // FIX: Clean up spaces inside delimiters to help MathJax detection
-    // \(  x \) -> \(x\)
     processedText = processedText.replace(/\\\(\s+/g, '\\(').replace(/\s+\\\)/g, '\\)');
-    // Fix: Ensure delimiters are not escaped (recovery)
     processedText = processedText.replace(/\\\\(\(|\)|\[|\])/g, '\\$1');
 
     // ---------------------------------------------------------
     // 1. Basic Markdown Parsing (Bold, Italic, Tables)
     // ---------------------------------------------------------
-    // Convert **Bold** -> <b>Bold</b>
     processedText = processedText.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    // Convert __Italic__ -> <i>Italic</i>
     processedText = processedText.replace(/__(.*?)__/g, '<i>$1</i>');
 
-    // Convert Markdown Tables
-    // Minimal parser for simple tables: headers | ... | \n |---|---|
-    // Note: Use a more robust library for complex tables if needed, but this works for basic ones.
     const tableRegex = /(\|[^\n]+\|\n\|[\s:|-]+\|(?:\n\|[^\n]+\|)+)/g;
-
     processedText = processedText.replace(tableRegex, (match) => {
       const rows = match.trim().split('\n');
       const htmlRows = rows.map((row, index) => {
-        // Remove outer pipes if they exist, but split on internal pipes
         const cells = row.replace(/^\||\|$/g, '').split('|');
         const cellTag = index === 0 ? 'th' : 'td';
-
-        // Skip separator row
         if (row.includes('---')) return '';
-
         const htmlCells = cells.map(c => `<${cellTag}>${c.trim()}</${cellTag}>`).join('');
         return `<tr>${htmlCells}</tr>`;
       }).join('');
-
       return `<table class="min-w-full border-collapse border border-gray-300 my-4 text-sm">${htmlRows}</table>`;
     });
 
-    // Convert Newlines -> <br /> (Universal handling for \r, \r\n, \n)
+    // Handle line breaks before math wrapping
     processedText = processedText.replace(/\r?\n/g, '<br />');
-    processedText = processedText.replace(/\r/g, '<br />');
 
     // ---------------------------------------------------------
     // 2. Smart Math Detection & Wrapping
@@ -96,51 +92,44 @@ const MathRenderer = ({ text, className = '' }) => {
         // If it's an HTML tag, leave it alone
         if (part.startsWith('<') && part.endsWith('>')) return part;
 
-        let subText = part;
+        // CRITICAL FIX: Escape literal < and > to prevent browser from interpreting them as tags
+        // This fixes the "Inequalities reduced to single numbers" issue
+        let subText = part.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
         // Check if this part ALREADY contains math delimiters. 
-        // We match common delimiters and ALSO check if the part is already inside a split delimiter.
         const hasDelimiters = /\$|\\\(|\\\[/.test(subText);
 
         if (!hasDelimiters) {
           // A. Detect Explicit LaTeX commands (e.g. \frac, \sqrt)
-          // Improved regex to capture \command{arg1}{arg2} and avoid "Missing argument"
           const latexPattern = /\\(?:[a-zA-Z]+)(?:(?:\s*\[.*?\])|(?:\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})){1,2}/g;
           const simpleLatexPattern = /\\[a-zA-Z]+/g;
 
-          // B. Detect Implicit Algebra (e.g. T=2h+18, C_f, q/r)
-          // Simplified to avoid matching things that are just plain text with a dash or dot
-          const implicitMathPattern = /((?:[a-zA-Z\d()]+[+\-*/_^=][a-zA-Z\d()+\-*/_^=.]*)+)/g;
+          // B. Detect Implicit Algebra (e.g. T=2h+18, C_f, q/r, 1<x<5)
+          // Updated to include < and > signals
+          const implicitMathPattern = /((?:[a-zA-Z\d()]+[+\-*/_^=<>][a-zA-Z\d()+\-*/_^=.<>]*)+)/g;
 
           subText = subText.replace(implicitMathPattern, (match) => {
             if (match.includes('http') || match.includes('@') || match.includes('www.')) return match;
             if (/^[a-zA-Z]+-[a-zA-Z]+$/.test(match)) return match;
             if (/^\d{1,4}\/\d{1,2}\/\d{2,4}$/.test(match)) return match;
-            if (/[+\-*/_^=]$/.test(match)) return match;
-            // Avoid matching plain numbers as math unless they have math symbols
+            if (/[+\-*/_^=<>]$/.test(match)) return match;
             if (/^\d+$/.test(match)) return match;
 
             const hasMathSignal = /[=_^\\\d<>~]/.test(match) || (/[+\-*/]/.test(match) && match.length < 20);
             return hasMathSignal ? ` \\(${match}\\) ` : match;
           });
 
-          // Apply complex LaTeX pattern first (commands with arguments)
           subText = subText.replace(latexPattern, (match) => {
             const m = match.trim();
-            // Final safety check: if it's just \text{...} and it's long, don't wrap it as math
             if (m.startsWith('\\text{') && m.length > 30) return match;
             return ` \\(${m}\\) `;
           });
 
-          // Apply simple LaTeX pattern for remaining commands (like \pi)
           subText = subText.replace(simpleLatexPattern, (match) => {
             const trimmedMatch = match.trim();
-
-            // SKIP: Common words that might start with \ in some corrupted text but aren't math
-            // OR commands that MUST have arguments.
             const skipList = ['\\text', '\\frac', '\\sqrt', '\\sqrt[', '\\textbf', '\\textit'];
             if (skipList.includes(trimmedMatch)) return match;
 
-            // Check if it's a known common Greek letter or math symbol
             const mathSymbols = [
               '\\pi', '\\theta', '\\alpha', '\\beta', '\\gamma', '\\sigma', '\\tau', '\\mu', '\\delta', '\\Delta', '\\omega', '\\Omega', '\\phi', '\\lambda',
               '\\ge', '\\le', '\\ne', '\\approx', '\\pm', '\\times', '\\div', '\\cdot', '\\degree', '\\angle', '\\triangle', '\\therefore', '\\implies',
@@ -160,21 +149,17 @@ const MathRenderer = ({ text, className = '' }) => {
       // ---------------------------------------------------------
       // 3. Render & Typeset
       // ---------------------------------------------------------
-      // Clear previous math (if any) and typeset new content
-      // Explicitly clear to prevent ghosting or partial renders
-      nodeRef.current.innerHTML = '';
       nodeRef.current.innerHTML = processedText;
 
-      // We use typesetPromise to avoid freezing UI
       window.MathJax.typesetPromise([nodeRef.current])
         .catch((err) => {
           console.warn('MathJax processing error:', err);
           nodeRef.current.innerText = processedText.replace(/\$/g, '');
         });
     } else {
-      // Fallback if MathJax not loaded
       nodeRef.current.innerHTML = processedText;
     }
+
 
   }, [text]);
 

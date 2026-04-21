@@ -1,7 +1,11 @@
 import express from 'express';
+import dotenv from 'dotenv';
+
+// 1. Load environment variables FIRST
+dotenv.config();
+
 import cors from 'cors';
 import compression from 'compression';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getUserFromRequest } from './utils/authHelper.js';
@@ -23,15 +27,12 @@ import settingsRoutes from './routes/settings.js';
 import authRoutes from './routes/auth.js';
 import sendEmailRoute from './routes/send-email.js';
 import kbQuizRoutes from './routes/kb-quiz.js';
-import demoRoutes from './routes/demo.js';
+import { demoRouter } from './routes/demo.js';
+import feedbackRoutes from './routes/feedback.js';
+import supabaseAdmin from '../supabase/supabaseAdmin.js';
 
 // Background Processors
 import WelcomeEmailProcessor from './services/WelcomeEmailProcessor.js';
-
-// 1. Load environment variables FIRST
-dotenv.config();
-
-console.log('\n🚀 Starting Educational Platform Backend Server...\n');
 
 // 2. Define paths
 const __filename = fileURLToPath(import.meta.url);
@@ -97,7 +98,14 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 6. Public Routes (NO AUTH required)
-app.use('/api/demo', demoRoutes);
+// These must be defined before the auth middleware to be publicly accessible
+app.use('/api/demo', demoRouter);
+
+// 6b. DIRECT FALLBACK for Demo OTP (Ensures registration even if router mounting has issues)
+app.post('/api/demo/send-otp', demoRouter);
+app.post('/api/demo/verify-otp', demoRouter);
+app.post('/api/demo/submit-lead', demoRouter);
+
 app.use('/api/health', (req, res) => {
   try {
     res.status(200).json({
@@ -111,13 +119,63 @@ app.use('/api/health', (req, res) => {
   }
 });
 
+// 6b. Direct Route Debug (for diagnosing 404s)
+app.post('/api/demo-direct-test', (req, res) => {
+  res.json({ success: true, message: 'Direct backend POST successful' });
+});
+
 // 7. Request logging & Auth Middleware (for protected routes)
 app.use(async (req, res, next) => {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] ${req.method} ${req.url}`);
   try {
     const user = await getUserFromRequest(req);
-    if (user) req.user = user;
+    if (user) {
+      req.user = user;
+
+      // 🕵️ [PREVIEW MODE SUPPORT]
+      const previewUserId = req.headers['x-preview-user-id'];
+      if (previewUserId && previewUserId !== user.id) {
+        console.log(`🔍 [Preview Check] Request for ${req.url} has preview header: ${previewUserId}`);
+        
+        // 1. Verify requesters actual role is Admin
+        const { data: profile, error: profError } = await supabaseAdmin
+          .from('profiles')
+          .select('id, role, email')
+          .eq('id', user.id)
+          .single();
+
+        if (profError) {
+          console.error('❌ [Preview Error] Failed to fetch admin profile:', profError.message);
+        }
+
+        if (profile?.role === 'admin') {
+          // 2. Fetch target user profile
+          const { data: targetProfile, error: targetError } = await supabaseAdmin
+            .from('profiles')
+            .select('id, email, name, role')
+            .eq('id', previewUserId)
+            .single();
+
+          if (targetError) {
+            console.error('❌ [Preview Error] Failed to fetch target profile:', targetError.message);
+          }
+
+          if (targetProfile) {
+            console.log(`🕵️ [Preview Swapping] Admin ${profile.email} -> ${targetProfile.role}: ${targetProfile.name}`);
+            req.user = {
+              ...user,
+              id: targetProfile.id,
+              email: targetProfile.email,
+              role: targetProfile.role,
+              isPreview: true,
+              adminId: user.id
+            };
+          }
+        } else {
+          console.warn(`⚠️ [Preview Denied] Role ${profile?.role} is not admin for user ${user.id}`);
+        }
+      }
+    }
   } catch (error) {
     console.warn(`[${timestamp}] Auth middleware warning:`, error.message);
   }
@@ -143,6 +201,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/send-email', sendEmailRoute);
 app.use('/api/kb-quiz', kbQuizRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // 9. Root API Info
 app.get('/api', (req, res) => {
@@ -153,11 +212,17 @@ app.get('/api', (req, res) => {
   });
 });
 
-// 10. Catch-all for SPA Routing (MUST BE AFTER API ROUTES)
+// 10. Catch-all for API 404s (handle all methods: POST, GET, etc.)
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ 
+    error: 'API endpoint not found',
+    path: req.originalUrl,
+    method: req.method
+  });
+});
+
+// 11. Catch-all for SPA Routing (MUST BE AFTER API ROUTES)
 app.get('*', (req, res) => {
-  if (req.url.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
-  }
   res.sendFile(path.join(DIST_PATH, 'index.html'));
 });
 

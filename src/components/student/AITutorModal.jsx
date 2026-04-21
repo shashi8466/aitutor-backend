@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
-import { aiService } from '../../services/api';
+import { aiService, planService } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { FiX, FiUser, FiCpu, FiSend, FiLightbulb, FiRefreshCw, FiCheck, FiAlertCircle, FiAward } = FiIcons;
 
@@ -62,6 +63,18 @@ const AIQuestionCard = ({ data, onComplete }) => {
         <MathRenderer text={questionText} />
       </div>
 
+      {/* Fallback image: show if backend returned an imageUrl and the question text doesn't already embed an <img> */}
+      {data.imageUrl && !questionText.includes('<img') && (
+        <div className="mb-4 flex justify-center">
+          <img
+            src={data.imageUrl}
+            alt="Question diagram"
+            className="max-w-full max-h-[300px] object-contain rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+            onError={(e) => e.target.style.display = 'none'}
+          />
+        </div>
+      )}
+
       {effectiveIsMCQ ? (
         <div className="space-y-2 mb-4">
           {safeOptions.map((opt, i) => {
@@ -119,7 +132,9 @@ const AIQuestionCard = ({ data, onComplete }) => {
 };
 
 const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [featureEnabled, setFeatureEnabled] = useState(true);
   const [chatMessages, setChatMessages] = useState([
     {
       id: 1,
@@ -131,6 +146,21 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
       ]
     }
   ]);
+
+  useEffect(() => {
+    checkAccess();
+  }, []);
+
+  const checkAccess = async () => {
+    try {
+      const currentPlan = user?.plan_type || 'free';
+      const { data: settings } = await planService.getSettings();
+      const currentSettings = (settings || []).find(s => s.plan_type === currentPlan);
+      setFeatureEnabled(currentSettings?.feature_ai_tutor !== false);
+    } catch (err) {
+      console.error("Failed to check AI access:", err);
+    }
+  };
   const [inputValue, setInputValue] = useState('');
   const chatEndRef = useRef(null);
 
@@ -181,7 +211,9 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           question: question.question,
           level: question.level || "Medium",
           concept: question.concept || question.topic || "",
-          topic: question.topic || question.concept || ""
+          topic: question.topic || question.concept || "",
+          // Pass image URL so backend can replace [DIAGRAM PRESENT] with the actual image
+          imageUrl: question.image || question.image_url || question.imageUrl || null
         };
 
         const previousQuestions = chatMessages
@@ -214,6 +246,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           concept: newQuestion.topic || newQuestion.concept || questionPayload.concept || 'this topic',
           level: questionPayload.level,
           topic: newQuestion.topic,
+          imageUrl: newQuestion.imageUrl || null,
           source: 'AI-Generated (KB Style)'
         };
 
@@ -409,8 +442,28 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           </div>
 
           {/* Right Panel (Chat) */}
-          <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
-            <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 bg-white dark:bg-gray-900">
+          <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800">
+            {!featureEnabled ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6">
+                <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/20 rounded-3xl flex items-center justify-center text-amber-600">
+                    <SafeIcon icon={FiIcons.FiZap} className="w-10 h-10" />
+                </div>
+                <div className="space-y-2">
+                    <h3 className="text-2xl font-black text-gray-900 dark:text-white">AI Tutor is Premium</h3>
+                    <p className="text-gray-500 text-sm font-medium max-w-xs">
+                        Unlock your personal AI study companion to get instant explanations and custom practice questions.
+                    </p>
+                </div>
+                <button 
+                    onClick={() => { onClose(); window.location.href = '/student/upgrade'; }}
+                    className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all"
+                >
+                    Upgrade to Premium
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 bg-white dark:bg-gray-900">
               {chatMessages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`flex gap-3 max-w-[95%] md:max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -513,6 +566,8 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
                 </button>
               </div>
             </div>
+          </>
+        )}
           </div>
         </div>
       </motion.div>

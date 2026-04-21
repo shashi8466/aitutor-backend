@@ -8,6 +8,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import AdminProtectedRoute from './components/auth/AdminProtectedRoute';
 import StudentLayout from './components/layout/StudentLayout';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import PreviewBanner from './components/common/PreviewBanner';
 
 // Lazy imports for pages
 const HomePage = lazy(() => import('./components/layout/HomePage'));
@@ -25,6 +26,7 @@ const QuizInterface = lazy(() => import('./components/student/QuizInterface'));
 const Leaderboard = lazy(() => import('./components/student/Leaderboard'));
 const StudentSettings = lazy(() => import('./components/student/StudentSettings'));
 const Support = lazy(() => import('./components/student/Support'));
+const FeatureGate = lazy(() => import('./components/common/FeatureGate'));
 const StudentCalendar = lazy(() => import('./components/student/StudentCalendar'));
 const EnrollmentKeyInput = lazy(() => import('./components/student/EnrollmentKeyInput'));
 const AITutorAgent = lazy(() => import('./components/student/agents/AITutorAgent'));
@@ -39,6 +41,9 @@ const PracticeTests = lazy(() => import('./components/student/PracticeTests'));
 const DetailedTestReview = lazy(() => import('./components/student/DetailedTestReview'));
 const WeeklyReport = lazy(() => import('./components/common/WeeklyReport'));
 const SalesBot = lazy(() => import('./components/common/SalesBot'));
+const UpgradePlan = lazy(() => import('./components/student/UpgradePlan'));
+const Worksheets = lazy(() => import('./components/student/Worksheets'));
+const StudentFeedback = lazy(() => import('./components/student/StudentFeedback'));
 
 // Demo Pages
 const PublicDemoCourseView = lazy(() => import('./components/demo/PublicDemoCourseView'));
@@ -64,7 +69,13 @@ import axios from 'axios';
 // FIXED: Use relative path by default to allow Vite Proxy to handle routing.
 // This is essential for WebContainer/StackBlitz environments.
 // FIXED: Force Render URL on Firebase hosting, use relative path on localhost
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+// Detect local development (localhost, 127.0.0.1, or local network IPs)
+const isLocal = 
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' || 
+  window.location.hostname.startsWith('192.168.') || 
+  window.location.hostname.startsWith('10.') || 
+  window.location.hostname.endsWith('.local');
 const isFirebase =
   window.location.hostname.includes('aitutor-4431c') ||
   window.location.hostname.includes('firebaseapp.com') ||
@@ -72,8 +83,10 @@ const isFirebase =
 
 const PROD_URL = 'https://aitutor-backend-u7h3.onrender.com';
 
-// Priority: 1. Environment Variable, 2. Production URL (if on Firebase), 3. Relative path (Local)
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ((isFirebase || !isLocal) ? PROD_URL : '');
+// Priority: 1. Local Development -> Empty string (uses Vite Proxy)
+// 2. Environment Variable -> Use it if provided
+// 3. Firebase/Production -> Use PROD_URL
+const BACKEND_URL = isLocal ? '' : (import.meta.env.VITE_BACKEND_URL || PROD_URL);
 
 console.log('📡 [API Connectivity]');
 console.log('  - Hostname:', window.location.hostname);
@@ -98,6 +111,12 @@ axios.interceptors.request.use(
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.access_token) {
         config.headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
+      // 🕵️ Preview Mode Header (Synced from AuthContext via localStorage)
+      const previewUserId = localStorage.getItem('preview_user_id');
+      if (previewUserId) {
+        config.headers['X-Preview-User-Id'] = previewUserId;
       }
     } catch (error) {
       console.error('📡 Auth Interceptor Error:', error);
@@ -225,6 +244,7 @@ const App = () => {
 
   return (
     <div className="app-container">
+      <PreviewBanner />
       {showNavbar && <Navbar />}
       <AnimatePresence mode="wait">
         <Suspense fallback={<LoadingSpinner />}>
@@ -268,23 +288,25 @@ const App = () => {
               {/* New Sidebar Features */}
               <Route path="calendar" element={<StudentCalendar />} />
               <Route path="practice-tests" element={<PracticeTests />} />
-              <Route path="score-predictor" element={<ScorePredictor />} />
-              <Route path="leaderboard" element={<Leaderboard />} />
+              {/* AI Agents */}
+              <Route path="tutor" element={<FeatureGate featureKey="feature_ai_tutor"><AITutorAgent /></FeatureGate>} />
+              <Route path="plan" element={<FeatureGate featureKey="feature_study_planner"><StudyPlanPage /></FeatureGate>} />
+              <Route path="drills" element={<FeatureGate featureKey="feature_weakness_drills"><WeaknessDrills /></FeatureGate>} />
+              <Route path="test-review" element={<FeatureGate featureKey="feature_test_review"><TestReview /></FeatureGate>} />
+              <Route path="detailed-review/:submissionId" element={<FeatureGate featureKey="feature_test_review"><DetailedTestReview /></FeatureGate>} />
+              <Route path="score-predictor" element={<FeatureGate featureKey="feature_score_predictor"><ScorePredictor /></FeatureGate>} />
+              <Route path="leaderboard" element={<FeatureGate featureKey="feature_leaderboard"><Leaderboard /></FeatureGate>} />
+              <Route path="college" element={<FeatureGate featureKey="feature_college_advisor"><CollegeAdvisor /></FeatureGate>} />
+              <Route path="feedback" element={<StudentFeedback />} />
+              
               <Route path="settings" element={<StudentSettings />} />
               <Route path="support" element={<Support />} />
-
-              {/* AI Agents */}
-              <Route path="tutor" element={<AITutorAgent />} />
-              <Route path="plan" element={<StudyPlanPage />} />
-              <Route path="drills" element={<WeaknessDrills />} />
-              <Route path="test-review" element={<TestReview />} />
-              <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
               <Route path="weekly-report/:weekStart" element={<WeeklyReport />} />
-              <Route path="college" element={<CollegeAdvisor />} />
               <Route path="parent" element={<ParentConnect />} />
 
               {/* Payment */}
               <Route path="payment-success" element={<PaymentSuccess />} />
+              <Route path="upgrade" element={<UpgradePlan />} />
             </Route>
 
             {/* Tutor Routes */}

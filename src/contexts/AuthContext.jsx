@@ -5,6 +5,7 @@ import supabase from '../supabase/supabase';
 const AuthContext = createContext();
 
 const normalizeRole = (role) => (role ?? '').toString().trim().toLowerCase();
+const normalizePlan = (plan) => (plan ?? 'free').toString().trim().toLowerCase();
 const normalizeName = (name, fallback = 'User') => {
   const s = (name ?? '').toString().trim();
   return s || fallback;
@@ -74,7 +75,23 @@ const getInitialState = () => {
 
 export const AuthProvider = ({ children }) => {
   const [state, setState] = useState(getInitialState);
+  const [previewUser, setPreviewUser] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const stored = localStorage.getItem('preview_user');
+    return stored ? JSON.parse(stored) : null;
+  });
   const { user, loading } = state;
+
+  const handleSetPreviewUser = (u) => {
+    setPreviewUser(u);
+    if (u) {
+      localStorage.setItem('preview_user', JSON.stringify(u));
+      localStorage.setItem('preview_user_id', u.id);
+    } else {
+      localStorage.removeItem('preview_user');
+      localStorage.removeItem('preview_user_id');
+    }
+  };
 
   const setUser = (u) => setState(prev => ({ 
     ...prev, 
@@ -113,7 +130,8 @@ export const AuthProvider = ({ children }) => {
         console.log('🚀 [Auth] Using cached profile for', currentUser.email);
         setUser(prev => {
           const normalizedRole = normalizeRole(cachedProfile.role) || 'student';
-          const normalizedProfile = { ...cachedProfile, role: normalizedRole };
+          const normalizedPlan = normalizePlan(cachedProfile.plan_type);
+          const normalizedProfile = { ...cachedProfile, role: normalizedRole, plan_type: normalizedPlan };
           
           const metaName =
             currentUser?.user_metadata?.name ||
@@ -145,7 +163,8 @@ export const AuthProvider = ({ children }) => {
         console.log('🔄 [Auth] Profile sync successful:', profile.role);
         setUser(prev => {
           const normalizedRole = normalizeRole(profile.role) || 'student';
-          const normalizedProfile = { ...profile, role: normalizedRole };
+          const normalizedPlan = normalizePlan(profile.plan_type);
+          const normalizedProfile = { ...profile, role: normalizedRole, plan_type: normalizedPlan };
           
           // Prioritize database profile name over metadata
           const metaName =
@@ -376,13 +395,17 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.logout();
       setUser(null);
+      handleSetPreviewUser(null);
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
   const value = {
-    user,
+    user: previewUser || user,
+    realUser: user,
+    previewUser,
+    setPreviewUser: handleSetPreviewUser,
     login,
     signup,
     logout,

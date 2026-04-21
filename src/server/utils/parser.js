@@ -41,8 +41,8 @@ const extractOptionsFromLine = (text, currentOptionsCount = 0) => {
 
   // Stricter regex for SAT: Only A-E
   // Must be Uppercase. 
-  // Must be at start of line OR preceded by 2+ spaces.
-  const optRegex = /(?:^|[\s\t]{2,})([A-E])[\s]*[).][\s]*/g;
+  // Can be at start of line OR preceded by 1+ spaces if at least 2 chars total.
+  const optRegex = /(?:^|[\s\t]+)([A-E])[\s]*[).][\s]*/g;
   const matches = [...text.matchAll(optRegex)];
 
   if (matches.length > 0) {
@@ -417,14 +417,14 @@ const parseTextToQuestions = (text) => {
       }
 
       if (currentQuestion.explanation !== null) {
-        currentQuestion.explanation += ' ' + line;
+        currentQuestion.explanation += (currentQuestion.explanation ? '\n' : '') + line;
       } else if (currentQuestion.options.length === 0 && !currentQuestion.correctAnswer) {
         if (currentQuestion.question) {
-          const needsNewline = line.includes('$') || line.includes('\\(') || line.match(/\[IMAGE\s*:\s*[^\]]+\]/i);
+          const needsNewline = line.includes('$') || line.includes('\\(') || line.match(/\[IMAGE\s*:\s*[^\]]+\]/i) || currentQuestion.question.length > 100;
           currentQuestion.question += (needsNewline ? '\n' : ' ') + line;
         } else currentQuestion.question = line;
       } else if (currentQuestion.options.length > 0) {
-        currentQuestion.options[currentQuestion.options.length - 1] += ' ' + line;
+        currentQuestion.options[currentQuestion.options.length - 1] += '\n' + line;
       }
     }
     if (currentQuestion) questions.push(finalizeQuestion(currentQuestion));
@@ -437,7 +437,7 @@ const extractAnswerFromExplanation = (explanation) => {
   const patterns = [
     /(?:Therefore|Thus|Hence|So|Consequently)[^.]*?(?:is|=)\s*([-]?\d+(?:\.\d+)?)/i,
     /(?:answer|value|result|length|radius|coordinate)[^.]*?(?:is|=)\s*([-]?\d+(?:\.\d+)?)/i,
-    /(\d+)\s*\.$/
+    /([-]?\d+(?:\.\d+)?)\s*\.?$/
   ];
   for (const pattern of patterns) {
     const match = explanation.match(pattern);

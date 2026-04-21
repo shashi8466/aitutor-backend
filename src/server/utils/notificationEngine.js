@@ -154,6 +154,11 @@ async function twilioSend({ from, to, body }) {
             console.error('❌ [Twilio] Request error:', err.message);
             resolve({ ok: false, error: err.message });
         });
+        req.setTimeout(15000, () => {
+            req.destroy();
+            console.error('❌ [Twilio] Request timed out');
+            resolve({ ok: false, error: 'Twilio request timed out' });
+        });
         req.write(postData);
         req.end();
     });
@@ -172,7 +177,7 @@ export async function sendWhatsApp({ to, message }) {
     if (!to) return { ok: false, error: 'No phone number' };
     const settings = await getInternalSettings();
     const smsConfig = settings?.sms_config || {};
-    let fromRaw = (smsConfig.enabled && smsConfig.whatsapp_number) ? (smsConfig.whatsapp_number || smsConfig.from_number) : (process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
+    let fromRaw = (smsConfig.enabled && smsConfig.whatsapp_number) ? (smsConfig.whatsapp_number || smsConfig.from_number) : (process.env.TWILIO_WHATSAPP_NUMBER || process.env.WHATSAPP_FROM_NUMBER || process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
     if (!fromRaw) return { ok: false, error: 'TWILIO_WHATSAPP_NUMBER missing' };
     const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`;
     const toWA  = to.startsWith('whatsapp:')      ? to       : `whatsapp:${to}`;

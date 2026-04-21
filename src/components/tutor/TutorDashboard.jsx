@@ -90,7 +90,7 @@ const TutorDashboard = () => {
 
         const handleFocus = () => {
             console.log('👀 [TutorDashboard] Window Focused - Refreshing stats');
-            tutorService.getDashboard().then(res => {
+            tutorService.getDashboard(user?.id).then(res => {
                 if (res?.data) setDashboardData(res.data);
             }).catch(() => { });
         };
@@ -115,7 +115,7 @@ const TutorDashboard = () => {
 
         try {
             console.log('📡 [TutorDashboard] Fetching data...');
-            const response = await tutorService.getDashboard();
+            const response = await tutorService.getDashboard(user?.id);
             if (response?.data) {
                 setDashboardData(response.data);
                 console.log('✅ [TutorDashboard] Data loaded');

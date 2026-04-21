@@ -5,7 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import AITutorModal from './AITutorModal';
-import { questionService, progressService, enrollmentService, gradingService } from '../../services/api';
+import { questionService, progressService, enrollmentService, gradingService, planService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -64,6 +64,21 @@ const QuizInterface = () => {
   const [resultMessage, setResultMessage] = useState('');
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
+  const [planSettings, setPlanSettings] = useState(null);
+
+  useEffect(() => {
+    if (user?.plan_type) loadPlanSettings();
+  }, [user?.plan_type]);
+
+  const loadPlanSettings = async () => {
+    try {
+      const { data } = await planService.getSettings();
+      const current = (data || []).find(s => s.plan_type === user.plan_type);
+      setPlanSettings(current);
+    } catch (e) {
+      console.error("Failed to load plan settings in quiz:", e);
+    }
+  };
 
   useEffect(() => {
     if (user?.id && courseId) {
@@ -160,7 +175,23 @@ const QuizInterface = () => {
       }
 
       if (targetQuestions.length > 0) {
-        setQuestions(targetQuestions);
+        // 3. Apply Plan Gating for Topics
+        const { data: accessData } = await planService.getContentAccess();
+        const userPlan = user?.plan_type || 'free';
+        const isPremium = userPlan === 'premium' && user?.plan_status === 'active';
+        
+        const filtered = targetQuestions.filter(q => {
+          if (isPremium) return true;
+          // Check if topic is allowed for this plan
+          return (accessData || []).some(a => a.content_type === 'topic' && a.content_id === q.topic && a.plan_type === userPlan);
+        });
+
+        if (filtered.length === 0 && targetQuestions.length > 0) {
+           setError("Premium Content: The topics in this level are restricted. Please upgrade to unlock!");
+           setQuestions([]);
+        } else {
+           setQuestions(filtered);
+        }
       } else {
         console.warn("⚠️ [QUIZ] No questions found.");
         setQuestions([]);
@@ -645,10 +676,17 @@ const QuizInterface = () => {
                     </div>
                     {!isCorrectAnswer() && (
                       <button 
-                        onClick={() => setShowAITutor(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-[#E53935] hover:text-[#E53935] transition-all shadow-sm"
+                        onClick={() => {
+                          if (planSettings?.feature_ai_tutor) {
+                            setShowAITutor(true);
+                          } else {
+                            if (user?.plan_type === 'free') navigate('/student/upgrade');
+                            else alert("AI Tutor is currently disabled by Admin for your plan.");
+                          }
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-[#E53935] hover:text-[#E53935] transition-all shadow-sm ${!planSettings?.feature_ai_tutor ? 'opacity-70 grayscale' : ''}`}
                       >
-                        <SafeIcon icon={FiMessageCircle} className="w-4 h-4" />
+                        <SafeIcon icon={planSettings?.feature_ai_tutor ? FiMessageCircle : FiIcons.FiLock} className="w-4 h-4" />
                         Chat with AI
                       </button>
                     )}
@@ -676,8 +714,19 @@ const QuizInterface = () => {
             ) : (
               <div className="flex flex-wrap gap-2 sm:gap-3 justify-end">
                 {!isCorrectAnswer() && (
-                  <button onClick={() => setShowAITutor(true)} className="flex items-center gap-1 sm:gap-2 text-white font-bold px-3 sm:px-5 py-2 sm:py-3 bg-black rounded-xl text-sm sm:text-base hover:bg-gray-800 dark:hover:bg-gray-700 transition-all shadow-sm">
-                    <SafeIcon icon={FiMessageCircle} className="w-4 h-4 sm:w-5 sm:h-5" /><span className="hidden sm:inline">Chat with</span> AI
+                  <button 
+                    onClick={() => {
+                      if (planSettings?.feature_ai_tutor) {
+                        setShowAITutor(true);
+                      } else {
+                        if (user?.plan_type === 'free') navigate('/student/upgrade');
+                        else alert("AI Tutor is currently disabled.");
+                      }
+                    }} 
+                    className={`flex items-center gap-1 sm:gap-2 text-white font-bold px-3 sm:px-5 py-2 sm:py-3 bg-black rounded-xl text-sm sm:text-base hover:bg-gray-800 dark:hover:bg-gray-700 transition-all shadow-sm ${!planSettings?.feature_ai_tutor ? 'opacity-70' : ''}`}
+                  >
+                    <SafeIcon icon={planSettings?.feature_ai_tutor ? FiMessageCircle : FiIcons.FiLock} className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="hidden sm:inline">Chat with</span> AI
                   </button>
                 )}
                 <button onClick={handleNextQuestion} disabled={savingResult} className="bg-[#E53935] hover:bg-[#d32f2f] text-white px-5 sm:px-8 py-2 sm:py-3 rounded-xl font-bold text-sm sm:text-base flex items-center gap-1 sm:gap-2 transition-colors shadow-lg shadow-red-100 disabled:opacity-70">

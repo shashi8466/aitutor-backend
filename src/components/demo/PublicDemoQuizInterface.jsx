@@ -32,10 +32,6 @@ const getCleanQuestionText = (text, imageUrl) => {
   return cleaned.trim();
 };
 
-const successSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3');
-const errorSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2955/2955-preview.mp3');
-successSound.volume = 0.5;
-errorSound.volume = 0.4;
 
 const PublicDemoQuizInterface = () => {
   const { courseId, level } = useParams();
@@ -108,15 +104,6 @@ const PublicDemoQuizInterface = () => {
     }
   };
 
-  const playSound = (sound) => {
-    if (!sound) return;
-    const playPromise = sound.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(error => {
-        if (error.name !== 'AbortError') console.warn("Audio play error:", error);
-      });
-    }
-  };
 
   const activeQuestion = questions[currentIndex];
   const isMCQ = activeQuestion?.type === 'mcq';
@@ -136,13 +123,6 @@ const PublicDemoQuizInterface = () => {
     if (!selectedAnswer) return;
     setIsAnswerSubmitted(true);
     setUserAnswers(prev => ({ ...prev, [currentIndex]: selectedAnswer }));
-    
-    // Play feedback sound
-    if (isCorrect()) {
-      playSound(successSound);
-    } else {
-      playSound(errorSound);
-    }
   };
 
   const jumpToQuestion = (idx) => {

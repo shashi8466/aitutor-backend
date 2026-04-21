@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HashRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import React from 'react';
 import App from './App.jsx';
 import './index.css';
@@ -101,7 +101,7 @@ class ErrorBoundary extends React.Component {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <HashRouter>
+      <BrowserRouter>
         <AuthProvider>
           <SettingsProvider>
             <ThemeProvider>
@@ -109,7 +109,7 @@ createRoot(document.getElementById('root')).render(
             </ThemeProvider>
           </SettingsProvider>
         </AuthProvider>
-      </HashRouter>
+      </BrowserRouter>
     </ErrorBoundary>
   </StrictMode>
 );

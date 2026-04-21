@@ -43,8 +43,8 @@ class NotificationScheduler {
         console.log('ℹ️ [Cron] Outbox processor disabled locally (NODE_ENV != production)');
     }
 
-    // Weekly progress report - Every Saturday at 6 PM IST
-    cron.schedule('0 18 * * 6', async () => {
+    // Weekly progress report - Every Saturday at 7 PM IST
+    cron.schedule('0 19 * * 6', async () => {
       console.log('📬 [Cron] Weekly progress report job triggered');
       try {
         const port = process.env.PORT || 3001;

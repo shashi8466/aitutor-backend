@@ -36,19 +36,33 @@ const PublicDemoCourseView = () => {
     const loadDemoCourse = async () => {
         setLoading(true);
         try {
+            console.log("Loading demo course", courseId);
             const courseRes = await courseService.getById(courseId);
-            const uploadsRes = await uploadService.getAll({ courseId });
+            
+            if (!courseRes || !courseRes.data) {
+                setError("Course not found.");
+                return;
+            }
 
-            if (!courseRes.data?.is_demo) {
+            if (!courseRes.data.is_demo) {
                 setError("This course is not available in demo mode.");
                 return;
             }
 
+            let uploadsData = [];
+            try {
+                const uploadsRes = await uploadService.getAll({ courseId });
+                uploadsData = uploadsRes.data || [];
+            } catch (uErr) {
+                console.warn("Could not fetch uploads, using empty array", uErr);
+            }
+
             setCourse(courseRes.data);
-            setUploads(uploadsRes.data || []);
+            setUploads(uploadsData);
         } catch (err) {
             console.error("Error loading demo course:", err);
-            setError("Failed to load the demo course. It may not exist or is unavailable.");
+            // Log specific error for debugging
+            setError(`Failed to load the demo course. (${err.message || 'Unknown'})`);
         } finally {
             setLoading(false);
         }
@@ -170,15 +184,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                 )}
 
-                                {isCompleted && (
-                                    <div className="absolute top-8 right-8 z-10">
-                                        <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-black uppercase tracking-widest border border-green-200 dark:border-green-800 shadow-sm">
-                                            <SafeIcon icon={FiCheckCircle} className="w-4 h-4" /> Completed
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex flex-col md:flex-row gap-8 items-start">
+                                <div className="flex flex-col md:flex-row gap-8 items-center">
                                     <div className={`w-14 h-14 rounded-2xl ${style.accent} flex items-center justify-center font-black text-white text-2xl shadow-lg flex-shrink-0`}>
                                         {index + 1}
                                     </div>
@@ -198,18 +204,25 @@ const PublicDemoCourseView = () => {
                                         </div>
                                     </div>
 
-                                    <button
-                                        onClick={() => unlocked && navigate(`/demo/${courseId}/level/${level.toLowerCase()}`)}
-                                        disabled={!unlocked}
-                                        className={`w-full md:w-auto px-10 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest shadow-xl transition-all group ${
-                                            unlocked 
-                                            ? 'bg-black text-white hover:bg-[#E53935] transform hover:-translate-y-1' 
-                                            : 'bg-gray-100 text-gray-300 dark:bg-gray-800 dark:text-gray-700'
-                                        }`}
-                                    >
-                                        <SafeIcon icon={FiPlay} className={`w-4 h-4 ${unlocked ? 'group-hover:animate-ping' : ''}`} />
-                                        {isCompleted ? `Retake ${level}` : `Start ${level}`}
-                                    </button>
+                                    <div className="flex flex-col items-center md:items-end gap-3 w-full md:w-auto">
+                                        {isCompleted && (
+                                            <div className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 px-3 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-green-100 dark:border-green-800 shadow-sm">
+                                                <SafeIcon icon={FiCheckCircle} className="w-3.5 h-3.5" /> Completed
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={() => unlocked && navigate(`/demo/${courseId}/level/${level.toLowerCase()}`)}
+                                            disabled={!unlocked}
+                                            className={`w-full md:w-auto px-10 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest shadow-xl transition-all group ${
+                                                unlocked 
+                                                ? 'bg-black text-white hover:bg-[#E53935] transform hover:-translate-y-1' 
+                                                : 'bg-gray-100 text-gray-300 dark:bg-gray-800 dark:text-gray-700'
+                                            }`}
+                                        >
+                                            <SafeIcon icon={FiPlay} className={`w-4 h-4 ${unlocked ? 'group-hover:animate-ping' : ''}`} />
+                                            {isCompleted ? `Retake ${level}` : `Start ${level}`}
+                                        </button>
+                                    </div>
                                 </div>
                             </motion.div>
                         );

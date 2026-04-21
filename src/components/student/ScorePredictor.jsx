@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { enrollmentService, gradingService } from '../../services/api';
+import { enrollmentService, gradingService, planService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { calculateSatScore } from '../../utils/scoreCalculator';
 
@@ -41,6 +41,8 @@ const ScorePredictor = () => {
         RW: { attempted: false, prediction: null, course: null },
         MATH: { attempted: false, prediction: null, course: null }
     });
+    const [isPremium, setIsPremium] = useState(false);
+    const [featureEnabled, setFeatureEnabled] = useState(true);
 
     useEffect(() => {
         if (user) {
@@ -51,10 +53,16 @@ const ScorePredictor = () => {
     const loadAllPredictions = async () => {
         try {
             setLoading(true);
-            const [enrollmentsRes, allScoresRes] = await Promise.all([
+            const [enrollmentsRes, allScoresRes, settingsRes] = await Promise.all([
                 enrollmentService.getStudentEnrollments(user.id),
-                gradingService.getAllMyScores()
+                gradingService.getAllMyScores(),
+                planService.getSettings()
             ]);
+
+            const currentPlan = user?.plan_type || 'free';
+            const currentSettings = (settingsRes.data || []).find(s => s.plan_type === currentPlan);
+            setFeatureEnabled(currentSettings?.feature_score_predictor !== false);
+            setIsPremium(currentPlan === 'premium' && user?.plan_status === 'active');
 
             const enrolledCourses = enrollmentsRes.data || [];
             const submissions = allScoresRes.data.submissions || [];
@@ -218,7 +226,29 @@ const ScorePredictor = () => {
             </div>
         );
     }
-
+    if (!featureEnabled) {
+        return (
+            <div className="max-w-6xl mx-auto px-4 py-20 text-center space-y-8">
+                <div className="w-24 h-24 bg-red-100 dark:bg-red-900/30 rounded-3xl flex items-center justify-center mx-auto text-red-600 shadow-xl shadow-red-500/10">
+                    <SafeIcon icon={FiIcons.FiShield} className="w-12 h-12" />
+                </div>
+                <div className="max-w-xl mx-auto space-y-4">
+                    <h1 className="text-4xl font-black text-gray-900 dark:text-white">Premium Analysis Required</h1>
+                    <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">
+                        The Score Predictor uses advanced statistical modeling to estimate your SAT results. This feature is exclusive to our Premium students.
+                    </p>
+                    <div className="pt-6">
+                        <button 
+                            onClick={() => navigate('/student/upgrade')}
+                            className="px-10 py-5 bg-[#E53935] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-red-500/20 hover:scale-105 transition-all"
+                        >
+                            <SafeIcon icon={FiIcons.FiZap} className="inline mr-2" /> Unlock Predictor & Analytics
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
     const sortedSubjects = [
         { 
             id: 'RW', 

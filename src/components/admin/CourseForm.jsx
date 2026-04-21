@@ -20,13 +20,29 @@ const CourseForm = ({ course, onClose, onSave }) => {
     start_date: course?.start_date ? new Date(course.start_date).toISOString().slice(0, 16) : '',
     is_practice: course?.is_practice || false,
     is_demo: course?.is_demo || false,
-    main_category: course?.main_category || 'SAT'
+    main_category: course?.main_category || 'SAT',
+    category: course?.category || ''
   });
 
   const COURSE_CATEGORIES = {
     'SAT': ['SAT Math', 'SAT Reading & Writing'],
     'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
     'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry']
+  };
+
+  const CATEGORY_OPTIONS = {
+    'SAT Math': [
+      'Algebra',
+      'Advanced Math',
+      'Problem-Solving and Data Analysis',
+      'Geometry and Trigonometry'
+    ],
+    'SAT Reading & Writing': [
+      'Craft and Structure',
+      'Information and Ideas',
+      'Standard English Conventions',
+      'Expression of Ideas'
+    ]
   };
 
   const [newFiles, setNewFiles] = useState({});
@@ -99,10 +115,18 @@ const CourseForm = ({ course, onClose, onSave }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'main_category') {
+      const defaultSub = COURSE_CATEGORIES[value]?.[0] || 'General';
       setFormData({
         ...formData,
         main_category: value,
-        tutor_type: COURSE_CATEGORIES[value][0]
+        tutor_type: defaultSub,
+        category: CATEGORY_OPTIONS[defaultSub]?.[0] || ''
+      });
+    } else if (name === 'tutor_type') {
+      setFormData({
+        ...formData,
+        tutor_type: value,
+        category: CATEGORY_OPTIONS[value]?.[0] || ''
       });
     } else {
       setFormData({ ...formData, [name]: value });
@@ -174,7 +198,8 @@ const CourseForm = ({ course, onClose, onSave }) => {
         is_demo: formData.is_demo,
         status: formData.status || 'active',
         manual_enrollment_count: Number(formData.manual_enrollment_count) || 0,
-        main_category: formData.main_category
+        main_category: formData.main_category,
+        category: formData.category
       };
 
       let savedCourse;
@@ -405,6 +430,23 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     ))}
                   </select>
                 </div>
+                {CATEGORY_OPTIONS[formData.tutor_type] && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Category (Required)</label>
+                    <select
+                      name="category"
+                      value={formData.category}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    >
+                      <option value="">Select a category</option>
+                      {CATEGORY_OPTIONS[formData.tutor_type].map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
                   <textarea

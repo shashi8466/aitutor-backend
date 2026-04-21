@@ -237,6 +237,17 @@ Return JSON ONLY: {"concept": "...", "explanation": "...", "steps": ["..."]}
   }
 });
 
+// --- CHART UTILITIES ---
+const generateChartUrl = (config) => {
+  if (!config) return null;
+  try {
+    const encodedConfig = encodeURIComponent(JSON.stringify(config));
+    return `https://quickchart.io/chart?c=${encodedConfig}`;
+  } catch (err) {
+    return null;
+  }
+};
+
 // 3. Generate Similar (HARDENED VARIETY VERSION)
 router.post('/generate-similar', async (req, res) => {
   try {
@@ -244,9 +255,20 @@ router.post('/generate-similar', async (req, res) => {
     if (!question) return res.status(400).json({ error: "Missing question content" });
 
     const qStr = typeof question === 'string' ? question : (question.question || JSON.stringify(question));
-    const imgRegex = /<div class="question-image"[^>]*>.*?<\/div>|<img[^>]+>/g;
-    const originalImages = qStr.match(imgRegex) || [];
-    const cleanQStrSource = qStr.replace(imgRegex, '[DIAGRAM PRESENT]');
+
+    const allPlaceholderRegex = /<div class="question-image"[^>]*>.*?<\/div>|\[DIAGRAM(?:\s+PRESENT)?\]|\[IMAGE\]|\[GRAPH\]|\[CHART\]|<img[^>]+>/gi;
+    const payloadImageUrl = typeof question === 'object' ? (question.imageUrl || question.image_url || question.image || null) : null;
+    const inlineImages = qStr.match(/<div class="question-image"[^>]*>.*?<\/div>|<img[^>]+>/gi) || [];
+    const hasDiagram = !!(payloadImageUrl || inlineImages.length > 0 || allPlaceholderRegex.test(qStr));
+    
+    // Build the original image HTML to re-inject
+    let originalImageHtml = inlineImages[0] || '';
+    if (!originalImageHtml && payloadImageUrl) {
+      originalImageHtml = `<div class="question-image" style="margin:12px 0;text-align:center;"><img src="${payloadImageUrl}" alt="Question diagram" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;" /></div>`;
+    }
+
+    // Strip placeholders for the AI prompt
+    const cleanQStrSource = qStr.replace(allPlaceholderRegex, '[DIAGRAM PRESENT]');
 
     // Prefer explicit modal metadata first to lock generation to the mistake topic.
     const explicitTopic = typeof question === 'object'
@@ -254,7 +276,7 @@ router.post('/generate-similar', async (req, res) => {
       : '';
     // 🟢 DETECT STUDENT MISTAKE TOPIC
     const topic = explicitTopic || getAITutorTopic(qStr) || "the same topic";
-    console.log(`🎯 [Generate Similar] Detected Topic: "${topic}"`);
+    console.log(`🎯 [Generate Similar] Detected Topic: "${topic}" | hasDiagram: ${hasDiagram}`);
     const anchorDifficulty = (typeof question === 'object' && question.level) ? question.level : 'Medium';
 
     // 🟢 USE KNOWLEDGE BASE (KB) FOR FORMAT REFERENCE
@@ -271,7 +293,65 @@ router.post('/generate-similar', async (req, res) => {
 
     const forbiddenNumbers = (cleanQStrSource.match(/\d+/g) || []).join(', ');
 
-    const prompt = `
+    // Build two completely different prompts based on whether the question has a diagram
+    let prompt;
+
+    if (hasDiagram) {
+      // ── DIAGRAM PATH: The image IS the question. 
+      // We now allow two modes: 
+      // 1. RE-USE ORIGINAL: Use EXACT same context/data.
+      // 2. GENERATE NEW CHART: Create a matching chart for new data.
+      
+      prompt = `
+${avoidanceText}
+PERSONA: Senior SAT Content Specialist (Math/Data Analysis).
+
+MISSION: The student just answered a question involving a DIAGRAM (graph, chart, or plot). You must generate a NEW, SAT-LEVEL practice question.
+
+YOU HAVE TWO OPTIONS FOR THE VISUAL:
+
+OPTION A: RE-USE THE ORIGINAL DIAGRAM
+- Use this if you want to ask a DIFFERENT question about the SAME data.
+- ✅ YOU MUST use the EXACT same subject, units, and categories as the original (e.g., if it was about "Number of books", stay with "Number of books").
+- ✅ DO NOT change any values shown in the original context.
+- ✅ Place [ORIGINAL_DIAGRAM] where the image should appear.
+
+OPTION B: GENERATE A NEW UNIQUE SCENARIO (MANDATORY FOR VARIETY)
+- 🎯 TOPIC CONSISTENCY: The new question MUST strictly stay within the topic: "${topic}".
+- 🚀 UNIQUE SCENARIO: Change the entire context (different objects, people, or real-world situation).
+- ✅ MATCHING CHART: If the original had a visual, you MUST generate a new matching chart.
+- ✅ YOU MUST provide a "chartConfig" object in your JSON response for QuickChart.io.
+- ✅ The chart data MUST be perfectly consistent with the values used in your question text.
+- ✅ Supported types: 'bar', 'line', 'scatter', 'pie', 'radar'.
+- ✅ Place [NEW_DIAGRAM] exactly where the image should appear in the question.
+
+STRICT SAT STANDARDS:
+- Match Digital SAT difficulty: ${anchorDifficulty}.
+- Complexity: ${anchorDifficulty === 'Hard' ? 'Use abstract reasoning and multiple steps.' : 'Standard SAT-style problem.'}
+- Use \\( ... \\) for all math.
+
+ORIGINAL TOPIC/CONTEXT (FOR REFERENCE):
+"${topic}" - Original: "${cleanQStrSource.substring(0, 500)}"
+
+OUTPUT FORMAT (JSON ONLY):
+{
+  "question": "A unique SAT-level question about ${topic} with a new scenario using [NEW_DIAGRAM]",
+  "options": ["A", "B", "C", "D"],
+  "correctAnswer": "A",
+  "explanation": "Detailed step-by-step SAT-style logic.",
+  "chartConfig": { 
+     "type": "bar", 
+     "data": { 
+        "labels": ["Label 1", "Label 2"], 
+        "datasets": [{ "label": "Dataset Label", "data": [10, 20] }] 
+     },
+     "options": { "title": { "display": true, "text": "Relevant Chart Title" } }
+  }
+}
+`;
+    } else {
+      // ── NON-DIAGRAM PATH: Standard variety question
+      prompt = `
 ${avoidanceText}
 PERSONA: Senior SAT Content Developer creating ORIGINAL practice questions.
 
@@ -288,7 +368,6 @@ CRITICAL REQUIREMENTS (ALL MUST BE FOLLOWED):
 
 2. ❌ DIFFERENT NUMBERS (MANDATORY): 
    - Change EVERY number from the original. If original has 2400, use 1800, 3200, 1500, etc.
-   - If original has 80, use 60, 100, 120, etc.
    - FORBIDDEN NUMBERS (DO NOT USE): [${forbiddenNumbers}]
    - Generate completely new numeric values that make sense for the problem.
 
@@ -298,24 +377,13 @@ CRITICAL REQUIREMENTS (ALL MUST BE FOLLOWED):
    - Change what the student is solving for.
 
 4. ❌ DIFFERENT QUESTION FRAMING (MANDATORY):
-   - Change the scenario/context (e.g., if original is about a rectangle, use a different shape or real-world context).
-   - Change the question structure (e.g., if original is "What is X?", use "Find X such that..." or "Determine the value of X when...").
+   - Change the scenario/context entirely (different object, place, or real-world context).
    - Reword the entire question - do NOT copy sentence structure or phrasing.
    - Use different units or measurements if applicable.
 
-EXAMPLES OF GOOD VARIATIONS:
-Original: "The area of a rectangle is 2400 cm². The width is 80 cm. What is the length?"
-Good: "A rectangular garden has an area of 1800 square feet. If the length is 60 feet, what is the width in feet?"
-Good: "The perimeter of a rectangle is 120 inches. The length is 35 inches. What is the width?"
-
-Original: "Solve for x: 2x + 5 = 15"
-Good: "If 3y - 7 = 20, what is the value of y?"
-Good: "Find the value of n when 4n + 12 = 28"
-
 LATEX STANDARDS (STRICT):
 - Use EXACTLY \\\\frac{num}{den} for all fractions. 
-- FORBIDDEN: \\\\frac{num} (missing denominator) or \\\\frac {num} {den} (extra spaces).
-- Use \\\\( ... \\\\) for ALL math, including variables like \\\\( x \\\\) or values like \\\\( 30^o \\\\).
+- Use \\\\( ... \\\\) for ALL math, including variables.
 - Do NOT use plain text for math.
 
 ORIGINAL QUESTION (USE AS REFERENCE FOR TOPIC ONLY):
@@ -326,13 +394,14 @@ RANDOM SEED: ${Math.random().toString(36).substring(7)}
 
 OUTPUT FORMAT (JSON ONLY):
 {
-  "question": "Completely new question text with different numbers, unknown, and framing... [DIAGRAM]",
+  "question": "Completely new question text with different numbers and framing",
   "options": ["Val 1", "Val 2", "Val 3", "Val 4"],
   "correctAnswer": "Val 1",
   "explanation": "Expert SAT logic...",
   "concept": "${topic}"
 }
 `;
+    }
 
     // --- IMPROVED SIMILARITY CHECK ---
     const checkSimilarity = (genText, origText) => {
@@ -399,11 +468,39 @@ OUTPUT FORMAT (JSON ONLY):
       throw new Error(lastCheckError || "Failed to generate a sufficiently different question. Please try again.");
     }
 
-    // Replace [DIAGRAM]
-    if (finalData.question.includes('[DIAGRAM]')) {
-      finalData.question = finalData.question.replace(/\[DIAGRAM\]/g, originalImages[0] || '');
-    } else if (originalImages.length > 0 && (finalData.question.toLowerCase().includes('figure') || finalData.question.toLowerCase().includes('shown'))) {
-      finalData.question = originalImages[0] + "\n" + finalData.question;
+    // ── DIAGRAM INJECTION ─────────────────────────────────────────────────
+    if (hasDiagram) {
+      const originalPlaceholderRegex = /\[ORIGINAL_DIAGRAM\]|\[DIAGRAM(?:_HERE|(?:\s+PRESENT))?\]|\[IMAGE\]|\[GRAPH\]|\[CHART\]/gi;
+      const newPlaceholderRegex = /\[NEW_DIAGRAM\]/gi;
+      
+      const genHasOriginal = originalPlaceholderRegex.test(finalData.question);
+      const genHasNew = newPlaceholderRegex.test(finalData.question);
+      
+      let generatedChartUrl = null;
+      if (finalData.chartConfig) {
+        generatedChartUrl = generateChartUrl(finalData.chartConfig);
+      }
+
+      if (generatedChartUrl && (genHasNew || !genHasOriginal)) {
+        // Use the new generated chart
+        const chartHtml = `<div class="question-image" style="margin:12px 0;text-align:center;"><img src="${generatedChartUrl}" alt="Generated chart" style="max-width:100%;max-height:400px;object-fit:contain;border-radius:8px;border:1px solid #e5e7eb;" /></div>`;
+        if (genHasNew) {
+           finalData.question = finalData.question.replace(newPlaceholderRegex, chartHtml);
+        } else {
+           finalData.question = chartHtml + "\n" + finalData.question;
+        }
+        finalData.imageUrl = generatedChartUrl;
+        console.log('📊 [Generate Similar] Created NEW dynamic chart via QuickChart');
+      } else {
+        // Fallback to original image
+        if (genHasOriginal) {
+          finalData.question = finalData.question.replace(originalPlaceholderRegex, originalImageHtml);
+        } else {
+          finalData.question = originalImageHtml + "\n" + finalData.question;
+        }
+        finalData.imageUrl = payloadImageUrl;
+        console.log('🖼️  [Generate Similar] Re-injected original diagram');
+      }
     }
 
     // --- FINAL SANITIZATION ---
@@ -416,7 +513,8 @@ OUTPUT FORMAT (JSON ONLY):
       options: normalizedOptions,
       correctAnswer: finalData.correctAnswer || finalData.answer || "",
       explanation: finalData.explanation || finalData.solution || "",
-      concept: topic
+      concept: topic,
+      imageUrl: payloadImageUrl || null
     };
 
     res.json(sanitized);

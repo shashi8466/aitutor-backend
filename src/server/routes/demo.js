@@ -1,8 +1,89 @@
 import express from 'express';
 import supabase from '../../supabase/supabase.js';
-import { sendEmail, buildDemoScoreEmail, buildDemoAdminEmail } from '../utils/notificationEngine.js';
+import { sendEmail, buildDemoScoreEmail, buildDemoAdminEmail, sendSMS } from '../utils/notificationEngine.js';
 
 const router = express.Router();
+
+// Simple in-memory storage for OTPs (for production, use Redis or a DB table)
+const otpCache = new Map();
+
+// Generate a random 6-digit OTP
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+console.log('✅ [DEMO ROUTER] Initializing demo routes...');
+
+// Test Route to verify deployment
+router.get('/health', (req, res) => {
+    console.log('🔍 [DEMO] Health check called');
+    res.json({ status: 'ok', domain: 'demo', timestamp: new Date().toISOString() });
+});
+
+router.get('/test', (req, res) => {
+    console.log('🔍 [DEMO] Test route called');
+    res.json({ message: 'Demo routes are active', timestamp: new Date().toISOString() });
+});
+
+// Endpoint to send OTP
+router.post('/send-otp', async (req, res) => {
+    const { phone } = req.body;
+    
+    if (!phone) {
+        return res.status(400).json({ success: false, error: 'Phone number is required' });
+    }
+
+    try {
+        const otp = generateOTP();
+        // Store OTP with expiry (e.g., 5 minutes)
+        otpCache.set(phone, {
+            otp,
+            expiry: Date.now() + 5 * 60 * 1000
+        });
+
+        console.log(`🔑 [OTP] Sending OTP ${otp} to ${phone}`);
+        
+        const smsResult = await sendSMS({
+            to: phone,
+            message: `Your AIPrep365 verification code is: ${otp}. It will expire in 5 minutes.`
+        });
+
+        if (!smsResult.ok) {
+            console.error('❌ [OTP] SMS sending failed:', smsResult.error);
+            return res.status(500).json({ success: false, error: 'Failed to send OTP. Please check your phone number.' });
+        }
+
+        res.json({ success: true, message: 'OTP sent successfully' });
+    } catch (error) {
+        console.error('❌ [OTP] Error sending OTP:', error);
+        res.status(500).json({ success: false, error: 'Internal server error while sending OTP' });
+    }
+});
+
+// Endpoint to verify OTP
+router.post('/verify-otp', async (req, res) => {
+    const { phone, otp } = req.body;
+
+    if (!phone || !otp) {
+        return res.status(400).json({ success: false, error: 'Phone and OTP are required' });
+    }
+
+    const cachedData = otpCache.get(phone);
+
+    if (!cachedData) {
+        return res.status(400).json({ success: false, error: 'No OTP found for this phone number' });
+    }
+
+    if (Date.now() > cachedData.expiry) {
+        otpCache.delete(phone);
+        return res.status(400).json({ success: false, error: 'OTP has expired. Please request a new one.' });
+    }
+
+    if (cachedData.otp === otp) {
+        otpCache.delete(phone);
+        res.json({ success: true, message: 'OTP verified successfully' });
+    } else {
+        res.status(400).json({ success: false, error: 'Invalid OTP, please try again.' });
+    }
+});
 
 // 1. Submit Demo Lead & Track Level Progress
 router.post('/submit-lead', async (req, res) => {
@@ -148,4 +229,4 @@ router.post('/submit-lead', async (req, res) => {
     }
 });
 
-export default router;
+export { router as demoRouter };

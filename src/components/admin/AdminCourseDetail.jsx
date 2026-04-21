@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService, questionService, enrollmentService, authService } from '../../services/api';
 import CourseForm from './CourseForm';
+import supabase from '../../supabase/supabase';
 
 import EnrollmentKeyManager from './EnrollmentKeyManager';
 import TutorGrades from '../tutor/TutorGrades';
@@ -33,9 +34,9 @@ const AdminCourseDetail = () => {
       const { data: courseData } = await courseService.getById(id);
       setCourse(courseData);
 
-      // Load uploads
-      const { data: uploadsData } = await uploadService.getAll({ courseId: id });
-      setUploads(uploadsData);
+      // Load uploads directly via DB to bypass 404 errors in deployed environments
+      const { data: uploadsData } = await supabase.from('uploads').select('*').eq('course_id', id);
+      setUploads(uploadsData || []);
 
       // Load all profiles to filter tutors
       const { data: profiles } = await authService.getAllProfiles();
@@ -71,8 +72,15 @@ const AdminCourseDetail = () => {
 
       setQuestionsCount(manualCount + latestQuizQuestionsCount);
 
-      // Load enrolled students
-      const { data: studentsData } = await enrollmentService.getCourseStudents(id);
+      // Load enrolled students directly via DB
+      const { data: studentsData } = await supabase
+        .from('enrollments')
+        .select(`
+          *,
+          profiles (*)
+        `)
+        .eq('course_id', id);
+        
       setStudents(studentsData || []);
 
     } catch (error) {

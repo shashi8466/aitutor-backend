@@ -160,7 +160,7 @@ router.post('/run-weekly', async (req, res) => {
       enqueued++;
     }
 
-    const processed = await processOutboxOnce({ limit: 50 });
+    const processed = await processOutboxOnce({ limit: 500 });
     res.json({ ok: true, enqueued, ...processed });
   } catch (err) {
     res.status(500).json({ error: err?.message || String(err) });
@@ -683,6 +683,62 @@ router.post('/send-due-date-reminder', async (req, res) => {
   } catch (error) {
     console.error('Due date reminder error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/notifications/my-notifications
+router.get('/my-notifications', async (req, res) => {
+  try {
+    let userId = req.user?.id;
+    const targetUserId = req.query.userId;
+    
+    if (targetUserId && (req.user?.isPreview || req.user?.adminId || req.user?.role?.toLowerCase() === 'admin')) {
+      userId = targetUserId;
+    }
+    
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
+
+// GET /api/notifications/my-activity-history
+router.get('/my-activity-history', async (req, res) => {
+  try {
+    let userId = req.user?.id;
+    const targetUserId = req.query.userId;
+    
+    if (targetUserId && (req.user?.isPreview || req.user?.adminId || req.user?.role?.toLowerCase() === 'admin')) {
+      userId = targetUserId;
+    }
+    
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase
+      .from('notification_outbox')
+      .select('id,event_type,status,created_at,payload,recipient_profile_id,recipient_type')
+      .eq('recipient_profile_id', userId)
+      .in('event_type', ['TEST_COMPLETED'])
+      .in('status', ['pending', 'processing', 'sent'])
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    console.error('Error fetching activity history:', error);
+    res.status(500).json({ error: 'Failed' });
   }
 });
 

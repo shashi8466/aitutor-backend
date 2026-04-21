@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
 import MathRenderer from '../../../common/MathRenderer';
-import { aiService } from '../../../services/api';
+import { aiService, planService } from '../../../services/api';
 import supabase from '../../../supabase/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const {
   FiCpu, FiSend, FiUser, FiZap, FiLoader,
@@ -31,16 +32,16 @@ const QUICK_ACTIONS = [
 const extractKBTopic = (text) => {
   if (!text) return "";
   const t = text.toLowerCase().trim();
-  
+
   // High-priority patterns that look for core SAT topics
   const patterns = [
     // Matches "10 questions quiz on Algebra", "Give me quiz on Algebra", etc.
     // Handles multi-word keywords like "questions quiz on" or "drills about"
     /(?:quiz|questions?|practice|drill|test|problems?|items?|exercises?|drills?)+(?:\s+(?:quiz|questions?|practice|drill|test|problems?|items?|exercises?|me|some|any))*(?:\s+(?:on|about|for|regarding|to|of))+\s+(.*)/i,
-    
+
     // Simple fallback: anything after "on/about/for/to"
     /\b(?:on|about|for|regarding|to|of)\s+(.*)/i,
-    
+
     // Matches "Algebra quiz", "Algebra practice"
     /(.*)\s+(?:quiz|practice|drill|test|exercise|questions?|drills?)/i,
   ];
@@ -55,7 +56,7 @@ const extractKBTopic = (text) => {
         .replace(/[?|!|"]/g, '') // Remove punctuation
         .replace(/\s+/g, ' ')
         .trim();
-      
+
       // Only return if we have meaningful content (more than 2 characters)
       if (cleaned.length > 2) {
         console.log(`📝 [Topic Extract] Extracted: "${cleaned}" from "${text}"`);
@@ -76,7 +77,7 @@ const extractKBTopic = (text) => {
     console.log(`📝 [Topic Extract] Fallback cleaned: "${cleanedFallback}" from "${text}"`);
     return cleanedFallback;
   }
-  
+
   console.log(`📝 [Topic Extract] Final fallback full text: "${t}"`);
   return t;
 };
@@ -87,7 +88,7 @@ const extractKBTopic = (text) => {
  */
 const extractQuizCount = (text) => {
   if (!text) return 10;
-  
+
   // Robust patterns to capture question count
   const patterns = [
     /\b(\d+)\s*(?:questions?|qs|problems?|items?|exercises?|mcqs?)\b/i,  // "10 questions", "10 mcqs"
@@ -97,7 +98,7 @@ const extractQuizCount = (text) => {
     /\b(\d+)\s*[-–—]\s*question/i,  // "15-question"
     /\b(\d+)\s*$/i, // Numbers at the very end of a request
   ];
-  
+
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
@@ -108,7 +109,7 @@ const extractQuizCount = (text) => {
       }
     }
   }
-  
+
   return 10; // Default to 10 for a solid practice session
 };
 
@@ -137,8 +138,8 @@ const KBQuizWidget = ({ questions }) => {
         const isMcq = q.type === 'mcq' || (q.options && q.options.length > 0);
         const isSubmitted = submitted[q.id];
         const studentAnswer = studentAnswers[q.id];
-        const isCorrect = isMcq 
-          ? studentAnswer === q.correctAnswer 
+        const isCorrect = isMcq
+          ? studentAnswer === q.correctAnswer
           : studentAnswer?.trim().toLowerCase() === q.correctAnswer?.trim().toLowerCase();
 
         return (
@@ -158,22 +159,22 @@ const KBQuizWidget = ({ questions }) => {
             </div>
 
             <div className="p-6 space-y-6">
-                            {/* Question Text + Images/Tables from HTML */}
-                            <div className="kb-rich-content text-slate-800 dark:text-slate-200 text-sm md:text-base leading-relaxed font-medium">
-                              <MathRenderer text={q.questionHtml || q.text || ''} />
-                            </div>
-              
-                            {/* Redundant image fallback: Only show if neither field has an image tag/placeholder */}
-                            {(!((q.questionHtml || '').includes('<img') || (q.questionHtml || '').includes('[IMAGE:') || (q.text || '').includes('<img') || (q.text || '').includes('[IMAGE:'))) && (q.imageUrl || q.image) && (
-                              <div className="flex justify-center my-6 bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
-                                <img 
-                                  src={q.imageUrl || q.image} 
-                                  className="max-h-[400px] w-auto h-auto object-contain rounded-xl shadow-sm" 
-                                  alt="Question visual" 
-                                  onError={(e) => e.target.style.display = 'none'}
-                                />
-                              </div>
-                            )}
+              {/* Question Text + Images/Tables from HTML */}
+              <div className="kb-rich-content text-slate-800 dark:text-slate-200 text-sm md:text-base leading-relaxed font-medium">
+                <MathRenderer text={q.questionHtml || q.text || ''} />
+              </div>
+
+              {/* Redundant image fallback: Only show if neither field has an image tag/placeholder */}
+              {(!((q.questionHtml || '').includes('<img') || (q.questionHtml || '').includes('[IMAGE:') || (q.text || '').includes('<img') || (q.text || '').includes('[IMAGE:'))) && (q.imageUrl || q.image) && (
+                <div className="flex justify-center my-6 bg-white dark:bg-slate-800/50 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+                  <img
+                    src={q.imageUrl || q.image}
+                    className="max-h-[400px] w-auto h-auto object-contain rounded-xl shadow-sm"
+                    alt="Question visual"
+                    onError={(e) => e.target.style.display = 'none'}
+                  />
+                </div>
+              )}
 
               {/* Interaction Area */}
               <div className="quiz-interaction pt-4">
@@ -191,17 +192,15 @@ const KBQuizWidget = ({ questions }) => {
                           key={i}
                           disabled={isSubmitted}
                           onClick={() => handleAnswerChange(q.id, letter)}
-                          className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${
-                            isSelected 
-                              ? 'border-red-500 bg-red-50 dark:bg-red-500/10' 
+                          className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${isSelected
+                              ? 'border-red-500 bg-red-50 dark:bg-red-500/10'
                               : 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-white/5'
-                          } ${isOptionCorrect ? 'border-green-500 bg-green-50 dark:bg-green-500/10' : ''} 
+                            } ${isOptionCorrect ? 'border-green-500 bg-green-50 dark:bg-green-500/10' : ''} 
                             ${isOptionWrong ? 'border-red-500 bg-red-50 dark:bg-red-500/10' : ''}
                             hover:shadow-md active:scale-[0.98] disabled:active:scale-100 disabled:cursor-default`}
                         >
-                          <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
-                            isSelected ? 'bg-red-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                          } ${isOptionCorrect ? 'bg-green-600 text-white' : ''} ${isOptionWrong ? 'bg-red-600 text-white' : ''}`}>
+                          <span className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${isSelected ? 'bg-red-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                            } ${isOptionCorrect ? 'bg-green-600 text-white' : ''} ${isOptionWrong ? 'bg-red-600 text-white' : ''}`}>
                             {letter}
                           </span>
                           <span className="flex-1 font-medium"><MathRenderer text={opt} /></span>
@@ -213,8 +212,8 @@ const KBQuizWidget = ({ questions }) => {
                   /* SHORT ANSWER: Input box */
                   <div className="space-y-3">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Your Answer</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       disabled={isSubmitted}
                       value={studentAnswer || ''}
                       onChange={(e) => handleAnswerChange(q.id, e.target.value)}
@@ -241,7 +240,7 @@ const KBQuizWidget = ({ questions }) => {
               {/* Reveal explanation only after submission */}
               <AnimatePresence>
                 {isSubmitted && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4"
@@ -310,6 +309,7 @@ const WelcomeCard = () => (
 );
 
 const AITutorAgent = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState([
     { id: 1, sender: 'ai', isWelcome: true }
   ]);
@@ -318,7 +318,7 @@ const AITutorAgent = () => {
   const [difficulty, setDifficulty] = useState('Medium');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  
+
   // Track shown question IDs to prevent duplicates across session
   const [shownQuestionIds, setShownQuestionIds] = useState(new Set());
   // Track stable keys (ID preferred, text fallback) for client-side de-duplication safety
@@ -372,7 +372,7 @@ const AITutorAgent = () => {
   }, []);
 
   const [availableTopics, setAvailableTopics] = useState([]);
-  
+
   const fetchAvailableTopics = async () => {
     // Hardcoding specific user requested topics to ensure they always appear as chips
     const hardcodedTopics = [
@@ -538,6 +538,39 @@ const AITutorAgent = () => {
       if (PAGE_TYPE === "KB_ONLY") {
         const topic = extractKBTopic(msgText);
         const requestedCount = extractQuizCount(msgText);
+
+        // 1. Topic Gating Check
+        const hasAccess = await planService.checkAccess(user.id, 'topic', topic);
+        if (!hasAccess) {
+          setMessages(prev => [...prev, {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: `🔒 **Topic Restricted:** The topic **"${topic}"** is only available in our **Premium Plan**. \n\nPlease upgrade to unlock this and over 10,000+ targeted practice questions!`
+          }]);
+          setLoading(false);
+          return;
+        }
+
+        // 2. Question Limit Check
+        const usage = await planService.getUsageStats(user.id);
+        const { data: profile } = await supabase.from('profiles').select('plan_type').eq('id', user.id).single();
+        const { data: settings } = await planService.getSettings();
+        const userPlan = (profile?.plan_type || user?.plan_type || 'free').toLowerCase();
+        const planSettings = (settings || []).find(s => s.plan_type === userPlan);
+
+        // For Math/RW specific limits, we'd need more complex logic, but for simplicity:
+        const totalLimit = (planSettings?.max_questions_math || 250) + (planSettings?.max_questions_rw || 250);
+
+        if (usage.totalQuestions >= totalLimit) {
+          setMessages(prev => [...prev, {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: `⚠️ **Question Limit Reached:** You've completed your **${userPlan.toUpperCase()}** plan limit of ${totalLimit} questions. \n\nUpgrade to **Premium** for unlimited practice!`
+          }]);
+          setLoading(false);
+          return;
+        }
+
         const normalizedShownIdSet = new Set(Array.from(shownQuestionIds).map(normalizeQuestionId));
         const shownKeySet = new Set(shownQuestionKeys);
         const persistedSeen = readPersistedSeenIds(topic, difficulty);
@@ -665,12 +698,12 @@ const AITutorAgent = () => {
       }
     } catch (err) {
       const errMsg = err.response?.data?.error || err.message || "Connection error";
-      
+
       if (PAGE_TYPE === "KB_ONLY" && err.response?.status === 404) {
-        setMessages(prev => [...prev, { 
-          id: Date.now() + 1, 
-          sender: 'ai', 
-          text: `❌ **No questions found:** I don't have enough entries in my Knowledge Base for that specific request yet.\n\nPlease try another SAT topic like "Boundaries" or "One-variable Data Distributions".` 
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          sender: 'ai',
+          text: `❌ **No questions found:** I don't have enough entries in my Knowledge Base for that specific request yet.\n\nPlease try another SAT topic like "Boundaries" or "One-variable Data Distributions".`
         }]);
       } else {
         setMessages(prev => [...prev, {

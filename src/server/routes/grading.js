@@ -338,7 +338,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                 .eq('id', userId)
                 .single();
 
-            const isAdmin = profile?.role === 'admin';
+            const isAdmin = profile?.role === 'admin' || req.user?.adminId;
             let rawAssigned = profile?.assigned_courses || [];
             if (typeof rawAssigned === 'string') {
                 try { rawAssigned = JSON.parse(rawAssigned); } catch (e) { rawAssigned = []; }
@@ -476,27 +476,144 @@ router.get('/submission/:submissionId', async (req, res) => {
  */
 router.get('/all-my-scores', async (req, res) => {
     try {
-        const userId = req.user?.id;
+        let userId = req.user?.id;
+        const targetUserId = req.query.userId || req.query.studentId;
 
-        if (!userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
+        // 🕵️ [ADMIN PREVIEW] Robust handling for admin proxy requests
+        // Check if requester is an admin (either directly or via previous swap)
+        const isAuthorizedAdmin = req.user?.isPreview || req.user?.adminId || req.user?.role?.toLowerCase() === 'admin';
+        
+        if (targetUserId && isAuthorizedAdmin) {
+            userId = targetUserId;
+            console.log(`🕵️ [Admin Proxy] Swapping to explicit target user for scores: ${userId}`);
         }
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        console.log(`📡 [ScoresFetch] Querying test_submissions for user_id: ${userId}`);
 
         const { data: submissions, error } = await supabase
             .from('test_submissions')
-            .select('*, courses(*)')
+            .select('*, courses:courses(id, name, is_practice, tutor_type)')
             .eq('user_id', userId)
             .order('test_date', { ascending: false });
 
         if (error) {
-            console.error('Error fetching all scores:', error);
+            console.error('❌ [ScoresFetch Error] Failed to fetch scores:', error);
             return res.status(500).json({ error: 'Failed to fetch scores' });
         }
 
+        console.log(`✅ [ScoresFetch Success] Found ${submissions?.length || 0} scores for ${userId}`);
         res.json({ submissions: submissions || [] });
 
     } catch (error) {
-        console.error('Get all scores error:', error);
+        console.error('💥 [ScoresFetch Fatal] Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/my-enrollments
+ * Get all course enrollments for current user (or preview target)
+ */
+router.get('/my-enrollments', async (req, res) => {
+    try {
+        let userId = req.user?.id;
+        const targetUserId = req.query.userId || req.query.studentId;
+
+        if (targetUserId && (req.user?.isPreview || req.user?.adminId || req.user?.role?.toLowerCase() === 'admin')) {
+            userId = targetUserId;
+            console.log(`🕵️ [Admin Proxy] Swapping to target user for enrollments: ${userId}`);
+        }
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data, error } = await supabase
+            .from('enrollments')
+            .select('course_id, enrolled_at, courses(*)')
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('Error fetching enrollments:', error);
+            return res.status(500).json({ error: 'Failed to fetch enrollments' });
+        }
+
+        res.json(data || []);
+    } catch (error) {
+        console.error('Get my enrollments error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/my-progress
+ * Get all progress records for current user (or preview target)
+ */
+router.get('/my-progress', async (req, res) => {
+    try {
+        let userId = req.user?.id;
+        const targetUserId = req.query.userId || req.query.studentId;
+
+        if (targetUserId && (req.user?.isPreview || req.user?.adminId || req.user?.role?.toLowerCase() === 'admin')) {
+            userId = targetUserId;
+            console.log(`🕵️ [Admin Proxy] Swapping to explicit target user for progress: ${userId}`);
+        }
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data, error } = await supabase
+            .from('student_progress')
+            .select('*, courses(name, tutor_type)')
+            .eq('user_id', userId);
+
+        if (error) {
+            console.error('Error fetching progress:', error);
+            return res.status(500).json({ error: 'Failed to fetch progress' });
+        }
+
+        res.json(data || []);
+    } catch (error) {
+        console.error('Get my progress error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/my-plan
+ * Get the study plan for current user (or preview target)
+ */
+router.get('/my-plan', async (req, res) => {
+    try {
+        let userId = req.user?.id;
+        const targetUserId = req.query.userId || req.query.studentId;
+
+        // 🕵️ [ADMIN PREVIEW] Allow admins to explicitly request a specific user's plan
+        if (targetUserId && targetUserId !== userId) {
+            const isAuthorizedAdmin = req.user?.adminId || req.user?.role?.toLowerCase() === 'admin';
+            if (isAuthorizedAdmin) {
+                userId = targetUserId;
+                console.log(`🕵️ [Admin Proxy] Swapping to explicit target user for plan: ${userId}`);
+            }
+        }
+
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data, error } = await supabase
+            .from('student_plans')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error fetching plan:', error);
+            return res.status(500).json({ error: 'Failed to fetch plan' });
+        }
+
+        res.json(data || null);
+    } catch (error) {
+        console.error('Get my plan error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -725,7 +842,7 @@ router.post('/configure-scale', async (req, res) => {
             .eq('id', userId)
             .single();
 
-        if (!profile || profile.role !== 'admin') {
+        if (!profile || (profile.role !== 'admin' && !req.user?.adminId)) {
             return res.status(403).json({ error: 'Only admins can configure grade scales' });
         }
 

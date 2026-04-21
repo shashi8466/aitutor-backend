@@ -102,7 +102,7 @@ const ChildrenOverview = () => {
             
             try {
                 // Use the backend service to fetch linked children (bypasses RLS issues for parent role)
-                const res = await parentService.getMyChildren();
+                const res = await parentService.getMyChildren(user?.id);
                 const childrenData = res.data?.children || [];
 
                 if (childrenData.length > 0) {

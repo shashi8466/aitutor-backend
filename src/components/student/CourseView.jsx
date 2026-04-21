@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService, progressService, enrollmentService, planService, gradingService } from '../../services/api';
+import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 
@@ -26,6 +27,7 @@ const CourseView = () => {
   const [enrollmentError, setEnrollmentError] = useState('');
   const [enrollmentSuccess, setEnrollmentSuccess] = useState(false);
   const [lockMessage, setLockMessage] = useState('');
+  const [planAccess, setPlanAccess] = useState([]);
 
   useEffect(() => {
     if (user?.id && courseId) {
@@ -66,13 +68,17 @@ const CourseView = () => {
         return;
       }
 
-      const [courseRes, uploadsResponse, allProgressRes, planRes, submissionsRes] = await Promise.all([
+      const [courseRes, uploadsResponse, allProgressRes, planRes, submissionsRes, planAccessRes] = await Promise.all([
         courseService.getById(courseId),
         uploadService.getAll({ courseId }),
         progressService.getAllUserProgress(user.id),
         planService.getPlan(user.id),
-        gradingService.getAllMyScores()
+        gradingService.getAllMyScores(),
+        planService.getContentAccess()
       ]);
+
+      const accessData = planAccessRes.data || [];
+      setPlanAccess(accessData);
 
       const courseData = courseRes.data;
       if (courseData?.start_date) {
@@ -142,8 +148,16 @@ const CourseView = () => {
 
   const getTopicsForLevel = (level) => {
     const files = uploads.filter(u => u.level === level && u.category === 'study_material');
-    if (files.length === 0) return ['General Concepts'];
-    return files.map(f => f.file_name.replace(/\.[^/.]+$/, ''));
+    if (files.length === 0) return [{ name: 'General Concepts', locked: false }];
+    
+    const userPlan = user?.plan_type || 'free';
+    const isPremium = userPlan === 'premium' && user?.plan_status === 'active';
+
+    return files.map(f => {
+      const topicName = f.file_name.replace(/\.[^/.]+$/, '');
+      const hasAccess = isPremium || planAccess.some(a => a.content_type === 'topic' && a.content_id === topicName && a.plan_type === userPlan);
+      return { name: topicName, locked: !hasAccess };
+    });
   };
 
   const isLevelUnlocked = (level) => {
@@ -465,10 +479,11 @@ const CourseView = () => {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 sm:gap-x-8 gap-y-1.5 sm:gap-y-2 ml-0 sm:ml-14 md:ml-16">
-                      {topics.map((topic, i) => (
-                        <div key={i} className="flex items-center gap-2 text-gray-700 font-medium text-sm sm:text-base">
-                          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${theme.numberBg}`} />
-                          <span className="truncate">{topic}</span>
+                       {topics.map((topic, i) => (
+                        <div key={i} className={`flex items-center gap-2 font-medium text-sm sm:text-base ${topic.locked ? 'text-gray-400' : 'text-gray-700'}`}>
+                          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${topic.locked ? 'bg-gray-300' : theme.numberBg}`} />
+                          <span className="truncate">{topic.name}</span>
+                          {topic.locked && <SafeIcon icon={FiLock} className="w-3 h-3 text-gray-300" />}
                         </div>
                       ))}
                     </div>

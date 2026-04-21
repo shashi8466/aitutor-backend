@@ -6,7 +6,7 @@ import { authService, courseService } from '../../services/api';
 
 const {
   FiUser, FiMail, FiUsers, FiRefreshCw, FiLoader, FiCheck, FiX,
-  FiShield, FiBook, FiChevronRight, FiCheckCircle, FiAlertCircle, FiSettings
+  FiShield, FiBook, FiChevronRight, FiCheckCircle, FiAlertCircle, FiSettings, FiSearch, FiFilter
 } = FiIcons;
 
 const UserManagement = () => {
@@ -17,6 +17,10 @@ const UserManagement = () => {
   const [error, setError] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showManageModal, setShowManageModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('All');
+  const [planFilter, setPlanFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
 
   useEffect(() => {
     loadData();
@@ -90,6 +94,31 @@ const UserManagement = () => {
       year: 'numeric', month: 'short', day: 'numeric'
     });
   };
+  
+  const filteredUsers = users.filter(user => {
+    // Search Filter
+    const searchLow = searchTerm.toLowerCase();
+    const contactMatch = user.mobile || '';
+    const matchesSearch = !searchTerm || 
+      (user.name || '').toLowerCase().includes(searchLow) ||
+      (user.email || '').toLowerCase().includes(searchLow) ||
+      contactMatch.includes(searchTerm);
+    
+    // Role Filter
+    const matchesRole = roleFilter === 'All' || (user.role || '').toLowerCase() === roleFilter.toLowerCase();
+    
+    // Plan Filter
+    const matchesPlan = planFilter === 'All' || (user.plan_type || 'free').toLowerCase() === planFilter.toLowerCase();
+    
+    // Status Filter
+    const matchesStatus = statusFilter === 'All' || (
+      statusFilter === 'Active' ? user.status === 'active' :
+      statusFilter === 'Pending' ? (user.status === 'pending' || !user.status) :
+      statusFilter === 'Inactive' ? user.status === 'inactive' : true
+    );
+
+    return matchesSearch && matchesRole && matchesPlan && matchesStatus;
+  });
 
   if (loading && users.length === 0) {
     return (
@@ -124,6 +153,68 @@ const UserManagement = () => {
         </div>
       )}
 
+      {/* Control Bar */}
+      <div className="flex flex-col lg:flex-row gap-4 mb-8">
+          {/* Search Box */}
+          <div className="flex-1 relative group">
+              <SafeIcon icon={FiSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or mobile..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-3.5 bg-white dark:bg-gray-800 border-none rounded-2xl focus:ring-2 focus:ring-blue-500/20 outline-none text-sm font-bold shadow-lg shadow-gray-100/50 dark:shadow-none transition-all"
+              />
+          </div>
+
+          <div className="flex flex-wrap gap-4">
+              {/* Role Filter */}
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <SafeIcon icon={FiUsers} className="text-gray-400 w-4 h-4" />
+                  <select 
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400"
+                  >
+                      <option value="All">All Classifications</option>
+                      <option value="Student">Student</option>
+                      <option value="Tutor">Tutor</option>
+                      <option value="Admin">Admin</option>
+                      <option value="Parent">Parent</option>
+                  </select>
+              </div>
+
+              {/* Plan Filter */}
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <SafeIcon icon={FiShield} className="text-gray-400 w-4 h-4" />
+                  <select 
+                    value={planFilter}
+                    onChange={(e) => setPlanFilter(e.target.value)}
+                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400"
+                  >
+                      <option value="All">All Plans</option>
+                      <option value="Free">Free</option>
+                      <option value="Premium">Premium</option>
+                  </select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <SafeIcon icon={FiCheckCircle} className="text-gray-400 w-4 h-4" />
+                  <select 
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400"
+                  >
+                      <option value="All">All Status</option>
+                      <option value="Active">Active</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Inactive">Inactive</option>
+                  </select>
+              </div>
+          </div>
+      </div>
+
       {/* Authority Table */}
       <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 responsive-table-container">
           <table className="w-full">
@@ -132,12 +223,21 @@ const UserManagement = () => {
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Identify</th>
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact</th>
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Classification</th>
+                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Plan</th>
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Verification Status</th>
                 <th className="px-6 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Execution</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-              {users.map((user) => (
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="py-20 text-center">
+                    <SafeIcon icon={FiAlertCircle} className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                    <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">No users found matching your criteria.</p>
+                  </td>
+                </tr>
+              )}
+              {filteredUsers.map((user) => (
                 <tr key={user.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-all">
                   <td className="px-6 py-5 whitespace-nowrap">
                     <div className="flex items-center gap-4">
@@ -175,6 +275,11 @@ const UserManagement = () => {
                         <option value="parent">Parent</option>
                       </select>
                     </div>
+                  </td>
+                  <td className="px-6 py-5 whitespace-nowrap">
+                    <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${user.plan_type === 'premium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {user.plan_type || 'free'}
+                    </span>
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap">
                     <button
@@ -322,6 +427,31 @@ const UserManagement = () => {
                           })}
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedUser.role === 'student' && (
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Subscription Management</h4>
+                    <div className="flex justify-between items-center bg-yellow-50 dark:bg-yellow-900/10 p-4 rounded-2xl border border-yellow-100 dark:border-yellow-900/30">
+                      <div>
+                        <h4 className="text-sm font-black text-yellow-900 dark:text-yellow-200 uppercase tracking-widest">Premium Content Access</h4>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">Currently on <span className="font-black uppercase">{selectedUser.plan_type || 'free'}</span> plan.</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newPlan = selectedUser.plan_type === 'premium' ? 'free' : 'premium';
+                          handleUpdateUser(selectedUser.id, { 
+                            plan_type: newPlan,
+                            plan_status: 'active'
+                          });
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${selectedUser.plan_type === 'premium' ? 'bg-gray-200 text-gray-700' : 'bg-yellow-500 text-white shadow-lg shadow-yellow-200'
+                          }`}
+                      >
+                        {selectedUser.plan_type === 'premium' ? 'Downgrade to Free' : 'Upgrade to Premium'}
+                      </button>
                     </div>
                   </div>
                 )}

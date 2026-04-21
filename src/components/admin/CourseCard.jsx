@@ -11,7 +11,7 @@ const CourseCard = ({ course, index, onDelete, manageLink }) => {
   const getStatusColor = (status) => status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
 
   const copyDemoLink = () => {
-    const link = `${window.location.origin}/#/demo/${course.id}`;
+    const link = `${window.location.origin}/demo/${course.id}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

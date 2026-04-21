@@ -138,7 +138,10 @@ export const authService = {
             mobile: userData.mobile || null,
             father_name: userData.fatherName || null,
             father_mobile: userData.fatherMobile || null,
-            status: initialStatus
+            status: initialStatus,
+            plan_type: 'free',
+            plan_status: 'active',
+            payment_status: 'unpaid'
           }, { onConflict: 'id' });
         console.log('✅ [BACKGROUND] Profile upserted successfully with status:', initialStatus);
       } catch (profileError) {
@@ -289,7 +292,7 @@ export const authService = {
       .from('profiles')
       .update({ role })
       .eq('id', userId)
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students,plan_type,plan_status,payment_status')
       .single();
     if (error) throw error;
     return { data };
@@ -299,7 +302,7 @@ export const authService = {
     try {
       let query = supabase
         .from('profiles')
-        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status')
+        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status')
         .order('created_at', { ascending: false });
 
       if (role) {
@@ -367,11 +370,61 @@ export const profileService = {
 
 // --- COURSE SERVICE ---
 export const courseService = {
-  getAll: async () => {
-    return await supabase.from('courses').select('*').order('created_at', { ascending: false });
+  getAll: async (filters = {}) => {
+    let query = supabase.from('courses').select('*').order('created_at', { ascending: false });
+    if (filters.isPractice !== undefined) {
+      query = query.eq('is_practice', filters.isPractice);
+    }
+    const { data: courses, error } = await query;
+    if (error) return { data: [], error };
+
+    // Fetch live data for mapping (only active status uploads)
+    const [uploadsRes, questionsRes] = await Promise.all([
+      supabase.from('uploads')
+        .select('id, course_id, level, category, questions_count, status, created_at')
+        .eq('category', 'quiz_document')
+        .in('status', ['completed', 'warning']),
+      supabase.from('questions')
+        .select('course_id, upload_id')
+    ]);
+
+    const uploadToCourseMap = {};
+    (uploadsRes.data || []).forEach(u => {
+      if (u.course_id) uploadToCourseMap[u.id] = String(u.course_id);
+    });
+
+    const enriched = (courses || []).map(c => {
+      const courseIdStr = String(c.id);
+      
+      // 1. Manual Questions for this course
+      const manualCount = (questionsRes.data || []).filter(q => 
+        String(q.course_id) === courseIdStr && !q.upload_id
+      ).length;
+
+      // 2. Sum questions from the LATEST upload per level (matches Student/CourseDetail view)
+      const levels = ['Easy', 'Medium', 'Hard'];
+      let latestQuizQuestionsCount = 0;
+
+      levels.forEach(level => {
+        const latestUpload = (uploadsRes.data || [])
+          .filter(u => String(u.course_id) === courseIdStr && u.level === level)
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+        
+        if (latestUpload) {
+          latestQuizQuestionsCount += (latestUpload.questions_count || 0);
+        }
+      });
+
+      return {
+        ...c,
+        questions_count: manualCount + latestQuizQuestionsCount
+      };
+    });
+
+    return { data: enriched };
   },
   getById: async (id) => {
-    return await supabase.from('courses').select('*').eq('id', id).single();
+    return await supabase.from('courses').select('*').eq('id', id).maybeSingle();
   },
   create: async (courseData) => {
     return await supabase.from('courses').insert([courseData]).select().single();
@@ -427,24 +480,30 @@ export const courseService = {
 // --- UPLOAD SERVICE ---
 export const uploadService = {
   getAll: async (filters = {}) => {
-    let query = supabase.from('uploads')
-      .select(`
-        *,
-        courseName:courses(name)
-      `)
-      .order('created_at', { ascending: false });
+    // 🕵️ Preview Mode Support: Using axios ensures the identity-swap header is sent
+    // Convert array filters to comma-separated strings for backend
+    const params = { ...filters };
+    if (Array.isArray(params.courseIds)) params.courseIds = params.courseIds.join(',');
 
-    if (filters.courseId) {
-      query = query.eq('course_id', filters.courseId);
+    let res = { data: { data: [] } };
+    try {
+      let query = supabase.from('uploads').select('*, courses(name)').order('created_at', { ascending: false });
+      if (params.courseId) query = query.eq('course_id', params.courseId);
+      if (params.category) query = query.eq('category', params.category);
+      if (params.courseIds) {
+        const ids = Array.isArray(params.courseIds) ? params.courseIds : params.courseIds.split(',');
+        query = query.in('course_id', ids);
+      }
+      const { data, error } = await query;
+      if (!error) res = { data: { data } };
+    } catch (e) {
+      console.warn("Direct upload fetch failed, using empty array");
     }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    // Flatten course name for easier consumption
-    const flattened = data.map(item => ({
+    
+    // Flatten course name for easier consumption (keep same format as original)
+    const flattened = (res.data?.data || []).map(item => ({
       ...item,
-      courseName: item.courseName?.name || 'Unknown'
+      courseName: item.courses?.name || item.courseName?.name || 'Unknown'
     }));
 
     return { data: flattened };
@@ -507,7 +566,11 @@ export const uploadService = {
       .from('profiles')
       .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile', { count: 'exact', head: true })
 
-    return { uploadsCount, usersCount };
+    const { count: questionsCount } = await supabase
+      .from('questions')
+      .select('*', { count: 'exact', head: true });
+
+    return { uploadsCount, usersCount, questionsCount };
   },
   update: async (id, updates) => {
     return await supabase.from('uploads').update(updates).eq('id', id);
@@ -525,6 +588,9 @@ export const questionService = {
     if (filters.uploadId) query = query.eq('upload_id', filters.uploadId);
 
     return await query;
+  },
+  getTopics: async () => {
+    return await supabase.from('questions').select('topic').not('topic', 'is', null);
   },
   create: async (data) => {
     return await supabase.from('questions').insert([data]).select().single();
@@ -670,10 +736,13 @@ export const enrollmentService = {
   },
 
   getStudentEnrollments: async (userId) => {
-    return await supabase
-      .from('enrollments')
-      .select('course_id, enrolled_at, courses(*)')
-      .eq('user_id', userId);
+    try {
+      const { data, error } = await supabase.from('enrollments').select('*').eq('user_id', userId);
+      if (error) throw error;
+      return { data: data || [] };
+    } catch {
+      return { data: [] };
+    }
   },
 
   // Verify Stripe payment session
@@ -715,11 +784,13 @@ export const progressService = {
     return { success: true, message: 'Progress saved', isNewHigh: true }; // Simplified response
   },
   getAllUserProgress: async (userId) => {
-    return await supabase
-      .from('student_progress')
-      .select('*, courses(name, tutor_type)')
-      .eq('user_id', userId);
-  }
+    try {
+      const { data, error } = await supabase.from('student_progress').select('*').eq('user_id', userId);
+      return { data: data || [] };
+    } catch {
+      return { data: [] };
+    }
+  },
 };
 
 // --- PLAN SERVICE ---
@@ -747,13 +818,129 @@ export const planService = {
     }
   },
   getPlan: async (userId) => {
-    return await supabase
-      .from('student_plans')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
+    try {
+      const { data, error } = await supabase.from('student_plans').select('*').eq('user_id', userId).single();
+      return { data: data || null };
+    } catch {
+      return { data: null };
+    }
+  },
+
+  // --- NEW SUBSCRIPTION PLAN METHODS ---
+  getSettings: async () => {
+    return await supabase.from('plan_settings').select('*');
+  },
+  updateSettings: async (planType, settings) => {
+    return await supabase.from('plan_settings').upsert({
+      plan_type: planType,
+      ...settings,
+      updated_at: new Date().toISOString()
+    });
+  },
+  getContentAccess: async () => {
+    return await supabase.from('plan_content_access').select('*');
+  },
+  addContentAccess: async (accessData) => {
+    return await supabase.from('plan_content_access').insert([accessData]).select();
+  },
+  removeContentAccess: async (id) => {
+    return await supabase.from('plan_content_access').delete().eq('id', id);
+  },
+  requestUpgrade: async (userId) => {
+    try {
+      // Set plan_status to pending_upgrade and payment_status to paid
+      const { data, error } = await supabase.from('profiles').update({
+        payment_status: 'paid',
+        plan_status: 'pending_upgrade',
+        updated_at: new Date().toISOString()
+      }).eq('id', userId).select();
+      
+      if (error) throw error;
+      return { data, success: true };
+    } catch (err) {
+      console.error('requestUpgrade error:', err.message);
+      throw err;
+    }
+  },
+  verifyUpgrade: async (userId) => {
+    return await supabase.from('profiles').update({
+      plan_type: 'premium',
+      plan_status: 'active',
+      updated_at: new Date().toISOString()
+    }).eq('id', userId);
+  },
+  getUsageStats: async (userId) => {
+    // Count questions answered in grading_submissions
+    const { data: submissions } = await supabase.from('grading_submissions').select('question_ids, upload_id').eq('user_id', userId);
+    const questionCount = (submissions || []).reduce((acc, sub) => acc + (sub.question_ids?.length || 0), 0);
+    
+    // Count unique tests (uploads) attempted
+    const uniqueTests = new Set((submissions || []).map(s => s.upload_id).filter(Boolean));
+    
+    return { totalQuestions: questionCount, totalTests: uniqueTests.size };
+  },
+  checkAccess: async (userId, contentType, contentId, planType = 'free') => {
+    // 1. Get user profile
+    const { data: profile } = await supabase.from('profiles').select('plan_type, plan_status').eq('id', userId).single();
+    const userPlan = (profile?.plan_type || 'free').toLowerCase();
+    
+    // Premium tier gets full access to all topics and tests by default
+    if (userPlan === 'premium') return true;
+    
+    // 2. Direct whitelist check
+    const { data: directAccess } = await supabase
+      .from('plan_content_access')
+      .select('id')
+      .eq('content_type', contentType)
+      .eq('content_id', contentId)
+      .eq('plan_type', userPlan)
       .maybeSingle();
+      
+    if (directAccess) return true;
+
+    // 3. Inherited logic: If course is assigned, so are its topics/tests
+    if (contentType === 'topic') {
+      // Find courses that contain this topic
+      const { data: coursesWithTopic } = await supabase
+        .from('questions')
+        .select('course_id')
+        .eq('topic', contentId);
+        
+      const courseIds = (coursesWithTopic || []).map(q => q.course_id).filter(Boolean);
+      if (courseIds.length > 0) {
+        const { data: courseAccess } = await supabase
+          .from('plan_content_access')
+          .select('id')
+          .eq('content_type', 'course')
+          .in('content_id', courseIds)
+          .eq('plan_type', userPlan);
+          
+        if (courseAccess?.length > 0) return true;
+      }
+    }
+
+    if (contentType === 'test') {
+      // Find course for this test (upload)
+      const { data: upload } = await supabase
+        .from('uploads')
+        .select('course_id')
+        .eq('id', contentId)
+        .maybeSingle();
+        
+      if (upload?.course_id) {
+        const { data: courseAccess } = await supabase
+          .from('plan_content_access')
+          .select('id')
+          .eq('content_type', 'course')
+          .eq('content_id', upload.course_id)
+          .eq('plan_type', userPlan)
+          .maybeSingle();
+          
+        if (courseAccess) return true;
+      }
+    }
+      
+    return false;
   }
 };
 
@@ -878,8 +1065,8 @@ export const gradingService = {
   getSubmission: async (id) => {
     return axios.get(`/api/grading/submission/${id}`);
   },
-  getAllMyScores: async () => {
-    return axios.get('/api/grading/all-my-scores');
+  getAllMyScores: async (userId) => {
+    return axios.get('/api/grading/all-my-scores', { params: { userId } });
   },
   getMyScores: async (courseId) => {
     return axios.get(`/api/grading/my-scores/${courseId}`);
@@ -1038,4 +1225,8 @@ export const parentService = {
   getMyChildren: async () => {
     return axios.get('/api/grading/parent/my-children');
   }
+};
+export const feedbackService = {
+  submit: (data) => axios.post('/api/feedback/submit', data),
+  getAll: () => axios.get('/api/feedback/all')
 };

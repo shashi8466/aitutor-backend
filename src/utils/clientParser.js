@@ -280,18 +280,19 @@ const parseTextToQuestions = (text) => {
 
     if (line.match(/^Options:/i)) continue;
 
-    // Detect Options (A. ...)
-    const optionMatch = line.match(/^(\$?[A-Da-d])[.):-]\s*(.*)/);
+    // Detect Options (A. ...) - More robust to allow variations but strict on start-of-line
+    const optionMatch = line.match(/^([A-Ea-e])[\s]*[.):-]\s*(.*)/);
     if (optionMatch) {
       currentQuestion.options.push(optionMatch[2].trim());
       continue;
     }
 
-    // Detect Inline Options
-    const inlineOptions = line.match(/([A-D])\)\s*([^A-D\n]+)/g);
+    // Detect Inline Options (A) ... B) ...)
+    // Avoid splitting if it's just a single A-D letter in math (like variable 'A')
+    const inlineOptions = line.match(/([A-D])\s*[).]\s*(.*?)(?=\s+[A-D]\s*[).]\s*|$)/g);
     if (inlineOptions && inlineOptions.length > 1) {
       inlineOptions.forEach(opt => {
-        const parts = opt.match(/([A-D])\)\s*(.*)/);
+        const parts = opt.match(/([A-D])\s*[).]\s*(.*)/);
         if (parts) currentQuestion.options.push(parts[2].trim());
       });
       continue;
@@ -329,12 +330,12 @@ const parseTextToQuestions = (text) => {
 
     // Continuation
     if (currentQuestion.explanation !== null) {
-      currentQuestion.explanation += ' ' + line;
+      currentQuestion.explanation += (currentQuestion.explanation ? '\n' : '') + line;
     } else if (currentQuestion.options.length === 0 && !currentQuestion.correctAnswer) {
-      currentQuestion.question += ' ' + line;
+      currentQuestion.question += (currentQuestion.question ? '\n' : '') + line;
     } else if (currentQuestion.options.length > 0) {
       const lastOptIdx = currentQuestion.options.length - 1;
-      currentQuestion.options[lastOptIdx] += ' ' + line;
+      currentQuestion.options[lastOptIdx] += '\n' + line;
     }
   }
 
@@ -350,7 +351,7 @@ const extractAnswerFromExplanation = (explanation) => {
   const patterns = [
     /(?:Therefore|Thus|Hence|So|Consequently)[^.]*?(?:is|=)\s*([-]?\d+(?:\.\d+)?)/i,
     /(?:answer|value|result|length|radius|coordinate)[^.]*?(?:is|=)\s*([-]?\d+(?:\.\d+)?)/i,
-    /(\d+)\s*\.$/
+    /([-]?\d+(?:\.\d+)?)\s*\.?$/
   ];
 
   for (const pattern of patterns) {

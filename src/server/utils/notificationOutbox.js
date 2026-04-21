@@ -444,11 +444,15 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       );
       const smsGatewayConfigured = twilioConfigured && Boolean(
         (smsConfig.enabled && smsConfig.from_number) ||
-        process.env.TWILIO_PHONE_NUMBER
+        process.env.TWILIO_PHONE_NUMBER ||
+        process.env.TWILIO_FROM_NUMBER
       );
       const waGatewayConfigured = twilioConfigured && Boolean(
         (smsConfig.enabled && (smsConfig.whatsapp_number || smsConfig.from_number)) ||
-        process.env.TWILIO_WHATSAPP_NUMBER
+        process.env.TWILIO_WHATSAPP_NUMBER ||
+        process.env.WHATSAPP_FROM_NUMBER ||
+        process.env.TWILIO_FROM_NUMBER ||
+        process.env.TWILIO_PHONE_NUMBER
       );
 
       const emailGatewayConfigured = Boolean(
