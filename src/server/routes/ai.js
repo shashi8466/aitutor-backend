@@ -337,7 +337,7 @@ router.post('/generate-similar', async (req, res) => {
       source: 'Knowledge Base'
     };
 
-    console.log(`✅ [Generate Similar] Selection: ${sanitized.id} | ResultHasImage: ${hasImage(finalQuestion)}`);
+    console.log(`✅ [Generate Similar] Selection: ${sanitized.id} | ResultHasImage: ${qIsDiagram(finalQuestion)}`);
     res.json(sanitized);
 
   } catch (error) {
