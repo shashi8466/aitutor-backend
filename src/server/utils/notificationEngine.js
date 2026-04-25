@@ -240,24 +240,22 @@ const BASE_STYLES = `
     /* Responsive Score Grid (Fallback for email clients) */
     .score-row { width: 100%; margin: 24px 0; text-align: center; }
     .score-box { display: inline-block; width: 30%; min-width: 100px; background: rgba(255,255,255,0.03); border-radius: 16px; padding: 20px 10px; margin: 5px; text-align: center; border: 1px solid rgba(255,255,255,0.08); vertical-align: top; }
-    .score-box .val { font-size: 26px; font-weight: 800; color: #818cf8; line-height: 1.1; }
-    .score-box .lbl { font-size: 11px; color: #94a3b8; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-    .section-title { font-size: 18px; font-weight: 700; color: #f8fafc; margin: 32px 0 16px; text-align: left; }
+    .score-box .val { font-size: 24px; font-weight: 800; color: #818cf8; line-height: 1.1; margin-bottom: 4px; }
+    .score-box .lbl { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+    .section-title { font-size: 18px; font-weight: 700; color: #f8fafc; margin: 32px 0 16px; text-align: left; border-left: 4px solid #6366f1; padding-left: 12px; }
     
     /* Table styling */
-    .table-container { width: 100%; overflow-x: auto; margin-bottom: 20px; border-radius: 12px; background: rgba(0,0,0,0.2); }
-    table { width: 100%; min-width: 450px; border-collapse: collapse; font-size: 14px; text-align: left; }
-    th { background: rgba(255,255,255,0.05); color: #94a3b8; padding: 14px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.1); }
-    td { padding: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #e2e8f0; }
-    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
-    .badge-green  { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
-    .badge-yellow { background: rgba(234, 179, 8, 0.2); color: #facc15; }
-    .badge-red    { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-    .cta { display: block; max-width: 280px; margin: 32px auto 8px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff !important; text-decoration: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 700; text-align: center; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
-    .footer { text-align: center; padding: 24px; font-size: 12px; color: #64748b; background: rgba(0,0,0,0.1); border-top: 1px solid rgba(255,255,255,0.05); }
-    .tip-box, .reminder-box { border-radius: 12px; padding: 16px 20px; margin: 24px 0; font-size: 14px; line-height: 1.6; }
-    .tip-box { background: rgba(59, 130, 246, 0.15); border-left: 4px solid #3b82f6; color: #ffffff !important; }
-    .reminder-box { background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; color: #ffffff !important; }
+    .table-container { width: 100%; overflow-x: auto; margin-bottom: 20px; border-radius: 12px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th { background: rgba(255,255,255,0.08); color: #94a3b8; padding: 14px 12px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+    td { padding: 16px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #e2e8f0; vertical-align: middle; }
+    .badge { display: inline-block; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; min-width: 100px; text-align: center; }
+    .badge-green  { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); }
+    .badge-yellow { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.2); }
+    .badge-red    { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+    .cta { display: block; max-width: 280px; margin: 32px auto 8px; background: #6366f1; color: #ffffff !important; text-decoration: none; padding: 16px 24px; border-radius: 12px; font-size: 16px; font-weight: 700; text-align: center; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
+    .footer { text-align: center; padding: 24px; font-size: 11px; color: #64748b; background: rgba(0,0,0,0.15); border-top: 1px solid rgba(255,255,255,0.05); }
+    .tip-box { border-radius: 12px; padding: 16px 20px; margin: 24px 0; font-size: 14px; line-height: 1.6; background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; color: #cbd5e1 !important; }
 
     @media only screen and (max-width: 480px) {
       .body { padding: 24px 16px; }
@@ -269,13 +267,67 @@ const BASE_STYLES = `
     }
   </style>`;
 
-export function buildTestCompletionEmail({ studentName, testName, courseName, score, totalQuestions, correctAnswers, scaledScore, testDate, appUrl, reportUrl }) {
+export function buildTestCompletionEmail({ studentName, testName, courseName, score, totalQuestions, correctAnswers, scaledScore, testDate, appUrl, reportUrl, modularScores }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const pct = Math.round(score);
     const badge = pct >= 70 ? 'badge-green' : pct >= 40 ? 'badge-yellow' : 'badge-red';
     const grade = pct >= 70 ? '🏆 Excellent' : pct >= 40 ? '✅ Passing' : '📚 Needs Work';
     const finalReportUrl = reportUrl || (appUrl ? `${appUrl}/student/detailed-review` : '#');
-    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>📝 Test Completed!</h1><p>${appName} — ${new Date(testDate || Date.now()).toLocaleDateString('en-IN', { dateStyle: 'long' })}</p></div><div class="body"><p>Hello <strong>${studentName || 'Student'}</strong>,</p><p style="margin-top:10px;">Your test for <strong>${courseName || 'the course'}</strong> has been graded. Here are your results:</p><div class="score-row"><div class="score-box"><div class="val">${pct}%</div><div class="lbl">Percentage</div></div>${scaledScore ? `<div class="score-box"><div class="val">${scaledScore}</div><div class="lbl">Scaled Score</div></div>` : ''}<div class="score-box"><div class="val">${correctAnswers}/${totalQuestions}</div><div class="lbl">Correct</div></div><div class="score-box"><div class="val"><span class="badge ${badge}">${grade}</span></div><div class="lbl">Grade</div></div></div><div class="tip-box">💡 Review your incorrect answers to improve your next score. Every mistake is a learning opportunity!</div><a class="cta" href="${finalReportUrl}">View Full Report →</a></div><div class="footer">${appName} • Unsubscribe anytime from your account settings.</div></div></div></body></html>`;
+
+    // 📊 Modular Breakdown Table (only if available)
+    let modularHtml = '';
+    if (modularScores && Object.keys(modularScores).length > 0) {
+        const rows = Object.entries(modularScores).map(([mKey, data]) => {
+            if (!data || data.total === 0) return '';
+            
+            // Format Label (e.g., rw_moderate -> Reading & Writing — Moderate)
+            let label = mKey;
+            if (mKey.includes('_')) {
+                const [sec, diff] = mKey.split('_');
+                const section = sec === 'rw' ? 'Reading & Writing' : (sec === 'math' ? 'Math' : sec.toUpperCase());
+                label = `${section} — ${diff.charAt(0).toUpperCase() + diff.slice(1)}`;
+            } else if (['easy', 'medium', 'hard', 'moderate'].includes(mKey.toLowerCase())) {
+                label = `General — ${mKey.charAt(0).toUpperCase() + mKey.slice(1).toLowerCase()}`;
+            }
+
+            const diffDisplay = data.difficulty || (mKey.includes('_') ? mKey.split('_')[1].toUpperCase() : mKey.toUpperCase());
+            const modPct = data.percentage ?? Math.round((data.correct / data.total) * 100);
+            const modBadge = modPct >= 70 ? 'badge-green' : modPct >= 40 ? 'badge-yellow' : 'badge-red';
+            const modStatus = modPct >= 70 ? 'Strong' : modPct >= 40 ? 'Proficient' : 'Review Needed';
+
+            return `<tr>
+                <td style="font-weight:bold;">${label}</td>
+                <td>${diffDisplay}</td>
+                <td>${data.correct} / ${data.total}</td>
+                <td>${modPct}%</td>
+                <td><span class="badge ${modBadge}">${modStatus}</span></td>
+            </tr>`;
+        }).filter(Boolean).join('');
+
+        if (rows) {
+            modularHtml = `
+                <p class="section-title">📘 Detailed Performance Breakdown</p>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Module / Section</th>
+                                <th>Difficulty</th>
+                                <th>Score</th>
+                                <th>Accuracy</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+    }
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>📝 Test Completed!</h1><p>${appName} — ${new Date(testDate || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div><div class="body"><p class="intro-heading">Hello ${studentName || 'Student'},</p><p class="intro-text">Your test results are ready. Here is your performance summary:</p><p class="section-title">📊 Overall Performance</p><div class="score-row"><div class="score-box"><div class="val">${scaledScore || '--'}</div><div class="lbl">TOTAL SCORE</div></div><div class="score-box"><div class="val">${pct}%</div><div class="lbl">ACCURACY</div></div><div class="score-box"><div class="val">${correctAnswers}/${totalQuestions}</div><div class="lbl">CORRECT ANSWERS</div></div><div class="score-box" style="width: 100%; margin-top: 15px; background: rgba(255,255,255,0.05);"><div class="val"><span class="badge ${badge}">${grade}</span></div><div class="lbl">GRADE</div></div></div>${modularHtml}<div class="tip-box">💡 Review your incorrect answers to improve your next score. Every mistake is a learning opportunity!</div><a class="cta" href="${finalReportUrl}">View Full Report →</a></div><div class="footer">${appName} • Results are calculated based on all modules completed.</div></div></div></body></html>`;
 }
 
 export function buildWeeklyReportEmail({ recipientName, studentName, submissions, weekStart, weekEnd, appUrl, isParent, reportUrl }) {

@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService, questionService, enrollmentService, authService } from '../../services/api';
 import CourseForm from './CourseForm';
+import AdaptiveCourseForm from './AdaptiveCourseForm';
 import supabase from '../../supabase/supabase';
 
 import EnrollmentKeyManager from './EnrollmentKeyManager';
@@ -107,13 +108,13 @@ const AdminCourseDetail = () => {
           <Link to="/admin/courses" className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4">
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4 mr-1" /> Back to Courses
           </Link>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-8 flex flex-col md:flex-row gap-4 md:justify-between md:items-start">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-800 p-4 md:p-8 flex flex-col md:flex-row gap-4 md:justify-between md:items-start">
             <div className="flex items-start space-x-3 md:space-x-4 min-w-0">
               <div className="bg-blue-100 p-3 md:p-4 rounded-xl">
                 <SafeIcon icon={FiBook} className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-xl md:text-3xl font-bold text-gray-900 mb-2 break-words">{course.name}</h1>
+                <h1 className="text-xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2 break-words">{course.name}</h1>
                 <p className="text-gray-600 text-sm md:text-lg mb-2 break-words">{course.description}</p>
                 <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-gray-500">
                   <span className="bg-gray-100 px-2 py-1 rounded">{course.tutor_type}</span>
@@ -133,7 +134,7 @@ const AdminCourseDetail = () => {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 mb-6">
           <div className="flex border-b border-gray-200 overflow-x-auto">
             <TabButton
               active={activeTab === 'content'}
@@ -170,15 +171,43 @@ const AdminCourseDetail = () => {
 
         {/* Content Tab */}
         {activeTab === 'content' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <UploadsGroup level="Easy" color="blue" uploads={uploads} onDelete={handleDeleteUpload} />
-              <UploadsGroup level="Medium" color="purple" uploads={uploads} onDelete={handleDeleteUpload} />
-              <UploadsGroup level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
-            </div>
+          <div className="space-y-10">
+            {course.is_adaptive ? (
+              <div className="space-y-8">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                    <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+                    Reading & Writing Modules
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <UploadsGroup section="reading_writing" level="Moderate" color="blue" uploads={uploads} onDelete={handleDeleteUpload} />
+                    <UploadsGroup section="reading_writing" level="Easy" color="emerald" uploads={uploads} onDelete={handleDeleteUpload} />
+                    <UploadsGroup section="reading_writing" level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
+                  </div>
+                </div>
 
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">All Uploaded Files</h3>
+                <div className="space-y-4">
+                  <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                    <div className="w-1.5 h-6 bg-purple-600 rounded-full"></div>
+                    Math Modules
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <UploadsGroup section="math" level="Moderate" color="purple" uploads={uploads} onDelete={handleDeleteUpload} />
+                    <UploadsGroup section="math" level="Easy" color="emerald" uploads={uploads} onDelete={handleDeleteUpload} />
+                    <UploadsGroup section="math" level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <UploadsGroup level="Easy" color="blue" uploads={uploads} onDelete={handleDeleteUpload} />
+                <UploadsGroup level="Medium" color="purple" uploads={uploads} onDelete={handleDeleteUpload} />
+                <UploadsGroup level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
+              </div>
+            )}
+
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 dark:border-slate-800 p-4 md:p-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">All Uploaded Files</h3>
               <div className="responsive-table-container">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
@@ -190,22 +219,22 @@ const AdminCourseDetail = () => {
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                     {uploads.map((upload) => (
                       <tr key={upload.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-slate-100">
                           <div className="flex items-center">
-                            <SafeIcon icon={getFileIcon(upload.category)} className="w-4 h-4 mr-2 text-gray-400" />
+                            <SafeIcon icon={getFileIcon(upload.category)} className="w-4 h-4 mr-2 text-slate-500 dark:text-slate-400" />
                             {upload.file_name}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{upload.category?.replace('_', ' ')}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400 capitalize">{upload.category?.replace('_', ' ')}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getLevelColor(upload.level)}`}>
                             {upload.level}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(upload.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">{new Date(upload.created_at).toLocaleDateString()}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button onClick={() => handleDeleteUpload(upload.id)} className="text-red-600 hover:text-red-900">
                             <SafeIcon icon={FiTrash2} className="w-4 h-4" />
@@ -222,10 +251,10 @@ const AdminCourseDetail = () => {
 
         {/* Enrolled Students Tab - FIXED */}
         {activeTab === 'students' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 md:p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-gray-200 p-4 md:p-6">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Enrolled Students</h3>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Enrolled Students</h3>
                 <p className="text-xs text-gray-400">Actual students enrolled via the platform</p>
               </div>
               <div className="flex gap-2">
@@ -249,7 +278,7 @@ const AdminCourseDetail = () => {
             ) : (
               <div className="responsive-table-container">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-slate-800">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
@@ -257,7 +286,7 @@ const AdminCourseDetail = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-slate-800">
                     {students.map((student, idx) => (
                       <tr key={idx} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -265,18 +294,18 @@ const AdminCourseDetail = () => {
                             <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold mr-3">
                               {student.profiles?.name?.charAt(0) || 'U'}
                             </div>
-                            <div className="text-sm font-medium text-gray-900">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
                               {student.profiles?.name || 'Unknown User'}
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center text-sm text-gray-500">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-slate-400">
                             <SafeIcon icon={FiMail} className="w-4 h-4 mr-2 text-gray-400" />
                             {student.profiles?.email || 'No Email'}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-slate-400">
                           <div className="flex items-center">
                             <SafeIcon icon={FiCalendar} className="w-4 h-4 mr-2 text-gray-400" />
                             {new Date(student.enrolled_at).toLocaleDateString()}
@@ -393,11 +422,19 @@ const AdminCourseDetail = () => {
 
         {/* Edit Form Modal */}
         {showEditForm && (
-          <CourseForm
-            course={course}
-            onClose={() => setShowEditForm(false)}
-            onSave={() => { loadCourseData(); }}
-          />
+          course?.tutor_type === 'Full-Length SAT Test' ? (
+            <AdaptiveCourseForm
+              course={course}
+              onClose={() => setShowEditForm(false)}
+              onSave={() => { loadCourseData(); }}
+            />
+          ) : (
+            <CourseForm
+              course={course}
+              onClose={() => setShowEditForm(false)}
+              onSave={() => { loadCourseData(); }}
+            />
+          )
         )}
       </div>
     </div>
@@ -416,12 +453,26 @@ const TabButton = ({ active, onClick, icon, label }) => (
   </button>
 );
 
-const UploadsGroup = ({ level, color, uploads, onDelete }) => {
-  const levelUploads = uploads.filter(u => u.level === level);
+const UploadsGroup = ({ section, level, color, uploads, onDelete }) => {
+  const levelUploads = uploads.filter(u => {
+    const matchesLevel = u.level?.toLowerCase() === level.toLowerCase() || 
+                        (level === 'Medium' && u.level === 'Moderate') ||
+                        (level === 'Moderate' && u.level === 'Medium');
+    const matchesSection = section ? (
+      u.section === section || 
+      (!u.section && (
+        (section === 'math' && u.file_name?.toLowerCase().includes('math')) ||
+        (section === 'reading_writing' && !u.file_name?.toLowerCase().includes('math'))
+      ))
+    ) : true;
+    return matchesLevel && matchesSection;
+  });
+  
   const colors = {
-    blue: 'bg-blue-50 border-blue-200 text-blue-900',
-    purple: 'bg-purple-50 border-purple-200 text-purple-900',
-    orange: 'bg-orange-50 border-orange-200 text-orange-900',
+    blue: 'bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-100',
+    purple: 'bg-purple-50 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-100',
+    orange: 'bg-orange-50 border-orange-200 text-orange-900 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-100',
+    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-100',
   };
 
   return (
@@ -433,10 +484,10 @@ const UploadsGroup = ({ level, color, uploads, onDelete }) => {
       <div className="space-y-2">
         {levelUploads.length === 0 && <p className="text-sm opacity-60 italic">No files uploaded</p>}
         {levelUploads.map(file => (
-          <div key={file.id} className="bg-white p-2 rounded border border-gray-200 flex justify-between items-center">
+          <div key={file.id} className="bg-white dark:bg-slate-800/50 p-2 rounded border border-gray-200 dark:border-slate-700/50 flex justify-between items-center">
             <div className="flex items-center gap-2 overflow-hidden">
-              <SafeIcon icon={getFileIcon(file.category)} className="w-4 h-4 flex-shrink-0 text-gray-500" />
-              <span className="text-sm truncate text-gray-700" title={file.file_name}>{file.file_name}</span>
+              <SafeIcon icon={getFileIcon(file.category)} className="w-4 h-4 flex-shrink-0 text-slate-600 dark:text-slate-400" />
+              <span className="text-sm truncate text-slate-900 dark:text-white font-bold" title={file.file_name}>{file.file_name}</span>
             </div>
           </div>
         ))}
@@ -452,10 +503,12 @@ const getFileIcon = (category) => {
 };
 
 const getLevelColor = (level) => {
-  switch (level) {
-    case 'Easy': return 'bg-green-100 text-green-800';
-    case 'Medium': return 'bg-purple-100 text-purple-800';
-    case 'Hard': return 'bg-orange-100 text-orange-800';
+  const l = level?.toLowerCase();
+  switch (l) {
+    case 'easy': return 'bg-green-100 text-green-800';
+    case 'medium': 
+    case 'moderate': return 'bg-purple-100 text-purple-800';
+    case 'hard': return 'bg-orange-100 text-orange-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 };

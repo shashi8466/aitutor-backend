@@ -335,7 +335,7 @@ const StudentDashboard = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-12 font-sans text-slate-900 dark:text-slate-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto py-8">
         
         {/* Loading Indicator - Shows when data is still fetching */}
         {loading && (
@@ -477,7 +477,7 @@ const StudentDashboard = () => {
                               <SafeIcon icon={FiAward} className="w-3.5 h-3.5 text-sky-500" />
                               SAT Math
                             </span>
-                            <span className="text-slate-900 dark:text-white font-black">{scores.latestMath}/800</span>
+                            <span className="text-slate-900 dark:text-white !font-black">{scores.latestMath}/800</span>
                           </div>
                           <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
                             <motion.div
@@ -498,7 +498,7 @@ const StudentDashboard = () => {
                               <SafeIcon icon={FiAward} className="w-3.5 h-3.5 text-green-500" />
                               Reading & Writing
                             </span>
-                            <span className="text-slate-900 dark:text-white font-black">{scores.latestRw}/800</span>
+                            <span className="text-slate-900 dark:text-white !font-black">{scores.latestRw}/800</span>
                           </div>
                           <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
                             <motion.div
@@ -520,7 +520,7 @@ const StudentDashboard = () => {
                       <div className="flex justify-between items-end mb-2">
                         <div>
                           <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Goal Progress</p>
-                          <p className="text-2xl font-bold text-orange-600">{scores.target}</p>
+                          <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{scores.target}</p>
                         </div>
                         <div className="text-right">
                           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{scores.total}/{scores.target}</span>
@@ -603,7 +603,7 @@ const StudentDashboard = () => {
                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 block mb-0.5 uppercase">
                              {course.isEstimated ? 'Estimated' : 'Latest'}
                            </span>
-                           <span className={`text-lg font-black ${courseType === 'MATH' ? 'text-sky-600' : 'text-green-600'}`}>
+                           <span className={`text-lg font-black ${courseType === 'MATH' ? 'text-sky-600 dark:text-sky-400' : 'text-green-600 dark:text-green-400'}`}>
                              {course.courseScaledScore}
                            </span>
                          </div>

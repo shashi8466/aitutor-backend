@@ -354,7 +354,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-white rounded-xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh] border dark:border-slate-800"
       >
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <div>
@@ -366,7 +366,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
           </button>
         </div>
 
-        <div className="p-8 overflow-y-auto custom-scrollbar bg-gray-50">
+        <div className="p-8 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-slate-950">
           <form onSubmit={handleSubmit} className="space-y-8">
             {error && (
               <div className="bg-red-50 border-2 border-red-300 text-red-800 px-5 py-4 rounded-lg flex items-start gap-3 shadow-sm">
@@ -391,7 +391,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
 
             {/* Basic Info */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
-              <h4 className="font-bold text-gray-900 text-lg border-b pb-2 mb-4">Course Details</h4>
+              <h4 className="font-bold text-gray-900 dark:text-white text-lg border-b dark:border-slate-800 pb-2 mb-4">Course Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Course Name</label>
@@ -675,7 +675,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
 
             {/* Upload Sections */}
             <div className="space-y-6">
-              <h4 className="font-bold text-gray-900 text-xl">Course Materials</h4>
+              <h4 className="font-bold text-gray-900 dark:text-white text-xl">Course Materials</h4>
               {fetchingUploads ? (
                 <div className="text-gray-500">Loading files...</div>
               ) : (
@@ -804,13 +804,13 @@ const FileUploadBox = ({ label, icon, accept, highlight, newFile, existingFile, 
   return (
     <div className={`rounded-lg p-4 border ${highlight ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
       <div className="flex items-center gap-2 mb-2">
-        <SafeIcon icon={icon} className={`w-4 h-4 ${highlight ? 'text-blue-600' : 'text-gray-500'}`} />
-        <span className="text-sm font-semibold text-gray-700">{label}</span>
+        <SafeIcon icon={icon} className={`w-4 h-4 ${highlight ? 'text-blue-700' : 'text-slate-700'}`} />
+        <span className="text-sm font-semibold text-slate-800">{label}</span>
       </div>
 
       {existingFile && !newFile && (
-        <div className="mb-2 p-2 bg-white rounded border flex justify-between items-center">
-          <span className="text-xs truncate max-w-[100px] text-gray-700" title={existingFile.file_name}>
+        <div className="mb-2 p-2 bg-white dark:bg-slate-800 rounded border dark:border-slate-700 flex justify-between items-center">
+          <span className="text-xs truncate max-w-[150px] text-slate-950 dark:text-white font-bold" title={existingFile.file_name}>
             {existingFile.file_name}
           </span>
           <button type="button" onClick={() => onDelete(existingFile.id)} className="text-red-500">
@@ -820,8 +820,10 @@ const FileUploadBox = ({ label, icon, accept, highlight, newFile, existingFile, 
       )}
 
       {newFile && (
-        <div className="mb-2 p-2 bg-blue-100 rounded border border-blue-200 flex justify-between items-center">
-          <span className="text-xs text-blue-800 truncate max-w-[100px]">{newFile.name}</span>
+        <div className="mb-2 p-2 bg-blue-100 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-800 flex justify-between items-center">
+          <span className="text-xs text-slate-950 dark:text-blue-100 font-bold truncate max-w-[150px]" title={newFile.name}>
+            {newFile.name}
+          </span>
           <button
             type="button"
             onClick={() => {

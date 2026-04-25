@@ -271,7 +271,7 @@ Comments: ${formData.message || 'None'}`;
                       }}
                     >
                       {submissions.map((s) => (
-                        <option key={s.id} value={s.id}>
+                        <option key={s.id} value={s.id} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
                           {s.course_name} ({s.level || s.type}) - {s.test_date ? new Date(s.test_date).toLocaleDateString() : 'N/A'}
                         </option>
                       ))}

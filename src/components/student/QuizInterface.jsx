@@ -282,7 +282,8 @@ const QuizInterface = () => {
         level: level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
         questionIds,
         answers,
-        duration
+        duration,
+        mode: 'practice'
       });
 
       const { submissionId, rawScore, rawPercentage, scaledScore, sectionScores } = response.data;
@@ -520,7 +521,8 @@ const QuizInterface = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-950 py-8 px-4 transition-colors duration-200">
+    <div className="dark">
+    <div className="min-h-screen bg-white dark:bg-gray-950 py-8 px-4 transition-colors duration-200">
       <div className="max-w-4xl mx-auto relative">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
@@ -556,8 +558,8 @@ const QuizInterface = () => {
             </div>
 
             {/* Question Text */}
-            <div className="mb-6">
-              <h2 className="text-lg md:text-2xl font-bold text-black dark:text-white leading-relaxed">
+            <div className="mb-8">
+              <h2 className="text-xl md:text-[26px] font-medium text-slate-900 dark:text-white leading-[1.4] tracking-tight antialiased">
                 <MathRenderer text={getCleanQuestionText(currentQuestion.question || '', currentQuestion.image)} />
               </h2>
             </div>
@@ -587,23 +589,29 @@ const QuizInterface = () => {
 
                   if (submitted) {
                     if (letter === currentQuestion.correct_answer) {
-                      containerClass = "border-green-500 bg-green-50";
-                      circleClass = "bg-green-500 text-white border-green-500";
+                      containerClass = "border-green-500 bg-green-50 dark:bg-green-900/30 text-slate-900 dark:text-white";
+                      circleClass = "bg-green-500 text-white border-green-500 shadow-md";
                     } else if (isSelected && letter !== currentQuestion.correct_answer) {
-                      containerClass = "border-[#E53935] bg-red-50";
-                      circleClass = "bg-[#E53935] text-white border-[#E53935]";
+                      containerClass = "border-[#E53935] bg-red-50 dark:bg-red-900/30 text-slate-900 dark:text-white";
+                      circleClass = "bg-[#E53935] text-white border-[#E53935] shadow-md";
                     } else {
-                      containerClass = "border-gray-100 dark:border-gray-800 opacity-50";
+                      containerClass = "border-gray-100 dark:border-gray-800 opacity-40 grayscale-[0.5]";
+                      circleClass = "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700";
                     }
                   } else if (isSelected) {
-                    containerClass = "border-[#E53935] bg-red-50 dark:bg-red-900/20";
-                    circleClass = "bg-[#E53935] text-white border-[#E53935]";
+                    containerClass = "border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-md";
+                    circleClass = "bg-blue-600 text-white border-blue-600 scale-105 shadow-lg";
+                  }
+
+                  let textClass = "text-slate-800 dark:text-slate-200";
+                  if (isSelected || (submitted && letter === currentQuestion.correct_answer)) {
+                    textClass = "text-slate-950 dark:text-white font-medium";
                   }
 
                   return (
                     <button key={idx} onClick={() => handleAnswerSelect(letter)} disabled={submitted} className={`w-full p-4 text-left rounded-xl border-2 transition-all flex items-center gap-4 group ${containerClass}`}>
                       <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors shadow-sm ${circleClass}`}>{letter}</span>
-                      <span className="font-medium flex-1 text-gray-800 dark:text-gray-200"><MathRenderer text={option || ''} /></span>
+                      <span className={`font-normal text-base md:text-[17px] flex-1 leading-normal ${textClass}`}><MathRenderer text={option || ''} /></span>
                       {submitted && letter === currentQuestion.correct_answer && <SafeIcon icon={FiCheck} className="ml-auto w-5 h-5 text-green-600" />}
                       {submitted && isSelected && letter !== currentQuestion.correct_answer && <SafeIcon icon={FiX} className="ml-auto w-5 h-5 text-[#E53935]" />}
                     </button>
@@ -620,7 +628,7 @@ const QuizInterface = () => {
                   onChange={(e) => handleAnswerSelect(e.target.value)}
                   disabled={submitted}
                   placeholder="Type your answer here..."
-                  className={`w-full p-4 border-2 rounded-xl outline-none text-lg transition-all dark:bg-gray-800 dark:text-white dark:caret-white dark:placeholder-gray-400 dark:border-gray-700 ${submitted ? (isCorrectAnswer() ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-red-500 bg-red-50 dark:bg-red-900/20') : 'border-gray-200 dark:border-gray-700 focus:border-[#E53935] dark:focus:border-[#E53935]'}`}
+                  className={`w-full p-4 border-2 rounded-xl outline-none text-lg transition-all dark:bg-gray-800 dark:text-white dark:caret-white dark:placeholder-gray-400 dark:border-gray-700 ${submitted ? (isCorrectAnswer() ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-red-500 bg-red-50 dark:bg-red-900/20') : 'border-gray-200 dark:border-gray-700 focus:border-blue-600 dark:focus:border-blue-600'}`}
                 />
               </div>
             )}
@@ -708,8 +716,8 @@ const QuizInterface = () => {
             </div>
 
             {!submitted ? (
-              <button onClick={handleSubmitAnswer} disabled={!selectedAnswer} className="bg-[#E53935] hover:bg-[#d32f2f] text-white px-5 sm:px-8 py-2 sm:py-3 rounded-xl font-bold text-sm sm:text-base disabled:opacity-50 transition-colors shadow-lg shadow-red-100">
-                Submit
+              <button onClick={handleSubmitAnswer} disabled={!selectedAnswer} className="bg-blue-600 hover:bg-blue-700 text-white px-5 sm:px-8 py-2 sm:py-3 rounded-xl font-bold text-sm sm:text-base disabled:opacity-50 transition-colors shadow-lg shadow-blue-100">
+                Check Answer
               </button>
             ) : (
               <div className="flex flex-wrap gap-2 sm:gap-3 justify-end">
@@ -751,6 +759,7 @@ const QuizInterface = () => {
         )}
       </AnimatePresence>
       {showAITutor && <AITutorModal question={currentQuestion} userAnswer={selectedAnswer} correctAnswer={currentQuestion.correct_answer} onClose={() => setShowAITutor(false)} />}
+    </div>
     </div>
   );
 };

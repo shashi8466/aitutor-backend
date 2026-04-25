@@ -159,7 +159,7 @@ const PracticeTests = () => {
                                                 return;
                                             }
 
-                                            navigate(`/student/course/${test.course_id}/level/${(test.level || 'all').toLowerCase()}/quiz`);
+                                            navigate(`/student/course/${test.course_id}/level/${(test.level || 'all').toLowerCase()}/quiz?mode=practice`);
                                         }}
                                         className={`flex items-center gap-1 text-sm font-bold transition-all ${test.locked ? 'text-gray-400' : 'text-[#E53935] hover:gap-2'}`}
                                     >

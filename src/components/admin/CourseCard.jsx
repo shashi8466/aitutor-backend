@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
-const { FiBook, FiTrash2, FiUsers, FiTarget, FiDollarSign, FiSettings, FiArrowRight, FiExternalLink, FiCopy, FiCheck } = FiIcons;
+const { FiBook, FiTrash2, FiUsers, FiTarget, FiDollarSign, FiSettings, FiArrowRight, FiExternalLink, FiCopy, FiCheck, FiActivity } = FiIcons;
 
 const CourseCard = ({ course, index, onDelete, manageLink }) => {
   const [copied, setCopied] = React.useState(false);
@@ -27,7 +27,7 @@ const CourseCard = ({ course, index, onDelete, manageLink }) => {
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <div className="bg-blue-100 p-2 rounded-lg">
-            <SafeIcon icon={FiBook} className="w-6 h-6 text-blue-600" />
+            <SafeIcon icon={course.is_adaptive ? FiActivity : FiBook} className="w-6 h-6 text-blue-600" />
           </div>
           <div>
             <h3 className="font-semibold text-gray-900 line-clamp-1" title={course.name}>{course.name}</h3>

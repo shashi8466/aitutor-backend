@@ -109,8 +109,18 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
   };
 
   // A. From submissions (authoritative test data)
+  let latestAdaptiveMath = 0;
+  let latestAdaptiveRW = 0;
+
   if (Array.isArray(submissionsData)) {
-    submissionsData.forEach(sub => {
+    // Sort by date to get the LATEST adaptive scores
+    const sortedSubs = [...submissionsData].sort((a, b) => new Date(b.test_date || b.created_at) - new Date(a.test_date || a.created_at));
+    
+    sortedSubs.forEach(sub => {
+      if (sub.level === 'Adaptive') {
+        if (!latestAdaptiveMath && sub.math_scaled_score) latestAdaptiveMath = sub.math_scaled_score;
+        if (!latestAdaptiveRW && sub.reading_scaled_score) latestAdaptiveRW = sub.reading_scaled_score;
+      }
       updateLevelAccuracy(sub, sub.raw_score_percentage);
     });
   }
@@ -139,10 +149,10 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     ? calculateSatScore(rwLevels.Easy, rwLevels.Medium, rwLevels.Hard)
     : baselineRW;
 
-  // 5. Final section scores for dashboards: pure weighted SAT-style scores
-  // based on Easy/Medium/Hard performance (or diagnostic baselines).
-  const displayMath = Math.min(800, Math.max(0, satMath));
-  const displayRW = Math.min(800, Math.max(0, satRW));
+  // 5. Final section scores for dashboards: prioritize LATEST Adaptive score if available, 
+  // otherwise fallback to pure weighted SAT-style scores.
+  const displayMath = latestAdaptiveMath || Math.min(800, Math.max(0, satMath));
+  const displayRW = latestAdaptiveRW || Math.min(800, Math.max(0, satRW));
 
   const total = displayMath + displayRW;
   const baselineTotal = baselineMath + baselineRW;

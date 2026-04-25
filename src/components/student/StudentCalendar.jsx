@@ -409,7 +409,9 @@ const StudentCalendar = () => {
                                                 className="w-full bg-gray-50 dark:bg-gray-900 border-0 rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white appearance-none"
                                             >
                                                 {Object.keys(TASK_TYPES).map(t => (
-                                                    <option key={t} value={t}>{TASK_TYPES[t].label}</option>
+                                                    <option key={t} value={t} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                                                        {TASK_TYPES[t].label}
+                                                    </option>
                                                 ))}
                                             </select>
                                         </div>

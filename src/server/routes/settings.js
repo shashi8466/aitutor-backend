@@ -1,23 +1,31 @@
 import express from 'express';
 import supabase from '../../supabase/supabaseAdmin.js';
 
+import { getUserFromRequest } from '../utils/authHelper.js';
+
 const router = express.Router();
 
 // Middleware: require admin role
 async function requireAdmin(req, res, next) {
-  const user = req.user;
-  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const user = req.user || await getUserFromRequest(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
 
-  if (profile?.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
+    if (profile?.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    
+    req.user = user; // Set for downstream
+    next();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  next();
 }
 
 // GET /api/settings/general  — Public site settings (name, logo)

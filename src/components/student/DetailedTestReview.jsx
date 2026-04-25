@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import MathRenderer from '../../common/MathRenderer';
 import { gradingService } from '../../services/api';
 
 const {
@@ -260,9 +261,9 @@ const DetailedTestReview = () => {
                             {/* Question Text */}
                             <div className="mb-4">
                                 <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">Question:</p>
-                                <p className="text-gray-900 dark:text-white font-medium">
-                                    {response.question_text || response.question?.question_text || 'Text not available'}
-                                </p>
+                                <div className="text-gray-900 dark:text-white font-medium">
+                                    <MathRenderer text={response.question_text || response.question?.question_text || 'Text not available'} />
+                                </div>
 
                             </div>
 
@@ -274,19 +275,19 @@ const DetailedTestReview = () => {
                                         ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
                                         : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
                                         }`}>
-                                        <p className={`font-bold ${response.is_correct ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
+                                        <div className={`font-bold ${response.is_correct ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
                                             }`}>
-                                            {response.selected_answer || 'No answer selected'}
-                                        </p>
+                                            <MathRenderer text={response.selected_answer || 'No answer selected'} />
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div>
                                     <p className="text-sm font-bold text-gray-600 dark:text-gray-400 mb-2">Correct Answer:</p>
                                     <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                                        <p className="font-bold text-green-700 dark:text-green-400">
-                                            {response.question?.correct_answer || response.correct_answer || 'N/A'}
-                                        </p>
+                                        <div className="font-bold text-green-700 dark:text-green-400">
+                                            <MathRenderer text={response.question?.correct_answer || response.correct_answer || 'N/A'} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -298,9 +299,9 @@ const DetailedTestReview = () => {
                                         <SafeIcon icon={FiInfo} className="w-5 h-5 text-blue-600 mt-0.5" />
                                         <div>
                                             <p className="text-sm font-bold text-blue-900 dark:text-blue-300 mb-1">Explanation:</p>
-                                            <p className="text-sm text-blue-800 dark:text-blue-400">
-                                                {response.question?.explanation || response.explanation}
-                                            </p>
+                                            <div className="text-sm text-blue-800 dark:text-blue-400">
+                                                <MathRenderer text={response.question?.explanation || response.explanation} />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

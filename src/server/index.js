@@ -106,6 +106,8 @@ app.post('/api/demo/send-otp', demoRouter);
 app.post('/api/demo/verify-otp', demoRouter);
 app.post('/api/demo/submit-lead', demoRouter);
 
+app.use('/api/settings', settingsRoutes);
+
 app.use('/api/health', (req, res) => {
   try {
     res.status(200).json({

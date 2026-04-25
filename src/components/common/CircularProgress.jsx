@@ -35,8 +35,8 @@ const CircularProgress = React.memo(({ value, max, size = 120, strokeWidth = 10,
       
       {/* Center Text */}
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-2xl font-bold text-gray-900">{value}</span>
-        <span className="text-xs text-gray-400">/ {max}</span>
+        <span className="text-2xl font-bold text-slate-900 dark:text-white">{value}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">/ {max}</span>
       </div>
     </div>
   );

@@ -167,8 +167,12 @@ router.post('/create-key', async (req, res) => {
         res.json({ key });
 
     } catch (error) {
-        console.error('Create enrollment key error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('💥 [ENROLLMENT] Fatal error creating key:', error);
+        res.status(500).json({ 
+            error: 'Internal server error during key generation',
+            message: error.message,
+            stack: error.stack
+        });
     }
 });
 

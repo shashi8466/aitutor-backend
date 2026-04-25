@@ -34,6 +34,7 @@ DO $$
 BEGIN 
     ALTER TABLE uploads ADD COLUMN IF NOT EXISTS category text DEFAULT 'source_document'; 
     ALTER TABLE uploads ADD COLUMN IF NOT EXISTS level text DEFAULT 'All'; 
+    ALTER TABLE uploads ADD COLUMN IF NOT EXISTS section text DEFAULT 'general'; 
     ALTER TABLE uploads ADD COLUMN IF NOT EXISTS file_type text; 
     ALTER TABLE uploads ADD COLUMN IF NOT EXISTS file_url text; 
 END $$;
@@ -67,25 +68,59 @@ BEGIN
     
     -- 4. ADD LINKED STUDENTS FOR PARENT ROLES
     ALTER TABLE profiles ADD COLUMN IF NOT EXISTS linked_students UUID[] DEFAULT '{}';
+    
+    -- 5. ADD SCALED SCORE COLUMNS FOR ADAPTIVE TESTS
+    ALTER TABLE test_submissions ADD COLUMN IF NOT EXISTS math_scaled_score integer;
+    ALTER TABLE test_submissions ADD COLUMN IF NOT EXISTS reading_scaled_score integer;
 END $$;
 `;
 
+        // 2. Schema Diagnostic (Best effort via select)
+        let schemaInfo = "Not checked";
+        try {
+            const { error: diagError } = await supabase
+                .from('test_submissions')
+                .select('math_scaled_score, reading_scaled_score')
+                .limit(1);
+            
+            if (diagError) {
+                schemaInfo = `❌ SCHEMA MISSING: ${diagError.message}`;
+            } else {
+                schemaInfo = "✅ SCHEMA OK: Adaptive columns found.";
+            }
+        } catch (e) {
+            schemaInfo = `💥 Diagnostic error: ${e.message}`;
+        }
+
         res.send(`
             <html>
-                <body style="font-family: monospace; padding: 20px; background: #f0f0f0;">
-                    <h1 style="color: #e11d48;">⚠️ DATABASE UPDATE REQUIRED</h1>
-                    <p>The system cannot auto-update the database schema securely.</p>
-                    <p><strong>YOU MUST RUN THE FOLLOWING SQL MANUALY:</strong></p>
-                    <textarea style="width: 100%; height: 400px; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">${fixSQL}</textarea>
-                    <br><br>
-                    <button onclick="navigator.clipboard.writeText(document.querySelector('textarea').value); alert('Copied!');" style="padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
-                        COPY TO CLIPBOARD
-                    </button>
-                    <p style="margin-top: 20px;">
-                        1. Go to <a href="https://supabase.com/dashboard/project/_/sql" target="_blank">Supabase SQL Editor</a><br>
-                        2. Paste the code<br>
-                        3. Click "RUN"
-                    </p>
+                <body style="font-family: sans-serif; padding: 40px; background: #0f172a; color: white; line-height: 1.6;">
+                    <div style="max-width: 800px; margin: 0 auto;">
+                        <h1 style="color: #f43f5e; font-size: 32px; font-weight: 900; margin-bottom: 8px;">🛠️ DATABASE SYSTEM DIAGNOSTIC</h1>
+                        <p style="color: #94a3b8; margin-bottom: 32px;">Production Schema Verification</p>
+
+                        <div style="background: #1e293b; padding: 24px; border-radius: 16px; border: 1px solid #334155; margin-bottom: 32px;">
+                            <h3 style="margin-top: 0; color: #38bdf8;">Status: ${schemaInfo}</h3>
+                            <p style="font-size: 14px; color: #94a3b8;">If you see "column does not exist", you must run the SQL below in Supabase.</p>
+                        </div>
+
+                        <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: #f43f5e; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; rounded-full; font-size: 12px;">!</span>
+                            REQUIRED SQL FIX
+                        </h2>
+                        <textarea readonly style="width: 100%; height: 350px; padding: 20px; border-radius: 12px; background: #020617; border: 1px solid #334155; color: #38bdf8; font-family: monospace; font-size: 13px; margin-bottom: 20px;">${fixSQL}</textarea>
+                        
+                        <div style="display: flex; gap: 16px; align-items: center;">
+                            <button onclick="navigator.clipboard.writeText(document.querySelector('textarea').value); this.innerText='✅ COPIED!';" style="padding: 12px 24px; background: #2563eb; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 800; transition: all 0.2s;">
+                                COPY SQL TO CLIPBOARD
+                            </button>
+                            <a href="https://supabase.com/dashboard/project/_/sql" target="_blank" style="color: #38bdf8; font-weight: 600; text-decoration: none; border-bottom: 1px solid #38bdf8;">Open Supabase SQL Editor →</a>
+                        </div>
+
+                        <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #334155; font-size: 13px; color: #64748b;">
+                            <p>Once you run the SQL, try submitting the adaptive test again. The 500 error should resolve immediately.</p>
+                        </div>
+                    </div>
                 </body>
             </html>
         `);

@@ -25,7 +25,7 @@ const StudentCourseList = () => {
   const isPremium = (user?.plan_type || '').toLowerCase() === 'premium';
 
   const COURSE_CATEGORIES = {
-    'SAT': ['SAT Math', 'SAT Reading & Writing'],
+    'SAT': ['SAT Math', 'SAT Reading & Writing', 'Full-Length SAT Test'],
     'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
     'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry']
   };
@@ -85,6 +85,13 @@ const StudentCourseList = () => {
   };
 
   const getCourseTaxonomy = (course) => {
+    if (course.is_adaptive) {
+      return { 
+        section: 'Full-Length SAT Test', 
+        category: 'Adaptive' 
+      };
+    }
+
     if (course.category && course.category.trim() !== '') {
       return { 
         section: course.tutor_type || 'Other', 
@@ -215,18 +222,23 @@ const StudentCourseList = () => {
       if (!hasDirectAccess && !hasTopicAccess) return false;
     }
 
-    // 1. Must NOT be an official practice course (those go to Practice section)
-    if (c.is_practice) return false;
+    // 1. Must NOT be an official practice course (unless it is adaptive)
+    if (c.is_practice && !c.is_adaptive) return false;
 
     // 2. Must be active (if status column exists)
     if (c.status && c.status !== 'active') return false;
 
     // 3. Category Filter Match
-    const mainCat = c.main_category || (
-        (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
+    let mainCat = c.main_category || (
+        (c.is_adaptive || (c.tutor_type || '').toLowerCase().includes('sat')) ? 'SAT' :
         (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' :
         ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
     );
+
+    // Force adaptive tests to appear under SAT category
+    if (c.is_adaptive || mainCat === 'Adaptive Tests') {
+        mainCat = 'SAT';
+    }
     
     if (activeCategory !== mainCat) return false;
 
@@ -282,7 +294,17 @@ const StudentCourseList = () => {
                 isEnrolled={isEnrolledFlag}
                 isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
                 isLoading={enrollLoading === course.id}
-                onAction={() => isEnrolledFlag ? navigate(`/student/course/${course.id}`) : handleEnroll(course.id)}
+                onAction={() => {
+                  if (isEnrolledFlag) {
+                    if (course.is_adaptive) {
+                      navigate(`/student/course/${course.id}`);
+                    } else {
+                      navigate(`/student/course/${course.id}`);
+                    }
+                  } else {
+                    handleEnroll(course.id);
+                  }
+                }}
               />
             ))}
           </div>
@@ -300,7 +322,17 @@ const StudentCourseList = () => {
             isEnrolled={isEnrolledFlag}
             isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
             isLoading={enrollLoading === course.id}
-            onAction={() => isEnrolledFlag ? navigate(`/student/course/${course.id}`) : handleEnroll(course.id)}
+            onAction={() => {
+              if (isEnrolledFlag) {
+                if (course.is_adaptive) {
+                  navigate(`/student/course/${course.id}`);
+                } else {
+                  navigate(`/student/course/${course.id}`);
+                }
+              } else {
+                handleEnroll(course.id);
+              }
+            }}
           />
         ))}
       </div>
@@ -421,7 +453,7 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
     <div className="p-6 flex-1">
       <div className="flex items-center gap-4 mb-4">
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${isEnrolled ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : isPremiumRestricted ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 group-hover:bg-[#E53935] group-hover:text-white'}`}>
-          <SafeIcon icon={isPremiumRestricted ? FiIcons.FiLock : FiBook} className="w-7 h-7" />
+          <SafeIcon icon={isPremiumRestricted ? FiIcons.FiLock : (course.is_adaptive ? FiIcons.FiActivity : FiBook)} className="w-7 h-7" />
         </div>
         <div className="flex-1 min-w-0">
           <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-md mb-1.5 inline-block ${

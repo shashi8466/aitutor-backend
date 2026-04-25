@@ -142,27 +142,27 @@ const Support = () => {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Subject</label>
                   <select
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
                     value={ticketForm.subject}
                     onChange={(e) => setTicketForm({ ...ticketForm, subject: e.target.value })}
                   >
-                    <option value="">Select a topic...</option>
-                    <option value="Technical Issue">Technical Issue</option>
-                    <option value="Content Error">Report Incorrect Content</option>
-                    <option value="Account Help">Account Help</option>
-                    <option value="Feedback">Feature Suggestion</option>
-                    <option value="Other">Other</option>
+                    <option value="" className="bg-white dark:bg-gray-800">Select a topic...</option>
+                    <option value="Technical Issue" className="bg-white dark:bg-gray-800">Technical Issue</option>
+                    <option value="Content Error" className="bg-white dark:bg-gray-800">Report Incorrect Content</option>
+                    <option value="Account Help" className="bg-white dark:bg-gray-800">Account Help</option>
+                    <option value="Feedback" className="bg-white dark:bg-gray-800">Feature Suggestion</option>
+                    <option value="Other" className="bg-white dark:bg-gray-800">Other</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Message</label>
                   <textarea
                     required
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-gray-900 dark:text-white"
                     placeholder="Describe your issue or suggestion..."
                     value={ticketForm.message}
                     onChange={(e) => setTicketForm({ ...ticketForm, message: e.target.value })}

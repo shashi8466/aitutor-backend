@@ -233,7 +233,7 @@ export const AuthProvider = ({ children }) => {
           console.error('Failed to recover from localStorage:', e);
         }
       }
-    }, 8000); // 8 second absolute max
+    }, 15000); // 15 second absolute max to prevent hanging on extremely slow networks
 
     // 1. FAST INITIAL CHECK (Session Only)
     const initAuth = async () => {

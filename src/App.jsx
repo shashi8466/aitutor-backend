@@ -22,7 +22,10 @@ const StudentCourseList = lazy(() => import('./components/student/StudentCourseL
 const CourseView = lazy(() => import('./components/student/CourseView'));
 const LevelDashboard = lazy(() => import('./components/student/LevelDashboard'));
 const VideoPlayer = lazy(() => import('./components/student/VideoPlayer'));
-const QuizInterface = lazy(() => import('./components/student/QuizInterface'));
+const AdaptivePreTest = lazy(() => import('./components/student/AdaptivePreTest'));
+const ExamInterface = lazy(() => import('./components/student/ExamInterface'));
+const AdaptiveExamInterface = lazy(() => import('./components/student/AdaptiveExamInterface'));
+const LegacyQuizInterface = lazy(() => import('./components/student/QuizInterface'));
 const Leaderboard = lazy(() => import('./components/student/Leaderboard'));
 const StudentSettings = lazy(() => import('./components/student/StudentSettings'));
 const Support = lazy(() => import('./components/student/Support'));
@@ -104,22 +107,35 @@ axios.defaults.timeout = 60000; // 60 seconds timeout for all requests
 // Add request interceptor for auth and debugging
 axios.interceptors.request.use(
   async (config) => {
-    // console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`);
-
     try {
-      // Get the session from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
+      // 1. Only add token if it's an API request to our own backend (relative or matching BACKEND_URL)
+      const isInternalApi = config.url && (
+        config.url.startsWith('/api') || 
+        (BACKEND_URL && config.url.startsWith(BACKEND_URL)) ||
+        !config.url.startsWith('http')
+      );
+
+      if (isInternalApi) {
+        // 2. Get the session from Supabase with a timeout to prevent hanging the entire app
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Supabase session request timed out')), 10000)
+        );
+
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
+        
+        if (session?.access_token) {
+          config.headers.Authorization = `Bearer ${session.access_token}`;
+        }
       }
 
       // 🕵️ Preview Mode Header (Synced from AuthContext via localStorage)
       const previewUserId = localStorage.getItem('preview_user_id');
-      if (previewUserId) {
+      if (previewUserId && config.headers) {
         config.headers['X-Preview-User-Id'] = previewUserId;
       }
     } catch (error) {
-      console.error('📡 Auth Interceptor Error:', error);
+      console.warn('📡 [Auth Interceptor] Non-fatal info:', error.message);
     }
 
     return config;
@@ -228,6 +244,18 @@ const HomeRedirector = () => {
 };
 
 //============================================
+// Quiz Dispatcher (Routes between Old vs New Exam Engine)
+//============================================
+const QuizDispatcher = () => {
+    const [searchParams] = useSearchParams();
+    const isPractice = searchParams.get('mode') === 'practice';
+    
+    // Practice Quiz => Old Legacy Interface (Dark Styled)
+    // Take the Quiz => New high-fidelity Exam Interface (Light Styled)
+    return isPractice ? <LegacyQuizInterface /> : <ExamInterface />;
+};
+
+//============================================
 // App Component
 //============================================
 const App = () => {
@@ -281,9 +309,11 @@ const App = () => {
               <Route path="courses" element={<StudentCourseList />} />
               <Route path="enroll" element={<EnrollmentKeyInput />} />
               <Route path="course/:courseId" element={<CourseView />} />
+              <Route path="adaptive-pre-test/:courseId" element={<AdaptivePreTest />} />
               <Route path="course/:courseId/level/:level" element={<LevelDashboard />} />
+              <Route path="adaptive-test/:courseId" element={<AdaptiveExamInterface />} />
               <Route path="course/:courseId/level/:level/video" element={<VideoPlayer />} />
-              <Route path="course/:courseId/level/:level/quiz" element={<QuizInterface />} />
+              <Route path="course/:courseId/level/:level/quiz" element={<QuizDispatcher />} />
 
               {/* New Sidebar Features */}
               <Route path="calendar" element={<StudentCalendar />} />

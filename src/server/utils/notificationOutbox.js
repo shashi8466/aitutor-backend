@@ -130,7 +130,8 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   const normalizedEventType = (eventType || '').trim().toUpperCase();
 
   if (normalizedEventType === 'TEST_COMPLETED') {
-    const subject = `Test Completed: ${payload.courseName || 'Course'} (${payload.level || ''})`;
+    const subject = 'Test Completed – Performance Summary';
+    console.log(`✨ [NotificationOutbox] Using subject: "${subject}" for event: "${eventType}"`);
     
     // Construct deep-link report URL
     const reportPath = isParent
@@ -158,10 +159,11 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
       scaledScore: payload.scaledScore,
       testDate: payload.testDate,
       appUrl,
-      reportUrl: finalUrl
+      reportUrl: finalUrl,
+      modularScores: payload.modularScores
     });
     const smsMessage =
-      `${appName}: ${payload.studentName || 'Student'} completed ${payload.courseName || 'a test'} (${payload.level || ''}). ` +
+      `${appName}: ${payload.studentName || 'Student'} completed ${payload.courseName || 'a test'} (Comprehensive). ` +
       `Status: Completed | Score: ${Math.round(payload.rawPercentage || 0)}% | Scaled: ${payload.scaledScore || 'N/A'} | ` +
       `Time: ${new Date(payload.testDate || Date.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}.`;
     return { subject, emailHtml, smsMessage };

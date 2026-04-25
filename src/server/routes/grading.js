@@ -216,7 +216,8 @@ router.get('/parent/student/:studentId/dashboard-data', async (req, res) => {
 router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotification, async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { courseId, level, questionIds, answers, duration } = req.body;
+        const { courseId, level, questionIds, answers, duration, mode = 'test', moduleDetails: reqModuleDetails } = req.body;
+        let modularScores = reqModuleDetails || null;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -272,14 +273,74 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
         // Triggered explicitly for maximum reliability on Render
         try {
             console.log(`📬 [Trigger] Enqueuing notification for submission ${result.submission_id}`);
-            await notificationMiddleware.scheduler.triggerTestCompletionNotification(result.submission_id, userId);
             
-            // 🟢 IMMEDIATELY PROCESS OUTBOX
-            // This ensures notifications are sent right away instead of waiting for the minute cron
-            console.log(`🚀 [Trigger] Immediate outbox processing started...`);
-            processOutboxOnce({ limit: 5 }).catch(err => {
-                console.warn('⚠️ [Trigger] Immediate outbox processing background error:', err.message);
-            });
+            modularScores = null;
+            // 🟢 CALCULATE MODULAR SCORES
+            // Only calculate modular breakdown for "Take the Quiz" mode (non-practice)
+            const isModularTest = (mode === 'test' || mode === 'comprehensive') && !modularScores;
+            if (isModularTest && questionIds && questionIds.length > 0) {
+                try {
+                    const { data: questionData, error: qDataErr } = await supabase
+                        .from('questions')
+                        .select('id, level, correct_answer')
+                        .in('id', questionIds);
+
+                    if (qDataErr) throw qDataErr;
+
+                    if (questionData && questionData.length > 0) {
+                        const tempScores = {
+                            easy: { correct: 0, total: 0 },
+                            medium: { correct: 0, total: 0 },
+                            hard: { correct: 0, total: 0 }
+                        };
+
+                        console.log(`🔍 [Trigger] Processing ${questionIds.length} answers for sub ${result.submission_id}`);
+                        
+                        questionIds.forEach((qId, idx) => {
+                            // Find corresponding question in DB results
+                            const q = questionData.find(dq => String(dq.id) === String(qId));
+                            if (q) {
+                                const rawLevel = String(q.level || 'Medium').toLowerCase().trim();
+                                if (tempScores[rawLevel]) {
+                                    tempScores[rawLevel].total++;
+                                    
+                                    const studentAns = String(answers[idx] || '').trim();
+                                    const correctAns = String(q.correct_answer || '').trim();
+                                    
+                                    if (studentAns !== '' && studentAns === correctAns) {
+                                        tempScores[rawLevel].correct++;
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Only assign if we actually found any questions
+                        const totalFound = Object.values(tempScores).reduce((acc, s) => acc + s.total, 0);
+                        if (totalFound > 0) {
+                            modularScores = tempScores;
+                            console.log(`📊 [Trigger] Modular breakdown calculated: ${totalFound}/${questionIds.length} questions mapped.`);
+                        } else {
+                            console.warn(`⚠️ [Trigger] No questions matched levels for sub ${result.submission_id}`);
+                        }
+                    } else {
+                        console.warn(`⚠️ [Trigger] Question lookup returned no data for sub ${result.submission_id}`);
+                    }
+                } catch (calcError) {
+                    console.error('⚠️ [Trigger] Modular calculation error:', calcError.message);
+                }
+            }
+
+            // Background tasks: Trigger notifications without blocking the response
+            try {
+                await notificationMiddleware.scheduler.triggerTestCompletionNotification(result.submission_id, userId, modularScores);
+                
+                // 🟢 IMMEDIATELY PROCESS OUTBOX
+                processOutboxOnce({ limit: 5 }).catch(err => {
+                    console.warn('⚠️ [Trigger] Immediate outbox processing background error:', err.message);
+                });
+            } catch (innerError) {
+                console.error('⚠️ [Trigger] Notification background task failed:', innerError.message);
+            }
         } catch (noteError) {
             console.error('⚠️ [Trigger] Failed to enqueue notification:', noteError.message);
         }
@@ -289,11 +350,161 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
             rawScore: result.raw_score,
             rawPercentage: result.raw_percentage,
             scaledScore: result.scaled_score,
-            sectionScores: result.section_scores
+            sectionScores: result.section_scores,
+            modularScores
         });
 
     } catch (error) {
         console.error('Submit test error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * POST /api/grading/submit-adaptive-test
+ * Separate endpoint for Adaptive SAT Test submissions to ensure zero impact on existing system.
+ */
+router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletionNotification, async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { courseId, questionIds, answers, duration, scores } = req.body;
+        
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        // 1. Create a submission record manually with pre-calculated scores
+        const { data: subData, error: subError } = await supabase
+            .from('test_submissions')
+            .insert({
+                user_id: userId,
+                course_id: courseId,
+                level: 'Adaptive',
+                test_date: new Date().toISOString(),
+                test_duration_seconds: duration || 0,
+                total_questions: questionIds.length,
+                scaled_score: scores.totalScore,
+                math_scaled_score: scores.mathScore,
+                reading_scaled_score: scores.rwScore,
+                raw_score_percentage: scores.accuracy || 0,
+                is_completed: true
+            })
+            .select();
+
+        if (subError) {
+            console.error('❌ [Grading] Submission Insert Failed:', subError);
+            throw subError;
+        }
+
+        const submission = subData?.[0];
+        if (!submission) {
+            throw new Error('Failed to retrieve created submission record.');
+        }
+
+        // 2. Update student progress for the 'Adaptive' level
+        try {
+            await supabase
+                .from('student_progress')
+                .upsert({
+                    user_id: userId,
+                    course_id: courseId,
+                    level: 'Adaptive',
+                    score: scores.accuracy,
+                    passed: true,
+                    created_at: new Date().toISOString()
+                }, { onConflict: 'user_id,course_id,level' });
+        } catch (e) {
+            console.warn('Sync progress failed for adaptive:', e.message);
+        }
+
+        // 3. Trigger notifications
+        try {
+            await notificationMiddleware.scheduler.triggerTestCompletionNotification(submission.id, userId, scores.moduleDetails);
+            processOutboxOnce({ limit: 5 }).catch(() => {});
+        } catch (e) {
+            console.warn('Notification failed for adaptive:', e.message);
+        }
+
+        res.json({
+            submissionId: submission.id,
+            scaledScore: scores.totalScore,
+            rwScore: scores.rwScore,
+            mathScore: scores.mathScore,
+            accuracy: scores.accuracy
+        });
+
+    } catch (error) {
+        console.error('Submit adaptive test error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+/**
+ * POST /api/grading/notify-results
+ * Explicitly trigger notifications for a test (Legacy fallback/Robustness)
+ */
+router.post('/notify-results', async (req, res) => {
+    try {
+        const { submissionId, studentName, scaledScore, questionIds, answers, mode = 'test', moduleScores, moduleDetails } = req.body;
+        const userId = req.user?.id;
+
+        if (!submissionId) {
+            console.warn('⚠️ [NotifyResults] Missing submissionId');
+            return res.status(400).json({ error: 'submissionId is required' });
+        }
+
+        console.log(`📬 [NotifyResults] Explicit request to notify for sub ${submissionId} (Student: ${studentName}, Score: ${scaledScore})`);
+
+        let modularScores = moduleDetails || moduleScores || null;
+        
+        // If modularScores not provided but we have Qs and As, calculate them as fallback
+        if (!modularScores && (mode === 'test' || mode === 'comprehensive') && questionIds && answers) {
+            try {
+                const { data: questionData } = await supabase
+                    .from('questions')
+                    .select('id, level, correct_answer')
+                    .in('id', questionIds);
+
+                if (questionData && questionData.length > 0) {
+                    modularScores = {
+                        easy: { correct: 0, total: 0 },
+                        medium: { correct: 0, total: 0 },
+                        hard: { correct: 0, total: 0 }
+                    };
+
+                    questionIds.forEach((qId, idx) => {
+                        const q = questionData.find(dq => dq.id === qId);
+                        if (q) {
+                            const qLevel = (q.level || 'medium').toLowerCase();
+                            if (modularScores[qLevel]) {
+                                modularScores[qLevel].total++;
+                                if (answers[idx] && q.correct_answer && answers[idx].toString().trim() === q.correct_answer.toString().trim()) {
+                                    modularScores[qLevel].correct++;
+                                }
+                            }
+                        }
+                    });
+                    console.log(`📊 [NotifyResults] Calculated modular scores:`, modularScores);
+                }
+            } catch (calcError) {
+                console.warn('⚠️ [NotifyResults] Could not calculate modular breakdown:', calcError.message);
+            }
+        }
+
+        // We re-trigger the scheduler logic for this specific submission
+        await notificationMiddleware.scheduler.triggerTestCompletionNotification(submissionId, userId, modularScores);
+
+        // Immediately attempt outbox processing so the user sees results quickly
+        console.log(`🚀 [NotifyResults] Immediate outbox processing started...`);
+        processOutboxOnce({ limit: 5 }).catch(err => {
+            console.warn('⚠️ [NotifyResults] Immediate processing background error:', err.message);
+        });
+
+        res.json({ 
+            success: true, 
+            message: 'Notifications queued and processing started' 
+        });
+
+    } catch (error) {
+        console.error('❌ [NotifyResults] Fatal error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

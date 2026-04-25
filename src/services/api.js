@@ -8,24 +8,7 @@ axios.defaults.baseURL = BACKEND_URL;
 axios.defaults.timeout = 60000; // Increased to 60 seconds globally to allow for AI warm-ups and processing
 axios.defaults.withCredentials = true;
 
-// GLOBAL REQUEST INTERCEPTOR
-// Automatically attach the Supabase access token to every request
-axios.interceptors.request.use(async (config) => {
-  try {
-    // Only add token if it's an API request to our own backend
-    if (config.url && (config.url.startsWith('/api') || config.url.startsWith(BACKEND_URL))) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-      }
-    }
-  } catch (error) {
-    console.warn('⚠️ [API Interceptor] Could not attach auth token:', error.message);
-  }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
+// GLOBAL REQUEST INTERCEPTOR logic removed here - successfully moved to App.jsx for centralized auth handling.
 
 // Pre-emptively "warm up" the backend (best effort)
 if (BACKEND_URL) {
@@ -213,52 +196,59 @@ export const authService = {
   // FAST version for initial boot
   getSessionUser: async () => {
     try {
-      // CRITICAL: Add timeout to prevent hanging
+      // 1. FAST INITIAL CHECK (Session Only - No network request usually)
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        console.log('✅ getSessionUser: Found session for', session.user.email);
+        const user = session.user;
+        
+        // CHECK LOCAL CACHE for profile (extremely fast)
+        let cachedProfile = null;
+        if (typeof window !== 'undefined') {
+          try {
+            const stored = localStorage.getItem(`auth_profile_${user.id}`);
+            if (stored) cachedProfile = JSON.parse(stored);
+          } catch (e) {
+            console.warn('Failed to parse cached profile', e);
+          }
+        }
+
+        // Return user with optimistic properties
+        return { 
+          ...user, 
+          ...(cachedProfile || {}),
+          role: cachedProfile?.role || user.user_metadata?.role || 'student',
+          name: cachedProfile?.name || user.user_metadata?.name || user.user_metadata?.full_name || 'User',
+          _fromCache: !!cachedProfile
+        };
+      }
+
+      // 2. Network-based check (Robustness - if session was missing or expired)
+      console.log('🔍 getSessionUser: No local session, checking network (getUser)...');
+      
       const getUserPromise = supabase.auth.getUser();
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('getUser timeout')), 5000)
+        setTimeout(() => reject(new Error('getUser timeout')), 4000)
       );
       
-      // 1. Get user from Supabase Auth (fast, often from local storage)
       const { data: { user }, error: authError } = await Promise.race([
         getUserPromise,
         timeoutPromise
       ]).catch((err) => {
-        console.error('⏰ getUser timed out:', err.message);
+        console.warn('⏰ getSessionUser: getUser timed out or failed:', err.message);
         return { data: { user: null }, error: err };
       });
       
-      if (authError || !user) {
-        console.warn('⚠️ No user from getUser:', authError?.message);
-        return null;
-      }
+      if (!user) return null;
 
-      // 2. CHECK LOCAL CACHE for profile (extremely fast)
-      let cachedProfile = null;
-      if (typeof window !== 'undefined') {
-        try {
-          const stored = localStorage.getItem(`auth_profile_${user.id}`);
-          if (stored) cachedProfile = JSON.parse(stored);
-        } catch (e) {
-          console.warn('Failed to parse cached profile', e);
-        }
-      }
-
-      // If we have a cached profile, return it immediately with user
-      if (cachedProfile) {
-        console.log('✅ getSessionUser: Returning cached profile');
-        return { ...user, ...cachedProfile, _fromCache: true };
-      }
-
-      // 3. Fallback: Return user with metadata if no cache exists yet
-      console.log('✅ getSessionUser: Returning user with metadata');
       return { 
         ...user, 
         role: user.user_metadata?.role || 'student',
         name: user.user_metadata?.name || user.user_metadata?.full_name || 'User'
       };
     } catch (e) {
-      console.error('getSessionUser error', e);
+      console.error('💥 getSessionUser Fatal Error:', e.message);
       return null;
     }
   },
@@ -1067,6 +1057,10 @@ export const gradingService = {
   submitTest: async (data) => {
     // data: { courseId, level, questionIds, answers, duration }
     return axios.post('/api/grading/submit-test', data);
+  },
+  submitAdaptiveTest: async (data) => {
+    // data: { courseId, questionIds, answers, duration, scores }
+    return axios.post('/api/grading/submit-adaptive-test', data);
   },
   getSubmission: async (id) => {
     return axios.get(`/api/grading/submission/${id}`);

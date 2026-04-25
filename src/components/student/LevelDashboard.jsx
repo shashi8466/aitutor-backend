@@ -8,7 +8,7 @@ import { uploadService } from '../../services/api';
 const AITutorModal = lazy(() => import('./AITutorModal'));
 const SmartContentModal = lazy(() => import('./SmartContentModal'));
 
-const { FiBook, FiVideo, FiMessageCircle, FiAward, FiArrowLeft, FiFileText, FiDownload, FiEye, FiX, FiExternalLink, FiCpu } = FiIcons;
+const { FiBook, FiVideo, FiMessageCircle, FiAward, FiArrowLeft, FiFileText, FiDownload, FiEye, FiX, FiExternalLink, FiCpu, FiZap } = FiIcons;
 
 const LevelDashboard = () => {
   const { courseId, level } = useParams();
@@ -126,7 +126,7 @@ const LevelDashboard = () => {
         </div>
 
         {/* 3 Action Cards - Themed */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
 
           {/* Card 1: Videos - White with Red Accent */}
           <Link to={`/student/course/${courseId}/level/${level}/video`} className="group h-full">
@@ -139,30 +139,40 @@ const LevelDashboard = () => {
             </div>
           </Link>
 
-          {/* Card 2: NEW SMART FILE & URL AI TUTOR */}
+          {/* Card 2: Smart AI Tutor */}
           <div onClick={() => setShowSmartContent(true)} className="group h-full cursor-pointer">
-            <div className="h-full bg-gradient-to-br from-gray-900 to-black hover:from-black hover:to-gray-800 border border-gray-900 rounded-2xl p-8 text-center transition-all group-hover:-translate-y-1 group-hover:shadow-xl shadow-gray-400/20 flex flex-col items-center justify-center relative overflow-hidden">
-              {/* Subtle tech background */}
-              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500 via-transparent to-transparent"></div>
-
-              <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mb-4 shadow-sm text-white backdrop-blur-sm group-hover:bg-white/20 transition-colors relative z-10">
-                <SafeIcon icon={FiCpu} className="w-8 h-8" />
+            <div className="h-full bg-[#1A2333] hover:bg-[#1e293b] border border-gray-800 rounded-2xl p-6 text-center transition-all group-hover:-translate-y-1 group-hover:shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
+              <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 text-white group-hover:bg-white/20 transition-colors">
+                <SafeIcon icon={FiCpu} className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2 relative z-10">Smart File & URL AI Tutor</h3>
-              <p className="text-xs text-gray-300 font-medium leading-relaxed relative z-10">
-                Upload or paste a PDF / Video to extract, summarize & chat with the content
+              <h3 className="text-xl font-bold text-white mb-2">Smart AI Tutor</h3>
+              <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
+                Upload PDFs/Videos to extract & chat with content
               </p>
             </div>
           </div>
 
-          {/* Card 3: Quiz - Primary Red Card */}
-          <Link to={`/student/course/${courseId}/level/${level}/quiz`} className="group h-full">
-            <div className="h-full bg-[#E53935] hover:bg-[#d32f2f] border border-[#E53935] rounded-2xl p-8 text-center transition-all cursor-pointer group-hover:-translate-y-1 group-hover:shadow-lg shadow-red-200 flex flex-col items-center justify-center">
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-4 text-white">
-                <SafeIcon icon={FiAward} className="w-8 h-8" />
+          {/* Card 3: Practice Quiz */}
+          <Link to={`/student/course/${courseId}/level/${level}/quiz?mode=practice`} className="group h-full">
+            <div className="h-full bg-[#1A2333] hover:bg-[#1e293b] border border-gray-800 rounded-2xl p-6 text-center transition-all group-hover:-translate-y-1 group-hover:shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
+               <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 text-white group-hover:bg-white/20 transition-colors">
+                <SafeIcon icon={FiZap} className="w-7 h-7" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Take the Quiz</h3>
-              <p className="text-sm text-red-100 font-medium">Test your knowledge</p>
+              <h3 className="text-xl font-bold text-white mb-2">Practice Quiz</h3>
+              <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
+                Build your skills with focus
+              </p>
+            </div>
+          </Link>
+
+          {/* Card 4: Take the Quiz - Primary Red Card */}
+          <Link to={`/student/course/${courseId}/level/${level}/quiz`} className="group h-full">
+            <div className="h-full bg-[#E53935] hover:bg-[#d32f2f] border border-[#E53935] rounded-2xl p-6 text-center transition-all cursor-pointer group-hover:-translate-y-1 group-hover:shadow-lg shadow-red-200 flex flex-col items-center justify-center">
+              <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mb-4 text-white">
+                <SafeIcon icon={FiAward} className="w-7 h-7" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-1">Take the Quiz</h3>
+              <p className="text-[10px] text-red-100 font-medium">Test your knowledge</p>
             </div>
           </Link>
 

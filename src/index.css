@@ -15,8 +15,8 @@ html {
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background-color: #020617; /* Forced ultra-dark base */
-  color: #f1f5f9;
+  background-color: #020617; /* Default background for dark mode base */
+  color: #1e293b; /* Set default text color to dark slate for better visibility on white backgrounds */
   @apply dark:bg-slate-950 dark:text-slate-100;
 }
 
@@ -30,23 +30,22 @@ html, body, #root {
 }
 
 @layer base {
-  /* Headings */
+  /* Headings - Using standard Tailwind spacing and colors */
   h1, h2, h3, h4, h5, h6 {
-    @apply font-bold text-slate-900 dark:text-white transition-colors duration-300;
+    @apply font-bold text-slate-900 transition-colors duration-300;
   }
 
-  /* Form Elements */
+  label {
+    @apply text-sm font-semibold text-slate-600 transition-colors duration-300;
+  }
+
   input, select, textarea {
     @apply bg-slate-900 
            border-slate-800 
            text-slate-200 
            placeholder:text-slate-600
            focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
-           transition-all duration-200 !important;
-  }
-
-  label {
-    @apply text-sm font-semibold text-slate-600 dark:text-slate-400 transition-colors duration-300;
+           transition-all duration-200;
   }
 
   /* Table styles */
@@ -100,76 +99,32 @@ html, body, #root {
    GLOBAL DARK MODE OVERRIDES (Themed Contrast Fixes)
    ========================================================================== */
 
-/* slate-950: #020617, slate-900: #0f172a, slate-800: #1e293b, slate-700: #334155 */
-/* slate-400: #94a3b8, slate-300: #cbd5e1, slate-200: #e2e8f0, slate-100: #f1f5f9 */
+/* 
+   --------------------------------------------------------------------------
+   THEMATIC LAYER (Restored standard utility behavior)
+   The 'Nuclear' overrides have been removed to allow context-specific themes.
+   -------------------------------------------------------------------------- 
+*/
 
-/* Force hardcoded backgrounds to adapt globally (Nuclear Dark Mode) */
-.bg-white { background-color: #0f172a !important; }
-.bg-gray-50, .bg-slate-50, .bg-\[#FAFAFA\] { background-color: #020617 !important; }
-.bg-gray-100, .bg-slate-100 { background-color: rgba(15, 23, 42, 0.5) !important; }
-.bg-gray-200, .bg-slate-200 { background-color: #1e293b !important; }
-
-/* Force hardcoded text to adapt globally */
-.text-gray-900, .text-slate-900, .text-black { color: #f1f5f9 !important; }
-.text-gray-800, .text-slate-800 { color: #e2e8f0 !important; }
-.text-gray-700, .text-slate-700 { color: #cbd5e1 !important; }
-.text-gray-600, .text-slate-600 { color: #94a3b8 !important; }
-.text-gray-500, .text-slate-500 { color: #94a3b8 !important; }
-.text-gray-400, .text-slate-400 { color: #64748b !important; }
-
-/* Force borders to adapt globally */
-.border-gray-100, .border-slate-100, .border-gray-200, .border-slate-200, .border-gray-300 {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.divide-gray-100, .divide-gray-200, .divide-slate-200 {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-/* Specific Input/Select Fixes */
+/* Specific Input/Select Fixes - Standard specificity */
 input, select, textarea {
-  background-color: #020617 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  color: #e2e8f0 !important;
+  background-color: #020617;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
 }
 
 input::placeholder {
-  color: #475569 !important;
+  color: #475569;
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: #3b82f6 !important;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
 
 /* Modal and Card Shadows */
 .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
-  box-shadow: 0 20px 50px -12px rgba(0,0,0,0.8) !important;
-}
-
-/* Table Specific Contrast */
-thead tr, th {
-  background-color: rgba(15, 23, 42, 0.8) !important;
-  color: #cbd5e1 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-td {
-  border-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-/* Level Badges & Section Highlighting */
-.bg-blue-50 { background-color: rgba(30, 58, 138, 0.2) !important; color: #93c5fd !important; border-color: rgba(59, 130, 246, 0.2) !important; }
-.bg-green-50 { background-color: rgba(20, 83, 45, 0.2) !important; color: #86efac !important; border-color: rgba(34, 197, 94, 0.2) !important; }
-.bg-red-50 { background-color: rgba(127, 29, 29, 0.2) !important; color: #fca5a5 !important; border-color: rgba(239, 44, 44, 0.2) !important; }
-.bg-purple-50 { background-color: rgba(88, 28, 135, 0.2) !important; color: #d8b4fe !important; border-color: rgba(168, 85, 247, 0.2) !important; }
-.bg-orange-50 { background-color: rgba(124, 45, 18, 0.2) !important; color: #fdba74 !important; border-color: rgba(249, 115, 22, 0.2) !important; }
-
-/* Dashboard Cards */
-.dashboard-card {
-  background-color: rgba(15, 23, 42, 0.8) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  box-shadow: 0 20px 50px -12px rgba(0,0,0,0.8) !important;
+  box-shadow: 0 20px 50px -12px rgba(0,0,0,0.8);
 }
 
 /* KB Quiz Specific Styles */
@@ -207,9 +162,15 @@ td {
   @apply bg-slate-50 dark:bg-slate-900/50 font-bold text-slate-900 dark:text-white;
 }
 
-/* Math Content Transitions */
+/* Math Content Transitions and Fixes */
 .math-content, mjx-container {
   transition: color 300ms, background-color 300ms;
+}
+
+/* Fix for MathJax/KaTeX fraction lines being hidden by CSS resets without breaking other math elements */
+mjx-lin, .mjx-frac-line, .katex .frac-line {
+  border-top-width: 1px !important;
+  border-bottom-width: 1px !important;
 }
 
 @media (max-width: 767px) {

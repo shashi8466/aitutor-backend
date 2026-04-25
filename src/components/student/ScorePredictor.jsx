@@ -282,9 +282,9 @@ const ScorePredictor = () => {
 
     return (
         <div className="max-w-6xl mx-auto px-4 py-12 space-y-16">
-            <div className="text-center max-w-2xl mx-auto">
-                <h1 className="text-5xl font-black text-gray-900 dark:text-white mb-4 tracking-tight">Score Predictor</h1>
-                <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">
+        <div className="text-center max-w-2xl mx-auto px-4">
+                <h1 className="text-3xl sm:text-5xl font-black text-gray-900 dark:text-white mb-4 tracking-tight">Score Predictor</h1>
+                <p className="text-gray-500 dark:text-gray-400 text-base sm:text-lg font-medium">
                     Your personalized SAT section performance analysis and score predictions.
                 </p>
             </div>
@@ -307,28 +307,28 @@ const ScorePredictor = () => {
                                 </div>
                                 
                                 {/* Result Card */}
-                                <div className="bg-gradient-to-br from-gray-900 to-gray-800 dark:from-black dark:to-gray-900 p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden border border-white/10">
+                                <div className="bg-gradient-to-br from-gray-900 to-gray-800 dark:from-black dark:to-gray-900 p-6 sm:p-10 rounded-2xl sm:rounded-[2.5rem] shadow-2xl relative overflow-hidden border border-white/10">
                                     <div className={`absolute top-0 right-0 w-64 h-64 ${subject.id === 'MATH' ? 'bg-blue-600/10' : 'bg-purple-600/10'} blur-[100px] rounded-full -mr-20 -mt-20`} />
                                     
                                     <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-10">
-                                        <div className="flex items-center gap-8 text-center lg:text-left flex-col lg:flex-row">
-                                            <div className={`w-28 h-28 rounded-[2rem] flex items-center justify-center shadow-2xl transform rotate-3 ${subject.id === 'MATH' ? 'bg-blue-600 shadow-blue-500/20' : 'bg-purple-600 shadow-purple-500/20'} text-white`}>
-                                                <SafeIcon icon={subject.icon} className="w-14 h-14" />
+                                        <div className="flex items-center gap-4 sm:gap-8 text-center lg:text-left flex-col lg:flex-row">
+                                            <div className={`w-20 h-20 sm:w-28 sm:h-28 rounded-2xl sm:rounded-[2rem] flex items-center justify-center shadow-2xl transform rotate-3 ${subject.id === 'MATH' ? 'bg-blue-600 shadow-blue-500/20' : 'bg-purple-600 shadow-purple-500/20'} text-white`}>
+                                                <SafeIcon icon={subject.icon} className="w-10 h-10 sm:w-14 sm:h-14" />
                                             </div>
                                             <div>
-                                                <h3 className="text-4xl font-black text-white tracking-tight">Predicted Score</h3>
-                                                <p className="text-gray-400 font-medium mt-1 text-lg">Based on diagnostic performance and accuracy trends</p>
+                                                <h3 className="text-2xl sm:text-4xl font-black text-white tracking-tight">Predicted Score</h3>
+                                                <p className="text-gray-400 font-medium mt-1 text-sm sm:text-lg">Based on performances and accuracy trends</p>
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col sm:flex-row items-center gap-10 bg-white/5 backdrop-blur-md p-8 rounded-[2rem] border border-white/10 w-full lg:w-auto">
-                                            <div className="text-center px-4">
-                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-2">Estimated Section</p>
+                                        <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10 bg-white/5 backdrop-blur-md p-6 sm:p-8 rounded-2xl sm:rounded-[2rem] border border-white/10 w-full lg:w-auto">
+                                            <div className="text-center px-4 w-full sm:w-auto">
+                                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-2">Estimated Section</p>
                                                 <div className="flex items-baseline justify-center gap-1">
-                                                    <p className={`text-7xl font-black ${subject.id === 'MATH' ? 'text-blue-400' : 'text-purple-400'}`}>
+                                                    <p className={`text-5xl sm:text-7xl font-black ${subject.id === 'MATH' ? 'text-blue-400' : 'text-purple-400'}`}>
                                                         {data.prediction.score}
                                                     </p>
-                                                    <span className="text-gray-500 font-bold text-xl">/ 800</span>
+                                                    <span className="text-gray-500 font-bold text-lg sm:text-xl">/ 800</span>
                                                 </div>
                                             </div>
                                             <div className="h-16 w-px bg-white/10 hidden sm:block" />
@@ -347,11 +347,11 @@ const ScorePredictor = () => {
                                 </div>
 
                                 {/* Detailed Stats: Module Proficiency Only (Topic Mastery Removed) */}
-                                <div className="max-w-3xl mx-auto w-full">
-                                    <div className="bg-white dark:bg-gray-800 p-10 rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-gray-700">
+                                <div className="max-w-3xl mx-auto w-full px-0 sm:px-4">
+                                    <div className="bg-white dark:bg-gray-800 p-6 sm:p-10 rounded-2xl sm:rounded-[2.5rem] shadow-xl border border-gray-100 dark:border-gray-700">
                                         <div className="flex items-center gap-3 mb-8">
                                             <SafeIcon icon={FiBarChart2} className="w-7 h-7 text-[#E53935]" />
-                                            <h3 className="text-2xl font-black text-gray-900 dark:text-white">Module Proficiency</h3>
+                                            <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">Module Proficiency</h3>
                                         </div>
                                         <div className="space-y-10">
                                             {['Easy', 'Medium', 'Hard'].map(level => {
@@ -402,16 +402,16 @@ const ScorePredictor = () => {
                                     whileHover={{ scale: 1.01 }}
                                     whileTap={{ scale: 0.99 }}
                                     onClick={() => navigate(data.course ? `/student/course/${data.course.id}` : '/student/courses')}
-                                    className={`w-full bg-white dark:bg-gray-800 p-12 rounded-[3rem] shadow-xl border-2 border-transparent ${subject.hover} transition-all text-left flex flex-col md:flex-row items-center gap-12 group`}
+                                    className={`w-full bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-2xl sm:rounded-[3rem] shadow-xl border-2 border-transparent ${subject.hover} transition-all text-left flex flex-col md:flex-row items-center gap-8 sm:gap-12 group`}
                                 >
-                                    <div className={`w-28 h-28 ${subject.bg} rounded-[2rem] flex items-center justify-center ${subject.text} ${subject.hoverBg} group-hover:text-white transition-all transform group-hover:rotate-6 shadow-sm`}>
-                                        <SafeIcon icon={subject.icon} className="w-14 h-14" />
+                                    <div className={`w-20 h-20 sm:w-28 sm:h-28 ${subject.bg} rounded-2xl sm:rounded-[2rem] flex items-center justify-center ${subject.text} ${subject.hoverBg} group-hover:text-white transition-all transform group-hover:rotate-6 shadow-sm`}>
+                                        <SafeIcon icon={subject.icon} className="w-10 h-10 sm:w-14 sm:h-14" />
                                     </div>
-                                    <div className="flex-1">
-                                        <h3 className="text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">{subject.name}</h3>
-                                        <p className="text-gray-500 dark:text-gray-400 text-xl font-medium leading-relaxed">{subject.desc}</p>
-                                        <div className={`mt-8 flex items-center gap-3 ${subject.text} font-black text-xl`}>
-                                            Take Diagnostic Test <FiArrowRight className="group-hover:translate-x-3 transition-transform" />
+                                    <div className="flex-1 text-center md:text-left">
+                                        <h3 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">{subject.name}</h3>
+                                        <p className="text-gray-500 dark:text-gray-400 text-base sm:text-xl font-medium leading-relaxed">{subject.desc}</p>
+                                        <div className={`mt-6 sm:mt-8 flex items-center justify-center md:justify-start gap-3 ${subject.text} font-black text-lg sm:text-xl`}>
+                                            Take Diagnostic <FiArrowRight className="group-hover:translate-x-3 transition-transform" />
                                         </div>
                                     </div>
                                 </motion.button>

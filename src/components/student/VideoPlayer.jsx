@@ -36,7 +36,11 @@ const VideoPlayer = () => {
   const loadVideos = async () => {
     try {
       const { data } = await uploadService.getAll({ courseId });
-      const levelVideos = data.filter(u => u.level === level && u.category === 'video_lecture');
+      const levelVideos = data.filter(u => {
+        const matchesLevel = u.level?.toLowerCase() === level?.toLowerCase();
+        const matchesSection = section ? u.section === section : true;
+        return matchesLevel && matchesSection && u.category === 'video_lecture';
+      });
       setVideos(levelVideos);
       if (levelVideos.length > 0) setActiveVideo(levelVideos[0]);
     } catch (error) {

@@ -8,7 +8,7 @@ import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 
-const { FiArrowLeft, FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiTrendingUp, FiInfo, FiKey, FiAlertCircle, FiLoader } = FiIcons;
+const { FiArrowLeft, FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiTrendingUp, FiInfo, FiKey, FiAlertCircle, FiLoader, FiTarget } = FiIcons;
 
 const CourseView = () => {
   const { courseId } = useParams();
@@ -325,7 +325,7 @@ const CourseView = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10 bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white p-8 rounded-3xl shadow-2xl border border-gray-800 text-center relative overflow-hidden"
+          className="mb-10 bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white p-6 sm:p-8 rounded-3xl shadow-2xl border border-gray-800 text-center relative overflow-hidden"
         >
           <div className="relative z-10 flex flex-col items-center">
             {isCourseCompleted && (
@@ -334,8 +334,8 @@ const CourseView = () => {
               </div>
             )}
 
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">{scoreData.label}</span>
+            <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
+              <span className="text-gray-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider">{scoreData.label}</span>
               {isCourseCompleted && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-green-900/50 text-green-400 border border-green-800 animate-pulse">
                   <SafeIcon icon={FiTrendingUp} className="w-3 h-3 mr-1" /> Final
@@ -343,13 +343,13 @@ const CourseView = () => {
               )}
             </div>
 
-            <div className="inline-block bg-white/10 backdrop-blur-md p-6 px-10 rounded-2xl border border-white/20 transform hover:scale-105 transition-transform cursor-default">
+            <div className="inline-block bg-white/10 backdrop-blur-md p-4 sm:p-6 px-8 sm:px-10 rounded-2xl border border-white/20 transform hover:scale-105 transition-transform cursor-default">
               {isCourseCompleted ? (
-                <div className="text-6xl font-extrabold text-[#E53935] tracking-tight">
-                  {scoreData.score} <span className="text-2xl text-white/50 font-normal">/ {scoreData.max}</span>
+                <div className="text-4xl sm:text-6xl font-extrabold text-[#E53935] tracking-tight">
+                  {scoreData.score} <span className="text-xl sm:text-2xl text-white/50 font-normal">/ {scoreData.max}</span>
                 </div>
               ) : (
-                <div className="text-xl font-bold text-gray-400 tracking-tight py-4">
+                <div className="text-base sm:text-xl font-bold text-gray-400 tracking-tight py-2 sm:py-4">
                   Complete All Levels to View Score
                 </div>
               )}
@@ -362,77 +362,87 @@ const CourseView = () => {
           </div>
         </motion.div>
 
-        <div className="mb-10 bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <SafeIcon icon={FiInfo} className="w-5 h-5 text-blue-600" />
-            </div>
-            <h3 className="text-xl font-extrabold text_black">Understanding Your Score</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 flex-shrink-0">1</div>
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-1">Key Concepts</h4>
-                  <ul className="text-sm text-gray-600 space-y-2">
-                    <li className="flex gap-2"><span>•</span> <strong>Raw Score:</strong> Total number of correct answers.</li>
-                    <li className="flex gap-2"><span>•</span> <strong>No Penalties:</strong> Wrong or skipped answers do not lower your score.</li>
-                    <li className="flex gap-2"><span>•</span> <strong>Adaptive Nature:</strong> Your performance in earlier levels impacts future difficulty.</li>
-                    <li className="flex gap-2"><span>•</span> <strong>Weighting:</strong> Harder levels contribute more to your final scaled score.</li>
-                  </ul>
-                </div>
-              </div>
+        {course.is_adaptive ? (
+          <div className="space-y-10">
+            <div className="bg-white p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 text-center relative overflow-hidden">
+               <div className="relative z-10">
+                 <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md">
+                   <SafeIcon icon={FiTarget} className="w-10 h-10 text-purple-700" />
+                 </div>
+                 <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Adaptive SAT Test</h2>
+                 <p className="text-gray-600 text-lg mb-8 max-w-2xl mx-auto">
+                   This is a full-length, adaptive test containing Reading & Writing and Math sections. The difficulty of the second module will adapt based on your performance in the first module.
+                 </p>
+                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button
+                      onClick={() => navigate(`/student/adaptive-pre-test/${courseId}`)}
+                      className="px-8 py-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                    >
+                      Start Full-Length Test
+                    </button>
+                 </div>
+               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 flex-shrink-0">2</div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-gray-900 mb-1">Level Difficulty & Ranges</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-left">
-                      <thead>
-                        <tr className="border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
-                          <th className="py-2">Level</th>
-                          <th className="py-2">Math Range</th>
-                          <th className="py-2">English Range</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-gray-700 font-medium">
-                        <tr className="border-b border-gray-50">
-                          <td className="py-2 text-green-600 font-bold">Easy</td>
-                          <td className="py-2">200 – 500</td>
-                          <td className="py-2">200 – 480</td>
-                        </tr>
-                        <tr className="border-b border-gray-50">
-                          <td className="py-2 text-orange-500 font-bold">Medium</td>
-                          <td className="py-2">400 – 650</td>
-                          <td className="py-2">380 – 650</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2 text-[#E53935] font-bold">Hard</td>
-                          <td className="py-2">550 – 800</td>
-                          <td className="py-2">550 – 800</td>
-                        </tr>
-                      </tbody>
-                    </table>
+            <div id="preparation-materials" className="space-y-6">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <SafeIcon icon={FiIcons.FiBook || FiInfo} className="text-purple-600" />
+                Preparation & Study Materials
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[
+                  { section: 'Reading & Writing', levels: ['Moderate', 'Easy', 'Hard'] },
+                  { section: 'Math', levels: ['Moderate', 'Easy', 'Hard'] }
+                ].map((sec) => (
+                  <div key={sec.section} className="space-y-4">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                      <div className="w-1 h-4 bg-purple-500 rounded-full"></div>
+                      {sec.section}
+                    </h4>
+                    <div className="space-y-3">
+                      {sec.levels.map(level => {
+                        const study = uploads.find(u => u.section === (sec.section.includes('Read') ? 'reading_writing' : 'math') && u.level === level && u.category === 'study_material');
+                        const video = uploads.find(u => u.section === (sec.section.includes('Read') ? 'reading_writing' : 'math') && u.level === level && u.category === 'video_lecture');
+                        
+                        return (
+                          <div key={level} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="font-bold text-gray-800">{level} Module</div>
+                            <div className="flex gap-2">
+                              {study ? (
+                                <a href={study.file_url} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
+                                  <SafeIcon icon={FiIcons.FiFileText || FiInfo} /> PDF
+                                </a>
+                              ) : (
+                                <span className="p-2 bg-gray-50 text-gray-300 rounded-lg text-xs font-bold uppercase flex items-center gap-2 cursor-not-allowed">
+                                  <SafeIcon icon={FiIcons.FiFileText || FiInfo} /> No PDF
+                                </span>
+                              )}
+                              {video ? (
+                                <Link to={`/student/course/${courseId}/level/${level.toLowerCase()}/video?section=${sec.section.includes('Read') ? 'reading_writing' : 'math'}`} className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
+                                  <SafeIcon icon={FiIcons.FiPlay || FiInfo} /> Video
+                                </Link>
+                              ) : (
+                                <span className="p-2 bg-gray-50 text-gray-300 rounded-lg text-xs font-bold uppercase flex items-center gap-2 cursor-not-allowed">
+                                  <SafeIcon icon={FiIcons.FiPlay || FiInfo} /> No Video
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <p className="mt-4 text-[11px] text-gray-500 italic leading-relaxed">
-                    Same raw score ≠ same final score. Higher levels unlock the top 700–800 range.
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-
-        <div className="space-y-6">
-          {['Easy', 'Medium', 'Hard'].map((level, index) => {
-            const topics = getTopicsForLevel(level);
-            const unlocked = isLevelUnlocked(level);
-            const { passed, score } = getLevelStatus(level);
+        ) : (
+          <div className="space-y-6">
+            {['Easy', 'Medium', 'Hard'].map((level, index) => {
+              const topics = getTopicsForLevel(level);
+              const unlocked = isLevelUnlocked(level);
+              const { passed, score } = getLevelStatus(level);
 
             const styles = {
               Easy: { bg: 'bg-white', border: 'border-green-200', numberBg: 'bg-green-600', btn: 'bg-black text-white hover:bg-gray-800' },
@@ -509,6 +519,7 @@ const CourseView = () => {
             );
           })}
         </div>
+        )}
 
         <div className="mt-12 text-center">
           <Link to="/student" className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors">

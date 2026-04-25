@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService } from '../../services/api';
 import CourseForm from './CourseForm';
+import AdaptiveCourseForm from './AdaptiveCourseForm';
 import CourseCard from './CourseCard';
 
 const { FiPlus, FiBook, FiFilter, FiSearch, FiRefreshCw } = FiIcons;
@@ -12,6 +13,7 @@ const { FiPlus, FiBook, FiFilter, FiSearch, FiRefreshCw } = FiIcons;
 const CourseManagement = ({ onStatsUpdate }) => {
   const [courses, setCourses] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [showAdaptiveForm, setShowAdaptiveForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ status: '', search: '' });
   const [activeCategory, setActiveCategory] = useState('SAT');
@@ -21,7 +23,8 @@ const CourseManagement = ({ onStatsUpdate }) => {
   const COURSE_CATEGORIES = {
     'SAT': ['SAT Math', 'SAT Reading & Writing'],
     'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
-    'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry']
+    'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry'],
+    'Adaptive Tests': ['Full-Length SAT']
   };
 
   useEffect(() => {
@@ -50,6 +53,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
       // Hierarchy Filter
       filteredCourses = filteredCourses.filter(c => {
         const mainCat = c.main_category || (
+          c.is_adaptive ? 'Adaptive Tests' :
           (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
           (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' :
           ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
@@ -84,15 +88,26 @@ const CourseManagement = ({ onStatsUpdate }) => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setShowForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700 transition-colors"
-        >
-          <SafeIcon icon={FiPlus} className="w-4 h-4" />
-          <span>Add New Course</span>
-        </motion.button>
+        <div className="flex gap-3">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <SafeIcon icon={FiPlus} className="w-4 h-4" />
+            <span>Regular Course</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowAdaptiveForm(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-purple-700 transition-colors shadow-sm"
+          >
+            <SafeIcon icon={FiPlus} className="w-4 h-4" />
+            <span>Adaptive SAT Test</span>
+          </motion.button>
+        </div>
       </div>
 
       {/* Summary Stats */}
@@ -272,6 +287,15 @@ const CourseManagement = ({ onStatsUpdate }) => {
       {showForm && (
         <CourseForm
           onClose={() => setShowForm(false)}
+          onSave={() => {
+            loadCourses();
+          }}
+        />
+      )}
+
+      {showAdaptiveForm && (
+        <AdaptiveCourseForm
+          onClose={() => setShowAdaptiveForm(false)}
           onSave={() => {
             loadCourses();
           }}

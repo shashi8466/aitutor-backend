@@ -105,18 +105,20 @@ const Leaderboard = () => {
           <select
             value={selectedCourseId}
             onChange={(e) => setSelectedCourseId(e.target.value)}
-            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white font-bold text-sm cursor-pointer outline-none"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white font-bold text-sm cursor-pointer outline-none !bg-opacity-100"
           >
-            <option value="">Global Leaderboard (Total SAT)</option>
+            <option value="" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Global Leaderboard (Total SAT)</option>
             {courses.map(course => (
-              <option key={course.id} value={course.id}>{course.name} (SAT Score)</option>
+              <option key={course.id} value={course.id} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                {course.name} (SAT Score)
+              </option>
             ))}
           </select>
         </div>
 
         {/* Podium (Top 3) */}
         {!loading && students.length >= 3 && (
-          <div className="flex justify-center items-end gap-4 mb-12">
+          <div className="flex flex-col sm:flex-row justify-center items-center sm:items-end gap-6 sm:gap-4 mb-12">
             {[students[1], students[0], students[2]].map((student, idx) => {
               if (!student) return null;
               const isFirst = idx === 1;
@@ -129,11 +131,11 @@ const Leaderboard = () => {
                   initial={{ y: 50, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: idx * 0.2 }}
-                  className={`flex flex-col items-center ${isFirst ? 'order-2 -mt-8' : idx === 0 ? 'order-1' : 'order-3'}`}
+                  className={`flex flex-col items-center w-full sm:w-auto ${isFirst ? 'sm:order-2 sm:-mt-8' : idx === 0 ? 'sm:order-1' : 'sm:order-3'}`}
                 >
-                  <div className={`relative mb-3 ${isFirst ? 'w-24 h-24' : 'w-16 h-16'}`}>
+                  <div className={`relative mb-3 ${isFirst ? 'w-24 h-24' : 'w-16 h-16 sm:w-20 sm:h-20'}`}>
                     <div className={`w-full h-full rounded-full border-4 flex items-center justify-center overflow-hidden bg-white dark:bg-gray-800 ${isFirst ? 'border-yellow-400' : rank === 2 ? 'border-gray-300' : 'border-orange-400'}`}>
-                      <SafeIcon icon={FiUser} className={`text-gray-300 ${isFirst ? 'w-10 h-10' : 'w-6 h-6'}`} />
+                      <SafeIcon icon={FiUser} className={`text-gray-300 ${isFirst ? 'w-10 h-10' : 'w-6 h-6 sm:w-8 sm:h-8'}`} />
                     </div>
                     <div className={`absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${isFirst ? 'bg-yellow-400' : rank === 2 ? 'bg-gray-400' : 'bg-orange-400'}`}>
                       {rank}

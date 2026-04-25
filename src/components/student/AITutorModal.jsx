@@ -447,11 +447,11 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-black bg-opacity-80 flex items-end md:items-center justify-center p-0 md:p-4 z-50 backdrop-blur-sm">
-      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-900 rounded-t-2xl md:rounded-2xl shadow-2xl w-full max-w-4xl h-[100dvh] md:h-[85vh] flex flex-col overflow-hidden border border-gray-800 dark:border-gray-700 mobile-safe">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-black/80 flex items-end md:items-center justify-center p-0 md:p-4 z-[999999] backdrop-blur-sm">
+      <motion.div initial={{ y: '100%', opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white dark:bg-gray-900 rounded-t-[2rem] md:rounded-2xl shadow-2xl w-full max-w-4xl h-[92dvh] md:h-[85vh] flex flex-col overflow-hidden border border-gray-100 dark:border-gray-800 mobile-safe">
 
         {/* Header */}
-        <div className="bg-white/80 dark:bg-black/40 backdrop-blur-md p-3 md:p-4 flex justify-between items-center border-b border-gray-200 dark:border-gray-800 shadow-sm z-10">
+        <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md p-4 flex justify-between items-center border-b border-gray-100 dark:border-gray-800 shadow-sm z-30">
           <div className="flex items-center gap-3">
             <div className="bg-gradient-to-br from-[#E53935] to-[#FF5722] p-2.5 rounded-xl shadow-lg shadow-red-500/20">
               <SafeIcon icon={FiCpu} className="w-5 h-5 text-white" />
@@ -500,9 +500,9 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
                 <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/20 rounded-3xl flex items-center justify-center text-amber-600">
                     <SafeIcon icon={FiIcons.FiZap} className="w-10 h-10" />
                 </div>
-                <div className="space-y-2">
-                    <h3 className="text-2xl font-black text-gray-900 dark:text-white">AI Tutor is Premium</h3>
-                    <p className="text-gray-500 text-sm font-medium max-w-xs">
+                <div className="space-y-4">
+                    <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">AI Tutor is Premium</h3>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium max-w-[280px] sm:max-w-xs">
                         Unlock your personal AI study companion to get instant explanations and custom practice questions.
                     </p>
                 </div>
@@ -603,17 +603,17 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
             </div>
 
             {/* Input Area */}
-            <div className="p-3 md:p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-              <div className="flex gap-2 relative">
+            <div className="p-4 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 pb-safe shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+              <div className="flex gap-2 relative max-w-3xl mx-auto w-full">
                 <input
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder="Ask a follow-up question..."
-                  className="flex-1 pl-4 pr-12 py-3 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-[#E53935] outline-none text-sm dark:text-white dark:caret-white transition-shadow font-medium"
+                  className="flex-1 pl-4 pr-12 py-3.5 border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 rounded-xl focus:ring-2 focus:ring-[#E53935] outline-none text-sm dark:text-white dark:caret-white transition-shadow font-medium"
                 />
-                <button onClick={handleSendMessage} disabled={!inputValue.trim() || loading} className="absolute right-2 top-2 bottom-2 bg-black hover:bg-gray-800 text-white px-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                <button onClick={handleSendMessage} disabled={!inputValue.trim() || loading} className="absolute right-2 top-2 bottom-2 bg-black hover:bg-gray-800 text-white px-3.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
                   <SafeIcon icon={FiSend} className="w-4 h-4" />
                 </button>
               </div>
