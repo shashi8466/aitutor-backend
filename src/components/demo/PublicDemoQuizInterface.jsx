@@ -33,6 +33,40 @@ const getCleanQuestionText = (text, imageUrl) => {
   return cleaned.trim();
 };
 
+// Helper to extract image URLs from question text
+const extractImagesFromText = (text) => {
+  if (!text) return [];
+  const images = [];
+  try {
+    // Match <img> tags
+    const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    let match;
+    while ((match = imgTagRegex.exec(text)) !== null) {
+      images.push(match[1]);
+    }
+  } catch (e) {
+    console.warn("Error extracting images:", e);
+  }
+  return images;
+};
+
+// Helper to get clean text without image tags
+const getCleanTextWithoutImages = (text) => {
+  if (!text) return '';
+  let cleaned = text;
+  try {
+    // Remove <img> tags
+    const imgTagRegex = /<img[^>]+src=["'][^"']+["'][^>]*>/gi;
+    cleaned = cleaned.replace(imgTagRegex, '');
+    // Remove [IMAGE: ...] placeholders
+    const imagePlaceholderRegex = /\[IMAGE:\s*[^\]]+\]/gi;
+    cleaned = cleaned.replace(imagePlaceholderRegex, '');
+  } catch (e) {
+    console.warn("Error cleaning text:", e);
+  }
+  return cleaned.trim();
+};
+
 
 const PublicDemoQuizInterface = () => {
   const { courseId, level } = useParams();
@@ -669,7 +703,38 @@ const PublicDemoQuizInterface = () => {
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
         <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
           <div className="prose prose-slate max-w-none leading-[1.6] text-[16px] sm:text-[18px] text-slate-900 font-medium tracking-tight antialiased">
-                <MathRenderer text={currentQuestion?.text || ''} />
+            {/* Extract and display images separately */}
+            {(() => {
+              const questionText = currentQuestion?.text || '';
+              const images = extractImagesFromText(questionText);
+              const cleanText = getCleanTextWithoutImages(questionText);
+              
+              return (
+                <>
+                  {/* Display images first */}
+                  {images.length > 0 && (
+                    <div className="mb-6 space-y-4">
+                      {images.map((imgUrl, idx) => (
+                        <div key={idx} className="flex justify-center">
+                          <img 
+                            src={imgUrl} 
+                            alt={`Question image ${idx + 1}`} 
+                            className="max-w-full h-auto rounded-lg shadow-sm border border-slate-200"
+                            onError={(e) => {
+                              console.warn('Failed to load image:', imgUrl);
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Display clean text without image tags */}
+                  <MathRenderer text={cleanText} />
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -701,6 +766,11 @@ const PublicDemoQuizInterface = () => {
                   currentQuestion.options.map((optContent, idx) => {
                     const letter = String.fromCharCode(65 + idx);
                     const isSelected = selectedAnswer === letter;
+                    
+                    // Extract images from option content
+                    const optionImages = extractImagesFromText(optContent);
+                    const cleanOptionText = getCleanTextWithoutImages(optContent);
+                    
                     return (
                       <div key={letter} className="flex gap-4 group relative z-40">
                          <button
@@ -715,7 +785,26 @@ const PublicDemoQuizInterface = () => {
                             onClick={() => handleAnswerSelect(letter)}
                             className={`flex-1 rounded-2xl p-5 min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
                          >
-                            <div className="pointer-events-none"><MathRenderer text={optContent} className="text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
+                            {/* Display option images if any */}
+                            {optionImages.length > 0 && (
+                              <div className="mb-3 space-y-2">
+                                {optionImages.map((imgUrl, imgIdx) => (
+                                  <div key={imgIdx} className="flex justify-center">
+                                    <img 
+                                      src={imgUrl} 
+                                      alt={`Option ${letter} image ${imgIdx + 1}`} 
+                                      className="max-w-full h-auto rounded-lg shadow-sm border border-slate-200"
+                                      onError={(e) => {
+                                        console.warn('Failed to load option image:', imgUrl);
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {/* Display clean option text */}
+                            <div className="pointer-events-none"><MathRenderer text={cleanOptionText} className="text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
                          </div>
                       </div>
                     );

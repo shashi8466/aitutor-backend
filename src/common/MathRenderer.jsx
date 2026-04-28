@@ -82,6 +82,43 @@ const MathRenderer = ({ text, className = '' }) => {
     processedText = processedText.replace(/\r?\n/g, '<br />');
 
     // ---------------------------------------------------------
+    // 1a. Automatic Image Tag Parsing ([IMAGE: filename.ext])
+    // ---------------------------------------------------------
+    // Try to resolve images if they are in the [IMAGE: ...] format
+    // This is a fallback for when the backend hasn't already replaced them with <img> tags.
+    const imageRegex = /\[IMAGE:\s*([^\]]+)\]/gi;
+    const imageMatches = processedText.match(imageRegex);
+    
+    if (imageMatches) {
+      // Get courseId from URL if possible
+      const pathParts = window.location.pathname.split('/');
+      const demoIndex = pathParts.indexOf('demo');
+      const studentCourseIndex = pathParts.indexOf('course');
+      const adaptiveTestIndex = pathParts.indexOf('adaptive-test');
+      const adaptivePreTestIndex = pathParts.indexOf('adaptive-pre-test');
+      
+      let courseIdFromUrl = null;
+      if (demoIndex !== -1 && pathParts[demoIndex + 1]) courseIdFromUrl = pathParts[demoIndex + 1];
+      else if (studentCourseIndex !== -1 && pathParts[studentCourseIndex + 1]) courseIdFromUrl = pathParts[studentCourseIndex + 1];
+      else if (adaptiveTestIndex !== -1 && pathParts[adaptiveTestIndex + 1]) courseIdFromUrl = pathParts[adaptiveTestIndex + 1];
+      else if (adaptivePreTestIndex !== -1 && pathParts[adaptivePreTestIndex + 1]) courseIdFromUrl = pathParts[adaptivePreTestIndex + 1];
+
+      imageMatches.forEach(tag => {
+        const filename = tag.match(/\[IMAGE:\s*([^\]]+)\]/i)[1].trim();
+        // Construct the Supabase URL - Using environment variable or fallback
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+        const supabaseUrl = `${baseUrl}/storage/v1/object/public/documents`;
+        
+        const fullImageUrl = courseIdFromUrl 
+          ? `${supabaseUrl}/${courseIdFromUrl}/images/${filename}`
+          : `${supabaseUrl}/images/${filename}`; // Fallback path
+
+        const imgHtml = `<div class="my-4 flex justify-center"><img src="${fullImageUrl}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-sm border border-slate-200" onerror="this.style.display='none'; console.warn('Failed to load image:', '${fullImageUrl}')" /></div>`;
+        processedText = processedText.replace(tag, imgHtml);
+      });
+    }
+
+    // ---------------------------------------------------------
     // 2. Smart Math Detection & Wrapping
     // ---------------------------------------------------------
     if (window.MathJax) {

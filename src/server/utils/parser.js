@@ -79,7 +79,7 @@ const extractOptionsFromLine = (text, currentOptionsCount = 0) => {
 /**
  * Main entry point - NOW WITH ROBUST ERROR HANDLING
  */
-export const parseDocument = async (file, rawTextOnly = false) => {
+export const parseDocument = async (file, rawTextOnly = false, options = {}) => {
   const buffer = file.buffer || (file.path ? fs.readFileSync(file.path) : null);
   const fileType = file.originalname.split('.').pop().toLowerCase();
   let text = '';
@@ -90,7 +90,7 @@ export const parseDocument = async (file, rawTextOnly = false) => {
       throw new Error('File buffer missing. Unable to read uploaded file.');
     }
     if (fileType === 'docx') {
-      const result = await extractDocxWithMath(buffer);
+      const result = await extractDocxWithMath(buffer, options);
       text = result.text;
       extractedImages = result.images || [];
     } else if (fileType === 'txt') {
@@ -127,7 +127,7 @@ export const parseDocument = async (file, rawTextOnly = false) => {
 /**
  * DOCX Extraction
  */
-const extractDocxWithMath = async (buffer) => {
+const extractDocxWithMath = async (buffer, options = {}) => {
   try {
     const zip = new AdmZip(buffer);
     const docEntry = zip.getEntry("word/document.xml");
@@ -144,9 +144,9 @@ const extractDocxWithMath = async (buffer) => {
       const relNodes = relDoc.getElementsByTagName("Relationship");
       for (let i = 0; i < relNodes.length; i++) {
         const rel = relNodes[i];
-        const id = rel.getAttribute("Id");
-        const target = rel.getAttribute("Target");
-        if (id && target && (target.includes("media/") || target.includes("embeddings/"))) {
+        const id = rel.getAttribute("Id") || rel.getAttribute("id");
+        const target = rel.getAttribute("Target") || rel.getAttribute("target");
+        if (id && target) {
           relMap[id] = "word/" + target.replace(/^(\.\.\/)+/, "");
         }
       }
@@ -154,25 +154,24 @@ const extractDocxWithMath = async (buffer) => {
 
     const extractedImages = [];
     const findEmbedId = (node) => {
-      const getAttr = (el, attrName) => {
-        const namespaces = [
-          "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
-          "http://schemas.microsoft.com/office/2006/relationships"
-        ];
-        for (const ns of namespaces) {
-          const val = el.getAttributeNS(ns, attrName);
-          if (val) return val;
+      if (!node || node.nodeType !== 1) return null;
+      
+      // Check attributes of current node
+      for (let i = 0; i < node.attributes.length; i++) {
+        const attr = node.attributes[i];
+        if (attr.localName === 'embed' || attr.localName === 'id') {
+          const val = attr.value;
+          if (val && val.startsWith('rId')) return val;
         }
-        for (let i = 0; i < el.attributes.length; i++) {
-          const attr = el.attributes[i];
-          if (attr.localName === attrName || attr.name.endsWith(":" + attrName)) return attr.value;
+      }
+
+      // Check children recursively
+      if (node.childNodes) {
+        for (let i = 0; i < node.childNodes.length; i++) {
+          const res = findEmbedId(node.childNodes[i]);
+          if (res) return res;
         }
-        return el.getAttribute(attrName);
-      };
-      const blips = node.getElementsByTagName("a:blip");
-      if (blips.length > 0) return getAttr(blips[0], "embed");
-      const imagedata = node.getElementsByTagName("v:imagedata");
-      if (imagedata.length > 0) return getAttr(imagedata[0], "id");
+      }
       return null;
     };
 
@@ -189,8 +188,11 @@ const extractDocxWithMath = async (buffer) => {
               if (imgEntry) {
                 const imageBuffer = imgEntry.getData();
                 const imageExt = path.extname(imgEntry.entryName).substring(1);
-                extractedImages.push({ id: embedId, extension: imageExt, buffer: imageBuffer, name: `image_${Date.now()}_${embedId}.${imageExt}` });
-                return ` [IMAGE: ${embedId}.${imageExt}] `;
+                // Use a stable name for the image based on its embedId to allow predictable resolution
+                const prefix = options.imagePrefix || '';
+                const stableName = `${prefix}${embedId}.${imageExt}`;
+                extractedImages.push({ id: embedId, extension: imageExt, buffer: imageBuffer, name: stableName });
+                return `[IMAGE: ${stableName}]`;
               }
             } catch (e) { }
           }

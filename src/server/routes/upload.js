@@ -212,23 +212,66 @@ router.post('/', upload.single('file'), async (req, res) => {
       // Fire and forget
       (async () => {
         try {
-          const parseResult = await parseDocument({ ...req.file, buffer: fileBuffer, path: req.file.path });
+          const parseResult = await parseDocument({ ...req.file, buffer: fileBuffer, path: req.file.path }, false, { imagePrefix: `${uploadId}_` });
           const parsedQuestions = parseResult.questions || [];
+          const extractedImages = parseResult.images || [];
           
+          // 6a. Upload Extracted Images
+          const imageUrlMap = {};
+          if (extractedImages.length > 0) {
+            console.log(`🖼️ [PARSER] Uploading ${extractedImages.length} extracted images...`);
+            for (const img of extractedImages) {
+              const imgPath = `${numericCourseId}/images/${img.name}`;
+              const { error: imgUploadError } = await supabaseAdmin.storage
+                .from(BUCKET_NAME)
+                .upload(imgPath, img.buffer, {
+                  contentType: `image/${img.extension === 'jpg' ? 'jpeg' : img.extension}`,
+                  upsert: true
+                });
+
+              if (!imgUploadError) {
+                const { data: imgUrlData } = supabaseAdmin.storage
+                  .from(BUCKET_NAME)
+                  .getPublicUrl(imgPath);
+                
+                imageUrlMap[`${img.id}.${img.extension}`] = imgUrlData.publicUrl;
+              } else {
+                console.warn(`⚠️ [PARSER] Failed to upload image ${img.id}:`, imgUploadError.message);
+              }
+            }
+          }
+
           if (parsedQuestions.length > 0) {
-            const questionsToInsert = parsedQuestions.map(q => ({
-              course_id: numericCourseId,
-              level: level === 'All' ? (q.level || 'Medium') : level,
-              section: section || q.section || 'math',
-              type: (q.options && q.options.length >= 2) ? 'mcq' : 'short_answer',
-              question: q.question,
-              options: q.options || [],
-              correct_answer: q.correctAnswer || '',
-              explanation: q.explanation || '',
-              upload_id: uploadId,
-              topic: q.topic || null,
-              difficulty_weight: 1.0
-            }));
+            const questionsToInsert = parsedQuestions.map(q => {
+              // 6b. Replace image placeholders with actual <img> tags or URLs
+              let finalQuestionText = q.question || '';
+              let finalExplanationText = q.explanation || '';
+
+              Object.entries(imageUrlMap).forEach(([placeholder, url]) => {
+                const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // Regex to match [IMAGE: placeholder] with optional surrounding spaces
+                const tagRegex = new RegExp(`\\s*\\[IMAGE:\\s*${escapedPlaceholder}\\s*\\]\\s*`, 'gi');
+                
+                const imgTag = `<div class="my-4 flex justify-center"><img src="${url}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-sm border border-slate-200" /></div>`;
+                
+                finalQuestionText = finalQuestionText.replace(tagRegex, imgTag);
+                finalExplanationText = finalExplanationText.replace(tagRegex, imgTag);
+              });
+
+              return {
+                course_id: numericCourseId,
+                level: level === 'All' ? (q.level || 'Medium') : level,
+                section: section || q.section || 'math',
+                type: (q.options && q.options.length >= 2) ? 'mcq' : 'short_answer',
+                question: finalQuestionText,
+                options: q.options || [],
+                correct_answer: q.correctAnswer || '',
+                explanation: finalExplanationText,
+                upload_id: uploadId,
+                topic: q.topic || null,
+                difficulty_weight: 1.0
+              };
+            });
 
             const { error: qError } = await supabaseAdmin.from('questions').insert(questionsToInsert);
             if (qError) console.error('❌ [PARSER] DB Error:', qError);
