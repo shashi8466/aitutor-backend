@@ -73,7 +73,7 @@ const CourseView = () => {
         uploadService.getAll({ courseId }),
         progressService.getAllUserProgress(user.id),
         planService.getPlan(user.id),
-        gradingService.getAllMyScores(),
+        gradingService.getAllMyScores(user.id),
         planService.getContentAccess()
       ]);
 

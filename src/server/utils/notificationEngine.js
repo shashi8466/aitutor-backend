@@ -6,9 +6,21 @@
 
 import https from 'https';
 
-const { getInternalSettings } = await import('./internalSettings.js').catch(() => ({
-    getInternalSettings: async () => ({})
-}));
+let getInternalSettings;
+(async () => {
+    try {
+        const module = await import('./internalSettings.js');
+        getInternalSettings = module.getInternalSettings;
+    } catch (err) {
+        console.error('❌ [notificationEngine] Failed to import internalSettings:', err.message);
+        getInternalSettings = async () => ({});
+    }
+})();
+
+// Fallback in case async import hasn't completed
+if (!getInternalSettings) {
+    getInternalSettings = async () => ({});
+}
 
 // ─── Email via Brevo HTTP API ────────────────────────────────────────────────
 
@@ -33,17 +45,33 @@ export async function sendEmail({ to, subject, html, text }) {
     }
 
     const senderEmail = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'ssky57771@gmail.com';
-    const senderName  = process.env.APP_NAME  || 'AIPrep365';
+    const appName = process.env.APP_NAME || 'AIPrep365';
+
+    console.log(`🔍 [Email Debug] Using Sender: ${senderEmail}, App: ${appName}`);
+    console.log(`🔍 [Email Debug] API Key starts with: ${apiKey.substring(0, 10)}...`);
 
     const toList = Array.isArray(to)
         ? to
         : String(to).split(',').map(s => s.trim()).filter(Boolean);
 
+    try {
+        console.log('\n' + '='.repeat(60));
+        console.log('📧 [EMAIL SENDING DETAILS]');
+        console.log('='.repeat(60));
+        console.log(`   To: ${toList.join(', ')}`);
+        console.log(`   Subject: ${subject}`);
+        console.log(`   From: ${senderEmail} (${appName})`);
+        console.log(`   BREVO_API_KEY: ${apiKey.substring(0, 10)}...`);
+        console.log(`   HTML Length: ${html?.length || 0} characters`);
+        console.log('='.repeat(60));
+    } catch (e) {}
+
     const payload = {
-        sender:      { email: senderEmail, name: senderName },
+        sender:      { email: senderEmail, name: appName },
         to:          toList.map(email => ({ email })),
         subject:     String(subject || '(No Subject)').trim(),
         htmlContent: html || text || '<p>Notification</p>',
+        replyTo:     { email: senderEmail, name: appName },
         ...(text && !html ? { textContent: text } : {}),
     };
 
@@ -70,12 +98,36 @@ export async function sendEmail({ to, subject, html, text }) {
                     try { parsed = JSON.parse(data); } catch(e) {}
 
                     if (res.statusCode >= 200 && res.statusCode < 300) {
-                        console.log(`✅ [Email] Sent via Brevo to ${toList.join(', ')} | MessageId: ${parsed.messageId}`);
+                        console.log('\n' + '='.repeat(60));
+                        console.log('✅ [EMAIL SENT SUCCESSFULLY]');
+                        console.log(`   To: ${toList.join(', ')}`);
+                        console.log(`   Message ID: ${parsed.messageId}`);
+                        console.log('='.repeat(60) + '\n');
                         resolve({ ok: true, id: parsed.messageId });
                     } else {
                         const errMsg = parsed.message || data.slice(0, 200);
-                        console.error(`❌ [Email] Brevo error ${res.statusCode}: ${errMsg}`);
-                        resolve({ ok: false, error: `Brevo ${res.statusCode}: ${errMsg}` });
+                        console.log('\n' + '='.repeat(60));
+                        console.error('❌ [BREVO API ERROR]');
+                        console.error(`   Status: ${res.statusCode}`);
+                        console.error(`   Error: ${errMsg}`);
+                        console.error(`   To: ${toList.join(', ')}`);
+                        console.error(`   Subject: ${subject}`);
+                        
+                        // Provide helpful error messages
+                        let helpfulError = errMsg;
+                        if (res.statusCode === 400) {
+                            if (errMsg.toLowerCase().includes('sender')) {
+                                helpfulError = `Sender email '${senderEmail}' is not verified in Brevo. Please verify it in Brevo dashboard > Senders & IP > Senders.`;
+                            }
+                        } else if (res.statusCode === 401) {
+                            helpfulError = `Invalid API key. Check BREVO_API_KEY environment variable.`;
+                        } else if (res.statusCode === 403) {
+                            helpfulError = `API key lacks permission. Check Brevo plan and SMTP permissions.`;
+                        }
+                        
+                        console.error(`   Hint: ${helpfulError}`);
+                        console.error('='.repeat(60) + '\n');
+                        resolve({ ok: false, error: helpfulError, rawError: errMsg, statusCode: res.statusCode });
                     }
                 });
             }
@@ -103,74 +155,84 @@ export async function sendEmail({ to, subject, html, text }) {
  * Make a Twilio REST API call using Node https (avoids requiring twilio npm pkg).
  */
 async function twilioSend({ from, to, body }) {
-    const settings = await getInternalSettings();
-    const smsConfig = settings?.sms_config || {};
+    try {
+        const settings = await getInternalSettings();
+        const smsConfig = settings?.sms_config || {};
 
-    let accountSid, authToken;
+        let accountSid, authToken;
 
-    if (smsConfig.enabled && smsConfig.account_sid && smsConfig.auth_token) {
-        accountSid = smsConfig.account_sid;
-        authToken = smsConfig.auth_token;
-    } else {
-        accountSid = process.env.TWILIO_ACCOUNT_SID;
-        authToken  = process.env.TWILIO_AUTH_TOKEN;
-    }
+        if (smsConfig.enabled && smsConfig.account_sid && smsConfig.auth_token) {
+            accountSid = smsConfig.account_sid;
+            authToken = smsConfig.auth_token;
+        } else {
+            accountSid = process.env.TWILIO_ACCOUNT_SID;
+            authToken  = process.env.TWILIO_AUTH_TOKEN;
+        }
 
-    if (!accountSid || !authToken) {
-        return { ok: false, error: 'Twilio credentials missing' };
-    }
+        if (!accountSid || !authToken) {
+            return { ok: false, error: 'Twilio credentials missing' };
+        }
 
-    const params = new URLSearchParams({ From: from, To: to, Body: body });
-    const postData = params.toString();
+        const params = new URLSearchParams({ From: from, To: to, Body: body });
+        const postData = params.toString();
 
-    return new Promise((resolve) => {
-        const req = https.request(
-            {
-                hostname: 'api.twilio.com',
-                port: 443,
-                path: `/2010-04-01/Accounts/${accountSid}/Messages.json`,
-                method: 'POST',
-                auth: `${accountSid}:${authToken}`,
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Content-Length': Buffer.byteLength(postData)
-                }
-            },
-            (res) => {
-                let data = '';
-                res.on('data', (chunk) => (data += chunk));
-                res.on('end', () => {
-                    if (res.statusCode >= 200 && res.statusCode < 300) {
-                        console.log(`✅ [Twilio] Message sent to ${to}`);
-                        resolve({ ok: true });
-                    } else {
-                        console.error(`❌ [Twilio] Error ${res.statusCode}:`, data);
-                        resolve({ ok: false, error: `Twilio Error ${res.statusCode}: ${data}` });
+        return new Promise((resolve) => {
+            const req = https.request(
+                {
+                    hostname: 'api.twilio.com',
+                    port: 443,
+                    path: `/2010-04-01/Accounts/${accountSid}/Messages.json`,
+                    method: 'POST',
+                    auth: `${accountSid}:${authToken}`,
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Length': Buffer.byteLength(postData)
                     }
-                });
-            }
-        );
-        req.on('error', (err) => {
-            console.error('❌ [Twilio] Request error:', err.message);
-            resolve({ ok: false, error: err.message });
+                },
+                (res) => {
+                    let data = '';
+                    res.on('data', (chunk) => (data += chunk));
+                    res.on('end', () => {
+                        if (res.statusCode >= 200 && res.statusCode < 300) {
+                            console.log(`✅ [Twilio] Message sent to ${to}`);
+                            resolve({ ok: true });
+                        } else {
+                            console.error(`❌ [Twilio] Error ${res.statusCode}:`, data);
+                            resolve({ ok: false, error: `Twilio Error ${res.statusCode}: ${data}` });
+                        }
+                    });
+                }
+            );
+            req.on('error', (err) => {
+                console.error('❌ [Twilio] Request error:', err.message);
+                resolve({ ok: false, error: err.message });
+            });
+            req.setTimeout(15000, () => {
+                req.destroy();
+                console.error('❌ [Twilio] Request timed out');
+                resolve({ ok: false, error: 'Twilio request timed out' });
+            });
+            req.write(postData);
+            req.end();
         });
-        req.setTimeout(15000, () => {
-            req.destroy();
-            console.error('❌ [Twilio] Request timed out');
-            resolve({ ok: false, error: 'Twilio request timed out' });
-        });
-        req.write(postData);
-        req.end();
-    });
+    } catch (err) {
+        console.error('❌ [Twilio] twilioSend error:', err.message);
+        return { ok: false, error: err.message };
+    }
 }
 
 export async function sendSMS({ to, message }) {
-    if (!to) return { ok: false, error: 'No phone number' };
-    const settings = await getInternalSettings();
-    const smsConfig = settings?.sms_config || {};
-    let from = (smsConfig.enabled && smsConfig.from_number) ? smsConfig.from_number : (process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
-    if (!from) return { ok: false, error: 'TWILIO_FROM_NUMBER missing' };
-    return twilioSend({ from, to, body: message });
+    try {
+        if (!to) return { ok: false, error: 'No phone number' };
+        const settings = await getInternalSettings();
+        const smsConfig = settings?.sms_config || {};
+        let from = (smsConfig.enabled && smsConfig.from_number) ? smsConfig.from_number : (process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
+        if (!from) return { ok: false, error: 'TWILIO_FROM_NUMBER missing' };
+        return await twilioSend({ from, to, body: message });
+    } catch (err) {
+        console.error('❌ [sendSMS] Error:', err.message);
+        return { ok: false, error: err.message };
+    }
 }
 
 export async function sendWhatsApp({ to, message }) {
@@ -370,27 +432,32 @@ export function buildWelcomeEmail({ name, appUrl }) {
 export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetails }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const allLevels = scoreDetails?.allLevels || {};
-    const isComprehensive = scoreDetails?.comprehensive && (allLevels.easy || allLevels.medium || allLevels.hard);
+    const comprehensive = scoreDetails?.comprehensive || {};
+    const isAdaptiveSAT = scoreDetails?.isAdaptiveSAT || 
+                          level?.toLowerCase()?.includes('adaptive') || 
+                          courseName?.toLowerCase()?.includes('adaptive');
     
     // Always prefer comprehensive data for final prediction
-    const finalPredictedScore = scoreDetails?.comprehensive?.finalPredictedScore || scoreDetails?.scaledScore || 0;
-    const overallAccuracy = scoreDetails?.comprehensive?.overallAccuracy || Math.round(scoreDetails?.currentLevelPercentage || scoreDetails?.percentage || 0);
-    const totalQuestions = scoreDetails?.comprehensive?.totalQuestions || scoreDetails?.totalQuestions || 0;
-    const totalCorrect = scoreDetails?.comprehensive?.totalCorrect || scoreDetails?.correctCount || 0;
+    const finalPredictedScore = comprehensive?.finalPredictedScore || scoreDetails?.scaledScore || 0;
+    const overallAccuracy = comprehensive?.overallAccuracy || Math.round(scoreDetails?.currentLevelPercentage || scoreDetails?.percentage || 0);
+    const totalQuestions = comprehensive?.totalQuestions || scoreDetails?.totalQuestions || 0;
+    const totalCorrect = comprehensive?.totalCorrect || scoreDetails?.correctCount || 0;
+    const rwScore = comprehensive?.rwScore || 0;
+    const mathScore = comprehensive?.mathScore || 0;
     
-    const performance = finalPredictedScore >= 700 ? 'Expert' : finalPredictedScore >= 550 ? 'Strong' : finalPredictedScore >= 400 ? 'Developing' : 'Starting Out';
-    const badge = finalPredictedScore >= 700 ? 'badge-green' : finalPredictedScore >= 550 ? 'badge-blue' : 'badge-yellow';
+    const performance = finalPredictedScore >= 1400 ? 'Expert' : finalPredictedScore >= 1200 ? 'Strong' : finalPredictedScore >= 1000 ? 'Developing' : 'Starting Out';
+    const badge = finalPredictedScore >= 1400 ? 'badge-green' : finalPredictedScore >= 1200 ? 'badge-blue' : finalPredictedScore >= 1000 ? 'badge-yellow' : 'badge-red';
 
     // Helper function to get detailed level score display
     const getLevelDisplay = (levelData) => {
         if (!levelData) return '<div class="score-box"><div class="val">—</div><div class="lbl">Not Completed</div></div>';
         
-        const accuracy = Math.round((levelData.correctCount || 0) / (levelData.totalQuestions || 1) * 100);
+        const accuracy = Math.round((levelData.correct || 0) / (levelData.total || 1) * 100);
         return `
             <div class="score-box">
-                <div class="val">${levelData.scaledScore || '—'}</div>
+                <div class="val">${Math.round((levelData.correct || 0) / (levelData.total || 1) * 800) || '—'}</div>
                 <div class="lbl">${Math.round(accuracy)}%</div>
-                <div class="lbl">${levelData.correctCount || 0}/${levelData.totalQuestions || 0}</div>
+                <div class="lbl">${levelData.correct || 0}/${levelData.total || 0}</div>
             </div>
         `;
     };
@@ -399,55 +466,113 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
     const getLevelRow = (levelName, levelData) => {
         if (!levelData) return `<div style="margin-bottom: 15px;"><strong>${levelName.toUpperCase()}:</strong> Not Completed</div>`;
         
-        const accuracy = Math.round((levelData.correctCount || 0) / (levelData.totalQuestions || 1) * 100);
+        const accuracy = Math.round((levelData.correct || 0) / (levelData.total || 1) * 100);
         return `
             <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px; font-size: 16px;">
                 <strong style="min-width: 80px;">${levelName.toUpperCase()}:</strong>
-                <span style="font-weight: 600; color: #818cf8; font-size: 18px;">${levelData.scaledScore || '---'}</span>
+                <span style="font-weight: 600; color: #818cf8; font-size: 18px;">${Math.round((levelData.correct || 0) / (levelData.total || 1) * 800) || '---'}</span>
                 <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
-                <span style="color: #64748b;">| ${levelData.correctCount || 0}/${levelData.totalQuestions || 0}</span>
+                <span style="color: #64748b;">| ${levelData.correct || 0}/${levelData.total || 0}</span>
             </div>
         `;
     };
+
+    // Helper function for Adaptive SAT Test module display
+    const getAdaptiveModuleRow = (moduleName, moduleData) => {
+        if (!moduleData) return `<div style="margin-bottom: 10px;"><strong>${moduleName.toUpperCase()}:</strong> Not Completed</div>`;
+        
+        const accuracy = Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 100);
+        return `
+            <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <strong style="min-width: 100px;">${moduleName.toUpperCase()}:</strong>
+                <span style="font-weight: 600; color: #818cf8;">${Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 800)}</span>
+                <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
+                <span style="color: #64748b;">| ${moduleData.correct || 0}/${moduleData.total || 0}</span>
+            </div>
+        `;
+    };
+
+    // Generate module breakdown for Adaptive SAT Test
+    const adaptiveModuleBreakdown = isAdaptiveSAT ? `
+        <!-- Adaptive SAT Test Module Results -->
+        <p class="section-title">Module Performance</p>
+        <div style="margin-bottom: 30px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px;">
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 10px; text-transform: uppercase;">Reading & Writing</div>
+                ${getAdaptiveModuleRow('RW Moderate', allLevels.rw_moderate)}
+                ${getAdaptiveModuleRow('RW Hard', allLevels.rw_hard)}
+                ${getAdaptiveModuleRow('RW Easy', allLevels.rw_easy)}
+            </div>
+            <div>
+                <div style="font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 10px; text-transform: uppercase;">Math</div>
+                ${getAdaptiveModuleRow('Math Moderate', allLevels.math_moderate)}
+                ${getAdaptiveModuleRow('Math Hard', allLevels.math_hard)}
+                ${getAdaptiveModuleRow('Math Easy', allLevels.math_easy)}
+            </div>
+        </div>
+
+        <!-- Section Scores -->
+        <p class="section-title">Section Scores</p>
+        <div class="score-row" style="margin-bottom: 30px;">
+            <div class="score-box" style="flex: 1;">
+                <div class="val" style="font-size: 28px; color: #818cf8;">${rwScore}</div>
+                <div class="lbl">Reading & Writing</div>
+            </div>
+            <div class="score-box" style="flex: 1;">
+                <div class="val" style="font-size: 28px; color: #818cf8;">${mathScore}</div>
+                <div class="lbl">Math</div>
+            </div>
+        </div>
+    ` : `
+        <!-- Individual Level Results for Non-Adaptive Tests -->
+        <p class="section-title">Performance by Level</p>
+        <div style="margin-bottom: 30px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px;">
+            ${getLevelRow('Easy', allLevels.easy)}
+            ${getLevelRow('Medium', allLevels.medium)}
+            ${getLevelRow('Hard', allLevels.hard)}
+        </div>
+    `;
 
     return `
     <!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body>
     <div class="wrapper"><div class="card">
         <div class="header">
-            <h1>🎓 Final Predicted Score</h1>
-            <p>${courseName || 'SAT Practice'} • Full Demo Completed</p>
+            <h1>🎓 ${isAdaptiveSAT ? 'Your SAT Score Report' : 'Final Predicted Score'}</h1>
+            <p>${courseName || 'SAT Practice'} • ${isAdaptiveSAT ? 'Full-Length Adaptive Test Completed' : 'Full Demo Completed'}</p>
         </div>
         <div class="body">
             <p class="intro-heading">Hello ${studentName || 'Student'},</p>
             <p class="intro-text">
-                Congratulations! You have completed the intensive 3-stage demo for <strong>${courseName}</strong>. Based on your performance across all levels, here is your comprehensive final report:
+                ${isAdaptiveSAT 
+                    ? `Congratulations on completing the <strong>Full-Length Adaptive SAT Test</strong>! Here is your comprehensive score report with detailed section and module breakdowns:`
+                    : `Congratulations! You have completed the intensive 3-stage demo for <strong>${courseName}</strong>. Based on your performance across all levels, here is your comprehensive final report:`
+                }
             </p>
             
-            <!-- Individual Level Results -->
-            <p class="section-title">Performance by Level</p>
-            <div style="margin-bottom: 30px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px;">
-                ${getLevelRow('Easy', allLevels.easy)}
-                ${getLevelRow('Medium', allLevels.medium)}
-                ${getLevelRow('Hard', allLevels.hard)}
-            </div>
+            ${adaptiveModuleBreakdown}
 
             <!-- Overall Results -->
             <p class="section-title">Overall Performance</p>
             <div class="score-row">
-                <div class="score-box" style="flex: 2;"><div class="val" style="font-size: 32px; color: #E53935;">${finalPredictedScore}</div><div class="lbl">Final Combined SAT Score</div></div>
+                <div class="score-box" style="flex: 2;"><div class="val" style="font-size: 32px; color: #E53935;">${finalPredictedScore}</div><div class="lbl">${isAdaptiveSAT ? 'Total SAT Score' : 'Final Combined Score'}</div></div>
                 <div class="score-box"><div class="val">${overallAccuracy}%</div><div class="lbl">Accuracy</div></div>
                 <div class="score-box"><div class="val">${totalCorrect}/${totalQuestions}</div><div class="lbl">Questions</div></div>
             </div>
 
             <div class="tip-box">
-                <strong>Status: ${performance}</strong><br/>
-                Our engine analyzed your consistency and adaptive responses to calculate this final prediction. You are ready for the real test!
+                <strong>Performance Level: ${performance}</strong><br/>
+                ${isAdaptiveSAT 
+                    ? `Your adaptive test performance has been analyzed across all modules. This score reflects your current SAT readiness.`
+                    : `Our engine analyzed your consistency and adaptive responses to calculate this final prediction. You are ready for the real test!`
+                }
             </div>
 
-            <p class="section-title">Unlock Your Potential</p>
-            <p style="font-size: 16px; color: #ffffff !important; margin-bottom: 24px; line-height: 1.6;">
-                The full AIPrep365 experience includes 5000+ practice questions, 15 full-length mock tests, and our signature <strong>Genius AI Tutor</strong> that explains every mistake in real-time.
-            </p>
+            <p class="section-title">📊 Detailed Score Report</p>
+            <div class="tip-box" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid #E53935;">
+                <p style="margin-bottom: 10px;"><strong>Test Type:</strong> ${isAdaptiveSAT ? 'Full-Length Adaptive SAT' : 'Demo Practice'}</p>
+                <p style="margin-bottom: 10px;"><strong>Completion Status:</strong> Verified</p>
+                <p><strong>Calculated On:</strong> ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            </div>
 
             <a class="cta" href="${process.env.FRONTEND_URL || 'https://aiprep365.com'}">Get Full Unlimited Access →</a>
         </div>
@@ -458,27 +583,86 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
 export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName, level, scoreDetails, submittedAt }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const allLevels = scoreDetails?.allLevels || {};
-    const isComprehensive = scoreDetails?.comprehensive && (allLevels.easy || allLevels.medium || allLevels.hard);
+    const comprehensive = scoreDetails?.comprehensive || {};
+    const isAdaptiveSAT = scoreDetails?.isAdaptiveSAT || 
+                          level?.toLowerCase()?.includes('adaptive') || 
+                          courseName?.toLowerCase()?.includes('adaptive');
     
-    const finalPredictedScore = scoreDetails?.comprehensive?.finalPredictedScore || scoreDetails?.scaledScore || 0;
-    const overallAccuracy = scoreDetails?.comprehensive?.overallAccuracy || Math.round(scoreDetails?.percentage || 0);
+    const finalPredictedScore = comprehensive?.finalPredictedScore || scoreDetails?.scaledScore || 0;
+    const overallAccuracy = comprehensive?.overallAccuracy || Math.round(scoreDetails?.percentage || 0);
+    const rwScore = comprehensive?.rwScore || 0;
+    const mathScore = comprehensive?.mathScore || 0;
+    const totalQuestions = comprehensive?.totalQuestions || 0;
+    const totalCorrect = comprehensive?.totalCorrect || 0;
     
     // Helper function for level display
     const getLevelRow = (levelName, levelData) => {
         if (!levelData) return `<div style="margin-bottom: 10px;"><strong>${levelName.toUpperCase()}:</strong> Not Completed</div>`;
         
-        const accuracy = Math.round((levelData.correctCount || 0) / (levelData.totalQuestions || 1) * 100);
+        const accuracy = Math.round((levelData.correct || 0) / (levelData.total || 1) * 100);
         return `
             <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
                 <strong style="min-width: 70px;">${levelName.toUpperCase()}:</strong>
-                <span style="font-weight: 600; color: #818cf8;">${levelData.scaledScore || '---'}</span>
+                <span style="font-weight: 600; color: #818cf8;">${Math.round((levelData.correct || 0) / (levelData.total || 1) * 800) || '---'}</span>
                 <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
-                <span style="color: #64748b;">| ${levelData.correctCount || 0}/${levelData.totalQuestions || 0}</span>
+                <span style="color: #64748b;">| ${levelData.correct || 0}/${levelData.total || 0}</span>
             </div>
         `;
     };
 
-    const demoResultsHtml = isComprehensive ? `
+    // Helper function for Adaptive SAT Test module display
+    const getAdaptiveModuleRow = (moduleName, moduleData) => {
+        if (!moduleData) return `<div style="margin-bottom: 10px;"><strong>${moduleName.toUpperCase()}:</strong> Not Completed</div>`;
+        
+        const accuracy = Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 100);
+        return `
+            <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                <strong style="min-width: 100px;">${moduleName.toUpperCase()}:</strong>
+                <span style="font-weight: 600; color: #818cf8;">${Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 800)}</span>
+                <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
+                <span style="color: #64748b;">| ${moduleData.correct || 0}/${moduleData.total || 0}</span>
+            </div>
+        `;
+    };
+
+    // Generate appropriate results breakdown based on test type
+    const demoResultsHtml = isAdaptiveSAT ? `
+        <!-- Adaptive SAT Test Results -->
+        <div class="section-title">Section Scores</div>
+        <div style="display: flex; gap: 15px; margin: 15px 0;">
+            <div style="flex: 1; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 15px; text-align: center;">
+                <div style="font-size: 28px; font-weight: 700; color: #818cf8;">${rwScore}</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">Reading & Writing</div>
+            </div>
+            <div style="flex: 1; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 15px; text-align: center;">
+                <div style="font-size: 28px; font-weight: 700; color: #818cf8;">${mathScore}</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">Math</div>
+            </div>
+        </div>
+        
+        <div class="section-title">Module Breakdown</div>
+        <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 15px; margin: 15px 0;">
+            <div style="margin-bottom: 15px;">
+                <div style="font-size: 12px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase;">Reading & Writing</div>
+                ${getAdaptiveModuleRow('RW Moderate', allLevels.rw_moderate)}
+                ${getAdaptiveModuleRow('RW Hard', allLevels.rw_hard)}
+                ${getAdaptiveModuleRow('RW Easy', allLevels.rw_easy)}
+            </div>
+            <div>
+                <div style="font-size: 12px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase;">Math</div>
+                ${getAdaptiveModuleRow('Math Moderate', allLevels.math_moderate)}
+                ${getAdaptiveModuleRow('Math Hard', allLevels.math_hard)}
+                ${getAdaptiveModuleRow('Math Easy', allLevels.math_easy)}
+            </div>
+        </div>
+        
+        <div style="margin: 15px 0; padding: 15px; background: rgba(229, 57, 53, 0.1); border-radius: 8px; border-left: 4px solid #E53935;">
+            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 5px;">TOTAL SAT SCORE</div>
+            <div style="font-size: 32px; font-weight: 700; color: #E53935;">${finalPredictedScore}</div>
+            <div style="font-size: 14px; color: #94a3b8; margin-top: 5px;">${overallAccuracy}% accuracy (${totalCorrect}/${totalQuestions} questions)</div>
+        </div>
+    ` : `
+        <!-- Regular Demo Test Results -->
         <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 15px; margin: 15px 0;">
             ${getLevelRow('Easy', allLevels.easy)}
             ${getLevelRow('Medium', allLevels.medium)}
@@ -487,7 +671,7 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
         <div style="margin: 15px 0;">
             <strong>Final Predicted Score:</strong> <span style="color: #E53935; font-size: 18px; font-weight: 600;">${finalPredictedScore}</span>
         </div>
-    ` : ``;
+    `;
 
     return `
     <!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body>
@@ -506,7 +690,7 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
                 <tr><td style="padding: 8px 0; font-weight: 700;">Email:</td><td><a href="mailto:${email}" style="color: #667eea; text-decoration: none;">${email || 'N/A'}</a></td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Phone:</td><td>${phone || 'N/A'}</td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Course:</td><td>${courseName || 'N/A'}</td></tr>
-                <tr><td style="padding: 8px 0; font-weight: 700;">Level:</td><td>${level || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Test Type:</td><td>${isAdaptiveSAT ? 'Full-Length Adaptive SAT Test' : (level || 'N/A')}</td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Submitted:</td><td>${new Date(submittedAt || Date.now()).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>
             </table>
 
@@ -554,3 +738,4 @@ export function buildContactSubmissionEmail({ name, email, mobile, subject, type
         <div class="footer">${appName} • Sent automatically from the website contact system.</div>
     </div></div></body></html>`;
 }
+

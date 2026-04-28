@@ -1,5 +1,5 @@
 import express from 'express';
-import supabase from '../../supabase/supabase.js';
+import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 import { sendEmail, buildDemoScoreEmail, buildDemoAdminEmail, sendSMS } from '../utils/notificationEngine.js';
 
 const router = express.Router();
@@ -23,6 +23,50 @@ router.get('/test', (req, res) => {
     res.json({ message: 'Demo routes are active', timestamp: new Date().toISOString() });
 });
 
+// Diagnostic Endpoint to check environment configuration in production
+router.get('/diag', (req, res) => {
+    try {
+        res.json({
+            status: 'ok',
+            time: new Date().toISOString(),
+            env: {
+                BREVO_API_KEY: process.env.BREVO_API_KEY ? 'SET (starts with ' + process.env.BREVO_API_KEY.substring(0, 5) + '...)' : 'MISSING',
+                EMAIL_FROM: process.env.EMAIL_FROM || 'NOT SET (using fallback)',
+                ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'NOT SET (using fallback)',
+                SUPABASE_URL: (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) ? 'SET' : 'MISSING',
+                SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
+                NODE_ENV: process.env.NODE_ENV || 'development'
+            },
+            instructions: "If BREVO_API_KEY is MISSING, set it in your deployment platform's environment variables. Ensure EMAIL_FROM is verified in your Brevo dashboard."
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Test Email Endpoint
+router.get('/test-email', async (req, res) => {
+    const { to } = req.query;
+    if (!to) return res.status(400).json({ error: 'Please provide a "to" query parameter' });
+
+    try {
+        console.log(`🧪 [TEST] Triggering test email to ${to}...`);
+        const result = await sendEmail({
+            to,
+            subject: 'AIPrep365 - Email Connectivity Test',
+            html: '<h1>Success!</h1><p>If you are reading this, your Brevo email configuration is working correctly.</p>'
+        });
+
+        if (result.ok) {
+            res.json({ success: true, message: `Test email sent successfully to ${to}`, messageId: result.id });
+        } else {
+            res.status(500).json({ success: false, error: result.error, hint: "Check if your sender email (EMAIL_FROM) is verified in Brevo." });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // Endpoint to send OTP
 router.post('/send-otp', async (req, res) => {
     const { phone } = req.body;
@@ -39,19 +83,41 @@ router.post('/send-otp', async (req, res) => {
             expiry: Date.now() + 5 * 60 * 1000
         });
 
-        console.log(`🔑 [OTP] Sending OTP ${otp} to ${phone}`);
+        console.log(`🔑 [OTP] Generated OTP ${otp} for ${phone}`);
         
-        const smsResult = await sendSMS({
-            to: phone,
-            message: `Your AIPrep365 verification code is: ${otp}. It will expire in 5 minutes.`
-        });
+        // Check if SMS is configured
+        const hasTwilioConfig = process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER;
+        
+        if (hasTwilioConfig) {
+            try {
+                console.log(`📱 [OTP] Sending SMS to ${phone}`);
+                const smsResult = await sendSMS({
+                    to: phone,
+                    message: `Your AIPrep365 verification code is: ${otp}. It will expire in 5 minutes.`
+                });
 
-        if (!smsResult.ok) {
-            console.error('❌ [OTP] SMS sending failed:', smsResult.error);
-            return res.status(500).json({ success: false, error: 'Failed to send OTP. Please check your phone number.' });
+                if (!smsResult.ok) {
+                    console.error('❌ [OTP] SMS sending failed:', smsResult.error);
+                    // Don't return error, just log it and continue with OTP generation
+                    console.log(`📋 [OTP] OTP generated but SMS failed. OTP for testing: ${otp}`);
+                } else {
+                    console.log(`✅ [OTP] SMS sent successfully to ${phone}`);
+                }
+            } catch (smsError) {
+                console.error('❌ [OTP] SMS sending error:', smsError);
+                console.log(`📋 [OTP] OTP generated but SMS failed. OTP for testing: ${otp}`);
+            }
+        } else {
+            console.log(`⚠️ [OTP] Twilio not configured. OTP for testing: ${otp}`);
+            console.log(`📋 [OTP] To enable SMS, set TWILIO_FROM_NUMBER environment variable`);
         }
 
-        res.json({ success: true, message: 'OTP sent successfully' });
+        res.json({ 
+            success: true, 
+            message: hasTwilioConfig ? 'OTP sent successfully' : 'OTP generated (SMS not configured)',
+            debugMode: !hasTwilioConfig,
+            otpForTesting: hasTwilioConfig ? undefined : otp // Only include OTP in debug mode
+        });
     } catch (error) {
         console.error('❌ [OTP] Error sending OTP:', error);
         res.status(500).json({ success: false, error: 'Internal server error while sending OTP' });
@@ -97,18 +163,27 @@ router.post('/submit-lead', async (req, res) => {
 
     try {
         // 1. Check if user already exists for this course
-        const { data: existingLead } = await supabase
+        console.log(`🔍 [DEMO] Step 1: Checking for existing lead... (email=${email}, course=${courseId})`);
+        const { data: existingLead, error: fetchError } = await supabaseAdmin
             .from('demo_leads')
             .select('*')
             .eq('email', email)
             .eq('course_id', parseInt(courseId))
-            .single();
+            .maybeSingle(); // Changed from single() to maybeSingle() to avoid 406 errors
+
+        if (fetchError) {
+            console.error('❌ [DEMO] Error fetching existing lead:', fetchError);
+        }
 
         let leadRecord;
         const newScoreDetails = scoreDetails || {};
         const allLevels = newScoreDetails.allLevels || {};
 
-        const isFinal = level?.toLowerCase() === 'hard';
+        const levelStr = String(level || '').toLowerCase();
+        const isAdaptiveSAT = levelStr.includes('adaptive') || levelStr.includes('sat test');
+        const isHard = levelStr === 'hard';
+        const isFinal = isHard || isAdaptiveSAT;
+
         const completedLevels = [];
         if (allLevels.easy) completedLevels.push('easy');
         if (allLevels.medium) completedLevels.push('medium');
@@ -129,7 +204,8 @@ router.post('/submit-lead', async (req, res) => {
         };
 
         if (existingLead) {
-            const { error: updateError } = await supabase
+            console.log(`🔍 [DEMO] Step 2: Updating existing lead record ${existingLead.id}...`);
+            const { error: updateError } = await supabaseAdmin
                 .from('demo_leads')
                 .update(updateData)
                 .eq('id', existingLead.id);
@@ -138,15 +214,16 @@ router.post('/submit-lead', async (req, res) => {
                 console.error('❌ [DEMO] Update Error:', updateError);
                 throw updateError;
             }
-
+            console.log('✅ [DEMO] Lead updated successfully');
             leadRecord = { ...existingLead, ...updateData };
         } else {
+            console.log('🔍 [DEMO] Step 2: Creating new lead record...');
             const insertData = {
                 course_id: parseInt(courseId),
                 email,
                 ...updateData
             };
-            const { error: insertError } = await supabase
+            const { error: insertError } = await supabaseAdmin
                 .from('demo_leads')
                 .insert(insertData)
                 .select();
@@ -155,73 +232,147 @@ router.post('/submit-lead', async (req, res) => {
                 console.error('❌ [DEMO] Insert Error:', insertError);
                 throw insertError;
             }
-
+            console.log('✅ [DEMO] New lead created successfully');
             leadRecord = insertData;
         }
 
         // 2. Fetch Course Details
-        const { data: course } = await supabase
+        console.log(`🔍 [DEMO] Step 3: Fetching course name for ID ${courseId}...`);
+        const { data: course, error: courseError } = await supabaseAdmin
             .from('courses')
             .select('name')
             .eq('id', courseId)
-            .single();
+            .maybeSingle();
 
-        // 3. Send Emails ONLY after Hard level completion
-        if (level?.toLowerCase() === 'hard') {
+        if (courseError) {
+            console.error('❌ [DEMO] Course Fetch Error:', courseError);
+        }
+        console.log(`✅ [DEMO] Course found: ${course?.name || 'Unknown'}`);
+
+        // 3. Send Emails for completed tests (Hard level or Adaptive SAT Test)
+        console.log(`🔍 [DEMO] Step 4: Email trigger check - Level: "${level}", Lowercase: "${level?.toLowerCase()}"`);
+        console.log(`🔍 [DEMO] Condition check: hard=${level?.toLowerCase() === 'hard'}, adaptive sat test=${level?.toLowerCase() === 'adaptive sat test'}`);
+        
+        if (level?.toLowerCase() === 'hard' || level?.toLowerCase() === 'adaptive sat test') {
+            console.log('📧 [DEMO] Preparing to send emails...');
+            
             const adminEmail = process.env.ADMIN_EMAIL || 'ssky57771@gmail.com';
             const submittedAt = new Date().toISOString();
             
+            // Debug email configuration
+            console.log('🔧 [DEMO] Email Configuration Debug:');
+            console.log(`   BREVO_API_KEY: ${process.env.BREVO_API_KEY ? 'SET' : 'MISSING'}`);
+            console.log(`   EMAIL_FROM: ${process.env.EMAIL_FROM || process.env.EMAIL_USER || 'DEFAULT'}`);
+            console.log(`   ADMIN_EMAIL: ${adminEmail}`);
+            console.log(`   STUDENT_EMAIL: ${email}`);
+            
             const emailScoreDetails = newScoreDetails;
 
-            // Send admin notification email
-            const adminHtml = buildDemoAdminEmail({
-                fullName,
-                grade,
-                email,
-                phone,
-                courseName: course?.name || 'Demo Course',
-                level,
-                scoreDetails: emailScoreDetails,
-                submittedAt
-            });
+            try {
+                // Send admin notification email
+                console.log('📨 [DEMO] Building admin email...');
+                const adminHtml = buildDemoAdminEmail({
+                    fullName,
+                    grade,
+                    email,
+                    phone,
+                    courseName: course?.name || 'Demo Course',
+                    level,
+                    scoreDetails: emailScoreDetails,
+                    submittedAt
+                });
 
-            const adminEmailResult = await sendEmail({
-                to: adminEmail,
-                subject: `NEW DEMO LEAD: ${fullName} - ${course?.name || 'Demo Course'}`,
-                html: adminHtml
-            });
+                console.log('📤 [DEMO] Sending admin email...');
+                const adminEmailResult = await sendEmail({
+                    to: adminEmail,
+                    subject: `NEW DEMO LEAD: ${fullName} - ${course?.name || 'Demo Course'}`,
+                    html: adminHtml
+                });
 
-            if (!adminEmailResult.ok) {
-                console.warn('   [DEMO] Admin email sending failed:', adminEmailResult.error);
-            } else {
-                console.log(`   [DEMO] Admin email sent successfully to ${adminEmail}`);
+                if (!adminEmailResult.ok) {
+                    console.error('❌ [DEMO] Admin email sending failed:', adminEmailResult.error);
+                    console.error('❌ [DEMO] Admin email error details:', {
+                        recipient: adminEmail,
+                        subject: `NEW DEMO LEAD: ${fullName} - ${course?.name || 'Demo Course'}`,
+                        error: adminEmailResult.error
+                    });
+                } else {
+                    console.log(`✅ [DEMO] Admin email sent successfully to ${adminEmail}`);
+                    console.log(`   Message ID: ${adminEmailResult.id}`);
+                }
+
+                // Send user email
+                console.log('📨 [DEMO] Building student email...');
+                const userHtml = buildDemoScoreEmail({
+                    studentName: fullName,
+                    courseName: course?.name || 'Demo Course',
+                    level: level || 'hard',
+                    scoreDetails: emailScoreDetails
+                });
+
+                const isAdaptiveSAT_Email = level?.toLowerCase() === 'adaptive sat test' || (course?.name?.toLowerCase()?.includes('adaptive') && course?.name?.toLowerCase()?.includes('sat'));
+                
+                console.log('📤 [DEMO] Sending student email...');
+                const userEmailResult = await sendEmail({
+                    to: email,
+                    subject: isAdaptiveSAT_Email ? `Your Full SAT Score Report: ${course?.name || 'Adaptive Test'}` : `Your Final Predicted Score: ${course?.name || 'Test'}`,
+                    html: userHtml
+                });
+
+                if (!userEmailResult.ok) {
+                    console.error('❌ [DEMO] User email sending failed:', userEmailResult.error);
+                    console.error('❌ [DEMO] User email error details:', {
+                        recipient: email,
+                        subject: `Your Final Predicted Score: ${course?.name || 'Test'}`,
+                        error: userEmailResult.error
+                    });
+                } else {
+                    console.log(`✅ [DEMO] User email sent successfully to ${email}`);
+                    console.log(`   Message ID: ${userEmailResult.id}`);
+                }
+
+                // Summary of email results
+                const emailSummary = {
+                    adminEmail: { sent: adminEmailResult.ok, error: adminEmailResult.error },
+                    userEmail: { sent: userEmailResult.ok, error: userEmailResult.error },
+                    bothSent: adminEmailResult.ok && userEmailResult.ok
+                };
+                
+                console.log('📊 [DEMO] Email sending summary:', emailSummary);
+
+            } catch (emailError) {
+                console.error('❌ [DEMO] Critical error in email sending process:', emailError);
+                console.error('❌ [DEMO] Email error stack:', emailError.stack);
             }
+        }
 
-            // Send user email
-            const userHtml = buildDemoScoreEmail({
-                studentName: fullName,
-                courseName: course?.name || 'Demo Course',
-                level: 'hard',
-                scoreDetails: emailScoreDetails
-            });
-
-            const userEmailResult = await sendEmail({
-                to: email,
-                subject: `Your Final Predicted Score: ${course?.name || 'Test'}`,
-                html: userHtml
-            });
-
-            if (!userEmailResult.ok) {
-                console.warn('   [DEMO] User email sending failed:', userEmailResult.error);
+        const emailsSent = level?.toLowerCase() === 'hard' || level?.toLowerCase() === 'adaptive sat test';
+        
+        // Prepare detailed success message if emails were triggered
+        let finalMessage = 'Progress saved';
+        if (emailsSent) {
+            const adminOk = typeof adminEmailResult !== 'undefined' ? adminEmailResult.ok : true;
+            const userOk = typeof userEmailResult !== 'undefined' ? userEmailResult.ok : true;
+            
+            if (adminOk && userOk) {
+                finalMessage = 'Emails sent to User and Admin successfully';
+            } else if (adminOk || userOk) {
+                finalMessage = `Partial success: ${adminOk ? 'Admin' : 'User'} email sent, but ${!adminOk ? 'Admin' : 'User'} email failed. Check logs.`;
             } else {
-                console.log(`   [DEMO] User email sent successfully to ${email}`);
+                finalMessage = 'Lead saved, but both emails failed to send. Check your Brevo configuration.';
             }
         }
 
         res.json({ 
             success: true, 
-            message: level?.toLowerCase() === 'hard' ? 'Emails sent to User and Admin successfully' : 'Progress saved',
-            finalEmailSent: level?.toLowerCase() === 'hard'
+            message: finalMessage,
+            finalEmailSent: emailsSent,
+            emailStatus: emailsSent ? {
+                admin: typeof adminEmailResult !== 'undefined' ? adminEmailResult.ok : null,
+                user: typeof userEmailResult !== 'undefined' ? userEmailResult.ok : null,
+                error: (typeof adminEmailResult !== 'undefined' && !adminEmailResult.ok) ? adminEmailResult.error : 
+                       (typeof userEmailResult !== 'undefined' && !userEmailResult.ok) ? userEmailResult.error : null
+            } : null
         });
     } catch (error) {
         console.error('❌ [DEMO] Submission processing failed:', error);

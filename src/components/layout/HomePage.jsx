@@ -129,11 +129,12 @@ const AIPrep365LandingPage = () => {
               <span className="text-orange-400">✨</span> Your AI Tutor. 365 Days.
             </motion.div>
 
-            <motion.h1 variants={itemVariants} className="text-4xl sm:text-5xl lg:text-7xl font-black leading-tight mb-8 font-sans text-white tracking-tight">
-              Smarter SAT prep with an <span className="text-sky-400">AI tutor</span> that never stops <span className="text-orange-500">teaching.</span>
+            <motion.h1 variants={itemVariants} className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black leading-[1.1] mb-8 font-sans text-white tracking-tight drop-shadow-2xl">
+              Smarter SAT prep with an <span className="bg-gradient-to-r from-[#3B82F6] to-[#0EA5E9] bg-clip-text text-transparent">AI tutor</span> <br className="hidden md:block" />
+              that never stops <span className="bg-gradient-to-r from-[#F59E0B] to-[#F97316] bg-clip-text text-transparent">teaching.</span>
             </motion.h1>
 
-            <motion.p variants={itemVariants} className="mb-10 max-w-2xl text-lg md:text-xl leading-relaxed text-slate-100 mx-auto lg:mx-0 font-medium opacity-90">
+            <motion.p variants={itemVariants} className="mb-10 max-w-2xl text-lg md:text-xl leading-relaxed text-slate-100 mx-auto lg:mx-0 font-medium opacity-100">
               {settings.hero_subtitle || <span><BrandName className="text-lg md:text-xl" /> helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep.</span>}
             </motion.p>
 
@@ -168,12 +169,12 @@ const AIPrep365LandingPage = () => {
                 <div className="mb-6 grid grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Today's Goal</p>
-                    <p className="text-2xl font-black text-sky-400">45 min</p>
+                    <p className="text-3xl font-black text-sky-400">45 min</p>
                     <p className="text-[9px] text-slate-500">Adaptive SAT practice</p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Projected Boost</p>
-                    <p className="text-2xl font-black text-orange-500">+150</p>
+                    <p className="text-3xl font-black text-orange-500">+150</p>
                     <p className="text-[9px] text-slate-500">with consistent prep</p>
                   </div>
                 </div>

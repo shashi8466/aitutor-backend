@@ -31,16 +31,58 @@ async function requireAdmin(req, res, next) {
 // GET /api/settings/general  — Public site settings (name, logo)
 router.get('/general', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('site_settings')
-      .select('*')
-      .eq('id', 1)
-      .single();
+    let data, error;
+    
+    // Try to get site settings
+    try {
+      const result = await supabase
+        .from('site_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    } catch (tableError) {
+      // Table doesn't exist, use default values
+      console.warn('⚠️ [SETTINGS] site_settings table not found, using defaults');
+      data = null;
+      error = null;
+    }
 
-    if (error) throw error;
+    // If no data or table doesn't exist, return default settings
+    if (error || !data) {
+      const defaultSettings = {
+        id: 1,
+        app_name: process.env.APP_NAME || 'AIPrep365',
+        logo_url: null,
+        primary_color: '#6366f1',
+        secondary_color: '#8b5cf6',
+        description: 'AI-Powered Test Preparation Platform',
+        contact_email: process.env.ADMIN_EMAIL || 'admin@aiprep365.com',
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('📋 [SETTINGS] Returning default settings');
+      return res.json({ success: true, data: defaultSettings });
+    }
+
     res.json({ success: true, data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('❌ [SETTINGS] Error in /general endpoint:', err);
+    // Return default settings even on error to prevent frontend breaking
+    const defaultSettings = {
+      id: 1,
+      app_name: process.env.APP_NAME || 'AIPrep365',
+      logo_url: null,
+      primary_color: '#6366f1',
+      secondary_color: '#8b5cf6',
+      description: 'AI-Powered Test Preparation Platform',
+      contact_email: process.env.ADMIN_EMAIL || 'admin@aiprep365.com',
+      updated_at: new Date().toISOString()
+    };
+    
+    res.json({ success: true, data: defaultSettings });
   }
 });
 
@@ -52,16 +94,47 @@ router.put('/general', requireAdmin, async (req, res) => {
     if (app_name !== undefined) updates.app_name = app_name;
     if (logo_url !== undefined) updates.logo_url = logo_url;
 
-    const { data, error } = await supabase
-      .from('site_settings')
-      .update(updates)
-      .eq('id', 1)
-      .select()
-      .single();
+    let data, error;
+    
+    // Try to update existing record
+    try {
+      const result = await supabase
+        .from('site_settings')
+        .update(updates)
+        .eq('id', 1)
+        .select()
+        .single();
+      
+      data = result.data;
+      error = result.error;
+    } catch (updateError) {
+      // If update fails, try to insert new record
+      console.warn('⚠️ [SETTINGS] Update failed, trying to insert new record');
+      const insertData = {
+        id: 1,
+        app_name: app_name || process.env.APP_NAME || 'AIPrep365',
+        logo_url: logo_url || null,
+        primary_color: '#6366f1',
+        secondary_color: '#8b5cf6',
+        description: 'AI-Powered Test Preparation Platform',
+        contact_email: process.env.ADMIN_EMAIL || 'admin@aiprep365.com',
+        ...updates
+      };
+      
+      const insertResult = await supabase
+        .from('site_settings')
+        .insert(insertData)
+        .select()
+        .single();
+      
+      data = insertResult.data;
+      error = insertResult.error;
+    }
 
     if (error) throw error;
     res.json({ success: true, data });
   } catch (err) {
+    console.error('❌ [SETTINGS] Error in PUT /general endpoint:', err);
     res.status(500).json({ error: err.message });
   }
 });

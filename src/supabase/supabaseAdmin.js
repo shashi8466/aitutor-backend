@@ -17,6 +17,9 @@ if (!SUPABASE_SERVICE_ROLE_KEY) {
 }
 
 // Admin client bypasses RLS
+console.log(`🛡️ [SupabaseAdmin] Initializing with URL: ${SUPABASE_URL ? 'OK' : 'MISSING'}`);
+console.log(`🛡️ [SupabaseAdmin] Service Role Key: ${SUPABASE_SERVICE_ROLE_KEY ? 'OK' : 'MISSING'}`);
+
 export const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
         autoRefreshToken: false,

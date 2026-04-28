@@ -4,7 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import axios from 'axios';
 import SafeIcon from '../../common/SafeIcon';
 
-const { FiUser, FiMail, FiPhone, FiBookOpen, FiSend, FiLoader, FiCheckCircle, FiX } = FiIcons;
+const { FiUser, FiMail, FiPhone, FiBookOpen, FiSend, FiLoader, FiCheckCircle, FiX, FiChevronDown } = FiIcons;
 
 const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
   const [formData, setFormData] = useState({
@@ -54,10 +54,16 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
     setOtpLoading(true);
     setOtpError('');
     try {
-      await axios.post('/api/demo/send-otp', { phone: formData.phone });
+      const res = await axios.post('/api/demo/send-otp', { phone: formData.phone });
       setOtpSent(true);
       setCountdown(30);
       setCanResend(false);
+
+      // Handle debug mode - show OTP for testing
+      if (res.data.debugMode && res.data.otpForTesting) {
+        console.log(`🔑 [DEBUG] OTP for testing: ${res.data.otpForTesting}`);
+        setOtpError(`🔑 DEBUG MODE - Your OTP is: ${res.data.otpForTesting}`);
+      }
     } catch (err) {
       console.error('❌ API Error: POST /api/demo/send-otp -', err.response?.status);
       if (err.response?.status === 404) {
@@ -112,7 +118,9 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
       await onSubmit(formData);
       setSubmitted(true);
     } catch (err) {
-      setError('Failed to submit. Please try again.');
+      console.error('❌ [DEMO FORM] Submission error:', err);
+      const errorMessage = err?.response?.data?.error || err?.message || 'Failed to submit. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -176,9 +184,9 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                 )}
 
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Full Name</label>
+                  <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1">Full Name</label>
                   <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                       <SafeIcon icon={FiUser} className="w-4 h-4" />
                     </div>
                     <input
@@ -188,15 +196,15 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       value={formData.fullName}
                       onChange={handleChange}
                       placeholder="John Doe"
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-[#E53935] rounded-xl outline-none transition-all dark:text-white"
+                      className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Grade</label>
+                  <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1">Grade</label>
                   <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 z-10">
                       <SafeIcon icon={FiBookOpen} className="w-4 h-4" />
                     </div>
                     <select
@@ -204,22 +212,25 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       name="grade"
                       value={formData.grade}
                       onChange={handleChange}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-[#E53935] rounded-xl outline-none transition-all dark:text-white appearance-none"
+                      className="w-full pl-10 pr-12 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 font-medium cursor-pointer hover:bg-gray-50"
                     >
-                      <option value="">Select Grade</option>
-                      <option value="9">Grade 9</option>
-                      <option value="10">Grade 10</option>
-                      <option value="11">Grade 11</option>
-                      <option value="12">Grade 12</option>
-                      <option value="Other">Other</option>
+                      <option value="" className="text-gray-500">Select Grade</option>
+                      <option value="9" className="text-gray-900">Grade 9</option>
+                      <option value="10" className="text-gray-900">Grade 10</option>
+                      <option value="11" className="text-gray-900">Grade 11</option>
+                      <option value="12" className="text-gray-900">Grade 12</option>
+                      <option value="Other" className="text-gray-900">Other</option>
                     </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none">
+                      <SafeIcon icon={FiChevronDown} className="w-4 h-4" />
+                    </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Email Address</label>
+                  <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1">Email Address</label>
                   <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                       <SafeIcon icon={FiMail} className="w-4 h-4" />
                     </div>
                     <input
@@ -229,16 +240,16 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       value={formData.email}
                       onChange={handleChange}
                       placeholder="john@example.com"
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-[#E53935] rounded-xl outline-none transition-all dark:text-white"
+                      className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Phone Number</label>
+                  <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1">Phone Number</label>
                   <div className="relative flex gap-2">
                     <div className="relative flex-1">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                         <SafeIcon icon={FiPhone} className="w-4 h-4" />
                       </div>
                       <input
@@ -249,10 +260,10 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                         value={formData.phone}
                         onChange={handleChange}
                         placeholder="e.g., +91XXXXXXXXXX"
-                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 ${otpVerified ? 'border-green-500' : 'border-transparent focus:border-[#E53935]'} rounded-xl outline-none transition-all dark:text-white`}
+                        className={`w-full pl-10 pr-4 py-3 bg-white border-2 ${otpVerified ? 'border-green-500' : 'border-gray-200 focus:border-[#E53935]'} rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50 ${otpVerified ? 'cursor-not-allowed bg-gray-50' : ''}`}
                       />
                       {otpVerified && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600">
                           <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
                         </div>
                       )}
@@ -283,7 +294,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1 mt-2">Enter OTP</label>
+                      <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1 mt-2">Enter OTP</label>
                       <div className="relative flex gap-2">
                         <input
                           type="text"
@@ -291,7 +302,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                           value={otp}
                           onChange={(e) => setOtp(e.target.value)}
                           placeholder="6-digit code"
-                          className="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-[#E53935] rounded-xl outline-none transition-all dark:text-white text-center tracking-[0.5em] font-bold"
+                          className="flex-1 px-4 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 text-center tracking-[0.5em] font-bold text-lg placeholder-gray-400"
                         />
                         <button
                           type="button"

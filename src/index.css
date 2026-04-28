@@ -1,3 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -30,8 +33,9 @@ html, body, #root {
 }
 
 @layer base {
-  /* Headings - Using standard Tailwind spacing and colors */
+  /* Headings - Using Poppins for headings */
   h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     @apply font-bold text-slate-900 transition-colors duration-300;
   }
 
@@ -192,17 +196,51 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
   .px-10 { padding-left: 1rem !important; padding-right: 1rem !important; }
   .px-8 { padding-left: 0.875rem !important; padding-right: 0.875rem !important; }
   .py-8 { padding-top: 0.875rem !important; padding-bottom: 0.875rem !important; }
+}
 
-  .text-6xl { font-size: 2rem !important; line-height: 1.15 !important; }
-  .text-5xl { font-size: 1.75rem !important; line-height: 1.2 !important; }
-  .text-4xl { font-size: 1.5rem !important; line-height: 1.25 !important; }
-
-  .min-w-\[300px\] { min-width: 0 !important; }
-  .h-\[85vh\] { height: 100dvh !important; }
-  .h-screen { height: 100dvh !important; }
-
-  /* Improve default table ergonomics on phones. */
-  .responsive-table-container table {
-    min-width: 640px;
+/* Custom Font Utilities */
+@layer utilities {
+  .font-heading {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
+  
+  .font-body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  
+  .font-display {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 800;
+  }
+  
+  .font-title {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 700;
+  }
+  
+  .font-subtitle {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 600;
+  }
+  
+  .demo-heading {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+}
+
+/* Global utility overrides */
+/* Overrides removed */
+
+
+
+.min-w-\[300px\] { min-width: 0 !important; }
+.h-\[85vh\] { height: 100dvh !important; }
+.h-screen { height: 100dvh !important; }
+
+/* Improve default table ergonomics on phones. */
+.responsive-table-container table {
+  min-width: 640px;
 }

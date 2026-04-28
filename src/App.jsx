@@ -110,8 +110,8 @@ axios.interceptors.request.use(
     try {
       // 1. Only add token if it's an API request to our own backend (relative or matching BACKEND_URL)
       const isInternalApi = config.url && (
-        config.url.startsWith('/api') || 
-        (BACKEND_URL && config.url.startsWith(BACKEND_URL)) ||
+        config.url.includes('/api/') || 
+        (BACKEND_URL && config.url.includes(BACKEND_URL)) ||
         !config.url.startsWith('http')
       );
 
@@ -122,10 +122,14 @@ axios.interceptors.request.use(
           setTimeout(() => reject(new Error('Supabase session request timed out')), 10000)
         );
 
-        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
+        const sessionResult = await Promise.race([sessionPromise, timeoutPromise]);
+        const session = sessionResult?.data?.session;
         
         if (session?.access_token) {
           config.headers.Authorization = `Bearer ${session.access_token}`;
+          // console.log(`📡 [Auth] Token attached to ${config.url}`);
+        } else {
+          console.warn(`📡 [Auth] No session found for internal API: ${config.url}`);
         }
       }
 

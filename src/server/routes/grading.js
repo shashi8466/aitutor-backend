@@ -381,6 +381,7 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
                 test_date: new Date().toISOString(),
                 test_duration_seconds: duration || 0,
                 total_questions: questionIds.length,
+                raw_score: scores.totalCorrect || 0,
                 scaled_score: scores.totalScore,
                 math_scaled_score: scores.mathScore,
                 reading_scaled_score: scores.rwScore,
@@ -699,7 +700,19 @@ router.get('/all-my-scores', async (req, res) => {
             console.log(`🕵️ [Admin Proxy] Swapping to explicit target user for scores: ${userId}`);
         }
 
-        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!userId) {
+            console.warn(`[Grading] Unauthorized access attempt to ${req.url}`);
+            return res.status(401).json({ 
+                error: 'Unauthorized',
+                debug: {
+                    hasReqUser: !!req.user,
+                    authFailure: req.authFailure,
+                    hasAuthHeader: !!req.headers.authorization,
+                    queryUserId: req.query.userId,
+                    url: req.url
+                }
+            });
+        }
 
         console.log(`📡 [ScoresFetch] Querying test_submissions for user_id: ${userId}`);
 

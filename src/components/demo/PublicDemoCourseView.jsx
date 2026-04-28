@@ -49,10 +49,70 @@ const PublicDemoCourseView = () => {
                 return;
             }
 
+            // For Full-Length Adaptive SAT Test, ensure strict content isolation
+            const isAdaptiveSAT = courseRes.data.is_adaptive && courseRes.data.category === 'Full-Length SAT';
+            
             let uploadsData = [];
             try {
                 const uploadsRes = await uploadService.getAll({ courseId });
-                uploadsData = uploadsRes.data || [];
+                let allUploads = uploadsRes.data || [];
+                
+                if (isAdaptiveSAT) {
+                    // For Adaptive SAT Test, filter to ensure only this course's content is used
+                    console.log(`🔒 [DEMO] Filtering Adaptive SAT content for course ${courseId}`);
+                    
+                    // Verify all uploads belong to this course and are properly categorized
+                    uploadsData = allUploads.filter(upload => {
+                        const belongsToCourse = String(upload.course_id) === String(courseId);
+                        const hasValidCategory = ['study_material', 'video_lecture', 'quiz_document'].includes(upload.category);
+                        const hasValidLevel = ['Easy', 'Medium', 'Hard', 'Moderate'].includes(upload.level);
+                        const hasValidSection = ['reading_writing', 'math', 'rw', 'mathematics'].includes(upload.section) || !upload.section;
+                        
+                        if (!belongsToCourse) {
+                            console.warn(`⚠️ [DEMO] Excluding upload ${upload.id} - belongs to different course`);
+                            return false;
+                        }
+                        if (!hasValidCategory) {
+                            console.warn(`⚠️ [DEMO] Excluding upload ${upload.id} - invalid category: ${upload.category}`);
+                            return false;
+                        }
+                        if (!hasValidLevel) {
+                            console.warn(`⚠️ [DEMO] Excluding upload ${upload.id} - invalid level: ${upload.level}`);
+                            return false;
+                        }
+                        
+                        return true;
+                    });
+                    
+                    console.log(`✅ [DEMO] Loaded ${uploadsData.length} valid uploads for Adaptive SAT Test`);
+                    
+                    // Verify required modules are present
+                    const requiredModules = [
+                        { level: 'Moderate', section: 'reading_writing' },
+                        { level: 'Easy', section: 'reading_writing' },
+                        { level: 'Hard', section: 'reading_writing' },
+                        { level: 'Moderate', section: 'math' },
+                        { level: 'Easy', section: 'math' },
+                        { level: 'Hard', section: 'math' }
+                    ];
+                    
+                    const missingModules = requiredModules.filter(req => {
+                        return !uploadsData.some(upload => 
+                            upload.level === req.level && 
+                            (upload.section === req.section || 
+                             (req.section === 'reading_writing' && (upload.section === 'rw' || upload.file_name?.toLowerCase().includes('reading'))) ||
+                             (req.section === 'math' && (upload.section === 'mathematics' || upload.file_name?.toLowerCase().includes('math')))
+                        )
+                        );
+                    });
+                    
+                    if (missingModules.length > 0) {
+                        console.warn(`⚠️ [DEMO] Missing modules for Adaptive SAT Test:`, missingModules);
+                    }
+                } else {
+                    // For regular demo courses, use all uploads
+                    uploadsData = allUploads;
+                }
             } catch (uErr) {
                 console.warn("Could not fetch uploads, using empty array", uErr);
             }
@@ -77,9 +137,11 @@ const PublicDemoCourseView = () => {
 
     const getTopicsForLevel = (level) => {
         const files = uploads.filter(u => u.level === level && u.category === 'study_material');
-        if (files.length === 0) return ['General Concepts'];
+        if (files.length === 0) return [];
         return files.map(f => f.file_name.replace(/\.[^/.]+$/, ''));
     };
+
+    const isAdaptiveSAT = course?.is_adaptive && course?.category === 'Full-Length SAT';
 
     if (loading) return (
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-950 flex flex-col items-center justify-center">
@@ -119,8 +181,36 @@ const PublicDemoCourseView = () => {
             <main className="max-w-4xl mx-auto px-4 py-12">
                 <div className="text-center mb-12">
                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-                        <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-4 uppercase tracking-tighter italic">
-                            {course.name}
+                        <h1 className="text-4xl md:text-5xl text-gray-900 dark:text-white mb-4 demo-heading">
+                            {(() => {
+                                const courseName = course?.name || '';
+                                console.log('Course name debug:', courseName);
+                                console.log('Course name length:', courseName.length);
+                                console.log('Course name char codes:', Array.from(courseName).map(c => c.charCodeAt(0)));
+                                
+                                // More comprehensive transformation logic
+                                let transformedName = courseName;
+                                
+                                // Handle the specific problematic format
+                                if (courseName === 'FULL-LENGTHADAPTIVESATTEST') {
+                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                }
+                                // Handle with spaces
+                                else if (courseName === 'FULL-LENGTH ADAPTIVE SAT TEST') {
+                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                }
+                                // Handle variations with different spacing
+                                else if (courseName.includes('FULL-LENGTH') && courseName.includes('ADAPTIVE') && courseName.includes('SAT')) {
+                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                }
+                                // Handle case where there might be no spaces between words
+                                else if (courseName.replace(/\s+/g, '') === 'FULL-LENGTHADAPTIVESATTEST') {
+                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                }
+                                
+                                console.log('Transformed name:', transformedName);
+                                return transformedName;
+                            })()}
                         </h1>
                         <p className="text-gray-500 dark:text-gray-400 text-lg font-medium max-w-2xl mx-auto">
                             Experience our adaptive test engine. Complete each level to reveal your estimated SAT performance.
@@ -156,77 +246,185 @@ const PublicDemoCourseView = () => {
                 </motion.div>
 
                 <div className="space-y-6">
-                    {['Easy', 'Medium', 'Hard'].map((level, index) => {
-                        const topics = getTopicsForLevel(level);
-                        const unlocked = isLevelUnlocked(level);
-                        const isCompleted = demoProgress[level.toLowerCase()].passed;
-
-                        const levelStyles = {
-                            Easy: { bg: 'bg-white', border: 'border-green-200', accent: 'bg-green-600', text: 'text-green-600' },
-                            Medium: { bg: 'bg-white', border: 'border-orange-200', accent: 'bg-orange-500', text: 'text-orange-500' },
-                            Hard: { bg: 'bg-white', border: 'border-red-200', accent: 'bg-[#E53935]', text: 'text-[#E53935]' }
-                        };
-                        const style = levelStyles[level];
-
-                        return (
+                    {isAdaptiveSAT ? (
+                        // Adaptive SAT Test Flow
+                        <>
                             <motion.div
-                                key={level}
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.3 + index * 0.1 }}
-                                className={`rounded-[24px] border ${style.bg} dark:bg-gray-900 ${unlocked ? style.border : 'border-gray-100 dark:border-gray-800'} p-8 shadow-sm hover:shadow-xl transition-all relative ${!unlocked ? 'opacity-60 grayscale' : ''}`}
+                                transition={{ delay: 0.3 }}
+                                className="rounded-[24px] border bg-blue-50 border-blue-200 p-8 shadow-sm hover:shadow-xl transition-all"
                             >
-                                {!unlocked && (
-                                    <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50/20 dark:bg-transparent backdrop-blur-[1px] rounded-[24px]">
-                                        <div className="bg-white dark:bg-gray-800 p-4 rounded-full shadow-2xl border border-gray-100 dark:border-gray-700">
-                                            <SafeIcon icon={FiLock} className="w-6 h-6 text-gray-300" />
-                                        </div>
-                                    </div>
-                                )}
-
                                 <div className="flex flex-col md:flex-row gap-8 items-center">
-                                    <div className={`w-14 h-14 rounded-2xl ${style.accent} flex items-center justify-center font-black text-white text-2xl shadow-lg flex-shrink-0`}>
-                                        {index + 1}
+                                    <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-2xl shadow-lg flex-shrink-0">
+                                        1
                                     </div>
-
                                     <div className="flex-1">
-                                        <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight mb-4 italic">
-                                            {level} Difficulty
+                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
+                                            Reading & Writing - Moderate
                                         </h3>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            {topics.map((topic, i) => (
-                                                <div key={i} className="flex items-center gap-3 text-gray-600 dark:text-gray-400 font-bold text-sm">
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${style.accent}`} />
+                                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {getTopicsForLevel('Moderate').map((topic, i) => (
+                                                <div key={i} className="flex items-center gap-3 text-gray-600 font-bold text-sm">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
                                                     <span className="truncate">{topic}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
-
-                                    <div className="flex flex-col items-center md:items-end gap-3 w-full md:w-auto">
-                                        {isCompleted && (
-                                            <div className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 px-3 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-green-100 dark:border-green-800 shadow-sm">
-                                                <SafeIcon icon={FiCheckCircle} className="w-3.5 h-3.5" /> Completed
-                                            </div>
-                                        )}
+                                    <div className="flex flex-col items-center md:w-auto gap-3 w-full md:w-auto">
                                         <button
-                                            onClick={() => unlocked && navigate(`/demo/${courseId}/level/${level.toLowerCase()}`)}
-                                            disabled={!unlocked}
-                                            className={`w-full md:w-auto px-10 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest shadow-xl transition-all group ${
-                                                unlocked 
-                                                ? 'bg-black text-white hover:bg-[#E53935] transform hover:-translate-y-1' 
-                                                : 'bg-gray-100 text-gray-300 dark:bg-gray-800 dark:text-gray-700'
-                                            }`}
+                                            onClick={() => navigate(`/demo/${courseId}/level/rw_moderate`)}
+                                            className="w-full md:w-auto px-10 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest shadow-xl transition-all group bg-blue-600 text-white hover:bg-blue-700 transform hover:-translate-y-1"
                                         >
-                                            <SafeIcon icon={FiPlay} className={`w-4 h-4 ${unlocked ? 'group-hover:animate-ping' : ''}`} />
-                                            {isCompleted ? `Retake ${level}` : `Start ${level}`}
+                                            <SafeIcon icon={FiPlay} className="w-4 h-4 group-hover:animate-ping" />
+                                            Start Test
                                         </button>
                                     </div>
                                 </div>
                             </motion.div>
-                        );
-                    })}
+
+                            
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: 0.4 }}
+                                className="rounded-[24px] border border-gray-200 bg-gray-50 p-8 shadow-sm hover:shadow-xl transition-all opacity-75"
+                            >
+                                <div className="flex flex-col md:flex-row gap-8 items-center">
+                                    <div className="w-14 h-14 rounded-2xl bg-gray-400 flex items-center justify-center font-black text-white text-2xl shadow-lg flex-shrink-0">
+                                        2
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
+                                            Reading & Writing - Adaptive
+                                        </h3>
+                                                                            </div>
+                                    <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
+                                        <SafeIcon icon={FiLock} className="w-3 h-3" />
+                                        Unlocked After Module 1
+                                    </div>
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: 0.5 }}
+                                className="rounded-[24px] border border-gray-200 bg-gray-50 p-8 shadow-sm hover:shadow-xl transition-all opacity-75"
+                            >
+                                <div className="flex flex-col md:flex-row gap-8 items-center">
+                                    <div className="w-14 h-14 rounded-2xl bg-emerald-600 flex items-center justify-center font-black text-white text-2xl shadow-lg flex-shrink-0">
+                                        3
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
+                                            Math - Moderate
+                                        </h3>
+                                                                            </div>
+                                    <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
+                                        <SafeIcon icon={FiLock} className="w-3 h-3" />
+                                        Unlocked After Module 2
+                                    </div>
+                                </div>
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: 0.6 }}
+                                className="rounded-[24px] border border-gray-200 bg-gray-50 p-8 shadow-sm hover:shadow-xl transition-all opacity-75"
+                            >
+                                <div className="flex flex-col md:flex-row gap-8 items-center">
+                                    <div className="w-14 h-14 rounded-2xl bg-emerald-400 flex items-center justify-center font-black text-white text-2xl shadow-lg flex-shrink-0">
+                                        4
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
+                                            Math - Adaptive
+                                        </h3>
+                                                                            </div>
+                                    <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
+                                        <SafeIcon icon={FiLock} className="w-3 h-3" />
+                                        Unlocked After Module 3
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </>
+                    ) : (
+                        // Regular Demo Courses (fallback)
+                        ['Easy', 'Medium', 'Hard'].map((level, index) => {
+                            const topics = getTopicsForLevel(level);
+                            const unlocked = isLevelUnlocked(level);
+                            const isCompleted = demoProgress[level.toLowerCase()].passed;
+
+                            const levelStyles = {
+                                Easy: { bg: 'bg-white', border: 'border-green-200', accent: 'bg-green-600', text: 'text-green-600' },
+                                Medium: { bg: 'bg-white', border: 'border-orange-200', accent: 'bg-orange-500', text: 'text-orange-500' },
+                                Hard: { bg: 'bg-white', border: 'border-red-200', accent: 'bg-[#E53935]', text: 'text-[#E53935]' }
+                            };
+                            const style = levelStyles[level];
+
+                            return (
+                                <motion.div
+                                    key={level}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.3 + index * 0.1 }}
+                                    className={`rounded-[24px] border ${style.bg} dark:bg-gray-900 ${unlocked ? style.border : 'border-gray-100 dark:border-gray-800'} p-8 shadow-sm hover:shadow-xl transition-all relative ${!unlocked ? 'opacity-60 grayscale' : ''}`}
+                                >
+                                    {!unlocked && (
+                                        <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50/20 dark:bg-transparent backdrop-blur-[1px] rounded-[24px]">
+                                            <div className="bg-white dark:bg-gray-800 p-4 rounded-full shadow-2xl border border-gray-100 dark:border-gray-700">
+                                                <SafeIcon icon={FiLock} className="w-6 h-6 text-gray-300" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-col md:flex-row gap-8 items-center">
+                                        <div className={`w-14 h-14 rounded-2xl ${style.accent} flex items-center justify-center font-black text-white text-2xl shadow-lg flex-shrink-0`}>
+                                            {index + 1}
+                                        </div>
+
+                                        <div className="flex-1">
+                                            <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tight mb-4 italic">
+                                                {level} Difficulty
+                                            </h3>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                {topics.map((topic, i) => (
+                                                    <div key={i} className="flex items-center gap-3 text-gray-600 dark:text-gray-400 font-bold text-sm">
+                                                        <div className={`w-1.5 h-1.5 rounded-full ${style.accent}`} />
+                                                        <span className="truncate">{topic}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col items-center md:items-end gap-3 w-full md:w-auto">
+                                            {isCompleted && (
+                                                <div className="bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 px-3 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border border-green-100 dark:border-green-800 shadow-sm">
+                                                    <SafeIcon icon={FiCheckCircle} className="w-3.5 h-3.5" /> Completed
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => unlocked && navigate(`/demo/${courseId}/level/${level.toLowerCase()}`)}
+                                                disabled={!unlocked}
+                                                className={`w-full md:w-auto px-10 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest shadow-xl transition-all group ${
+                                                    unlocked 
+                                                    ? 'bg-black text-white hover:bg-[#E53935] transform hover:-translate-y-1' 
+                                                    : 'bg-gray-100 text-gray-300 dark:bg-gray-800 dark:text-gray-700'
+                                                }`}
+                                            >
+                                                <SafeIcon icon={FiPlay} className={`w-4 h-4 ${unlocked ? 'group-hover:animate-ping' : ''}`} />
+                                                {isCompleted ? `Retake ${level}` : `Start ${level}`}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            );
+                        })
+                    )}
                 </div>
 
             </main>

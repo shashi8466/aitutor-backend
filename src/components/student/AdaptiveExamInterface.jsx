@@ -41,6 +41,14 @@ const AdaptiveExamInterface = () => {
   const [showNavigation, setShowNavigation] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showTimer, setShowTimer] = useState(true);
+  
+  // Scoring State
+  const [totalScore, setTotalScore] = useState(0);
+  const [rwScore, setRwScore] = useState(0);
+  const [mathScore, setMathScore] = useState(0);
+  const [accuracy, setAccuracy] = useState(0);
+  const [moduleDetails, setModuleDetails] = useState({});
+  
   const wasDarkMode = useRef(false);
 
   // 1. Initial Setup: Load Course and Questions
@@ -310,7 +318,14 @@ const AdaptiveExamInterface = () => {
             const ans = userAnswers[q.id];
             return ans && q.correctAnswer && ans.toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
         }).length;
-        const accuracy = Math.round((totalCorrect / pathQuestions.length) * 100);
+        const accuracyVal = Math.round((totalCorrect / pathQuestions.length) * 100);
+
+        // Update State for UI
+        setTotalScore(totalScore);
+        setRwScore(rwScore);
+        setMathScore(mathScore);
+        setAccuracy(accuracyVal);
+        setModuleDetails(moduleDetails);
 
         const response = await gradingService.submitAdaptiveTest({
             courseId: parseInt(courseId),
@@ -321,7 +336,8 @@ const AdaptiveExamInterface = () => {
                 totalScore,
                 rwScore,
                 mathScore,
-                accuracy,
+                accuracy: accuracyVal,
+                totalCorrect,
                 moduleDetails
             }
         });
@@ -573,7 +589,7 @@ const AdaptiveExamInterface = () => {
           </div>
 
           <div className="space-y-4 relative z-30">
-              {(!currentQuestion?.options || currentQuestion.options.filter(o => o && o.toString().trim() !== '').length === 0) ? (
+              {(currentQuestion?.type === 'short_answer' || !currentQuestion?.options || currentQuestion.options.filter(o => o && o.toString().trim() !== '').length < 4) ? (
                   <div className="w-full flex flex-col mt-4">
                       <p className="text-[15px] font-bold text-slate-500 mb-4 uppercase tracking-wider">Student-Produced Response</p>
                       <div className="relative w-full max-w-[180px] transition-all mb-12">

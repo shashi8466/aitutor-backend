@@ -4,6 +4,43 @@ import dotenv from 'dotenv';
 // 1. Load environment variables FIRST
 dotenv.config();
 
+// 1b. Validate critical environment variables on startup
+console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('🔧 ENVIRONMENT VALIDATION');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+const requiredEnvVars = {
+  SUPABASE_URL: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  BREVO_API_KEY: process.env.BREVO_API_KEY,
+  EMAIL_FROM: process.env.EMAIL_FROM || process.env.EMAIL_USER
+};
+
+let allCriticalVarsPresent = true;
+
+Object.entries(requiredEnvVars).forEach(([key, value]) => {
+  const isPresent = !!value;
+  const status = isPresent ? '✅' : '❌';
+  const displayValue = isPresent 
+    ? (key.includes('KEY') ? `${value.substring(0, 8)}...` : value)
+    : 'MISSING';
+  console.log(`${status} ${key}: ${displayValue}`);
+  
+  if (!isPresent && ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'BREVO_API_KEY'].includes(key)) {
+    allCriticalVarsPresent = false;
+  }
+});
+
+if (!allCriticalVarsPresent) {
+  console.log('\n⚠️  WARNING: Critical environment variables are missing!');
+  console.log('   Email sending and database operations will fail.');
+  console.log('   Check your .env file or deployment platform settings.\n');
+} else {
+  console.log('\n✅ All critical environment variables are present\n');
+}
+
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
 import cors from 'cors';
 import compression from 'compression';
 import path from 'path';
@@ -131,6 +168,18 @@ app.use(async (req, res, next) => {
   const timestamp = new Date().toISOString();
   try {
     const user = await getUserFromRequest(req);
+    
+    // Detailed logging for grading scores to diagnose 401
+    if (req.url.includes('all-my-scores')) {
+      console.log(`📡 [AuthCheck] ${req.method} ${req.url} - User: ${user ? user.email : 'MISSING'}`);
+      if (!user) {
+        console.log(`   - Auth Header present: ${!!req.headers.authorization}`);
+        if (req.headers.authorization) {
+          console.log(`   - Token starts with: ${req.headers.authorization.substring(0, 15)}...`);
+        }
+      }
+    }
+
     if (user) {
       req.user = user;
 
