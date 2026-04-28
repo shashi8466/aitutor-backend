@@ -83,6 +83,7 @@ const PORT = process.env.PORT || 3001;
 // 4. Robust CORS & Preflight (To fix Render domain-specific issues definitively)
 const ALLOWED_ORIGINS = [
   "https://aiprep365.com",
+  "https://aitutor-backend-u7h3.onrender.com",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",

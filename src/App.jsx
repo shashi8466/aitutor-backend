@@ -84,7 +84,7 @@ const isFirebase =
   window.location.hostname.includes('firebaseapp.com') ||
   window.location.hostname.includes('web.app');
 
-const PROD_URL = 'https://aitutor-backend-u7h3.onrender.com';
+const PROD_URL = 'https://aitutor-backend-u7h3.onrender.com'; // Backend API URL
 
 // Priority: 1. Local Development -> Empty string (uses Vite Proxy)
 // 2. Environment Variable -> Use it if provided
