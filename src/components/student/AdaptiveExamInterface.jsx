@@ -472,6 +472,16 @@ const AdaptiveExamInterface = () => {
         setAccuracy(accuracyVal);
         setModuleDetails(moduleDetails);
 
+        // Segregate topic stats by section
+        const sectionTopicStats = { rw: {}, math: {} };
+        Object.keys(topicStats).forEach(t => {
+            // Find a question with this topic to determine its section
+            const sampleQ = pathQuestions.find(q => (q.topic || 'General') === t);
+            const isRW = sampleQ && Object.keys(modules).some(k => k.startsWith('rw') && modules[k].some(mq => mq.id === sampleQ.id));
+            if (isRW) sectionTopicStats.rw[t] = topicStats[t];
+            else sectionTopicStats.math[t] = topicStats[t];
+        });
+
         const response = await gradingService.submitAdaptiveTest({
             courseId: parseInt(courseId),
             questionIds,
@@ -491,16 +501,6 @@ const AdaptiveExamInterface = () => {
 
         setAllTestQuestions(pathQuestions);
         
-        // Segregate topic stats by section
-        const sectionTopicStats = { rw: {}, math: {} };
-        Object.keys(topicStats).forEach(t => {
-            // Find a question with this topic to determine its section
-            const sampleQ = pathQuestions.find(q => (q.topic || 'General') === t);
-            const isRW = sampleQ && Object.keys(modules).some(k => k.startsWith('rw') && modules[k].some(mq => mq.id === sampleQ.id));
-            if (isRW) sectionTopicStats.rw[t] = topicStats[t];
-            else sectionTopicStats.math[t] = topicStats[t];
-        });
-
         const finishedAt = new Date().toLocaleString('en-US', {
             month: 'long',
             day: 'numeric',
