@@ -21,16 +21,24 @@ const VideoPlayer = () => {
   }, [courseId, level]);
 
   // Browsers can throw noisy `AbortError: play() request was interrupted...`
-  // when auto-play races with component unmount/re-render. We explicitly
-  // start playback and swallow AbortError so signup/login isn't affected.
+  // when auto-play races with component unmount/re-render.
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
-    if (!activeVideo || videoError) return;
-    v.play().catch((err) => {
-      if (err?.name === 'AbortError') return;
-      // Other autoplay failures (policy, not allowed) can be ignored.
-    });
+    if (!v || !activeVideo || videoError) return;
+
+    // Check if video is already playing to avoid redundant calls
+    if (v.paused) {
+      const playPromise = v.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          if (err?.name === 'AbortError') {
+            console.log("Playback interrupted by new request (safe to ignore)");
+          } else {
+            console.warn("Autoplay was prevented:", err);
+          }
+        });
+      }
+    }
   }, [activeVideo?.id, videoError]);
 
   const loadVideos = async () => {

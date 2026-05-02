@@ -8,9 +8,15 @@ import { courseService, gradingService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
+
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, Legend 
+} from 'recharts';
 
 const {
-  FiChevronLeft, FiChevronRight, FiClock, FiGrid, FiMoreVertical, FiEdit3, FiInfo, FiChevronDown, FiStar, FiSlash, FiX, FiMapPin, FiFlag, FiLogOut, FiTrash2, FiType, FiFilePlus, FiTarget, FiCheckCircle, FiRefreshCw
+  FiChevronLeft, FiChevronRight, FiClock, FiGrid, FiMoreVertical, FiEdit3, FiInfo, FiChevronDown, FiStar, FiSlash, FiX, FiMapPin, FiFlag, FiLogOut, FiTrash2, FiType, FiFilePlus, FiTarget, FiCheckCircle, FiRefreshCw, FiAlertCircle, FiActivity, FiPieChart, FiBarChart2, FiEye, FiAward
 } = FiIcons;
 
 const AdaptiveExamInterface = () => {
@@ -42,6 +48,12 @@ const AdaptiveExamInterface = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showTimer, setShowTimer] = useState(true);
   
+  // Break & Security State
+  const [isBreakActive, setIsBreakActive] = useState(false);
+  const [breakTimeLeft, setBreakTimeLeft] = useState(600);
+  const [securityViolations, setSecurityViolations] = useState([]);
+  const [showSecurityAlert, setShowSecurityAlert] = useState(false);
+  
   // Scoring State
   const [totalScore, setTotalScore] = useState(0);
   const [rwScore, setRwScore] = useState(0);
@@ -49,6 +61,16 @@ const AdaptiveExamInterface = () => {
   const [accuracy, setAccuracy] = useState(0);
   const [moduleDetails, setModuleDetails] = useState({});
   
+  const [resultsView, setResultsView] = useState('summary'); // 'summary' or 'review'
+  const [reviewFilter, setReviewFilter] = useState('all'); // 'all', 'correct', 'incorrect', 'unanswered'
+  const [allTestQuestions, setAllTestQuestions] = useState([]);
+  
+  // Time Tracking State
+  const [questionTimes, setQuestionTimes] = useState({}); // { qId: totalSeconds }
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
+  const [moduleDurations, setModuleDurations] = useState({}); // { moduleKey: totalSeconds }
+  const [moduleStartTime, setModuleStartTime] = useState(Date.now());
+
   const wasDarkMode = useRef(false);
 
   // 1. Initial Setup: Load Course and Questions
@@ -72,115 +94,112 @@ const AdaptiveExamInterface = () => {
   const loadInitialData = async () => {
     setLoading(true);
     try {
-      // Load Course Info
+      // 1. Load Course Info
       const courseRes = await courseService.getById(courseId);
       if (!courseRes.data) throw new Error("Course not found");
       setCourseInfo(courseRes.data);
 
+      console.log(`🔒 [EXAM] Loading Full-Length FULL LENGTH TEST content for course ${courseId}`);
+
       // 2. Identify the LATEST upload for each of the 6 module slots
-      // Note: We remove 'section' here because the column doesn't exist in the uploads table yet.
-      // We will identify modules by looking at the questions' own metadata.
       const { data: uploadData, error: uploadErr } = await supabase
         .from('uploads')
-        .select('id, level')
+        .select('id, level, section, file_name')
         .eq('course_id', courseId)
         .eq('category', 'quiz_document')
         .in('status', ['completed', 'warning'])
         .order('id', { ascending: false });
 
       if (uploadErr) throw uploadErr;
+      if (!uploadData || uploadData.length === 0) throw new Error("No quiz documents found for this test.");
 
-      // 3. Load ALL questions for this course to identify versions
+      // 3. Map uploads to slots
+      const slotLatestUploadId = {};
+      const slotToFileName = {};
+
+      uploadData.forEach(upload => {
+        const rawSec = (upload.section || '').toLowerCase();
+        const rawLvl = (upload.level || '').toLowerCase();
+        
+        let secKey = '';
+        if (rawSec.includes('read') || rawSec.includes('writ') || rawSec.includes('rw')) secKey = 'rw';
+        else if (rawSec.includes('math')) secKey = 'math';
+        // Fallback to filename if section is missing
+        else if (upload.file_name?.toLowerCase().includes('reading') || upload.file_name?.toLowerCase().includes('writing')) secKey = 'rw';
+        else if (upload.file_name?.toLowerCase().includes('math')) secKey = 'math';
+
+        let lvlKey = '';
+        if (rawLvl.includes('mod') || rawLvl.includes('med')) lvlKey = 'moderate';
+        else if (rawLvl.includes('easy')) lvlKey = 'easy';
+        else if (rawLvl.includes('hard')) lvlKey = 'hard';
+        // Fallback to filename if level is missing
+        else if (upload.file_name?.toLowerCase().includes('moderate') || upload.file_name?.toLowerCase().includes('medium')) lvlKey = 'moderate';
+        else if (upload.file_name?.toLowerCase().includes('easy')) lvlKey = 'easy';
+        else if (upload.file_name?.toLowerCase().includes('hard')) lvlKey = 'hard';
+
+        if (secKey && lvlKey) {
+          const slotKey = `${secKey}_${lvlKey}`;
+          if (!slotLatestUploadId[slotKey]) {
+            slotLatestUploadId[slotKey] = upload.id;
+            slotToFileName[slotKey] = upload.file_name;
+          }
+        }
+      });
+
+      const latestUploadIds = Object.values(slotLatestUploadId);
+      if (latestUploadIds.length === 0) throw new Error("No valid module uploads identified.");
+
+      console.log(`📚 [EXAM] Identified latest uploads:`, slotToFileName);
+
+      // 4. Fetch questions ONLY for these specific upload IDs
       const { data: qData, error: qError } = await supabase
         .from('questions')
         .select('*')
-        .eq('course_id', courseId);
+        .in('upload_id', latestUploadIds);
 
       if (qError) throw qError;
-      if (!qData || qData.length === 0) throw new Error("No questions found for this test.");
+      if (!qData || qData.length === 0) throw new Error("No questions found in the identified uploads.");
 
-      // 4. Group questions by upload_id and determine the "Dominant Slot" for each file
-      const uploadStats = {}; // { uploadId: { slot: count } }
-      const uploadQuestions = {}; // { uploadId: [questions] }
-
-      qData.forEach(q => {
-        const sec = (q.section || '').toLowerCase();
-        const lvl = (q.level || '').toLowerCase();
-        const uId = q.upload_id;
-        if (!uId) return;
-
-        let secKey = '';
-        if (sec.includes('read') || sec.includes('writ') || sec.includes('eng') || sec.includes('lit')) secKey = 'rw';
-        else if (sec.includes('math') || sec.includes('calc') || sec.includes('alg')) secKey = 'math';
-        
-        let lvlKey = '';
-        if (lvl.includes('mod') || lvl.includes('med')) lvlKey = 'moderate';
-        else if (lvl.includes('easy')) lvlKey = 'easy';
-        else if (lvl.includes('hard')) lvlKey = 'hard';
-
-        // Always add the question to the upload's pool
-        if (!uploadQuestions[uId]) uploadQuestions[uId] = [];
-        uploadQuestions[uId].push({
-          ...q,
-          text: q.question || q.question_text || '',
-          options: q.options || [],
-          correctAnswer: q.correct_answer || ''
-        });
-
-        // Track stats for dominant slot detection
-        if (secKey && lvlKey) {
-          const slot = `${secKey}_${lvlKey}`;
-          if (!uploadStats[uId]) uploadStats[uId] = {};
-          uploadStats[uId][slot] = (uploadStats[uId][slot] || 0) + 1;
-        }
-      });
-
-      // 5. For each slot, pick the LATEST upload_id whose dominant slot matches
-      const slotLatestUploadId = {};
-      
-      // Sort upload IDs descending (latest first)
-      const sortedUploadIds = Object.keys(uploadStats).map(Number).sort((a, b) => b - a);
-
-      sortedUploadIds.forEach(uId => {
-        const stats = uploadStats[uId];
-        // Find the slot with the most questions in this upload
-        let dominantSlot = '';
-        let maxCount = 0;
-        Object.keys(stats).forEach(slot => {
-          if (stats[slot] > maxCount) {
-            maxCount = stats[slot];
-            dominantSlot = slot;
-          }
-        });
-
-        if (dominantSlot && !slotLatestUploadId[dominantSlot]) {
-          slotLatestUploadId[dominantSlot] = uId;
-        }
-      });
-
-      // 6. Final Grouping: Take EVERY question from the identified upload for each slot
+      // 5. Final Grouping
       const grouped = {
         rw_moderate: [], rw_easy: [], rw_hard: [],
         math_moderate: [], math_easy: [], math_hard: []
       };
 
-      Object.keys(slotLatestUploadId).forEach(slotKey => {
-        const latestId = slotLatestUploadId[slotKey];
-        // Take ALL questions belonging to this upload ID. 
-        // This ensures the count matches the Admin panel exactly.
-        grouped[slotKey] = uploadQuestions[latestId] || [];
+      const uploadIdToSlot = {};
+      Object.entries(slotLatestUploadId).forEach(([slot, id]) => {
+        uploadIdToSlot[id] = slot;
       });
 
+      qData.forEach(q => {
+        const slotKey = uploadIdToSlot[q.upload_id];
+        if (slotKey) {
+          grouped[slotKey].push({
+            ...q,
+            text: q.question || q.question_text || '',
+            options: q.options || [],
+            correctAnswer: q.correct_answer || ''
+          });
+        }
+      });
+
+      console.log(`✅ [EXAM] Loaded modules:`, Object.keys(grouped).map(key => `${key}: ${grouped[key].length} questions`));
 
       setModules(grouped);
       
       // Start with rw_moderate
       const firstModule = grouped['rw_moderate'];
-      if (!firstModule || firstModule.length === 0) throw new Error("Reading & Writing Moderate module is missing.");
+      if (!firstModule || firstModule.length === 0) {
+        throw new Error("Reading & Writing Moderate module is missing or has no questions.");
+      }
       
       setQuestions(firstModule);
       startModuleTimer(firstModule, 'rw_moderate');
+      setModuleStartTime(Date.now());
+      setQuestionStartTime(Date.now());
+      console.log(`🚀 [EXAM] Starting test with ${firstModule.length} questions`);
     } catch (err) {
+      console.error(`❌ [EXAM] Error loading content:`, err);
       setError(err.message || "Failed to load exam content.");
     } finally {
       setLoading(false);
@@ -198,13 +217,47 @@ const AdaptiveExamInterface = () => {
 
   // 2. Timer Effect
   useEffect(() => {
-    if (timeLeft > 0 && !showResults && !showCheckWork) {
+    if (isBreakActive) {
+      if (breakTimeLeft > 0) {
+        const timer = setInterval(() => setBreakTimeLeft(prev => prev - 1), 1000);
+        return () => clearInterval(timer);
+      } else {
+        handleEndBreak();
+      }
+    } else if (timeLeft > 0 && !showResults && !showCheckWork) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
     } else if (timeLeft === 0 && questions.length > 0 && !showResults && !showCheckWork) {
       setShowCheckWork(true);
     }
-  }, [timeLeft, showResults, showCheckWork, questions.length]);
+  }, [timeLeft, showResults, showCheckWork, questions.length, isBreakActive, breakTimeLeft]);
+
+  // 2.1 Security/Proctoring Effect
+  useEffect(() => {
+    if (showResults) return;
+
+    const handleSecurityEvent = (type) => {
+      console.warn(`🛡️ [SECURITY] Focus lost: ${type} at ${new Date().toLocaleTimeString()}`);
+      setSecurityViolations(prev => [...prev, { type, timestamp: new Date().toISOString(), questionIndex: currentQuestionIndex }]);
+      setShowSecurityAlert(true);
+      // Auto-hide alert after 3 seconds
+      setTimeout(() => setShowSecurityAlert(false), 3000);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') handleSecurityEvent('tab_switch');
+    };
+
+    const onBlur = () => handleSecurityEvent('window_blur');
+
+    window.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('blur', onBlur);
+
+    return () => {
+      window.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [showResults, currentQuestionIndex]);
 
   // 3. Navigation & Answer Handling
   const handleAnswerSelect = (answer) => {
@@ -218,17 +271,41 @@ const AdaptiveExamInterface = () => {
     setFlaggedQuestions(prev => ({ ...prev, [currentQuestionIndex]: !prev[currentQuestionIndex] }));
   };
 
+  const recordTime = () => {
+    const now = Date.now();
+    const diff = Math.floor((now - questionStartTime) / 1000);
+    const qId = questions[currentQuestionIndex]?.id;
+    if (qId) {
+      setQuestionTimes(prev => ({
+        ...prev,
+        [qId]: (prev[qId] || 0) + diff
+      }));
+    }
+    setQuestionStartTime(now);
+  };
+
   const handleNext = () => {
+    recordTime();
     if (currentQuestionIndex < questions.length - 1) setCurrentQuestionIndex(prev => prev + 1);
     else setShowCheckWork(true);
   };
 
   const handleBack = () => {
+    recordTime();
     if (currentQuestionIndex > 0) setCurrentQuestionIndex(prev => prev - 1);
   };
 
   // 4. Adaptive Logic: Transition between modules
   const handleNextModule = () => {
+    recordTime();
+    
+    // Record Module Duration
+    const mDuration = Math.floor((Date.now() - moduleStartTime) / 1000);
+    setModuleDurations(prev => ({
+      ...prev,
+      [currentModuleKey]: mDuration
+    }));
+
     const threshold = courseInfo?.threshold_percentage || 60;
     
     // Calculate current module score
@@ -242,7 +319,11 @@ const AdaptiveExamInterface = () => {
     if (currentModuleKey === 'rw_moderate') {
       nextKey = percentage >= threshold ? 'rw_hard' : 'rw_easy';
     } else if (currentModuleKey === 'rw_easy' || currentModuleKey === 'rw_hard') {
-      nextKey = 'math_moderate';
+      // Move to Math but start with a break
+      setIsBreakActive(true);
+      setBreakTimeLeft(600);
+      setShowCheckWork(false); // Close review screen
+      return; 
     } else if (currentModuleKey === 'math_moderate') {
       nextKey = percentage >= threshold ? 'math_hard' : 'math_easy';
     }
@@ -255,9 +336,29 @@ const AdaptiveExamInterface = () => {
       setFlaggedQuestions({});
       setShowCheckWork(false);
       startModuleTimer(modules[nextKey], nextKey);
+      setModuleStartTime(Date.now());
+      setQuestionStartTime(Date.now());
       window.scrollTo(0, 0);
     } else {
       handleFinish(); // No more modules
+    }
+  };
+
+  const handleEndBreak = () => {
+    setIsBreakActive(false);
+    // After break, always go to math_moderate
+    const nextKey = 'math_moderate';
+    if (modules[nextKey]) {
+      setCurrentModuleKey(nextKey);
+      setModuleHistory(prev => [...prev, nextKey]);
+      setQuestions(modules[nextKey]);
+      setCurrentQuestionIndex(0);
+      setFlaggedQuestions({});
+      setShowCheckWork(false);
+      startModuleTimer(modules[nextKey], nextKey);
+      setModuleStartTime(Date.now());
+      setQuestionStartTime(Date.now());
+      window.scrollTo(0, 0);
     }
   };
 
@@ -280,38 +381,82 @@ const AdaptiveExamInterface = () => {
         let mathRaw = 0;
         let mathMax = 0;
 
+        // Track path to determine section ceilings (Easy path max 700, Hard path max 800)
+        let rwPath = 'moderate';
+        let mathPath = 'moderate';
+
         const moduleDetails = {};
+        const topicStats = {};
+
         moduleHistory.forEach(mKey => {
             const mQs = modules[mKey];
             const isRW = mKey.startsWith('rw');
             const diff = mKey.split('_')[1]; // moderate, easy, hard
+            
+            // 1. Difficulty Weights (Easy=1, Moderate=2, Hard=3)
             const weight = diff === 'hard' ? 3 : (diff === 'moderate' ? 2 : 1);
             
+            // Track if student went to Easy or Hard module for the ceiling
+            if (isRW) {
+                if (diff === 'easy') rwPath = 'easy';
+                if (diff === 'hard') rwPath = 'hard';
+            } else {
+                if (diff === 'easy') mathPath = 'easy';
+                if (diff === 'hard') mathPath = 'hard';
+            }
+            
             let moduleCorrect = 0;
+            let moduleIncorrect = 0;
+            let moduleUnanswered = 0;
+
             mQs.forEach(q => {
                 const ans = userAnswers[q.id];
                 const isCorrect = ans && q.correctAnswer && ans.toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
-                
+                const isUnanswered = !ans;
+
                 if (isCorrect) {
                   moduleCorrect++;
                   if (isRW) rwRaw += weight;
                   else mathRaw += weight;
+                } else if (isUnanswered) {
+                  moduleUnanswered++;
+                } else {
+                  moduleIncorrect++;
                 }
                 
                 if (isRW) rwMax += weight;
                 else mathMax += weight;
+
+                // Topic Aggregation
+                const topic = q.topic || 'General';
+                if (!topicStats[topic]) topicStats[topic] = { total: 0, correct: 0, incorrect: 0, unanswered: 0, totalTime: 0 };
+                topicStats[topic].total++;
+                topicStats[topic].totalTime += (questionTimes[q.id] || 0);
+                if (isCorrect) topicStats[topic].correct++;
+                else if (isUnanswered) topicStats[topic].unanswered++;
+                else topicStats[topic].incorrect++;
             });
 
             moduleDetails[mKey] = {
                 correct: moduleCorrect,
+                incorrect: moduleIncorrect,
+                unanswered: moduleUnanswered,
                 total: mQs.length,
                 percentage: Math.round((moduleCorrect / mQs.length) * 100),
-                difficulty: diff.toUpperCase()
+                difficulty: diff.toUpperCase(),
+                duration: moduleDurations[mKey] || 0
             };
         });
 
-        const rwScore = rwMax > 0 ? Math.round((rwRaw / rwMax) * 800) : 0;
-        const mathScore = mathMax > 0 ? Math.round((mathRaw / mathMax) * 800) : 0;
+        // 2. Adaptive Flow Bounds (Min 200)
+        // Hard path: 200 - 800 (Scale: 600)
+        // Easy path: 200 - 700 (Scale: 500)
+        const rwSectionScale = rwPath === 'hard' ? 600 : 500;
+        const mathSectionScale = mathPath === 'hard' ? 600 : 500;
+
+        // Final score calculation: 200 + (Weighted_Raw / Weighted_Max) * Section_Scale
+        const rwScore = rwMax > 0 ? Math.round(200 + (rwRaw / rwMax) * rwSectionScale) : 200;
+        const mathScore = mathMax > 0 ? Math.round(200 + (mathRaw / mathMax) * mathSectionScale) : 200;
         const totalScore = rwScore + mathScore;
 
         const totalCorrect = pathQuestions.filter(q => {
@@ -338,16 +483,47 @@ const AdaptiveExamInterface = () => {
                 mathScore,
                 accuracy: accuracyVal,
                 totalCorrect,
-                moduleDetails
+                moduleDetails,
+                sectionTopicStats,
+                securityViolations // Include violations in the submission
             }
         });
+
+        setAllTestQuestions(pathQuestions);
+        
+        // Segregate topic stats by section
+        const sectionTopicStats = { rw: {}, math: {} };
+        Object.keys(topicStats).forEach(t => {
+            // Find a question with this topic to determine its section
+            const sampleQ = pathQuestions.find(q => (q.topic || 'General') === t);
+            const isRW = sampleQ && Object.keys(modules).some(k => k.startsWith('rw') && modules[k].some(mq => mq.id === sampleQ.id));
+            if (isRW) sectionTopicStats.rw[t] = topicStats[t];
+            else sectionTopicStats.math[t] = topicStats[t];
+        });
+
+        const finishedAt = new Date().toLocaleString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        }).replace(',', ' |');
 
         setSubmissionResult({
             ...response.data,
             rwScore,
             mathScore,
             totalScore,
-            moduleDetails
+            moduleDetails,
+            topicStats,
+            sectionTopicStats,
+            questionTimes,
+            totalCorrect,
+            totalQs: pathQuestions.length,
+            attempted: pathQuestions.filter(q => userAnswers[q.id]).length,
+            accuracy: accuracyVal,
+            finishedAt
         });
         setShowResults(true);
         setShowCheckWork(false);
@@ -372,69 +548,28 @@ const AdaptiveExamInterface = () => {
     return currentModuleKey.startsWith('rw') ? 'Reading & Writing' : 'Math';
   };
 
+  const getHeaderTitle = () => {
+    const section = detectSection();
+    const difficulty = currentModuleKey.split('_')[1];
+    if (difficulty === 'moderate') return `${section} - Part 1`;
+    if (difficulty === 'easy') return `${section} - E`;
+    if (difficulty === 'hard') return `${section} - H`;
+    return `${section} - ${difficulty ? difficulty.toUpperCase() : ''}`;
+  };
+
   if (loading) return <div className="h-screen flex items-center justify-center font-bold text-[#2E4DC6]">Initializing Adaptive Exam Environment...</div>;
   if (error) return <div className="h-screen flex items-center justify-center p-8 text-red-600 font-bold">{error}</div>;
 
   const currentQuestion = questions[currentQuestionIndex];
   const selectedAnswer = userAnswers[currentQuestion?.id] || '';
 
-  // Results Screen
   if (showResults) {
-    const res = submissionResult;
-    const percentage = res ? Math.round(res.rawPercentage || 0) : 0;
-    const moduleDetails = res?.moduleDetails || {};
-
     return (
-      <div className="fixed inset-0 z-[999999] bg-[#0F172A]/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
-        <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="bg-[#1E293B] p-8 sm:p-12 rounded-[48px] shadow-2xl max-w-2xl w-full border border-white/10 flex flex-col items-center relative overflow-y-auto max-h-[95vh]">
-          <div className="w-16 h-16 bg-blue-600/20 rounded-2xl rotate-12 flex items-center justify-center mb-6">
-             <div className="w-12 h-12 bg-blue-600 rounded-xl -rotate-12 flex items-center justify-center shadow-xl shadow-blue-900/50">
-                <SafeIcon icon={FiIcons.FiAward} className="w-6 h-6 text-white" />
-             </div>
-          </div>
-          <h2 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">Test Completed!</h2>
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-8 text-center">Adaptive SAT Performance Summary</p>
-          
-          <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-center">
-            <div className="bg-white/10 backdrop-blur-sm p-6 rounded-3xl border border-white/10 shadow-xl">
-              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] mb-2 text-center">Total Score</p>
-              <span className="text-4xl font-black text-purple-400">{res?.totalScore || res?.scaledScore || totalScore || '-'}</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm p-6 rounded-3xl border border-white/10 shadow-xl">
-              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] mb-2 text-center">R&W Section</p>
-              <span className="text-3xl font-black text-blue-400">{res?.rwScore || rwScore || '-'}</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm p-6 rounded-3xl border border-white/10 shadow-xl">
-              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] mb-2 text-center">Math Section</p>
-              <span className="text-3xl font-black text-emerald-400">{res?.mathScore || mathScore || '-'}</span>
-            </div>
-          </div>
-
-          <div className="w-full space-y-3 mb-10 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
-            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mb-2">Detailed Module Breakdown</p>
-            {Object.keys(moduleDetails).map(mKey => {
-              const data = moduleDetails[mKey];
-              const isRW = mKey.startsWith('rw');
-              return (
-                <div key={mKey} className="flex items-center justify-between bg-white/5 border border-white/10 p-4 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${isRW ? 'bg-blue-400' : 'bg-emerald-400'}`}></div>
-                    <span className="text-white font-bold">{isRW ? 'Reading & Writing' : 'Math'} — {data.difficulty}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-slate-400 text-xs font-bold">{data.correct} / {data.total}</span>
-                    <div className="px-3 py-1 bg-white/10 rounded-lg text-xs font-black text-white">{data.percentage}%</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <Link to="/student" className="w-full py-4 bg-blue-600 text-white rounded-[24px] font-black text-lg hover:bg-blue-500 transition-all text-center flex items-center justify-center gap-3 shadow-lg shadow-blue-900/40">
-              Return to Dashboard <SafeIcon icon={FiChevronRight} className="w-5 h-5 text-white/50" />
-          </Link>
-        </motion.div>
-      </div>
+      <AdaptiveResultsDashboard 
+        submission={submissionResult} 
+        onExit={() => navigate('/student')} 
+        adminMode={false} 
+      />
     );
   }
 
@@ -445,7 +580,7 @@ const AdaptiveExamInterface = () => {
         <header className="bg-[#0f172a] px-10 h-[60px] flex items-center justify-between shadow-sm">
           <div className="flex flex-col">
             <h2 className="text-sm font-bold text-white">
-              {detectSection()} - Module {moduleHistory.length % 2 === 1 ? '1' : '2'}
+              {getHeaderTitle()}
             </h2>
             <span className="text-[11px] text-gray-400 font-semibold">Review Section</span>
           </div>
@@ -512,9 +647,90 @@ const AdaptiveExamInterface = () => {
     );
   }
 
+  // Break Screen UI
+  if (isBreakActive) {
+    return (
+      <div className="fixed inset-0 z-[999999] bg-[#1a1a1a] flex flex-col font-sans text-white overflow-y-auto">
+        <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col md:flex-row items-center justify-center p-8 gap-12 sm:gap-20">
+          
+          {/* Left Side: Timer */}
+          <div className="flex flex-col items-center space-y-8">
+            <div className="p-10 rounded-[32px] border-2 border-white/10 bg-white/5 backdrop-blur-xl flex flex-col items-center min-w-[280px]">
+              <p className="text-sm font-black uppercase tracking-widest text-gray-400 mb-4">Remaining Break Time:</p>
+              <div className="text-8xl font-black tracking-tighter text-white">
+                {formatTime(breakTimeLeft)}
+              </div>
+            </div>
+            
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleEndBreak}
+              className="px-10 py-4 bg-[#FFD700] text-black rounded-full font-black text-lg hover:bg-[#FFC700] transition-all shadow-2xl shadow-yellow-500/20"
+            >
+              Resume Testing
+            </motion.button>
+          </div>
+
+          {/* Right Side: Instructions */}
+          <div className="max-w-xl space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-4xl font-black tracking-tight text-white">Practice Test Break</h2>
+              <p className="text-gray-400 text-lg leading-relaxed">
+                You can resume this practice test as soon as you're ready to move on. On test day, you'll wait until the clock counts down. Read below to see how breaks work on test day.
+              </p>
+            </div>
+
+            <div className="h-px bg-white/10 w-full" />
+
+            <div className="space-y-6">
+              <h3 className="text-2xl font-black text-[#FFD700]">Take a Break: Do Not Close Your Device</h3>
+              <p className="text-gray-400">After the break, a <span className="text-white font-bold">Resume Testing Now</span> button will appear and you'll start the next section.</p>
+              
+              <div className="space-y-4">
+                <p className="text-sm font-black uppercase tracking-widest text-gray-500">Follow these rules during the break:</p>
+                <ul className="space-y-3 text-gray-300 font-medium">
+                  {[
+                    "Do not disturb students who are still testing.",
+                    "Do not exit the app or close your laptop.",
+                    "Do not access phones, smartwatches, textbooks, notes, or the internet.",
+                    "Do not eat or drink near any testing device.",
+                    "Do not speak in the testing room; outside the room, do not discuss the exam with anyone."
+                  ].map((rule, idx) => (
+                    <li key={idx} className="flex gap-4 items-start">
+                      <span className="text-gray-500 font-black">{idx + 1}.</span>
+                      <span>{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="p-8 border-t border-white/5">
+          <p className="text-gray-500 font-bold text-lg">{user?.name || 'Student'}</p>
+        </div>
+      </div>
+    );
+  }
+
   // Active Exam UI
   return (
     <div className="fixed inset-0 z-[999999] bg-white flex flex-col font-sans select-none text-black overflow-hidden take-quiz-force-white px-0">
+      <AnimatePresence>
+        {showSecurityAlert && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[1000000] bg-red-600 text-white px-6 py-3 rounded-full font-black text-sm shadow-2xl flex items-center gap-3 border-2 border-white/20"
+          >
+            <SafeIcon icon={FiAlertCircle} /> SECURITY ALERT: Window focus lost. This event has been tracked.
+          </motion.div>
+        )}
+      </AnimatePresence>
       <style>{`
         .take-quiz-force-white header { background: #0f172a !important; color: white !important; min-height: 60px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; position: relative !important; z-index: 10000 !important; }
         @media (min-width: 640px) { .take-quiz-force-white header { padding: 0 40px !important; } }
@@ -528,7 +744,7 @@ const AdaptiveExamInterface = () => {
       <header>
         <div className="flex flex-col">
           <h2 className="text-[15px] font-bold text-white">
-              {detectSection()} - Module {moduleHistory.length % 2 === 1 ? '1' : '2'}: {currentModuleKey.split('_')[1].toUpperCase()}
+              {getHeaderTitle()}
           </h2>
           <span className="text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-3 h-3" /></span>
         </div>
@@ -574,7 +790,7 @@ const AdaptiveExamInterface = () => {
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
         <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
           <div className="prose prose-slate max-w-none leading-[1.6] text-[16px] sm:text-[18px] text-slate-900 font-medium tracking-tight antialiased">
-                <MathRenderer text={currentQuestion?.text || ''} />
+                <MathRenderer text={currentQuestion?.text || ''} courseId={courseId} />
           </div>
         </div>
 
@@ -620,7 +836,7 @@ const AdaptiveExamInterface = () => {
                             onClick={() => handleAnswerSelect(letter)}
                             className={`flex-1 rounded-2xl p-5 min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
                          >
-                            <div className="pointer-events-none"><MathRenderer text={optContent} className="text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
+                            <div className="pointer-events-none"><MathRenderer text={optContent} courseId={courseId} className="text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
                          </div>
                       </div>
                     );

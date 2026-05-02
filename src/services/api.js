@@ -332,9 +332,21 @@ export const authService = {
     if (error) throw error;
     return { data };
   },
-  updateEmail: async (newEmail) => {
-    const { error } = await supabase.auth.updateUser({ email: newEmail });
-    if (error) throw error;
+  updateEmail: async (userId, newEmail) => {
+    // 1. Update Supabase Auth (sends confirmation email)
+    const { error: authError } = await supabase.auth.updateUser({ email: newEmail });
+    if (authError) throw authError;
+
+    // 2. Update profiles table (for display and consistency)
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .update({ email: newEmail })
+      .eq('id', userId);
+    
+    if (dbError) {
+      console.warn('Auth email updated but profile email update failed:', dbError.message);
+    }
+
     return { success: true };
   },
   updatePassword: async (newPassword) => {
@@ -347,6 +359,26 @@ export const authService = {
       type: 'signup',
       email: email,
     });
+  },
+  resetPasswordForEmail: async (email) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+  resetPassword: async (newPassword) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   }
 };
 
@@ -630,8 +662,12 @@ export const aiService = {
   generateSimilarQuestion: async (question, previousQuestions = []) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+    
+    // Normalize level to ensure backend compatibility (Moderate -> Medium)
+    const normalizedLevel = question.level === 'moderate' || question.level === 'Moderate' ? 'Medium' : (question.level || 'Medium');
+    
     const payload = {
-      question,
+      question: { ...question, level: normalizedLevel },
       previousQuestions: previousQuestions.slice(-5)
     };
     return axios.post('/api/ai/generate-similar', payload, { headers });
@@ -648,12 +684,20 @@ export const aiService = {
   prep365Chat: async (message, difficulty, count = 10, excludeIds = []) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-    return axios.post('/api/ai/prep365-chat', { message, difficulty, count, excludeIds }, { headers });
+    
+    // Normalize level to ensure backend compatibility (Moderate -> Medium)
+    const normalizedLevel = difficulty === 'moderate' || difficulty === 'Moderate' ? 'Medium' : (difficulty || 'Medium');
+    
+    return axios.post('/api/ai/prep365-chat', { message, difficulty: normalizedLevel, count, excludeIds }, { headers });
   },
   kbQuiz: async (topic, level, count = 10, excludeIds = [], userId = null) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-    return axios.post('/api/kb-quiz', { topic, level, count, excludeIds, userId }, { headers });
+    
+    // Normalize level to ensure backend compatibility (Moderate -> Medium)
+    const normalizedLevel = level === 'moderate' || level === 'Moderate' ? 'Medium' : (level || 'Medium');
+    
+    return axios.post('/api/kb-quiz', { topic, level: normalizedLevel, count, excludeIds, userId }, { headers });
   },
 
   kbTopics: async () => {

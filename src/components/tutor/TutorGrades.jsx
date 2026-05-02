@@ -115,6 +115,17 @@ const TutorGrades = ({ adminMode = false, courseId = null, dashboardData, isPare
     };
 
     const viewSubmissionDetails = async (submission) => {
+        const isAdaptive = selectedCourse?.tutor_type === 'Full-Length SAT Test' || 
+                           submission?.course?.tutor_type === 'Full-Length SAT Test' || 
+                           submission?.is_adaptive ||
+                           (submission?.level && submission.level.toUpperCase() === 'ADAPTIVE');
+                           
+        if (isAdaptive) {
+            const prefix = adminMode ? '/admin' : (user?.role === 'student' ? '/student' : '/tutor');
+            navigate(`${prefix}/detailed-review/${submission.id}`);
+            return;
+        }
+
         setSelectedSubmission(submission);
         setLoadingDetails(true);
         try {

@@ -12,8 +12,8 @@ const { FiX, FiSave, FiAlertTriangle, FiBook, FiLoader, FiUsers, FiDollarSign, F
 const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
   const isEditMode = !!course;
   const [formData, setFormData] = useState({
-    name: course?.name || 'Full-Length Adaptive SAT Test',
-    description: course?.description || 'An adaptive SAT test that adjusts difficulty based on performance in the first module.',
+    name: course?.name || 'FULL LENGTH TEST',
+    description: course?.description || 'An FULL LENGTH TEST that adjusts difficulty based on performance in the first module.',
     threshold_percentage: course?.threshold_percentage || 60,
     price_full: course?.price_full || '',
     manual_enrollment_count: course?.manual_enrollment_count || '',
@@ -171,7 +171,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
       const cleanData = {
         name: formData.name,
         description: formData.description,
-        tutor_type: 'Full-Length SAT Test',
+        tutor_type: 'Full-Length SAT',
         price: Number(formData.price_full) || 0,
         currency: 'INR',
         is_free: Number(formData.price_full) === 0,
@@ -179,7 +179,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
         is_demo: formData.is_demo,
         status: formData.status || 'active',
         manual_enrollment_count: Number(formData.manual_enrollment_count) || 0,
-        main_category: 'Adaptive Tests',
+        main_category: 'FULL LENGTH TESTs',
         category: 'Full-Length SAT',
         is_adaptive: true,
         threshold_percentage: Number(formData.threshold_percentage) || 60

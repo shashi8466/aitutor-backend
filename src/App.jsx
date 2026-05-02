@@ -15,6 +15,8 @@ const HomePage = lazy(() => import('./components/layout/HomePage'));
 const UnifiedLogin = lazy(() => import('./components/auth/UnifiedLogin'));
 const Signup = lazy(() => import('./components/auth/Signup'));
 const ContactPage = lazy(() => import('./components/layout/ContactPage'));
+const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('./components/auth/ResetPassword'));
 
 // Student Pages
 const StudentDashboard = lazy(() => import('./components/student/StudentDashboard'));
@@ -51,6 +53,7 @@ const StudentFeedback = lazy(() => import('./components/student/StudentFeedback'
 // Demo Pages
 const PublicDemoCourseView = lazy(() => import('./components/demo/PublicDemoCourseView'));
 const PublicDemoQuizInterface = lazy(() => import('./components/demo/PublicDemoQuizInterface'));
+const DemoReport = lazy(() => import('./components/demo/DemoReport'));
 
 // Notification Components - ADMIN ONLY
 // const NotificationPreferences = lazy(() => import('./components/common/NotificationPreferences'));
@@ -270,7 +273,10 @@ const App = () => {
   const isStudentRoute = location.pathname.startsWith('/student');
   const isTutorRoute = location.pathname.startsWith('/tutor');
   const isDemoRoute = location.pathname.startsWith('/demo');
-  const isAuthRoute = location.pathname.startsWith('/login') || location.pathname.startsWith('/signup');
+  const isAuthRoute = location.pathname.startsWith('/login') || 
+                      location.pathname.startsWith('/signup') || 
+                      location.pathname.startsWith('/forgot-password') || 
+                      location.pathname.startsWith('/reset-password');
   const isHomeRoute = location.pathname === '/';
   const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isAuthRoute && !isHomeRoute && !isDemoRoute;
 
@@ -294,11 +300,14 @@ const App = () => {
             <Route path="/login/parent" element={<UnifiedLogin />} />
 
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/contact" element={<ContactPage />} />
 
             {/* Public Demo Routes */}
             <Route path="/demo/:courseId" element={<PublicDemoCourseView />} />
             <Route path="/demo/:courseId/level/:level" element={<PublicDemoQuizInterface />} />
+            <Route path="/demo/:courseId/report" element={<DemoReport />} />
 
             {/* Student Routes */}
             <Route

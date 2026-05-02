@@ -100,13 +100,13 @@ export const calculateTotalSATScore = (progressEntries) => {
 
 // SAT-style weighted scoring model - matches frontend calculateSatScore
 export const calculateSatScore = (easy, medium, hard) => {
-  // SAT-style weighted model across levels:
-  // Easy 20%, Medium 35%, Hard 45%, scaled directly to 0–800.
+  // UPDATED: Difficulty Weights (Easy=1, Moderate=2, Hard=3)
+  // ⚖️ Weighted Model: (E*1 + M*2 + H*3) / 6
   const e = Number(easy) || 0;
   const m = Number(medium) || 0;
   const h = Number(hard) || 0;
 
-  const weightedAccuracy = (e * 0.20) + (m * 0.35) + (h * 0.45); // 0–100 range
+  const weightedAccuracy = (e * 1 + m * 2 + h * 3) / 6; // 0–100 range
   const rawScore = (weightedAccuracy / 100) * 800;
 
   // Clamp defensively to valid SAT section bounds

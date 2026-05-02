@@ -429,8 +429,10 @@ export function buildWelcomeEmail({ name, appUrl }) {
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>Welcome to ${appName} 🎉</h1><p>Your journey starts here!</p></div><div class="body"><p>Hi <strong>${name || 'Student'}</strong>,</p><p style="margin-top:15px; font-size: 16px; line-height: 1.6;">You have successfully registered on ${appName} platform. Start learning and improve your skills 🚀</p><div class="tip-box">📚 Explore your dashboard to find assigned courses and start your first test.</div><a class="cta" href="${finalUrl}">Start Learning Now →</a><p style="margin-top:20px; font-size: 14px; color: #4a5568;">Thanks,<br><strong>AIPrep365 Team</strong></p></div><div class="footer">${appName} • Thank you for joining our community.</div></div></div></body></html>`;
 }
 
-export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetails }) {
+export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetails, courseId }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://aiprep365.com';
+    const reportUrl = `${frontendUrl}/demo/${courseId}/report`;
     const allLevels = scoreDetails?.allLevels || {};
     const comprehensive = scoreDetails?.comprehensive || {};
     const isAdaptiveSAT = scoreDetails?.isAdaptiveSAT || 
@@ -449,65 +451,40 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
     const badge = finalPredictedScore >= 1400 ? 'badge-green' : finalPredictedScore >= 1200 ? 'badge-blue' : finalPredictedScore >= 1000 ? 'badge-yellow' : 'badge-red';
 
     // Helper function to get detailed level score display
-    const getLevelDisplay = (levelData) => {
-        if (!levelData) return '<div class="score-box"><div class="val">—</div><div class="lbl">Not Completed</div></div>';
-        
-        const accuracy = Math.round((levelData.correct || 0) / (levelData.total || 1) * 100);
-        return `
-            <div class="score-box">
-                <div class="val">${Math.round((levelData.correct || 0) / (levelData.total || 1) * 800) || '—'}</div>
-                <div class="lbl">${Math.round(accuracy)}%</div>
-                <div class="lbl">${levelData.correct || 0}/${levelData.total || 0}</div>
-            </div>
-        `;
-    };
-
-    // Helper function to get detailed level row display
-    const getLevelRow = (levelName, levelData) => {
-        if (!levelData) return `<div style="margin-bottom: 15px;"><strong>${levelName.toUpperCase()}:</strong> Not Completed</div>`;
-        
-        const accuracy = Math.round((levelData.correct || 0) / (levelData.total || 1) * 100);
-        return `
-            <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px; font-size: 16px;">
-                <strong style="min-width: 80px;">${levelName.toUpperCase()}:</strong>
-                <span style="font-weight: 600; color: #818cf8; font-size: 18px;">${Math.round((levelData.correct || 0) / (levelData.total || 1) * 800) || '---'}</span>
-                <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
-                <span style="color: #64748b;">| ${levelData.correct || 0}/${levelData.total || 0}</span>
-            </div>
-        `;
-    };
-
-    // Helper function for Adaptive SAT Test module display
     const getAdaptiveModuleRow = (moduleName, moduleData) => {
-        if (!moduleData) return `<div style="margin-bottom: 10px;"><strong>${moduleName.toUpperCase()}:</strong> Not Completed</div>`;
+        // Hide if no data or no questions were attempted
+        if (!moduleData || !moduleData.total || moduleData.total === 0) return '';
         
+        // Hide if specifically marked as not completed or not attempted
+        if (moduleData.status === 'Not Completed' || moduleData.notAttempted === true) return '';
+
         const accuracy = Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 100);
         return `
             <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-                <strong style="min-width: 100px;">${moduleName.toUpperCase()}:</strong>
-                <span style="font-weight: 600; color: #818cf8;">${Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 800)}</span>
-                <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
-                <span style="color: #64748b;">| ${moduleData.correct || 0}/${moduleData.total || 0}</span>
+                <strong style="min-width: 120px; color: #f8fafc;">${moduleName}:</strong>
+                <span style="font-weight: 700; color: #818cf8; font-size: 16px;">${Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 800)}</span>
+                <span style="color: #94a3b8; font-size: 14px;">| ${Math.round(accuracy)}% Accuracy</span>
+                <span style="color: #64748b; font-size: 13px;">| ${moduleData.correct || 0}/${moduleData.total || 0} Correct</span>
             </div>
         `;
     };
 
-    // Generate module breakdown for Adaptive SAT Test
+    // Generate module breakdown for FULL LENGTH TEST
     const adaptiveModuleBreakdown = isAdaptiveSAT ? `
-        <!-- Adaptive SAT Test Module Results -->
+        <!-- FULL LENGTH TEST Module Results -->
         <p class="section-title">Module Performance</p>
         <div style="margin-bottom: 30px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px;">
             <div style="margin-bottom: 20px;">
-                <div style="font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 10px; text-transform: uppercase;">Reading & Writing</div>
-                ${getAdaptiveModuleRow('RW Moderate', allLevels.rw_moderate)}
-                ${getAdaptiveModuleRow('RW Hard', allLevels.rw_hard)}
-                ${getAdaptiveModuleRow('RW Easy', allLevels.rw_easy)}
+                <div style="font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px;">Reading & Writing</div>
+                ${getAdaptiveModuleRow('Reading & Writing (Moderate)', allLevels.rw_moderate)}
+                ${getAdaptiveModuleRow('Reading & Writing (Hard)', allLevels.rw_hard)}
+                ${getAdaptiveModuleRow('Reading & Writing (Easy)', allLevels.rw_easy)}
             </div>
             <div>
-                <div style="font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 10px; text-transform: uppercase;">Math</div>
-                ${getAdaptiveModuleRow('Math Moderate', allLevels.math_moderate)}
-                ${getAdaptiveModuleRow('Math Hard', allLevels.math_hard)}
-                ${getAdaptiveModuleRow('Math Easy', allLevels.math_easy)}
+                <div style="font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 5px;">Math</div>
+                ${getAdaptiveModuleRow('Math (Moderate)', allLevels.math_moderate)}
+                ${getAdaptiveModuleRow('Math (Hard)', allLevels.math_hard)}
+                ${getAdaptiveModuleRow('Math (Easy)', allLevels.math_easy)}
             </div>
         </div>
 
@@ -524,7 +501,7 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
             </div>
         </div>
     ` : `
-        <!-- Individual Level Results for Non-Adaptive Tests -->
+        <!-- Individual Level Results for Non-FULL LENGTH TESTs -->
         <p class="section-title">Performance by Level</p>
         <div style="margin-bottom: 30px; background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px;">
             ${getLevelRow('Easy', allLevels.easy)}
@@ -538,13 +515,13 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
     <div class="wrapper"><div class="card">
         <div class="header">
             <h1>🎓 ${isAdaptiveSAT ? 'Your SAT Score Report' : 'Final Predicted Score'}</h1>
-            <p>${courseName || 'SAT Practice'} • ${isAdaptiveSAT ? 'Full-Length Adaptive Test Completed' : 'Full Demo Completed'}</p>
+            <p>${courseName || 'SAT Practice'} • ${isAdaptiveSAT ? 'Full-Length FULL LENGTH TEST Completed' : 'Full Demo Completed'}</p>
         </div>
         <div class="body">
             <p class="intro-heading">Hello ${studentName || 'Student'},</p>
             <p class="intro-text">
                 ${isAdaptiveSAT 
-                    ? `Congratulations on completing the <strong>Full-Length Adaptive SAT Test</strong>! Here is your comprehensive score report with detailed section and module breakdowns:`
+                    ? `Congratulations on completing the <strong>FULL LENGTH TEST</strong>! Here is your comprehensive score report with detailed section and module breakdowns:`
                     : `Congratulations! You have completed the intensive 3-stage demo for <strong>${courseName}</strong>. Based on your performance across all levels, here is your comprehensive final report:`
                 }
             </p>
@@ -562,26 +539,28 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
             <div class="tip-box">
                 <strong>Performance Level: ${performance}</strong><br/>
                 ${isAdaptiveSAT 
-                    ? `Your adaptive test performance has been analyzed across all modules. This score reflects your current SAT readiness.`
+                    ? `Your FULL LENGTH TEST performance has been analyzed across all modules. This score reflects your current SAT readiness.`
                     : `Our engine analyzed your consistency and adaptive responses to calculate this final prediction. You are ready for the real test!`
                 }
             </div>
 
             <p class="section-title">📊 Detailed Score Report</p>
             <div class="tip-box" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid #E53935;">
-                <p style="margin-bottom: 10px;"><strong>Test Type:</strong> ${isAdaptiveSAT ? 'Full-Length Adaptive SAT' : 'Demo Practice'}</p>
+                <p style="margin-bottom: 10px;"><strong>Test Type:</strong> ${isAdaptiveSAT ? 'Full-Length FULL LENGTH TEST' : 'Demo Practice'}</p>
                 <p style="margin-bottom: 10px;"><strong>Completion Status:</strong> Verified</p>
                 <p><strong>Calculated On:</strong> ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
             </div>
 
-            <a class="cta" href="${process.env.FRONTEND_URL || 'https://aiprep365.com'}">Get Full Unlimited Access →</a>
+            <a class="cta" href="${frontendUrl}" style="background: rgba(255,255,255,0.05); color: #818cf8 !important; border: 1px solid #818cf8; box-shadow: none; margin-top: 10px;">Visit AIPrep365 Website →</a>
         </div>
         <div class="footer">${appName} • The Ultimate AI-Powered Test Prep Platform</div>
     </div></div></body></html>`;
 }
 
-export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName, level, scoreDetails, submittedAt }) {
+export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName, level, scoreDetails, submittedAt, courseId }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://aiprep365.com';
+    const reportUrl = `${frontendUrl}/demo/${courseId}/report`;
     const allLevels = scoreDetails?.allLevels || {};
     const comprehensive = scoreDetails?.comprehensive || {};
     const isAdaptiveSAT = scoreDetails?.isAdaptiveSAT || 
@@ -597,7 +576,7 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
     
     // Helper function for level display
     const getLevelRow = (levelName, levelData) => {
-        if (!levelData) return `<div style="margin-bottom: 10px;"><strong>${levelName.toUpperCase()}:</strong> Not Completed</div>`;
+        if (!levelData || levelData.total === 0) return '';
         
         const accuracy = Math.round((levelData.correct || 0) / (levelData.total || 1) * 100);
         return `
@@ -610,14 +589,18 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
         `;
     };
 
-    // Helper function for Adaptive SAT Test module display
+    // Helper function for FULL LENGTH TEST module display
     const getAdaptiveModuleRow = (moduleName, moduleData) => {
-        if (!moduleData) return `<div style="margin-bottom: 10px;"><strong>${moduleName.toUpperCase()}:</strong> Not Completed</div>`;
+        // Hide if no data or no questions were attempted
+        if (!moduleData || !moduleData.total || moduleData.total === 0) return '';
+        
+        // Hide if specifically marked as not completed or not attempted
+        if (moduleData.status === 'Not Completed' || moduleData.notAttempted === true) return '';
         
         const accuracy = Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 100);
         return `
             <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
-                <strong style="min-width: 100px;">${moduleName.toUpperCase()}:</strong>
+                <strong style="min-width: 120px;">${moduleName}:</strong>
                 <span style="font-weight: 600; color: #818cf8;">${Math.round((moduleData.correct || 0) / (moduleData.total || 1) * 800)}</span>
                 <span style="color: #94a3b8;">| ${Math.round(accuracy)}%</span>
                 <span style="color: #64748b;">| ${moduleData.correct || 0}/${moduleData.total || 0}</span>
@@ -627,7 +610,7 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
 
     // Generate appropriate results breakdown based on test type
     const demoResultsHtml = isAdaptiveSAT ? `
-        <!-- Adaptive SAT Test Results -->
+        <!-- FULL LENGTH TEST Results -->
         <div class="section-title">Section Scores</div>
         <div style="display: flex; gap: 15px; margin: 15px 0;">
             <div style="flex: 1; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 15px; text-align: center;">
@@ -644,15 +627,15 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
         <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 15px; margin: 15px 0;">
             <div style="margin-bottom: 15px;">
                 <div style="font-size: 12px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase;">Reading & Writing</div>
-                ${getAdaptiveModuleRow('RW Moderate', allLevels.rw_moderate)}
-                ${getAdaptiveModuleRow('RW Hard', allLevels.rw_hard)}
-                ${getAdaptiveModuleRow('RW Easy', allLevels.rw_easy)}
+                ${getAdaptiveModuleRow('Reading & Writing (Moderate)', allLevels.rw_moderate)}
+                ${getAdaptiveModuleRow('Reading & Writing (Hard)', allLevels.rw_hard)}
+                ${getAdaptiveModuleRow('Reading & Writing (Easy)', allLevels.rw_easy)}
             </div>
             <div>
                 <div style="font-size: 12px; font-weight: 700; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase;">Math</div>
-                ${getAdaptiveModuleRow('Math Moderate', allLevels.math_moderate)}
-                ${getAdaptiveModuleRow('Math Hard', allLevels.math_hard)}
-                ${getAdaptiveModuleRow('Math Easy', allLevels.math_easy)}
+                ${getAdaptiveModuleRow('Math (Moderate)', allLevels.math_moderate)}
+                ${getAdaptiveModuleRow('Math (Hard)', allLevels.math_hard)}
+                ${getAdaptiveModuleRow('Math (Easy)', allLevels.math_easy)}
             </div>
         </div>
         
@@ -690,7 +673,7 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
                 <tr><td style="padding: 8px 0; font-weight: 700;">Email:</td><td><a href="mailto:${email}" style="color: #667eea; text-decoration: none;">${email || 'N/A'}</a></td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Phone:</td><td>${phone || 'N/A'}</td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Course:</td><td>${courseName || 'N/A'}</td></tr>
-                <tr><td style="padding: 8px 0; font-weight: 700;">Test Type:</td><td>${isAdaptiveSAT ? 'Full-Length Adaptive SAT Test' : (level || 'N/A')}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Test Type:</td><td>${isAdaptiveSAT ? 'FULL LENGTH TEST' : (level || 'N/A')}</td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Submitted:</td><td>${new Date(submittedAt || Date.now()).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>
             </table>
 
@@ -704,7 +687,7 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
                 3. Offer full course enrollment based on their results
             </div>
             
-            <a class="cta" href="mailto:${email}?subject=Your AIPrep365 Demo Results & Next Steps">Contact User Now</a>
+            <a class="cta" href="mailto:${email}?subject=Your AIPrep365 Demo Results & Next Steps" style="background: rgba(255,255,255,0.05); color: #818cf8 !important; border: 1px solid #818cf8; box-shadow: none; margin-top: 10px;">Contact User Now</a>
         </div>
         <div class="footer">${appName} · New lead notification sent automatically</div>
     </div></div></body></html>`;

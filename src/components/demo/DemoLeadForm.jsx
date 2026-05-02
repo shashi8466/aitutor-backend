@@ -54,7 +54,8 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
     setOtpLoading(true);
     setOtpError('');
     try {
-      const res = await axios.post('/api/demo/send-otp', { phone: formData.phone });
+      const cleanedPhone = formData.phone.replace(/[^\d+]/g, '');
+      const res = await axios.post('/api/demo/send-otp', { phone: cleanedPhone });
       setOtpSent(true);
       setCountdown(30);
       setCanResend(false);
@@ -85,8 +86,9 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
     setOtpLoading(true);
     setOtpError('');
     try {
+      const cleanedPhone = formData.phone.replace(/[^\d+]/g, '');
       const res = await axios.post('/api/demo/verify-otp', { 
-        phone: formData.phone,
+        phone: cleanedPhone,
         otp 
       });
       if (res.data.success) {
@@ -115,7 +117,11 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
     setError('');
 
     try {
-      await onSubmit(formData);
+      const cleanedFormData = {
+        ...formData,
+        phone: formData.phone.replace(/[^\d+]/g, '')
+      };
+      await onSubmit(cleanedFormData);
       setSubmitted(true);
     } catch (err) {
       console.error('❌ [DEMO FORM] Submission error:', err);

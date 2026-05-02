@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import { gradingService } from '../../services/api';
+import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
 
 const {
     FiArrowLeft, FiCalendar, FiClock, FiBook, FiCheckCircle,
@@ -57,6 +58,20 @@ const DetailedTestReview = () => {
                     </div>
                 </div>
             </div>
+        );
+    }
+
+    const isAdaptive = submission.course?.tutor_type === 'Full-Length SAT Test' || 
+                       submission.is_adaptive || 
+                       (submission.level && submission.level.toUpperCase() === 'ADAPTIVE');
+
+    if (isAdaptive) {
+        return (
+            <AdaptiveResultsDashboard 
+                submission={submission} 
+                onExit={() => navigate(-1)} 
+                adminMode={true} 
+            />
         );
     }
 

@@ -38,8 +38,23 @@ const CourseView = () => {
   const checkAccessAndLoad = async () => {
     setLoading(true);
     try {
-      const isEnrolled = await enrollmentService.isEnrolled(user.id, parseInt(courseId));
-      if (!isEnrolled) {
+      // 1. Fetch course details first to check if it's a demo or free course
+      const courseRes = await courseService.getById(courseId);
+      const courseData = courseRes.data;
+      setCourse(courseData);
+
+      // 2. Check enrollment
+      let isEnrolled = false;
+      try {
+        isEnrolled = await enrollmentService.isEnrolled(user.id, parseInt(courseId));
+      } catch (err) {
+        console.warn('Enrollment check failed, possibly due to network timeout:', err);
+        // If course is a demo, we can safely assume access is allowed even if DB check fails
+        if (courseData?.is_demo) isEnrolled = true;
+      }
+
+      // 3. Bypass enrollment block for demo courses or if already enrolled
+      if (!isEnrolled && !courseData?.is_demo) {
         try {
           const response = await enrollmentService.initiateEnrollment(user.id, parseInt(courseId));
           if (response.data?.requiresKey || (response.data?.error && response.data.error.includes('key'))) {
@@ -48,28 +63,57 @@ const CourseView = () => {
             setLoading(false);
             return;
           }
+          
+          // If the backend response indicates success or auto-enrollment for free courses
+          if (response.data?.enrolled || response.data?.success) {
+            isEnrolled = true;
+          }
         } catch (enrollmentError) {
-          if (enrollmentError.response?.data?.error && enrollmentError.response.data.error.includes('key')) {
-            setAccessDenied(true);
-            setShowEnrollmentKey(true);
-            setLoading(false);
-            return;
-          } else if (enrollmentError.response?.status === 500) {
-            setAccessDenied(true);
-            setShowEnrollmentKey(false);
-            setLoading(false);
-            return;
+          console.error('Enrollment initiation failed:', enrollmentError);
+          
+          // FALLBACK: If course is free, attempt direct enrollment via Supabase
+          if (courseData?.is_free) {
+            try {
+              const { error: directError } = await supabase.from('enrollments').insert([{ 
+                user_id: user.id, 
+                course_id: parseInt(courseId),
+                enrolled_at: new Date().toISOString()
+              }]);
+              
+              if (!directError) {
+                // Enrollment successful, proceed to load course content
+                isEnrolled = true;
+              }
+            } catch (e) {
+              console.error('Direct enrollment fallback failed:', e);
+            }
+          }
+
+          if (!isEnrolled) {
+             if (enrollmentError.response?.data?.error && enrollmentError.response.data.error.includes('key')) {
+                setAccessDenied(true);
+                setShowEnrollmentKey(true);
+                setLoading(false);
+                return;
+              } else {
+                setAccessDenied(true);
+                setLockMessage('Service temporarily unavailable. Please try again later.');
+                setLoading(false);
+                return;
+              }
           }
         }
+      }
 
+      // If we are here and not enrolled (and not a demo), we must block
+      if (!isEnrolled && !courseData?.is_demo) {
         setAccessDenied(true);
         setLoading(false);
-        setTimeout(() => navigate('/student'), 3000);
         return;
       }
 
-      const [courseRes, uploadsResponse, allProgressRes, planRes, submissionsRes, planAccessRes] = await Promise.all([
-        courseService.getById(courseId),
+      // 4. Load course content (since access is granted)
+      const [uploadsResponse, allProgressRes, planRes, submissionsRes, planAccessRes] = await Promise.all([
         uploadService.getAll({ courseId }),
         progressService.getAllUserProgress(user.id),
         planService.getPlan(user.id),
@@ -80,7 +124,6 @@ const CourseView = () => {
       const accessData = planAccessRes.data || [];
       setPlanAccess(accessData);
 
-      const courseData = courseRes.data;
       if (courseData?.start_date) {
         const startDate = new Date(courseData.start_date);
         const now = new Date();
@@ -369,9 +412,9 @@ const CourseView = () => {
                  <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md">
                    <SafeIcon icon={FiTarget} className="w-10 h-10 text-purple-700" />
                  </div>
-                 <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Adaptive SAT Test</h2>
+                 <h2 className="text-3xl font-extrabold text-gray-900 mb-4">FULL LENGTH TEST</h2>
                  <p className="text-gray-600 text-lg mb-8 max-w-2xl mx-auto">
-                   This is a full-length, adaptive test containing Reading & Writing and Math sections. The difficulty of the second module will adapt based on your performance in the first module.
+                   This is a full-length, FULL LENGTH TEST containing Reading & Writing and Math sections. The difficulty of the second module will adapt based on your performance in the first module.
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button

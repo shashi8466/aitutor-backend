@@ -5,7 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import AITutorModal from './AITutorModal';
-import { questionService, progressService, enrollmentService, gradingService, planService } from '../../services/api';
+import { questionService, progressService, enrollmentService, gradingService, planService, courseService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -66,6 +66,14 @@ const QuizInterface = () => {
   const [submissionResult, setSubmissionResult] = useState(null);
   const [planSettings, setPlanSettings] = useState(null);
 
+  // Adaptive State
+  const [isAdaptive, setIsAdaptive] = useState(false);
+  const [modules, setModules] = useState({});
+  const [currentModuleKey, setCurrentModuleKey] = useState('rw_moderate');
+  const [moduleHistory, setModuleHistory] = useState(['rw_moderate']);
+  const [courseInfo, setCourseInfo] = useState(null);
+  const [allUserAnswers, setAllUserAnswers] = useState({}); // Stores answers for ALL modules
+
   useEffect(() => {
     if (user?.plan_type) loadPlanSettings();
   }, [user?.plan_type]);
@@ -115,13 +123,88 @@ const QuizInterface = () => {
       const cId = parseInt(courseId);
       if (isNaN(cId)) throw new Error("Invalid Course ID");
 
-      // Normalize level: capitalize first letter, lowercase rest (e.g., "easy" -> "Easy")
-      const dbLevel = level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
-      const levelLower = level.toLowerCase();
-      console.log(`🔍 [QUIZ] Loading Latest Quiz for Course: ${cId}, Level: ${dbLevel}`);
+      // 1. Check if this should be an FULL LENGTH TEST Practice Quiz
+      const courseRes = await courseService.getById(cId);
+      const cData = courseRes.data;
+      setCourseInfo(cData);
 
-      // 1. Strict Versioning: Find the SINGLE most recent 'quiz_document' upload
-      // strictly for this course/level from the 'uploads' table.
+      const isSat = cData?.name?.toLowerCase().includes('sat') || cData?.category?.toLowerCase().includes('sat');
+      const searchParams = new URLSearchParams(window.location.search);
+      const isPracticeMode = searchParams.get('mode') === 'practice';
+
+      if (isSat && isPracticeMode) {
+        console.log("🎯 [QUIZ] Initializing FULL LENGTH TEST Practice Flow...");
+        setIsAdaptive(true);
+
+        // Load modules logic similar to AdaptiveExamInterface
+        const { data: uploadData, error: uploadErr } = await supabase
+          .from('uploads')
+          .select('id, level, section, file_name')
+          .eq('course_id', cId)
+          .eq('category', 'quiz_document')
+          .in('status', ['completed', 'warning'])
+          .order('id', { ascending: false });
+
+        if (uploadErr) throw uploadErr;
+
+        const slotLatestUploadId = {};
+        uploadData?.forEach(upload => {
+          const rawSec = (upload.section || '').toLowerCase();
+          const rawLvl = (upload.level || '').toLowerCase();
+          let secKey = '';
+          if (rawSec.includes('read') || rawSec.includes('writ') || rawSec.includes('rw')) secKey = 'rw';
+          else if (rawSec.includes('math')) secKey = 'math';
+          else if (upload.file_name?.toLowerCase().includes('reading') || upload.file_name?.toLowerCase().includes('writing')) secKey = 'rw';
+          else if (upload.file_name?.toLowerCase().includes('math')) secKey = 'math';
+
+          let lvlKey = '';
+          if (rawLvl.includes('mod') || rawLvl.includes('med')) lvlKey = 'moderate';
+          else if (rawLvl.includes('easy')) lvlKey = 'easy';
+          else if (rawLvl.includes('hard')) lvlKey = 'hard';
+          else if (upload.file_name?.toLowerCase().includes('moderate') || upload.file_name?.toLowerCase().includes('medium')) lvlKey = 'moderate';
+          else if (upload.file_name?.toLowerCase().includes('easy')) lvlKey = 'easy';
+          else if (upload.file_name?.toLowerCase().includes('hard')) lvlKey = 'hard';
+
+          if (secKey && lvlKey) {
+            const slotKey = `${secKey}_${lvlKey}`;
+            if (!slotLatestUploadId[slotKey]) slotLatestUploadId[slotKey] = upload.id;
+          }
+        });
+
+        const latestUploadIds = Object.values(slotLatestUploadId);
+        if (latestUploadIds.length > 0) {
+          const { data: qData, error: qError } = await supabase
+            .from('questions')
+            .select('*')
+            .in('upload_id', latestUploadIds);
+
+          if (qError) throw qError;
+
+          const grouped = {
+            rw_moderate: [], rw_easy: [], rw_hard: [],
+            math_moderate: [], math_easy: [], math_hard: []
+          };
+          const uploadIdToSlot = {};
+          Object.entries(slotLatestUploadId).forEach(([slot, id]) => { uploadIdToSlot[id] = slot; });
+
+          qData.forEach(q => {
+            const slotKey = uploadIdToSlot[q.upload_id];
+            if (slotKey) grouped[slotKey].push({ ...q, correctAnswer: q.correct_answer || '' });
+          });
+
+          setModules(grouped);
+          if (grouped['rw_moderate'].length > 0) {
+            setQuestions(grouped['rw_moderate']);
+            setCurrentModuleKey('rw_moderate');
+            return; // Exit, questions loaded
+          }
+        }
+        console.warn("⚠️ [QUIZ] Adaptive modules not found, falling back to standard quiz.");
+        setIsAdaptive(false);
+      }
+
+      // 2. Standard Quiz Loading (Original Logic)
+      const dbLevel = level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
       const { data: latestUploadData, error: uploadErr } = await supabase
         .from('uploads')
         .select('id, created_at, level, status, category, questions_count')
@@ -132,70 +215,22 @@ const QuizInterface = () => {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (uploadErr) {
-        console.error("❌ [QUIZ] Error fetching latest upload:", uploadErr);
-        throw uploadErr;
-      }
+      if (uploadErr) throw uploadErr;
 
       let targetQuestions = [];
-      let sourceInfo = "";
-
       if (latestUploadData && latestUploadData.length > 0) {
-        const latestUpload = latestUploadData[0];
-        console.log(`📦 [QUIZ] Found Latest Upload: ID ${latestUpload.id}, Time: ${new Date(latestUpload.created_at).toLocaleString()}, Level: ${latestUpload.level}`);
-        sourceInfo = `Upload #${latestUpload.id}`;
-
-        // 2. Fetch questions STRICTLY from this upload ID
         const { data: questionsData, error: qErr } = await supabase
           .from('questions')
           .select('*')
-          .eq('upload_id', latestUpload.id)
+          .eq('upload_id', latestUploadData[0].id)
           .order('id', { ascending: true });
-
-        if (qErr) {
-          console.error("❌ [QUIZ] Error fetching questions for upload:", qErr);
-        } else {
-          targetQuestions = questionsData || [];
-          console.log(`✅ [QUIZ] Loaded ${targetQuestions.length} questions from ${sourceInfo}`);
-        }
+        if (!qErr) targetQuestions = questionsData || [];
       } else {
-        // Fallback to manual questions if NO upload exists
-        console.log("🔍 [QUIZ] No uploaded quiz file found. Checking for manual questions...");
-        const { data: manualQuestions, error: mErr } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('course_id', cId)
-          .is('upload_id', null)
-          .ilike('level', dbLevel);
-
-        if (!mErr) {
-          targetQuestions = manualQuestions || [];
-          if (targetQuestions.length > 0) sourceInfo = "Manual Entry";
-        }
+        const { data: manualQuestions } = await supabase.from('questions').select('*').eq('course_id', cId).is('upload_id', null).ilike('level', dbLevel);
+        targetQuestions = manualQuestions || [];
       }
 
-      if (targetQuestions.length > 0) {
-        // 3. Apply Plan Gating for Topics
-        const { data: accessData } = await planService.getContentAccess();
-        const userPlan = user?.plan_type || 'free';
-        const isPremium = userPlan === 'premium' && user?.plan_status === 'active';
-        
-        const filtered = targetQuestions.filter(q => {
-          if (isPremium) return true;
-          // Check if topic is allowed for this plan
-          return (accessData || []).some(a => a.content_type === 'topic' && a.content_id === q.topic && a.plan_type === userPlan);
-        });
-
-        if (filtered.length === 0 && targetQuestions.length > 0) {
-           setError("Premium Content: The topics in this level are restricted. Please upgrade to unlock!");
-           setQuestions([]);
-        } else {
-           setQuestions(filtered);
-        }
-      } else {
-        console.warn("⚠️ [QUIZ] No questions found.");
-        setQuestions([]);
-      }
+      setQuestions(targetQuestions);
     } catch (err) {
       console.error("❌ [QUIZ] Load Failure:", err);
       setError("Could not load questions.");
@@ -228,6 +263,12 @@ const QuizInterface = () => {
     if (!selectedAnswer) return;
     setSubmitted(true);
     setUserAnswers(prev => ({ ...prev, [currentQuestionIndex]: selectedAnswer }));
+    
+    // Also save to allUserAnswers if adaptive
+    if (isAdaptive) {
+        const qId = questions[currentQuestionIndex].id;
+        setAllUserAnswers(prev => ({ ...prev, [qId]: selectedAnswer }));
+    }
   };
 
   const jumpToQuestion = (index) => {
@@ -241,9 +282,46 @@ const QuizInterface = () => {
 
   const handleNextQuestion = () => {
     if (isLastQuestion) {
-      handleFinishQuiz();
+      if (isAdaptive && moduleHistory.length < 4) {
+        handleNextModule();
+      } else {
+        handleFinishQuiz();
+      }
     } else {
       jumpToQuestion(currentQuestionIndex + 1);
+    }
+  };
+
+  const handleNextModule = () => {
+    const threshold = courseInfo?.threshold_percentage || 60;
+    
+    // Calculate current module score
+    const correctCount = questions.filter((q, idx) => {
+      const ans = userAnswers[idx];
+      return ans && q.correct_answer && ans.toString().trim().toLowerCase() === q.correct_answer.toString().trim().toLowerCase();
+    }).length;
+    const percentage = (correctCount / questions.length) * 100;
+
+    let nextKey = '';
+    if (currentModuleKey === 'rw_moderate') {
+      nextKey = percentage >= threshold ? 'rw_hard' : 'rw_easy';
+    } else if (currentModuleKey === 'rw_easy' || currentModuleKey === 'rw_hard') {
+      nextKey = 'math_moderate';
+    } else if (currentModuleKey === 'math_moderate') {
+      nextKey = percentage >= threshold ? 'math_hard' : 'math_easy';
+    }
+
+    if (nextKey && modules[nextKey]) {
+      setCurrentModuleKey(nextKey);
+      setModuleHistory(prev => [...prev, nextKey]);
+      setQuestions(modules[nextKey]);
+      setCurrentQuestionIndex(0);
+      setUserAnswers({});
+      setSelectedAnswer('');
+      setSubmitted(false);
+      window.scrollTo(0, 0);
+    } else {
+      handleFinishQuiz();
     }
   };
 
@@ -270,13 +348,94 @@ const QuizInterface = () => {
   const handleFinishQuiz = async () => {
     setSavingResult(true);
 
-    // Prepare data for advanced grading
-    const questionIds = questions.map(q => q.id);
-    const answers = questions.map((_, idx) => userAnswers[idx] || '');
-    const duration = Math.floor((Date.now() - quizStartTime) / 1000);
-
     try {
-      console.log("Submitting test for advanced grading...");
+      if (isAdaptive) {
+        // Collect all questions from the history (adaptive path)
+        const pathQuestions = [];
+        moduleHistory.forEach(key => {
+            pathQuestions.push(...modules[key]);
+        });
+
+        const questionIds = pathQuestions.map(q => q.id);
+        const answers = pathQuestions.map(q => allUserAnswers[q.id] || '');
+        
+        // Calculate scores with weights and ceilings
+        let rwRaw = 0, rwMax = 0, mathRaw = 0, mathMax = 0;
+        let rwPath = 'moderate', mathPath = 'moderate';
+        const moduleDetails = {};
+
+        moduleHistory.forEach(mKey => {
+            const mQs = modules[mKey];
+            const isRW = mKey.startsWith('rw');
+            const diff = mKey.split('_')[1];
+            const weight = diff === 'hard' ? 3 : (diff === 'moderate' ? 2 : 1);
+            
+            if (isRW) { if (diff === 'easy') rwPath = 'easy'; if (diff === 'hard') rwPath = 'hard'; }
+            else { if (diff === 'easy') mathPath = 'easy'; if (diff === 'hard') mathPath = 'hard'; }
+            
+            let moduleCorrect = 0;
+            mQs.forEach(q => {
+                const ans = allUserAnswers[q.id];
+                const isCorrect = ans && q.correct_answer && ans.toString().trim().toLowerCase() === q.correct_answer.toString().trim().toLowerCase();
+                if (isCorrect) {
+                  moduleCorrect++;
+                  if (isRW) rwRaw += weight; else mathRaw += weight;
+                }
+                if (isRW) rwMax += weight; else mathMax += weight;
+            });
+
+            moduleDetails[mKey] = {
+                correct: moduleCorrect,
+                total: mQs.length,
+                percentage: Math.round((moduleCorrect / mQs.length) * 100),
+                difficulty: diff.toUpperCase()
+            };
+        });
+
+        const rwSectionMax = rwPath === 'hard' ? 800 : 700;
+        const mathSectionMax = mathPath === 'hard' ? 800 : 700;
+        const rwScore = rwMax > 0 ? Math.round((rwRaw / rwMax) * rwSectionMax) : 0;
+        const mathScore = mathMax > 0 ? Math.round((mathRaw / mathMax) * mathSectionMax) : 0;
+        const totalScore = rwScore + mathScore;
+
+        const totalCorrect = pathQuestions.filter(q => {
+            const ans = allUserAnswers[q.id];
+            return ans && q.correct_answer && ans.toString().trim().toLowerCase() === q.correct_answer.toString().trim().toLowerCase();
+        }).length;
+        const accuracyVal = Math.round((totalCorrect / pathQuestions.length) * 100);
+
+        const response = await gradingService.submitAdaptiveTest({
+            courseId: parseInt(courseId),
+            questionIds,
+            answers,
+            duration: Math.floor((Date.now() - quizStartTime) / 1000),
+            scores: {
+                totalScore,
+                rwScore,
+                mathScore,
+                accuracy: accuracyVal,
+                totalCorrect,
+                moduleDetails
+            }
+        });
+
+        setSubmissionResult({
+            ...response.data,
+            rwScore,
+            mathScore,
+            totalScore,
+            moduleDetails,
+            percentage: accuracyVal
+        });
+        setShowResults(true);
+        return;
+      }
+
+      // Standard Quiz Submission (Original Logic)
+      const questionIds = questions.map(q => q.id);
+      const answers = questions.map((_, idx) => userAnswers[idx] || '');
+      const duration = Math.floor((Date.now() - quizStartTime) / 1000);
+
       const response = await gradingService.submitTest({
         courseId: parseInt(courseId),
         level: level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
@@ -287,53 +446,12 @@ const QuizInterface = () => {
       });
 
       const { submissionId, rawScore, rawPercentage, scaledScore, sectionScores } = response.data;
-
-      setSubmissionResult({
-        submissionId,
-        rawScore,
-        percentage: rawPercentage,
-        scaledScore,
-        sectionScores,
-        totalQuestions: questions.length
-      });
-
-      // SYNC: Also save to the simplified student_progress table to ensure level unlocking
-      try {
-        await progressService.saveProgress(
-          user.id,
-          parseInt(courseId),
-          level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
-          Math.round(rawPercentage),
-          rawPercentage >= 15
-        );
-        console.log("✅ [QUIZ] Progress synced to student_progress table");
-      } catch (syncErr) {
-        console.warn("⚠️ [QUIZ] Failed to sync to student_progress, but submission was saved:", syncErr);
-      }
-
-      setResultMessage("Test submitted and graded successfully!");
+      setSubmissionResult({ submissionId, rawScore, percentage: rawPercentage, scaledScore, sectionScores, totalQuestions: questions.length });
       setShowResults(true);
 
     } catch (err) {
-      console.error("Advanced grading submission failed:", err);
-      // Fallback to basic progress saving if advanced grading fails
-      const total = questions.length;
-      const correctCount = questions.reduce((acc, _, idx) => acc + (isCorrectAnswer(idx) ? 1 : 0), 0);
-      const percentage = Math.round((correctCount / total) * 100);
-
-      try {
-        await progressService.saveProgress(
-          user.id,
-          parseInt(courseId),
-          level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
-          percentage,
-          percentage >= 15
-        );
-        setResultMessage("Saved to progress (fallback)");
-        setShowResults(true);
-      } catch (fallbackErr) {
-        setError("Failed to save result. Please check your connection.");
-      }
+      console.error("Quiz submission failed:", err);
+      setError("Failed to submit results.");
     } finally {
       setSavingResult(false);
     }
@@ -372,18 +490,32 @@ const QuizInterface = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 transition-all hover:shadow-md">
               <p className="text-[10px] text-blue-800 dark:text-blue-400 font-black uppercase tracking-widest mb-1">Overall</p>
-              <p className="text-3xl font-black text-blue-900 dark:text-blue-200">{scaledScore}</p>
+              <p className="text-3xl font-black text-blue-900 dark:text-blue-200">{res?.totalScore || res?.scaledScore || scaledScore}</p>
               <p className="text-xs font-bold text-blue-700/60">{percentage}% Accuracy</p>
             </div>
-            {res?.sectionScores && Object.entries(res.sectionScores).map(([section, data]) => (
-              data.total > 0 && (
-                <div key={section} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{section}</p>
-                  <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
-                  <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
-                </div>
-              )
-            ))}
+            
+            {isAdaptive ? (
+                <>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">R&W Section</p>
+                        <p className="text-3xl font-black text-gray-900 dark:text-white">{res?.rwScore || 0}</p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Math Section</p>
+                        <p className="text-3xl font-black text-gray-900 dark:text-white">{res?.mathScore || 0}</p>
+                    </div>
+                </>
+            ) : (
+              res?.sectionScores && Object.entries(res.sectionScores).map(([section, data]) => (
+                data.total > 0 && (
+                  <div key={section} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{section}</p>
+                    <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
+                    <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
+                  </div>
+                )
+              ))
+            )}
           </div>
 
           {/* Scoring Info Card */}
@@ -392,9 +524,11 @@ const QuizInterface = () => {
               <SafeIcon icon={FiInfo} className="w-4 h-4 text-blue-500" /> Scoring Insights
             </h4>
             <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-              Your score is calculated based on the <strong>{level}</strong> difficulty.
-              In the SAT, higher level modules unlock higher score ceilings.
-              Your raw score of {res?.rawScore} corrects out of {res?.totalQuestions} questions was converted to a scaled score considering the module weight.
+              {isAdaptive ? (
+                `Your score of ${res?.totalScore} reflects the FULL LENGTH TEST model. Students on the Easy path are capped at 1400 total, while the Hard path allows scores up to 1600.`
+              ) : (
+                `Your score is calculated based on the ${level} difficulty. In the SAT, higher level modules unlock higher score ceilings.`
+              )}
             </p>
           </div>
 
@@ -403,7 +537,7 @@ const QuizInterface = () => {
               <SafeIcon icon={FiZap} className="w-5 h-5" /> View Score Prediction
             </Link>
             <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
-              <SafeIcon icon={FiSkipForward} className="w-5 h-5" /> Next Level / Dashboard
+              <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
             </Link>
           </div>
         </motion.div>
@@ -537,6 +671,7 @@ const QuizInterface = () => {
             </button>
           </div>
           <div className="flex gap-4 text-sm font-bold text-gray-600 dark:text-gray-400">
+            {isAdaptive && <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded text-[10px] uppercase tracking-widest">Module {moduleHistory.length}</span>}
             <span className="flex items-center gap-1"><SafeIcon icon={FiClock} className="text-[#E53935]" /> {formatTime(timeElapsed)}</span>
             <span className="flex items-center gap-1"><SafeIcon icon={FiTarget} className="text-[#E53935]" /> {currentQuestionIndex + 1}/{questions.length}</span>
           </div>
@@ -547,20 +682,25 @@ const QuizInterface = () => {
             <div className="bg-[#E53935] h-1.5 transition-all" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
           </div>
           <div className="p-5 sm:p-8 md:p-10">
-            {/* Q.1) Topic Name - Premium Header */}
-            <div className="mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
+            {/* Topic Name - Premium Header */}
+            <div className="mb-10">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                  <span className="text-[#E53935]">Q.{currentQuestionIndex + 1})</span>
-                  <span className="text-gray-400 font-bold text-base md:text-lg uppercase tracking-wider">{currentQuestion.topic || 'General'}</span>
-                </h1>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#E53935]" />
+                    <span className="text-[10px] font-black text-[#E53935] uppercase tracking-[0.2em]">{currentQuestion.topic || 'General'}</span>
+                  </div>
+                  <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
+                    Question {currentQuestionIndex + 1}
+                  </h1>
+                </div>
               </div>
             </div>
 
             {/* Question Text */}
-            <div className="mb-8">
-              <h2 className="text-xl md:text-[26px] font-medium text-slate-900 dark:text-white leading-[1.4] tracking-tight antialiased">
-                <MathRenderer text={getCleanQuestionText(currentQuestion.question || '', currentQuestion.image)} />
+            <div className="mb-10 max-w-3xl">
+              <h2 className="text-xl md:text-[22px] font-medium text-slate-800 dark:text-slate-100 leading-[1.6] tracking-normal antialiased">
+                <MathRenderer text={getCleanQuestionText(currentQuestion.question || '', currentQuestion.image)} courseId={courseId} />
               </h2>
             </div>
 
@@ -580,38 +720,42 @@ const QuizInterface = () => {
             )}
 
             {isMCQ && (
-              <div className="space-y-3">
+              <div className="space-y-4 max-w-2xl">
                 {currentQuestion.options.map((option, idx) => {
                   const letter = getOptionLetter(idx);
                   const isSelected = selectedAnswer === letter;
-                  let containerClass = "border-gray-100 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50";
+                  let containerClass = "border-gray-200 dark:border-gray-800 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-900/10";
                   let circleClass = "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400";
 
                   if (submitted) {
                     if (letter === currentQuestion.correct_answer) {
-                      containerClass = "border-green-500 bg-green-50 dark:bg-green-900/30 text-slate-900 dark:text-white";
+                      containerClass = "border-green-500 bg-green-50 dark:bg-green-900/20 text-slate-900 dark:text-white ring-1 ring-green-500";
                       circleClass = "bg-green-500 text-white border-green-500 shadow-md";
                     } else if (isSelected && letter !== currentQuestion.correct_answer) {
-                      containerClass = "border-[#E53935] bg-red-50 dark:bg-red-900/30 text-slate-900 dark:text-white";
+                      containerClass = "border-[#E53935] bg-red-50 dark:bg-red-900/20 text-slate-900 dark:text-white ring-1 ring-[#E53935]";
                       circleClass = "bg-[#E53935] text-white border-[#E53935] shadow-md";
                     } else {
-                      containerClass = "border-gray-100 dark:border-gray-800 opacity-40 grayscale-[0.5]";
+                      containerClass = "border-gray-100 dark:border-gray-800 opacity-40";
                       circleClass = "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700";
                     }
                   } else if (isSelected) {
-                    containerClass = "border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-md";
-                    circleClass = "bg-blue-600 text-white border-blue-600 scale-105 shadow-lg";
-                  }
-
-                  let textClass = "text-slate-800 dark:text-slate-200";
-                  if (isSelected || (submitted && letter === currentQuestion.correct_answer)) {
-                    textClass = "text-slate-950 dark:text-white font-medium";
+                    containerClass = "border-blue-600 bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-blue-600 shadow-sm";
+                    circleClass = "bg-blue-600 text-white border-blue-600 shadow-md";
                   }
 
                   return (
-                    <button key={idx} onClick={() => handleAnswerSelect(letter)} disabled={submitted} className={`w-full p-4 text-left rounded-xl border-2 transition-all flex items-center gap-4 group ${containerClass}`}>
-                      <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors shadow-sm ${circleClass}`}>{letter}</span>
-                      <span className={`font-normal text-base md:text-[17px] flex-1 leading-normal ${textClass}`}><MathRenderer text={option || ''} /></span>
+                    <button 
+                      key={idx} 
+                      onClick={() => handleAnswerSelect(letter)} 
+                      disabled={submitted} 
+                      className={`w-full p-4 text-left rounded-xl border transition-all flex items-center gap-4 group ${containerClass}`}
+                    >
+                      <span className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-black transition-colors shadow-sm shrink-0 ${circleClass}`}>
+                        {letter}
+                      </span>
+                      <span className={`font-normal text-[16px] md:text-[17px] flex-1 leading-relaxed text-slate-800 dark:text-slate-200 ${isSelected || (submitted && letter === currentQuestion.correct_answer) ? 'font-semibold' : ''}`}>
+                        <MathRenderer text={option || ''} courseId={courseId} />
+                      </span>
                       {submitted && letter === currentQuestion.correct_answer && <SafeIcon icon={FiCheck} className="ml-auto w-5 h-5 text-green-600" />}
                       {submitted && isSelected && letter !== currentQuestion.correct_answer && <SafeIcon icon={FiX} className="ml-auto w-5 h-5 text-[#E53935]" />}
                     </button>
@@ -654,7 +798,7 @@ const QuizInterface = () => {
                     <div className="mb-8 p-4 bg-white/60 dark:bg-gray-800/60 rounded-xl border border-red-100/50 dark:border-red-900/30">
                       <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Verified Correct Answer</span>
                       <div className="text-xl font-bold text-black dark:text-white">
-                        <MathRenderer text={getDisplayAnswer(currentQuestion)} />
+                        <MathRenderer text={getDisplayAnswer(currentQuestion)} courseId={courseId} />
                       </div>
                     </div>
                   )}
@@ -667,7 +811,7 @@ const QuizInterface = () => {
                     
                     <div className="text-gray-900 dark:text-gray-100 font-medium leading-relaxed max-w-full overflow-x-auto whitespace-pre-line break-words clear-both">
                       {currentQuestion.explanation && currentQuestion.explanation.trim() !== '' ? (
-                        <MathRenderer text={currentQuestion.explanation} />
+                        <MathRenderer text={currentQuestion.explanation} courseId={courseId} />
                       ) : (
                         <p className="text-sm italic text-gray-500 font-bold bg-white/40 p-4 rounded-lg border border-dashed border-gray-300">
                           No solution provided for this problem. You can ask our AI tutor for a step-by-step breakdown.

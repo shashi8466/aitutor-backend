@@ -179,8 +179,8 @@ router.post('/submit-lead', async (req, res) => {
         const newScoreDetails = scoreDetails || {};
         const allLevels = newScoreDetails.allLevels || {};
 
-        const levelStr = String(level || '').toLowerCase();
-        const isAdaptiveSAT = levelStr.includes('adaptive') || levelStr.includes('sat test');
+        const levelStr = String(level || '').toLowerCase().trim();
+        const isAdaptiveSAT = levelStr.includes('adaptive') || levelStr.includes('sat test') || levelStr === 'full length test';
         const isHard = levelStr === 'hard';
         const isFinal = isHard || isAdaptiveSAT;
 
@@ -249,11 +249,12 @@ router.post('/submit-lead', async (req, res) => {
         }
         console.log(`✅ [DEMO] Course found: ${course?.name || 'Unknown'}`);
 
-        // 3. Send Emails for completed tests (Hard level or Adaptive SAT Test)
-        console.log(`🔍 [DEMO] Step 4: Email trigger check - Level: "${level}", Lowercase: "${level?.toLowerCase()}"`);
-        console.log(`🔍 [DEMO] Condition check: hard=${level?.toLowerCase() === 'hard'}, adaptive sat test=${level?.toLowerCase() === 'adaptive sat test'}`);
+        // 3. Send Emails for completed tests (Hard level or full length test)
+        const cleanLevel = level?.toLowerCase()?.trim();
+        console.log(`🔍 [DEMO] Step 4: Email trigger check - Level: "${level}", Cleaned: "${cleanLevel}"`);
+        console.log(`🔍 [DEMO] Condition check: isHard=${cleanLevel === 'hard'}, isFinalTest=${cleanLevel === 'full length test'}`);
         
-        if (level?.toLowerCase() === 'hard' || level?.toLowerCase() === 'adaptive sat test') {
+        if (cleanLevel === 'hard' || cleanLevel === 'full length test') {
             console.log('📧 [DEMO] Preparing to send emails...');
             
             const adminEmail = process.env.ADMIN_EMAIL || 'ssky57771@gmail.com';
@@ -279,7 +280,8 @@ router.post('/submit-lead', async (req, res) => {
                     courseName: course?.name || 'Demo Course',
                     level,
                     scoreDetails: emailScoreDetails,
-                    submittedAt
+                    submittedAt,
+                    courseId
                 });
 
                 console.log('📤 [DEMO] Sending admin email...');
@@ -307,15 +309,16 @@ router.post('/submit-lead', async (req, res) => {
                     studentName: fullName,
                     courseName: course?.name || 'Demo Course',
                     level: level || 'hard',
-                    scoreDetails: emailScoreDetails
+                    scoreDetails: emailScoreDetails,
+                    courseId
                 });
 
-                const isAdaptiveSAT_Email = level?.toLowerCase() === 'adaptive sat test' || (course?.name?.toLowerCase()?.includes('adaptive') && course?.name?.toLowerCase()?.includes('sat'));
+                const isAdaptiveSAT_Email = level?.toLowerCase() === 'full length test' || (course?.name?.toLowerCase()?.includes('adaptive') && course?.name?.toLowerCase()?.includes('sat'));
                 
                 console.log('📤 [DEMO] Sending student email...');
                 const userEmailResult = await sendEmail({
                     to: email,
-                    subject: isAdaptiveSAT_Email ? `Your Full SAT Score Report: ${course?.name || 'Adaptive Test'}` : `Your Final Predicted Score: ${course?.name || 'Test'}`,
+                    subject: isAdaptiveSAT_Email ? `Your Full SAT Score Report: ${course?.name || 'FULL LENGTH TEST'}` : `Your Final Predicted Score: ${course?.name || 'Test'}`,
                     html: userHtml
                 });
 
@@ -346,7 +349,7 @@ router.post('/submit-lead', async (req, res) => {
             }
         }
 
-        const emailsSent = level?.toLowerCase() === 'hard' || level?.toLowerCase() === 'adaptive sat test';
+        const emailsSent = level?.toLowerCase() === 'hard' || level?.toLowerCase() === 'full length test';
         
         // Prepare detailed success message if emails were triggered
         let finalMessage = 'Progress saved';

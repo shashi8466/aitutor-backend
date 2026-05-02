@@ -37,8 +37,8 @@ const Navbar = () => {
                 <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
               </div>
             ) : (
-              <div className="h-10 w-10 rounded-xl bg-black border border-white/20 flex items-center justify-center shadow-xl">
-                 <span className="text-white font-black italic text-xs tracking-tighter shadow-sm">AI</span>
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
+                <span className="text-xl">🤖</span>
               </div>
             )}
             <div className="text-base sm:text-xl lg:text-2xl font-black tracking-tight text-white flex items-center truncate">
@@ -108,8 +108,8 @@ const Navbar = () => {
                           <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
                         </div>
                       ) : (
-                        <div className="h-8 w-8 rounded-lg bg-black border border-white/20 flex items-center justify-center">
-                          <span className="text-white font-black italic text-[10px]">AI</span>
+                        <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center border border-white/20">
+                          <span className="text-sm">🤖</span>
                         </div>
                       )}
                       <span className="text-lg font-black text-white">

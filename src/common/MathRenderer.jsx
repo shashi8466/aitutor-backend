@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-const MathRenderer = ({ text, className = '' }) => {
+const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
   const nodeRef = useRef(null);
 
   useEffect(() => {
@@ -87,36 +87,42 @@ const MathRenderer = ({ text, className = '' }) => {
     // Try to resolve images if they are in the [IMAGE: ...] format
     // This is a fallback for when the backend hasn't already replaced them with <img> tags.
     const imageRegex = /\[IMAGE:\s*([^\]]+)\]/gi;
-    const imageMatches = processedText.match(imageRegex);
     
-    if (imageMatches) {
-      // Get courseId from URL if possible
+    // SELF-HEALING: Support legacy/broken tags that might have lost their '[IMAGE:' prefix
+    // (e.g. "809_rId5.png] ...")
+    const brokenImageRegex = /([\w\d]+_rId\d+\.(?:png|jpg|jpeg|gif|webp))\]/gi;
+
+    // Attempt to find courseId if not provided as a prop
+    let effectiveCourseId = propCourseId;
+    if (!effectiveCourseId) {
       const pathParts = window.location.pathname.split('/');
       const demoIndex = pathParts.indexOf('demo');
       const studentCourseIndex = pathParts.indexOf('course');
       const adaptiveTestIndex = pathParts.indexOf('adaptive-test');
       const adaptivePreTestIndex = pathParts.indexOf('adaptive-pre-test');
       
-      let courseIdFromUrl = null;
-      if (demoIndex !== -1 && pathParts[demoIndex + 1]) courseIdFromUrl = pathParts[demoIndex + 1];
-      else if (studentCourseIndex !== -1 && pathParts[studentCourseIndex + 1]) courseIdFromUrl = pathParts[studentCourseIndex + 1];
-      else if (adaptiveTestIndex !== -1 && pathParts[adaptiveTestIndex + 1]) courseIdFromUrl = pathParts[adaptiveTestIndex + 1];
-      else if (adaptivePreTestIndex !== -1 && pathParts[adaptivePreTestIndex + 1]) courseIdFromUrl = pathParts[adaptivePreTestIndex + 1];
-
-      imageMatches.forEach(tag => {
-        const filename = tag.match(/\[IMAGE:\s*([^\]]+)\]/i)[1].trim();
-        // Construct the Supabase URL - Using environment variable or fallback
-        const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-        const supabaseUrl = `${baseUrl}/storage/v1/object/public/documents`;
-        
-        const fullImageUrl = courseIdFromUrl 
-          ? `${supabaseUrl}/${courseIdFromUrl}/images/${filename}`
-          : `${supabaseUrl}/images/${filename}`; // Fallback path
-
-        const imgHtml = `<div class="my-4 flex justify-center"><img src="${fullImageUrl}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-sm border border-slate-200" onerror="this.style.display='none'; console.warn('Failed to load image:', '${fullImageUrl}')" /></div>`;
-        processedText = processedText.replace(tag, imgHtml);
-      });
+      if (demoIndex !== -1 && pathParts[demoIndex + 1]) effectiveCourseId = pathParts[demoIndex + 1];
+      else if (studentCourseIndex !== -1 && pathParts[studentCourseIndex + 1]) effectiveCourseId = pathParts[studentCourseIndex + 1];
+      else if (adaptiveTestIndex !== -1 && pathParts[adaptiveTestIndex + 1]) effectiveCourseId = pathParts[adaptiveTestIndex + 1];
+      else if (adaptivePreTestIndex !== -1 && pathParts[adaptivePreTestIndex + 1]) effectiveCourseId = pathParts[adaptivePreTestIndex + 1];
     }
+
+    const constructImgTag = (filename) => {
+      const cleanFilename = filename.trim();
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+      const supabaseUrl = `${baseUrl}/storage/v1/object/public/documents`;
+      const fullImageUrl = effectiveCourseId 
+        ? `${supabaseUrl}/${effectiveCourseId}/images/${cleanFilename}`
+        : `${supabaseUrl}/images/${cleanFilename}`;
+
+      return `<div class="my-4 flex justify-center"><img src="${fullImageUrl}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-sm border border-slate-200" onerror="this.parentElement.style.display='none'; console.warn('🖼️ [MathRenderer] Failed to load image:', '${fullImageUrl}')" /></div>`;
+    };
+
+    // 1. Replace standard tags
+    processedText = processedText.replace(imageRegex, (match, filename) => constructImgTag(filename));
+    
+    // 2. Replace broken tags (Self-healing)
+    processedText = processedText.replace(brokenImageRegex, (match, filename) => constructImgTag(filename));
 
     // ---------------------------------------------------------
     // 2. Smart Math Detection & Wrapping

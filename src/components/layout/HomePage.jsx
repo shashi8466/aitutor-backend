@@ -170,7 +170,7 @@ const AIPrep365LandingPage = () => {
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Today's Goal</p>
                     <p className="text-3xl font-black text-sky-400">45 min</p>
-                    <p className="text-[9px] text-slate-500">Adaptive SAT practice</p>
+                    <p className="text-[9px] text-slate-500">FULL LENGTH TEST practice</p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Projected Boost</p>

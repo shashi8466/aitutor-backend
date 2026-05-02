@@ -362,7 +362,7 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
 
 /**
  * POST /api/grading/submit-adaptive-test
- * Separate endpoint for Adaptive SAT Test submissions to ensure zero impact on existing system.
+ * Separate endpoint for FULL LENGTH TEST submissions to ensure zero impact on existing system.
  */
 router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletionNotification, async (req, res) => {
     try {
@@ -433,7 +433,7 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
         });
 
     } catch (error) {
-        console.error('Submit adaptive test error:', error);
+        console.error('Submit FULL LENGTH TEST error:', error);
         res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });

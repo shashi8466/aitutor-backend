@@ -234,7 +234,7 @@ router.post('/', upload.single('file'), async (req, res) => {
                   .from(BUCKET_NAME)
                   .getPublicUrl(imgPath);
                 
-                imageUrlMap[`${img.id}.${img.extension}`] = imgUrlData.publicUrl;
+                imageUrlMap[img.name] = imgUrlData.publicUrl;
               } else {
                 console.warn(`⚠️ [PARSER] Failed to upload image ${img.id}:`, imgUploadError.message);
               }
@@ -320,7 +320,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
 /**
  * 🔴 DELETE UPLOAD
- * Deletes the storage file, all related questions, and the upload record itself.
+ * Deletes the storage file, all related questions (via CASCADE), and the upload record itself.
  */
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
@@ -331,7 +331,6 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-
     // 1. Fetch record to get storage path
     const { data: upload, error: fetchError } = await supabaseAdmin
       .from('uploads')
@@ -351,21 +350,7 @@ router.delete('/:id', async (req, res) => {
 
     console.log(` - File URL: ${upload.file_url}`);
 
-    // 2. CRITICAL: Delete all questions associated with this upload
-    console.log(` - Purging related questions from 'questions' table...`);
-    const { error: qDeleteError, count } = await supabaseAdmin
-      .from('questions')
-      .delete({ count: 'exact' }) // Using count: exact to know how many were deleted
-      .eq('upload_id', id);
-
-    if (qDeleteError) {
-      console.error('❌ [DELETE] Question purge failed:', qDeleteError);
-      // We stop here if question deletion fails to prevent orphans if upload is deleted
-      return res.status(500).json({ error: `Failed to purge related questions: ${qDeleteError.message}` });
-    }
-    console.log(` ✅ Purged ${count || 0} questions.`);
-
-    // 3. Delete from Storage
+    // 2. Delete from Storage (before deleting DB record)
     if (upload.file_url) {
       try {
         // Extract storage path from URL (Assuming documents bucket)
@@ -378,33 +363,41 @@ router.delete('/:id', async (req, res) => {
             .remove([storagePath]);
           
           if (storageDeleteError) {
-            console.warn('⚠️ [DELETE] Storage file removal failed (continuing):', storageDeleteError.message);
+            console.warn('⚠️ [DELETE] Storage file removal failed (continuing with DB delete):', storageDeleteError.message);
           } else {
             console.log(' ✅ Storage file deleted.');
           }
+        } else {
+          console.warn('⚠️ [DELETE] Could not extract storage path from URL:', upload.file_url);
         }
       } catch (err) {
-        console.warn('⚠️ [DELETE] Error during storage deletion path parsing:', err.message);
+        console.warn('⚠️ [DELETE] Error during storage deletion (continuing with DB delete):', err.message);
       }
+    } else {
+      console.log(' - No file URL associated with this upload.');
     }
 
-    // 4. Delete the upload record itself
-    console.log(` - Deleting upload record from 'uploads' table...`);
-    const { error: recordDeleteError } = await supabaseAdmin
+    // 3. Delete the upload record (CASCADE will automatically delete related questions)
+    console.log(` - Deleting upload record from 'uploads' table (CASCADE will delete questions)...`);
+    const { error: recordDeleteError, count } = await supabaseAdmin
       .from('uploads')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
     if (recordDeleteError) {
       console.error('❌ [DELETE] Record deletion failed:', recordDeleteError);
-      return res.status(500).json({ error: `Failed to delete record: ${recordDeleteError.message}` });
+      console.error('❌ [DELETE] Error details:', JSON.stringify(recordDeleteError, null, 2));
+      return res.status(500).json({ 
+        error: `Failed to delete record: ${recordDeleteError.message}`, 
+        details: recordDeleteError 
+      });
     }
 
-    console.log('🎉 [DELETE] Successfully purged everything related to upload', id);
+    console.log('🎉 [DELETE] Successfully deleted upload and related questions (via CASCADE):', id);
     res.json({
       success: true,
-      message: 'Upload and all associated questions deleted successfully.',
-      deletedQuestions: count
+      message: 'Upload and all associated questions deleted successfully.'
     });
 
   } catch (error) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { uploadService } from '../../services/api';
+import { uploadService, courseService } from '../../services/api';
 
 // Lazy load complex modals
 const AITutorModal = lazy(() => import('./AITutorModal'));
@@ -17,7 +17,8 @@ const LevelDashboard = () => {
   const [showAI, setShowAI] = useState(false);
   const [showSmartContent, setShowSmartContent] = useState(false); // New State
   const [loading, setLoading] = useState(true);
-
+  const [course, setCourse] = useState(null);
+  
   // New State for inline viewing
   const [viewingFile, setViewingFile] = useState(null);
 
@@ -27,8 +28,12 @@ const LevelDashboard = () => {
 
   const loadLevelData = async () => {
     try {
-      const { data } = await uploadService.getAll({ courseId });
-      setUploads(data.filter(u => u.level === level || u.level === 'All'));
+      const [uploadRes, courseRes] = await Promise.all([
+        uploadService.getAll({ courseId }),
+        courseService.getById(courseId)
+      ]);
+      setUploads(uploadRes.data.filter(u => u.level === level || u.level === 'All'));
+      setCourse(courseRes.data);
     } catch (error) {
       console.error(error);
     } finally {
@@ -153,7 +158,13 @@ const LevelDashboard = () => {
           </div>
 
           {/* Card 3: Practice Quiz */}
-          <Link to={`/student/course/${courseId}/level/${level}/quiz?mode=practice`} className="group h-full">
+          <Link 
+            to={course?.is_adaptive 
+              ? `/student/course/${courseId}/level/moderate/quiz?mode=practice` 
+              : `/student/course/${courseId}/level/${level}/quiz?mode=practice`
+            } 
+            className="group h-full"
+          >
             <div className="h-full bg-[#1A2333] hover:bg-[#1e293b] border border-gray-800 rounded-2xl p-6 text-center transition-all group-hover:-translate-y-1 group-hover:shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
                <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 text-white group-hover:bg-white/20 transition-colors">
                 <SafeIcon icon={FiZap} className="w-7 h-7" />
@@ -166,7 +177,13 @@ const LevelDashboard = () => {
           </Link>
 
           {/* Card 4: Take the Quiz - Primary Red Card */}
-          <Link to={`/student/course/${courseId}/level/${level}/quiz`} className="group h-full">
+          <Link 
+            to={course?.is_adaptive 
+              ? `/student/adaptive-test/${courseId}` 
+              : `/student/course/${courseId}/level/${level}/quiz`
+            } 
+            className="group h-full"
+          >
             <div className="h-full bg-[#E53935] hover:bg-[#d32f2f] border border-[#E53935] rounded-2xl p-6 text-center transition-all cursor-pointer group-hover:-translate-y-1 group-hover:shadow-lg shadow-red-200 flex flex-col items-center justify-center">
               <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mb-4 text-white">
                 <SafeIcon icon={FiAward} className="w-7 h-7" />

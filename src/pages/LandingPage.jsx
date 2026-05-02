@@ -180,7 +180,7 @@ export default function LandingPage() {
 
                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
                   {[
-                     { icon: "🎯", title: "Adaptive Practice", desc: "Questions and practice plans adjust to the student’s performance in real time." },
+                     { icon: "🎯", title: "FULL LENGTH TEST", desc: "Questions and practice plans adjust to the student’s performance in real time." },
                      { icon: "⚡", title: "Instant Feedback", desc: "Students get explanations and corrections right away instead of waiting." },
                      { icon: "📊", title: "Performance Tracking", desc: "Clear progress reports show what is improving and what needs more work." },
                      { icon: "🧠", title: "Weak Area Focus", desc: "AI spots patterns and targets the exact skills hurting the score." }

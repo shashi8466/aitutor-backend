@@ -321,8 +321,8 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
 
       if (err.response) {
         if (err.response.status === 404) {
-          errorMsg = "Service Endpoint Not Found (404)";
-          detailMsg = "The AI service route is missing. Please restart the backend server.";
+          errorMsg = err.response.data?.error || "Service Endpoint Not Found (404)";
+          detailMsg = err.response.data?.error ? "Please try a different topic or difficulty level." : "The AI service route is missing. Please restart the backend server.";
         } else if (err.response.data && err.response.data.error) {
           errorMsg = "AI Service Error";
           detailMsg = typeof err.response.data.error === 'string'

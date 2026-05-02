@@ -81,9 +81,34 @@ router.get('/routes', (req, res) => {
       'POST /api/ai/generate-exam',
       'POST /api/ai/personal-tutor',
       'GET /api/ai/test',
-      'GET /api/ai/routes'
+      'GET /api/ai/routes',
+      'GET /api/ai/kb-stats'
     ]
   });
+});
+
+// KB Stats endpoint for debugging
+router.get('/kb-stats', async (req, res) => {
+  try {
+    const { data: topics, error } = await (await import('../../supabase/supabaseAdmin.js')).default
+      .from('questions')
+      .select('topic, level');
+    
+    if (error) throw error;
+    
+    const stats = {};
+    topics.forEach(q => {
+      const key = `${q.topic} (${q.level})`;
+      stats[key] = (stats[key] || 0) + 1;
+    });
+    
+    res.json({
+      totalQuestions: topics.length,
+      topicStats: stats
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 1. Chat
@@ -456,7 +481,7 @@ ${hasTimeIssues ?
    - Give specific pacing strategies for Digital SAT (32 min Math, 32 min R&W per module)
    - Suggest skip/guess strategies for hard questions` :
         `- Recommend test-taking strategies based on score pattern
-   - Suggest module difficulty preparation (adaptive test awareness)`
+   - Suggest module difficulty preparation (FULL LENGTH TEST awareness)`
       }
 
 4️⃣ ACTION PLAN (Must be SPECIFIC and NUMBERED)

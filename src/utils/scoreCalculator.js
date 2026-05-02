@@ -63,17 +63,17 @@ export const calculateSessionScore = (category, levelName, percentageScore) => {
 };
 
 export const calculateSatScore = (easy, medium, hard) => {
-  // FINAL REQUIREMENT: SAT-Style Score Calculation (Apply Across Entire Application)
-  // ⚖️ Weighted Model: Easy 20%, Medium 35%, Hard 45%
-  // 🧮 Final Score Formula: ((E*0.20 + M*0.35 + H*0.45) / 100) * 800
+  // UPDATED: Difficulty Weights (Easy=1, Moderate=2, Hard=3)
+  // ⚖️ Weighted Model: (E*1 + M*2 + H*3) / 6
   
   const e = Number(easy) || 0;
   const m = Number(medium) || 0;
   const h = Number(hard) || 0;
 
-  const weightedAccuracy = (e * 0.20) + (m * 0.35) + (h * 0.45); // 0–100 range
+  // Weighted average accuracy across levels
+  const weightedAccuracy = (e * 1 + m * 2 + h * 3) / 6; // 0–100 range
   
-  // Apply the 800-point scale mapping specifically requested by user
+  // Apply the 800-point scale mapping
   const finalScore = (weightedAccuracy / 100) * 800;
 
   return Math.round(finalScore);

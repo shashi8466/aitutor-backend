@@ -232,8 +232,12 @@ const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimi
 
         // Apply difficulty filter if specified
         if (difficulty && difficulty !== 'Mixed') {
-            const diffCapitalized = difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
-            query = query.eq('level', diffCapitalized);
+            let targetDiff = difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase();
+            
+            // Normalize "Moderate" (frontend/UI) to "Medium" (standard DB level)
+            if (targetDiff === 'Moderate') targetDiff = 'Medium';
+            
+            query = query.eq('level', targetDiff);
         }
 
         // Use provided fetchLimit or calculate it - increase for better variety

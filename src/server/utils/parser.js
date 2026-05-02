@@ -252,6 +252,9 @@ const parseTextToQuestions = (text) => {
 
     const normalizeForTopic = (str) => {
       if (!str) return '';
+      // Don't normalize if it looks like an image tag - we want to preserve it
+      if (str.trim().startsWith('[IMAGE:')) return '___IMAGE_TAG___';
+      
       return str
         .toLowerCase()
         .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Remove LaTeX wrappers
@@ -451,11 +454,12 @@ const extractAnswerFromExplanation = (explanation) => {
 const finalizeQuestion = (q) => {
   if (q.explanation === null) q.explanation = '';
   
-  // Clean question text from any leaked prefixes
+  // Clean question text from any leaked prefixes, BUT PROTECT IMAGE TAGS
+  // We use a lookahead to ensure we don't strip [IMAGE:
   q.question = q.question
-    .replace(/^(\d+[.)\s]|Q\.?\d+[:.)]?|Question\s*\d+[:.)]?)\s*/i, '') // Remove Q.1) etc.
-    .replace(/^Topic:\s*(.*)/i, '$1') // Remove Topic: prefix
-    .replace(/^[,\s.:-]+/, '') // Remove leading punctuation
+    .replace(/^(?!\s*\[IMAGE:)(\d+[.)\s]|Q\.?\d+[:.)]?|Question\s*\d+[:.)]?)\s*/i, '') // Remove Q.1) etc.
+    .replace(/^(?!\s*\[IMAGE:)Topic:\s*(.*)/i, '$1') // Remove Topic: prefix
+    .replace(/^(?!\s*\[IMAGE:)[,\s.:-]+/, '') // Remove leading punctuation
     .trim();
 
   // Try to extract topic from question text if topic is still null

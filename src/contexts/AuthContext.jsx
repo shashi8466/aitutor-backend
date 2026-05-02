@@ -173,11 +173,13 @@ export const AuthProvider = ({ children }) => {
             currentUser?.name ||
             'User';
           const finalName = normalizeName(profile?.name, normalizeName(metaName));
+          const finalEmail = profile?.email || currentUser.email;
           
-          if (!prev) return { ...currentUser, ...normalizedProfile, name: finalName };
-          if (prev.role !== normalizedRole || prev.name !== finalName || 
+          if (!prev) return { ...currentUser, ...normalizedProfile, name: finalName, email: finalEmail };
+          
+          if (prev.role !== normalizedRole || prev.name !== finalName || prev.email !== finalEmail ||
               JSON.stringify(prev.linked_students) !== JSON.stringify(profile.linked_students)) {
-            return { ...prev, ...normalizedProfile, name: finalName };
+            return { ...prev, ...normalizedProfile, name: finalName, email: finalEmail };
           }
           return prev;
         });
@@ -401,6 +403,59 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateProfile = async (updates) => {
+    if (!user?.id) return { success: false, error: 'No user session' };
+    try {
+      const { data, error } = await authService.updateProfile(user.id, updates);
+      if (error) throw error;
+      
+      // Update local state immediately for responsiveness
+      setUser(prev => ({ ...prev, ...data }));
+      
+      // Update cache
+      const cacheKey = `auth_profile_${user.id}`;
+      localStorage.setItem(cacheKey, JSON.stringify({
+        profile: { ...user, ...data },
+        timestamp: Date.now()
+      }));
+      
+      return { success: true, data };
+    } catch (err) {
+      console.error('Update profile error:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const updateEmail = async (newEmail) => {
+    if (!user?.id) return { success: false, error: 'No user session' };
+    try {
+      const result = await authService.updateEmail(user.id, newEmail);
+      if (result.success) {
+        // Optimistically update local profile email
+        setUser(prev => ({ ...prev, email: newEmail }));
+        
+        // Update cache
+        const cacheKey = `auth_profile_${user.id}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            localStorage.setItem(cacheKey, JSON.stringify({
+                ...parsed,
+                profile: { ...parsed.profile, email: newEmail }
+            }));
+        }
+      }
+      return result;
+    } catch (err) {
+      console.error('Update email error:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (user) await syncProfile(user);
+  };
+
   const value = {
     user: previewUser || user,
     realUser: user,
@@ -409,6 +464,9 @@ export const AuthProvider = ({ children }) => {
     login,
     signup,
     logout,
+    updateProfile,
+    updateEmail,
+    refreshProfile,
     loading
   };
 

@@ -25,7 +25,7 @@ const StudentCourseList = () => {
   const isPremium = (user?.plan_type || '').toLowerCase() === 'premium';
 
   const COURSE_CATEGORIES = {
-    'SAT': ['SAT Math', 'SAT Reading & Writing', 'Full-Length SAT Test'],
+    'SAT': ['SAT Math', 'SAT Reading & Writing', 'FULL LENGTH TEST'],
     'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
     'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry']
   };
@@ -87,8 +87,8 @@ const StudentCourseList = () => {
   const getCourseTaxonomy = (course) => {
     if (course.is_adaptive) {
       return { 
-        section: 'Full-Length SAT Test', 
-        category: 'Adaptive' 
+        section: 'FULL LENGTH TEST', 
+        category: 'FULL LENGTH TEST' 
       };
     }
 
@@ -235,8 +235,8 @@ const StudentCourseList = () => {
         ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
     );
 
-    // Force adaptive tests to appear under SAT category
-    if (c.is_adaptive || mainCat === 'Adaptive Tests') {
+    // Force FULL LENGTH TESTs to appear under SAT category
+    if (c.is_adaptive || mainCat === 'FULL LENGTH TESTs') {
         mainCat = 'SAT';
     }
     

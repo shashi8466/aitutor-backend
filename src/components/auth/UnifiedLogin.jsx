@@ -153,8 +153,8 @@ const UnifiedLogin = () => {
                                 <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
                             </div>
                         ) : (
-                            <div className="h-20 w-20 rounded-[28px] bg-black border border-white/20 flex items-center justify-center shadow-2xl">
-                                <span className="text-white font-black italic text-2xl tracking-tighter">AI</span>
+                            <div className="h-20 w-20 rounded-[28px] bg-gradient-to-tr from-blue-600 to-indigo-700 border border-white/20 flex items-center justify-center shadow-2xl">
+                                <span className="text-4xl">🤖</span>
                             </div>
                         )}
                     </motion.div>

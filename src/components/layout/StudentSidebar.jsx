@@ -145,11 +145,13 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         <div className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 justify-between">
           <div className="flex items-center">
             <div className="h-12 w-auto max-w-[150px] flex items-center justify-center mr-3 overflow-hidden text-black dark:text-white">
-              {appSettings.logoUrl ? (
-                <img src={appSettings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
-              ) : (
-                <BrandName className="text-xl" />
-              )}
+            {appSettings.logoUrl ? (
+              <img src={appSettings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
+            ) : (
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
+                <span className="text-xl">🤖</span>
+              </div>
+            )}
             </div>
             <div>
               <span className="font-extrabold text-xl text-gray-900 dark:text-white tracking-tight block leading-none">

@@ -20,6 +20,7 @@ const AdminParentManagement = lazy(() => import('./AdminParentManagement'));
 const AdminNotificationManager = lazy(() => import('./AdminNotificationManager'));
 const AdminParentNotificationManager = lazy(() => import('./AdminParentNotificationManager'));
 const AdminPlanManagement = lazy(() => import('./AdminPlanManagement'));
+const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
 
 import { courseService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -183,6 +184,7 @@ const AdminDashboard = () => {
             <Route path="/users" element={<UserManagement />} />
             <Route path="/courses" element={<CourseManagement onStatsUpdate={loadStats} />} />
             <Route path="/course/:id" element={<AdminCourseDetail />} />
+            <Route path="/detailed-review/:submissionId" element={<DetailedTestReview />} />
             <Route path="/groups" element={<AdminGroupManagement />} />
             <Route path="/parents" element={<AdminParentManagement />} />
             <Route path="/notifications" element={<AdminNotificationManager />} />

@@ -69,7 +69,7 @@ BEGIN
     -- 4. ADD LINKED STUDENTS FOR PARENT ROLES
     ALTER TABLE profiles ADD COLUMN IF NOT EXISTS linked_students UUID[] DEFAULT '{}';
     
-    -- 5. ADD SCALED SCORE COLUMNS FOR ADAPTIVE TESTS
+    -- 5. ADD SCALED SCORE COLUMNS FOR FULL LENGTH TESTS
     ALTER TABLE test_submissions ADD COLUMN IF NOT EXISTS math_scaled_score integer;
     ALTER TABLE test_submissions ADD COLUMN IF NOT EXISTS reading_scaled_score integer;
 END $$;
@@ -118,7 +118,7 @@ END $$;
                         </div>
 
                         <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #334155; font-size: 13px; color: #64748b;">
-                            <p>Once you run the SQL, try submitting the adaptive test again. The 500 error should resolve immediately.</p>
+                            <p>Once you run the SQL, try submitting the FULL LENGTH TEST again. The 500 error should resolve immediately.</p>
                         </div>
                     </div>
                 </body>

@@ -184,11 +184,11 @@ const AdaptivePreTest = () => {
               </div>
               <h3 className="text-2xl font-black text-slate-900 mb-3">Practice Quiz</h3>
               <p className="text-sm text-slate-500 font-medium mb-10 leading-relaxed flex-1">
-                Take a quick, non-adaptive practice quiz to warm up your problem-solving skills.
+                Take an adaptive practice quiz aligned with the official SAT scoring system to warm up.
               </p>
               <button 
                 onClick={() => {
-                  navigate(`/student/course/${courseId}/level/moderate/quiz?section=reading_writing&mode=practice`);
+                  navigate(`/student/course/${courseId}/level/moderate/quiz?mode=practice`);
                 }}
                 className="w-full py-4 bg-amber-500 text-white font-black rounded-2xl hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 uppercase tracking-widest text-xs"
               >
@@ -207,7 +207,7 @@ const AdaptivePreTest = () => {
               </div>
               <h3 className="text-2xl font-black text-white mb-3">Take the Quiz</h3>
               <p className="text-sm text-slate-400 font-medium mb-10 leading-relaxed flex-1">
-                Start the official full-length adaptive test engine and track your performance.
+                Start the official full-length FULL LENGTH TEST engine and track your performance.
               </p>
               <button 
                 onClick={() => navigate(`/student/adaptive-test/${courseId}`)}

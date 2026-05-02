@@ -13,7 +13,7 @@ import { calculateSatScore } from '../../utils/scoreCalculator';
 const {
   FiArrowLeft, FiCheck, FiX, FiClock, FiTarget,
   FiInfo, FiAward, FiRefreshCw, FiGrid, FiZap, FiChevronLeft, FiChevronRight, FiCheckCircle,
-  FiFlag, FiStar, FiLogOut, FiChevronDown
+  FiFlag, FiStar, FiLogOut, FiChevronDown, FiAlertCircle
 } = FiIcons;
 
 // Helper to get clean question text
@@ -30,40 +30,6 @@ const getCleanQuestionText = (text, imageUrl) => {
     const rawUrlRegex = new RegExp(`(^|\\n)${escapedUrl}(\\n|$)`, 'gi');
     cleaned = cleaned.replace(rawUrlRegex, '$1$2');
   } catch (e) { console.warn("Error cleaning text:", e); }
-  return cleaned.trim();
-};
-
-// Helper to extract image URLs from question text
-const extractImagesFromText = (text) => {
-  if (!text) return [];
-  const images = [];
-  try {
-    // Match <img> tags
-    const imgTagRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-    let match;
-    while ((match = imgTagRegex.exec(text)) !== null) {
-      images.push(match[1]);
-    }
-  } catch (e) {
-    console.warn("Error extracting images:", e);
-  }
-  return images;
-};
-
-// Helper to get clean text without image tags
-const getCleanTextWithoutImages = (text) => {
-  if (!text) return '';
-  let cleaned = text;
-  try {
-    // Remove <img> tags
-    const imgTagRegex = /<img[^>]+src=["'][^"']+["'][^>]*>/gi;
-    cleaned = cleaned.replace(imgTagRegex, '');
-    // Remove [IMAGE: ...] placeholders
-    const imagePlaceholderRegex = /\[IMAGE:\s*[^\]]+\]/gi;
-    cleaned = cleaned.replace(imagePlaceholderRegex, '');
-  } catch (e) {
-    console.warn("Error cleaning text:", e);
-  }
   return cleaned.trim();
 };
 
@@ -97,6 +63,12 @@ const PublicDemoQuizInterface = () => {
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   
+  // Break & Security State
+  const [isBreakActive, setIsBreakActive] = useState(false);
+  const [breakTimeLeft, setBreakTimeLeft] = useState(600);
+  const [securityViolations, setSecurityViolations] = useState([]);
+  const [showSecurityAlert, setShowSecurityAlert] = useState(false);
+  
   // Scoring State
   const [totalScore, setTotalScore] = useState(0);
   const [rwScore, setRwScore] = useState(0);
@@ -127,133 +99,161 @@ const PublicDemoQuizInterface = () => {
 
   // 2. Timer Effect - Exact match with student test
   useEffect(() => {
-    if (timeLeft > 0 && !showResults && !showCheckWork) {
+    if (isBreakActive) {
+      if (breakTimeLeft > 0) {
+        const timer = setInterval(() => setBreakTimeLeft(prev => prev - 1), 1000);
+        return () => clearInterval(timer);
+      } else {
+        handleEndBreak();
+      }
+    } else if (timeLeft > 0 && !showResults && !showCheckWork) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
     } else if (timeLeft === 0 && questions.length > 0 && !showResults && !showCheckWork) {
       setShowCheckWork(true);
     }
-  }, [timeLeft, showResults, showCheckWork, questions.length]);
+  }, [timeLeft, showResults, showCheckWork, questions.length, isBreakActive, breakTimeLeft]);
+
+  // 2.1 Security/Proctoring Effect
+  useEffect(() => {
+    if (showResults) return;
+
+    const handleSecurityEvent = (type) => {
+      console.warn(`🛡️ [SECURITY] Focus lost: ${type} at ${new Date().toLocaleTimeString()}`);
+      setSecurityViolations(prev => [...prev, { type, timestamp: new Date().toISOString(), questionIndex: currentQuestionIndex }]);
+      setShowSecurityAlert(true);
+      setTimeout(() => setShowSecurityAlert(false), 3000);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') handleSecurityEvent('tab_switch');
+    };
+
+    const onBlur = () => handleSecurityEvent('window_blur');
+
+    window.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('blur', onBlur);
+
+    return () => {
+      window.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [showResults, currentQuestionIndex]);
 
   const loadInitialData = async () => {
     setLoading(true);
     try {
-      // Load Course Info - Exact match with student test
+      // 1. Load Course Info
       const courseRes = await courseService.getById(courseId);
       if (!courseRes.data) throw new Error("Course not found");
       setCourseInfo(courseRes.data);
 
-      // Verify this is a demo Adaptive SAT course
+      // Verify this is a demo FULL LENGTH TEST course
       if (!courseRes.data?.is_demo) throw new Error("Course not available in demo mode.");
       if (!courseRes.data.is_adaptive || courseRes.data.category !== 'Full-Length SAT') {
-        throw new Error("This demo interface is only for Full-Length Adaptive SAT Tests.");
+        throw new Error("This demo interface is only for FULL LENGTH TESTs.");
       }
 
-      console.log(`🔒 [DEMO] Loading Full-Length Adaptive SAT content for course ${courseId}`);
+      console.log(`🔒 [DEMO] Loading Full-Length FULL LENGTH TEST content for course ${courseId}`);
 
-      // 2. Identify the LATEST upload for each of the 6 module slots - Exact match with student test
+      // 2. Identify the LATEST upload for each of the 6 module slots
+      // Using the 'uploads' table metadata which is more reliable than question-level metadata
       const { data: uploadData, error: uploadErr } = await supabase
         .from('uploads')
-        .select('id, level')
+        .select('id, level, section, file_name')
         .eq('course_id', courseId)
         .eq('category', 'quiz_document')
         .in('status', ['completed', 'warning'])
         .order('id', { ascending: false });
 
       if (uploadErr) throw uploadErr;
+      if (!uploadData || uploadData.length === 0) throw new Error("No quiz documents found for this test.");
 
-      // 3. Load ALL questions for this course to identify versions - Exact match with student test
+      // 3. Map uploads to slots
+      const slotLatestUploadId = {};
+      const slotToFileName = {};
+
+      uploadData.forEach(upload => {
+        const rawSec = (upload.section || '').toLowerCase();
+        const rawLvl = (upload.level || '').toLowerCase();
+        
+        let secKey = '';
+        if (rawSec.includes('read') || rawSec.includes('writ') || rawSec.includes('rw')) secKey = 'rw';
+        else if (rawSec.includes('math')) secKey = 'math';
+        // Fallback to filename if section is missing
+        else if (upload.file_name?.toLowerCase().includes('reading') || upload.file_name?.toLowerCase().includes('writing')) secKey = 'rw';
+        else if (upload.file_name?.toLowerCase().includes('math')) secKey = 'math';
+
+        let lvlKey = '';
+        if (rawLvl.includes('mod') || rawLvl.includes('med')) lvlKey = 'moderate';
+        else if (rawLvl.includes('easy')) lvlKey = 'easy';
+        else if (rawLvl.includes('hard')) lvlKey = 'hard';
+        // Fallback to filename if level is missing
+        else if (upload.file_name?.toLowerCase().includes('moderate') || upload.file_name?.toLowerCase().includes('medium')) lvlKey = 'moderate';
+        else if (upload.file_name?.toLowerCase().includes('easy')) lvlKey = 'easy';
+        else if (upload.file_name?.toLowerCase().includes('hard')) lvlKey = 'hard';
+
+        if (secKey && lvlKey) {
+          const slotKey = `${secKey}_${lvlKey}`;
+          // Since we ordered by ID DESC, the first one we find is the latest
+          if (!slotLatestUploadId[slotKey]) {
+            slotLatestUploadId[slotKey] = upload.id;
+            slotToFileName[slotKey] = upload.file_name;
+          }
+        }
+      });
+
+      const latestUploadIds = Object.values(slotLatestUploadId);
+      if (latestUploadIds.length === 0) throw new Error("No valid module uploads identified.");
+
+      console.log(`📚 [DEMO] Identified latest uploads:`, slotToFileName);
+
+      // 4. Fetch questions ONLY for these specific upload IDs
       const { data: qData, error: qError } = await supabase
         .from('questions')
         .select('*')
-        .eq('course_id', courseId);
+        .in('upload_id', latestUploadIds);
 
       if (qError) throw qError;
-      if (!qData || qData.length === 0) throw new Error("No questions found for this test.");
+      if (!qData || qData.length === 0) throw new Error("No questions found in the identified uploads.");
 
-      // 4. Group questions by upload_id and determine the "Dominant Slot" for each file - Exact match with student test
-      const uploadStats = {}; // { uploadId: { slot: count } }
-      const uploadQuestions = {}; // { uploadId: [questions] }
-
-      qData.forEach(q => {
-        const sec = (q.section || '').toLowerCase();
-        const lvl = (q.level || '').toLowerCase();
-        const uId = q.upload_id;
-        if (!uId) return;
-
-        let secKey = '';
-        if (sec.includes('read') || sec.includes('writ') || sec.includes('eng') || sec.includes('lit')) secKey = 'rw';
-        else if (sec.includes('math') || sec.includes('calc') || sec.includes('alg')) secKey = 'math';
-        
-        let lvlKey = '';
-        if (lvl.includes('mod') || lvl.includes('med')) lvlKey = 'moderate';
-        else if (lvl.includes('easy')) lvlKey = 'easy';
-        else if (lvl.includes('hard')) lvlKey = 'hard';
-
-        // Always add the question to the upload's pool
-        if (!uploadQuestions[uId]) uploadQuestions[uId] = [];
-        uploadQuestions[uId].push({
-          ...q,
-          text: q.question || q.question_text || '',
-          options: q.options || [],
-          correctAnswer: q.correct_answer || ''
-        });
-
-        // Track stats for dominant slot detection
-        if (secKey && lvlKey) {
-          const slot = `${secKey}_${lvlKey}`;
-          if (!uploadStats[uId]) uploadStats[uId] = {};
-          uploadStats[uId][slot] = (uploadStats[uId][slot] || 0) + 1;
-        }
-      });
-
-      // 5. For each slot, pick the LATEST upload_id whose dominant slot matches - Exact match with student test
-      const slotLatestUploadId = {};
-      
-      // Sort upload IDs descending (latest first)
-      const sortedUploadIds = Object.keys(uploadStats).map(Number).sort((a, b) => b - a);
-
-      sortedUploadIds.forEach(uId => {
-        const stats = uploadStats[uId];
-        // Find the slot with the most questions in this upload
-        let dominantSlot = '';
-        let maxCount = 0;
-        Object.keys(stats).forEach(slot => {
-          if (stats[slot] > maxCount) {
-            maxCount = stats[slot];
-            dominantSlot = slot;
-          }
-        });
-
-        if (dominantSlot && !slotLatestUploadId[dominantSlot]) {
-          slotLatestUploadId[dominantSlot] = uId;
-        }
-      });
-
-      // 6. Final Grouping: Take EVERY question from the identified upload for each slot - Exact match with student test
+      // 5. Final Grouping
       const grouped = {
         rw_moderate: [], rw_easy: [], rw_hard: [],
         math_moderate: [], math_easy: [], math_hard: []
       };
 
-      Object.keys(slotLatestUploadId).forEach(slotKey => {
-        const latestId = slotLatestUploadId[slotKey];
-        // Take ALL questions belonging to this upload ID. 
-        // This ensures the count matches the Admin panel exactly.
-        grouped[slotKey] = uploadQuestions[latestId] || [];
+      // Map upload_id back to slotKey for fast grouping
+      const uploadIdToSlot = {};
+      Object.entries(slotLatestUploadId).forEach(([slot, id]) => {
+        uploadIdToSlot[id] = slot;
       });
 
-      console.log(`📚 [DEMO] Loaded modules:`, Object.keys(grouped).map(key => `${key}: ${grouped[key].length} questions`));
+      qData.forEach(q => {
+        const slotKey = uploadIdToSlot[q.upload_id];
+        if (slotKey) {
+          grouped[slotKey].push({
+            ...q,
+            text: q.question || q.question_text || '',
+            options: q.options || [],
+            correctAnswer: q.correct_answer || ''
+          });
+        }
+      });
+
+      console.log(`✅ [DEMO] Loaded modules:`, Object.keys(grouped).map(key => `${key}: ${grouped[key].length} questions`));
 
       setModules(grouped);
       
-      // Start with rw_moderate - Exact match with student test
+      // Start with rw_moderate
       const firstModule = grouped['rw_moderate'];
-      if (!firstModule || firstModule.length === 0) throw new Error("Reading & Writing Moderate module is missing.");
+      if (!firstModule || firstModule.length === 0) {
+        throw new Error("Reading & Writing Moderate module is missing or has no questions.");
+      }
       
       setQuestions(firstModule);
       startModuleTimer(firstModule, 'rw_moderate');
-      console.log(`✅ [DEMO] Starting with Reading & Writing Moderate module (${firstModule.length} questions)`);
+      console.log(`🚀 [DEMO] Starting test with ${firstModule.length} questions`);
     } catch (err) {
       console.error(`❌ [DEMO] Error loading content:`, err);
       setError(err.message);
@@ -297,6 +297,15 @@ const PublicDemoQuizInterface = () => {
     return currentModuleKey.startsWith('rw') ? 'Reading & Writing' : 'Math';
   };
 
+  const getHeaderTitle = () => {
+    const section = detectSection();
+    const difficulty = currentModuleKey.split('_')[1];
+    if (difficulty === 'moderate') return `${section} - Part 1`;
+    if (difficulty === 'easy') return `${section} - E`;
+    if (difficulty === 'hard') return `${section} - H`;
+    return `${section} - ${difficulty ? difficulty.toUpperCase() : ''}`;
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -314,13 +323,24 @@ const PublicDemoQuizInterface = () => {
     }).length;
     const percentage = (correctCount / questions.length) * 100;
 
+    // Aggregate topic stats
+    const topicStats = {};
+    questions.forEach(q => {
+      const isCorrect = userAnswers[q.id] && q.correctAnswer && userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
+      const topic = q.topic || 'General';
+      if (!topicStats[topic]) topicStats[topic] = { total: 0, correct: 0 };
+      topicStats[topic].total++;
+      if (isCorrect) topicStats[topic].correct++;
+    });
+
     // Store module score for final calculation
     setModuleScores(prev => ({
       ...prev,
       [currentModuleKey]: {
         correct: correctCount,
         total: questions.length,
-        percentage: Math.round(percentage)
+        percentage: Math.round(percentage),
+        topics: topicStats
       }
     }));
 
@@ -332,7 +352,11 @@ const PublicDemoQuizInterface = () => {
     if (currentModuleKey === 'rw_moderate') {
       nextKey = percentage >= threshold ? 'rw_hard' : 'rw_easy';
     } else if (currentModuleKey === 'rw_easy' || currentModuleKey === 'rw_hard') {
-      nextKey = 'math_moderate';
+      // Start 10-minute break
+      setIsBreakActive(true);
+      setBreakTimeLeft(600);
+      setShowCheckWork(false); // Close review screen
+      return;
     } else if (currentModuleKey === 'math_moderate') {
       nextKey = percentage >= threshold ? 'math_hard' : 'math_easy';
     }
@@ -350,15 +374,30 @@ const PublicDemoQuizInterface = () => {
       window.scrollTo(0, 0);
     } else {
       // Test complete - show lead form instead of results
-      console.log(`🎯 [DEMO] Adaptive test completed. Module history:`, moduleHistory);
+      console.log(`🎯 [DEMO] FULL LENGTH TEST completed. Module history:`, moduleHistory);
       setShowLeadForm(true);
+    }
+  };
+
+  const handleEndBreak = () => {
+    setIsBreakActive(false);
+    const nextKey = 'math_moderate';
+    if (modules[nextKey]) {
+      setCurrentModuleKey(nextKey);
+      setModuleHistory(prev => [...prev, nextKey]);
+      setQuestions(modules[nextKey]);
+      setCurrentQuestionIndex(0);
+      setFlaggedQuestions({});
+      setShowCheckWork(false);
+      startModuleTimer(modules[nextKey], nextKey);
+      window.scrollTo(0, 0);
     }
   };
 
   const handleLeadSubmit = async (formData) => {
     setIsSubmittingLead(true);
     
-    console.log(`🎯 [DEMO] Calculating final Adaptive SAT Test scores...`);
+    console.log(`🎯 [DEMO] Calculating final FULL LENGTH TEST scores...`);
     
     // Calculate scores using the exact same logic as student test
     let rwRaw = 0;
@@ -377,10 +416,21 @@ const PublicDemoQuizInterface = () => {
       }).length;
       const percentage = (correctCount / questions.length) * 100;
       
+      // Aggregate topic stats
+      const topicStats = {};
+      questions.forEach(q => {
+        const isCorrect = userAnswers[q.id] && q.correctAnswer && userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
+        const topic = q.topic || 'General';
+        if (!topicStats[topic]) topicStats[topic] = { total: 0, correct: 0 };
+        topicStats[topic].total++;
+        if (isCorrect) topicStats[topic].correct++;
+      });
+
       allModuleScores[currentModuleKey] = {
         correct: correctCount,
         total: questions.length,
-        percentage: Math.round(percentage)
+        percentage: Math.round(percentage),
+        topics: topicStats
       };
     }
 
@@ -415,23 +465,18 @@ const PublicDemoQuizInterface = () => {
     const hasHardModules = moduleHistory.some(mKey => mKey.includes('hard'));
     const hasEasyModules = moduleHistory.some(mKey => mKey.includes('easy'));
     
-    // Maximum scores based on routing path
-    // Easy path (Moderate → Easy): max 1400 (700 RW + 700 Math)
-    // Hard path (Moderate → Hard): max 1600 (800 RW + 800 Math)
+    // 2. Adaptive Flow Bounds (Min 200)
+    // Hard path: 200 - 800 (Scale: 600)
+    // Easy path: 200 - 700 (Scale: 500)
     const maxSectionScore = hasHardModules ? 800 : 700;
+    const rwSectionScale = hasHardModules ? 600 : 500;
+    const mathSectionScale = hasHardModules ? 600 : 500;
     
-    // Calculate section scores with proper maximum limits
+    // Calculate section scores with proper bounds (minimum 200)
     let rwScore, mathScore;
     
-    if (hasHardModules) {
-      // Hard path: Full 800 points per section available
-      rwScore = rwMax > 0 ? Math.round((rwRaw / rwMax) * 800) : 0;
-      mathScore = mathMax > 0 ? Math.round((mathRaw / mathMax) * 800) : 0;
-    } else {
-      // Easy path: Maximum 700 points per section
-      rwScore = rwMax > 0 ? Math.round((rwRaw / rwMax) * 700) : 0;
-      mathScore = mathMax > 0 ? Math.round((mathRaw / mathMax) * 700) : 0;
-    }
+    rwScore = rwMax > 0 ? Math.round(200 + (rwRaw / rwMax) * rwSectionScale) : 200;
+    mathScore = mathMax > 0 ? Math.round(200 + (mathRaw / mathMax) * mathSectionScale) : 200;
     
     const totalScore = rwScore + mathScore;
     
@@ -450,7 +495,7 @@ const PublicDemoQuizInterface = () => {
     const totalQuestions = Object.values(allModuleScores).reduce((sum, score) => sum + score.total, 0);
     const overallAccuracy = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
 
-    console.log(`📊 [DEMO] Final Adaptive SAT Test Scores:`, {
+    console.log(`📊 [DEMO] Final FULL LENGTH TEST Scores:`, {
       rwScore,
       mathScore,
       totalScore,
@@ -481,7 +526,7 @@ const PublicDemoQuizInterface = () => {
         maxAchievableScore: hasHardModules ? 1600 : 1400,
         maxSectionScore
       },
-      // Add metadata to indicate this is an Adaptive SAT Test score with exact scoring logic
+      // Add metadata to indicate this is an FULL LENGTH TEST score with exact scoring logic
       isAdaptiveSAT: (courseInfo?.is_adaptive || courseInfo?.category?.toLowerCase()?.includes('adaptive')) && 
                      (courseInfo?.category?.toLowerCase()?.includes('sat') || courseInfo?.name?.toLowerCase()?.includes('sat')),
       scoringMethod: 'weighted_adaptive_routing', // Updated to reflect routing-based scoring
@@ -492,7 +537,7 @@ const PublicDemoQuizInterface = () => {
     try {
       console.log('🚀 [DEMO] Submitting lead with data:', {
         courseId,
-        level: 'Adaptive SAT Test',
+        level: 'FULL LENGTH TEST',
         formData: { ...formData, phone: formData.phone ? formData.phone.substring(0, 10) + '...' : 'missing' },
         scoreDetails: {
           hasScoreDetails: !!scoreDetails,
@@ -504,9 +549,10 @@ const PublicDemoQuizInterface = () => {
 
       const response = await axios.post('/api/demo/submit-lead', {
         courseId,
-        level: 'Adaptive SAT Test', // Override level since we use adaptive flow
+        level: 'FULL LENGTH TEST', // Override level since we use adaptive flow
         ...formData,
-        scoreDetails
+        scoreDetails,
+        securityViolations // Track violations in lead too
       });
 
       console.log('✅ [DEMO] Lead submission successful:', response.data);
@@ -515,20 +561,37 @@ const PublicDemoQuizInterface = () => {
       try {
         const savedProgress = JSON.parse(localStorage.getItem(`demo_progress_${courseId}`) || '{}');
         savedProgress.testCompleted = true;
+        savedProgress.studentName = formData.name || 'Demo Student';
         savedProgress.finalScores = {
           totalScore,
           rwScore,
           mathScore,
           overallAccuracy,
+          moduleDetails: allModuleScores,
           completedAt: new Date().toISOString()
         };
+        savedProgress.moduleHistory = moduleHistory;
+        // Save per-module question data (answers) for Answer Summary page
+        savedProgress.moduleAnswers = {};
+        moduleHistory.forEach(mKey => {
+          const mQuestions = modules[mKey] || [];
+          savedProgress.moduleAnswers[mKey] = mQuestions.map(q => ({
+            id: q.id,
+            questionNumber: q.questionNumber || q.order,
+            correctAnswer: q.correctAnswer,
+            userAnswer: userAnswers[q.id] || null,
+            topic: q.topic || 'General',
+            isCorrect: userAnswers[q.id] && q.correctAnswer &&
+              userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase()
+          }));
+        });
         localStorage.setItem(`demo_progress_${courseId}`, JSON.stringify(savedProgress));
       } catch (e) {
         console.warn("Could not save progress to localStorage:", e);
       }
 
-      // Return to demo dashboard
-      navigate(`/demo/${courseId}`);
+      // Navigate to full report page
+      navigate(`/demo/${courseId}/report`);
     } catch (err) {
       console.error("❌ [DEMO] Failed to submit lead:", err);
       console.error("❌ [DEMO] Error response:", err?.response?.data);
@@ -560,7 +623,7 @@ const PublicDemoQuizInterface = () => {
         onClose={() => setShowLeadForm(false)} 
         onSubmit={handleLeadSubmit}
         courseName={courseInfo?.name}
-        level="Adaptive SAT Test"
+        level="FULL LENGTH TEST"
       />
     );
   }
@@ -575,7 +638,7 @@ const PublicDemoQuizInterface = () => {
         <header className="bg-[#0f172a] px-10 h-[60px] flex items-center justify-between shadow-sm">
           <div className="flex flex-col">
             <h2 className="text-sm font-bold text-white">
-              {detectSection()} - Module {moduleHistory.length % 2 === 1 ? '1' : '2'}
+              {getHeaderTitle()}
             </h2>
             <span className="text-[11px] text-gray-400 font-semibold">Review Section</span>
           </div>
@@ -641,9 +704,87 @@ const PublicDemoQuizInterface = () => {
     );
   }
 
+  // Break Screen UI - Match student test
+  if (isBreakActive) {
+    return (
+      <div className="fixed inset-0 z-[999999] bg-[#1a1a1a] flex flex-col font-sans text-white overflow-y-auto">
+        <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col md:flex-row items-center justify-center p-8 gap-12 sm:gap-20">
+          
+          <div className="flex flex-col items-center space-y-8">
+            <div className="p-10 rounded-[32px] border-2 border-white/10 bg-white/5 backdrop-blur-xl flex flex-col items-center min-w-[280px]">
+              <p className="text-sm font-black uppercase tracking-widest text-gray-400 mb-4">Remaining Break Time:</p>
+              <div className="text-8xl font-black tracking-tighter text-white">
+                {formatTime(breakTimeLeft)}
+              </div>
+            </div>
+            
+            <motion.button 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleEndBreak}
+              className="px-10 py-4 bg-[#FFD700] text-black rounded-full font-black text-lg hover:bg-[#FFC700] transition-all shadow-2xl shadow-yellow-500/20"
+            >
+              Resume Testing
+            </motion.button>
+          </div>
+
+          <div className="max-w-xl space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-4xl font-black tracking-tight text-white">Practice Test Break</h2>
+              <p className="text-gray-400 text-lg leading-relaxed">
+                You can resume this practice test as soon as you're ready to move on. On test day, you'll wait until the clock counts down. Read below to see how breaks work on test day.
+              </p>
+            </div>
+
+            <div className="h-px bg-white/10 w-full" />
+
+            <div className="space-y-6">
+              <h3 className="text-2xl font-black text-[#FFD700]">Take a Break: Do Not Close Your Device</h3>
+              <p className="text-gray-400">After the break, a <span className="text-white font-bold">Resume Testing Now</span> button will appear and you'll start the next section.</p>
+              
+              <div className="space-y-4">
+                <p className="text-sm font-black uppercase tracking-widest text-gray-500">Follow these rules during the break:</p>
+                <ul className="space-y-3 text-gray-300 font-medium">
+                  {[
+                    "Do not disturb students who are still testing.",
+                    "Do not exit the app or close your laptop.",
+                    "Do not access phones, smartwatches, textbooks, notes, or the internet.",
+                    "Do not eat or drink near any testing device.",
+                    "Do not speak in the testing room; outside the room, do not discuss the exam with anyone."
+                  ].map((rule, idx) => (
+                    <li key={idx} className="flex gap-4 items-start">
+                      <span className="text-gray-500 font-black">{idx + 1}.</span>
+                      <span>{rule}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="p-8 border-t border-white/5">
+          <p className="text-gray-500 font-bold text-lg">Demo User</p>
+        </div>
+      </div>
+    );
+  }
+
   // Active Exam UI - Exact match with student test
   return (
     <div className="fixed inset-0 z-[999999] bg-white flex flex-col font-sans select-none text-black overflow-hidden take-quiz-force-white px-0">
+      <AnimatePresence>
+        {showSecurityAlert && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[1000000] bg-red-600 text-white px-6 py-3 rounded-full font-black text-sm shadow-2xl flex items-center gap-3 border-2 border-white/20"
+          >
+            <SafeIcon icon={FiAlertCircle} /> SECURITY ALERT: Window focus lost. This event has been tracked.
+          </motion.div>
+        )}
+      </AnimatePresence>
       <style>{`
         .take-quiz-force-white header { background: #0f172a !important; color: white !important; min-height: 60px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; position: relative !important; z-index: 10000 !important; }
         @media (min-width: 640px) { .take-quiz-force-white header { padding: 0 40px !important; } }
@@ -657,7 +798,7 @@ const PublicDemoQuizInterface = () => {
       <header>
         <div className="flex flex-col">
           <h2 className="text-[15px] font-bold text-white">
-              {detectSection()} - Module {moduleHistory.length % 2 === 1 ? '1' : '2'}: {currentModuleKey.split('_')[1].toUpperCase()}
+              {getHeaderTitle()}
           </h2>
           <span className="text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-3 h-3" /></span>
         </div>
@@ -703,38 +844,7 @@ const PublicDemoQuizInterface = () => {
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
         <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
           <div className="prose prose-slate max-w-none leading-[1.6] text-[16px] sm:text-[18px] text-slate-900 font-medium tracking-tight antialiased">
-            {/* Extract and display images separately */}
-            {(() => {
-              const questionText = currentQuestion?.text || '';
-              const images = extractImagesFromText(questionText);
-              const cleanText = getCleanTextWithoutImages(questionText);
-              
-              return (
-                <>
-                  {/* Display images first */}
-                  {images.length > 0 && (
-                    <div className="mb-6 space-y-4">
-                      {images.map((imgUrl, idx) => (
-                        <div key={idx} className="flex justify-center">
-                          <img 
-                            src={imgUrl} 
-                            alt={`Question image ${idx + 1}`} 
-                            className="max-w-full h-auto rounded-lg shadow-sm border border-slate-200"
-                            onError={(e) => {
-                              console.warn('Failed to load image:', imgUrl);
-                              e.target.style.display = 'none';
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Display clean text without image tags */}
-                  <MathRenderer text={cleanText} />
-                </>
-              );
-            })()}
+                <MathRenderer text={currentQuestion?.text || ''} courseId={courseId} />
           </div>
         </div>
 
@@ -767,10 +877,6 @@ const PublicDemoQuizInterface = () => {
                     const letter = String.fromCharCode(65 + idx);
                     const isSelected = selectedAnswer === letter;
                     
-                    // Extract images from option content
-                    const optionImages = extractImagesFromText(optContent);
-                    const cleanOptionText = getCleanTextWithoutImages(optContent);
-                    
                     return (
                       <div key={letter} className="flex gap-4 group relative z-40">
                          <button
@@ -785,26 +891,9 @@ const PublicDemoQuizInterface = () => {
                             onClick={() => handleAnswerSelect(letter)}
                             className={`flex-1 rounded-2xl p-5 min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
                          >
-                            {/* Display option images if any */}
-                            {optionImages.length > 0 && (
-                              <div className="mb-3 space-y-2">
-                                {optionImages.map((imgUrl, imgIdx) => (
-                                  <div key={imgIdx} className="flex justify-center">
-                                    <img 
-                                      src={imgUrl} 
-                                      alt={`Option ${letter} image ${imgIdx + 1}`} 
-                                      className="max-w-full h-auto rounded-lg shadow-sm border border-slate-200"
-                                      onError={(e) => {
-                                        console.warn('Failed to load option image:', imgUrl);
-                                        e.target.style.display = 'none';
-                                      }}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {/* Display clean option text */}
-                            <div className="pointer-events-none"><MathRenderer text={cleanOptionText} className="text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
+                            <div className="pointer-events-none">
+                              <MathRenderer text={optContent} courseId={courseId} className="text-[17px] text-slate-800 font-normal leading-normal antialiased" />
+                            </div>
                          </div>
                       </div>
                     );

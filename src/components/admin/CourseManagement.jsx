@@ -24,7 +24,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
     'SAT': ['SAT Math', 'SAT Reading & Writing'],
     'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
     'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry'],
-    'Adaptive Tests': ['Full-Length SAT']
+    'FULL LENGTH TESTs': ['Full-Length SAT']
   };
 
   useEffect(() => {
@@ -53,7 +53,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
       // Hierarchy Filter
       filteredCourses = filteredCourses.filter(c => {
         const mainCat = c.main_category || (
-          c.is_adaptive ? 'Adaptive Tests' :
+          c.is_adaptive ? 'FULL LENGTH TESTs' :
           (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
           (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' :
           ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
@@ -105,7 +105,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
             className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-purple-700 transition-colors shadow-sm"
           >
             <SafeIcon icon={FiPlus} className="w-4 h-4" />
-            <span>Adaptive SAT Test</span>
+            <span>FULL LENGTH TEST</span>
           </motion.button>
         </div>
       </div>

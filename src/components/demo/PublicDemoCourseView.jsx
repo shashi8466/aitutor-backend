@@ -49,7 +49,7 @@ const PublicDemoCourseView = () => {
                 return;
             }
 
-            // For Full-Length Adaptive SAT Test, ensure strict content isolation
+            // For FULL LENGTH TEST, ensure strict content isolation
             const isAdaptiveSAT = courseRes.data.is_adaptive && courseRes.data.category === 'Full-Length SAT';
             
             let uploadsData = [];
@@ -58,8 +58,8 @@ const PublicDemoCourseView = () => {
                 let allUploads = uploadsRes.data || [];
                 
                 if (isAdaptiveSAT) {
-                    // For Adaptive SAT Test, filter to ensure only this course's content is used
-                    console.log(`🔒 [DEMO] Filtering Adaptive SAT content for course ${courseId}`);
+                    // For FULL LENGTH TEST, filter to ensure only this course's content is used
+                    console.log(`🔒 [DEMO] Filtering FULL LENGTH TEST content for course ${courseId}`);
                     
                     // Verify all uploads belong to this course and are properly categorized
                     uploadsData = allUploads.filter(upload => {
@@ -84,7 +84,7 @@ const PublicDemoCourseView = () => {
                         return true;
                     });
                     
-                    console.log(`✅ [DEMO] Loaded ${uploadsData.length} valid uploads for Adaptive SAT Test`);
+                    console.log(`✅ [DEMO] Loaded ${uploadsData.length} valid uploads for FULL LENGTH TEST`);
                     
                     // Verify required modules are present
                     const requiredModules = [
@@ -107,7 +107,7 @@ const PublicDemoCourseView = () => {
                     });
                     
                     if (missingModules.length > 0) {
-                        console.warn(`⚠️ [DEMO] Missing modules for Adaptive SAT Test:`, missingModules);
+                        console.warn(`⚠️ [DEMO] Missing modules for FULL LENGTH TEST:`, missingModules);
                     }
                 } else {
                     // For regular demo courses, use all uploads
@@ -193,19 +193,19 @@ const PublicDemoCourseView = () => {
                                 
                                 // Handle the specific problematic format
                                 if (courseName === 'FULL-LENGTHADAPTIVESATTEST') {
-                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                    transformedName = 'FULL LENGTH TEST';
                                 }
                                 // Handle with spaces
-                                else if (courseName === 'FULL-LENGTH ADAPTIVE SAT TEST') {
-                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                else if (courseName === 'FULL LENGTH TEST') {
+                                    transformedName = 'FULL LENGTH TEST';
                                 }
                                 // Handle variations with different spacing
                                 else if (courseName.includes('FULL-LENGTH') && courseName.includes('ADAPTIVE') && courseName.includes('SAT')) {
-                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                    transformedName = 'FULL LENGTH TEST';
                                 }
                                 // Handle case where there might be no spaces between words
                                 else if (courseName.replace(/\s+/g, '') === 'FULL-LENGTHADAPTIVESATTEST') {
-                                    transformedName = 'Full-Length Adaptive SAT Test';
+                                    transformedName = 'FULL LENGTH TEST';
                                 }
                                 
                                 console.log('Transformed name:', transformedName);
@@ -213,7 +213,7 @@ const PublicDemoCourseView = () => {
                             })()}
                         </h1>
                         <p className="text-gray-500 dark:text-gray-400 text-lg font-medium max-w-2xl mx-auto">
-                            Experience our adaptive test engine. Complete each level to reveal your estimated SAT performance.
+                            Experience our FULL LENGTH TEST engine. Complete each level to reveal your estimated SAT performance.
                         </p>
                    </motion.div>
                 </div>
@@ -247,7 +247,7 @@ const PublicDemoCourseView = () => {
 
                 <div className="space-y-6">
                     {isAdaptiveSAT ? (
-                        // Adaptive SAT Test Flow
+                        // FULL LENGTH TEST Flow
                         <>
                             <motion.div
                                 initial={{ opacity: 0, x: -20 }}
@@ -261,7 +261,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            Reading & Writing - Moderate
+                                            READING & WRITING - PART 1
                                         </h3>
                                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             {getTopicsForLevel('Moderate').map((topic, i) => (
@@ -297,7 +297,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            Reading & Writing - Adaptive
+                                            READING & WRITING
                                         </h3>
                                                                             </div>
                                     <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
@@ -319,7 +319,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            Math - Moderate
+                                            MATH - PART 1
                                         </h3>
                                                                             </div>
                                     <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
@@ -341,7 +341,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            Math - Adaptive
+                                            MATH
                                         </h3>
                                                                             </div>
                                     <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
@@ -431,7 +431,7 @@ const PublicDemoCourseView = () => {
 
             <footer className="bg-white dark:bg-gray-950 py-12 border-t border-gray-100 dark:border-gray-900 text-center">
                 <p className="text-gray-400 dark:text-gray-600 text-xs font-bold uppercase tracking-widest">
-                    AIPrep365 &copy; 2026 • Premium Adaptive Test Experience
+                    AIPrep365 &copy; 2026 • Premium FULL LENGTH TEST Experience
                 </p>
             </footer>
         </div>

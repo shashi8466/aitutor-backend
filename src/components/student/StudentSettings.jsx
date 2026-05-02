@@ -8,7 +8,7 @@ import { authService } from '../../services/api';
 const { FiUser, FiMail, FiPhone, FiSave, FiLoader, FiCheckCircle, FiShield, FiAlertCircle, FiLock, FiKey } = FiIcons;
 
 const StudentSettings = () => {
-  const { user } = useAuth();
+  const { user, updateProfile, updateEmail } = useAuth();
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' or 'security'
 
   // Profile Form State
@@ -84,7 +84,9 @@ const StudentSettings = () => {
         father_mobile: formData.fatherMobile
       };
 
-      await authService.updateProfile(user.id, updates);
+      const result = await updateProfile(updates);
+      if (!result.success) throw new Error(result.error);
+      
       setSuccess('Profile updated successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -104,7 +106,9 @@ const StudentSettings = () => {
     setSuccess('');
 
     try {
-      await authService.updateEmail(securityData.newEmail);
+      const result = await updateEmail(securityData.newEmail);
+      if (!result.success) throw new Error(result.error);
+      
       setSuccess('Confirmation link sent to your new email! Please check both your old and new inboxes to confirm the change.');
     } catch (err) {
       setError(err.message || 'Failed to update email.');
