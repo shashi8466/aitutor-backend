@@ -159,21 +159,36 @@ async function twilioSend({ from, to, body }) {
         const settings = await getInternalSettings();
         const smsConfig = settings?.sms_config || {};
 
-        let accountSid, authToken;
+        let accountSid, authToken, messagingServiceSid;
 
         if (smsConfig.enabled && smsConfig.account_sid && smsConfig.auth_token) {
             accountSid = smsConfig.account_sid;
             authToken = smsConfig.auth_token;
+            messagingServiceSid = smsConfig.messaging_service_sid;
         } else {
             accountSid = process.env.TWILIO_ACCOUNT_SID;
             authToken  = process.env.TWILIO_AUTH_TOKEN;
+            messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
         }
 
         if (!accountSid || !authToken) {
             return { ok: false, error: 'Twilio credentials missing' };
         }
 
-        const params = new URLSearchParams({ From: from, To: to, Body: body });
+        // Prepare parameters
+        const paramsObj = { To: to, Body: body };
+        
+        // If we have a Messaging Service SID, use it (recommended for USA/International)
+        // Otherwise use the From number
+        if (messagingServiceSid) {
+            paramsObj.MessagingServiceSid = messagingServiceSid;
+            console.log(`📱 [Twilio] Using MessagingServiceSid for delivery to ${to}`);
+        } else {
+            paramsObj.From = from;
+            console.log(`📱 [Twilio] Using From: ${from} for delivery to ${to}`);
+        }
+
+        const params = new URLSearchParams(paramsObj);
         const postData = params.toString();
 
         return new Promise((resolve) => {
@@ -194,11 +209,25 @@ async function twilioSend({ from, to, body }) {
                     res.on('data', (chunk) => (data += chunk));
                     res.on('end', () => {
                         if (res.statusCode >= 200 && res.statusCode < 300) {
-                            console.log(`✅ [Twilio] Message sent to ${to}`);
+                            console.log(`✅ [Twilio] Message successfully queued for ${to}`);
                             resolve({ ok: true });
                         } else {
-                            console.error(`❌ [Twilio] Error ${res.statusCode}:`, data);
-                            resolve({ ok: false, error: `Twilio Error ${res.statusCode}: ${data}` });
+                            let errorDetail = data;
+                            try {
+                                const parsed = JSON.parse(data);
+                                errorDetail = parsed.message || data;
+                                // Specific help for USA numbers
+                                if (to.startsWith('+1') && parsed.code === 21610) {
+                                    errorDetail += " (Recipient has unsubscribed or carrier blocked)";
+                                } else if (to.startsWith('+1') && parsed.code === 21408) {
+                                    errorDetail += " (International permission not enabled for USA)";
+                                } else if (parsed.code === 21608) {
+                                    errorDetail += " (Trial account can only send to verified numbers)";
+                                }
+                            } catch (e) {}
+                            
+                            console.error(`❌ [Twilio] Error ${res.statusCode}:`, errorDetail);
+                            resolve({ ok: false, error: `Twilio Error ${res.statusCode}: ${errorDetail}` });
                         }
                     });
                 }
@@ -224,11 +253,15 @@ async function twilioSend({ from, to, body }) {
 export async function sendSMS({ to, message }) {
     try {
         if (!to) return { ok: false, error: 'No phone number' };
+        
+        // Ensure phone number has + prefix for Twilio E.164 compliance
+        const formattedTo = String(to).startsWith('+') ? to : `+${to}`;
+        
         const settings = await getInternalSettings();
         const smsConfig = settings?.sms_config || {};
         let from = (smsConfig.enabled && smsConfig.from_number) ? smsConfig.from_number : (process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
         if (!from) return { ok: false, error: 'TWILIO_FROM_NUMBER missing' };
-        return await twilioSend({ from, to, body: message });
+        return await twilioSend({ from, to: formattedTo, body: message });
     } catch (err) {
         console.error('❌ [sendSMS] Error:', err.message);
         return { ok: false, error: err.message };

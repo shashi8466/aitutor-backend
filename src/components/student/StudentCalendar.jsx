@@ -158,58 +158,40 @@ const StudentCalendar = () => {
             <div className="max-w-7xl mx-auto">
 
                 {/* Header Section */}
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 px-4 sm:px-0">
                     <div>
-                        <h1 className="text-4xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                            Study Calendar
-                            <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-black uppercase rounded-full tracking-widest">Live</span>
+                        <h1 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                            Calendar
+                            <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-black uppercase rounded-full tracking-widest">Live</span>
                         </h1>
-                        <p className="text-gray-500 dark:text-gray-400 mt-1 font-medium">Manage your daily goals and track your study time.</p>
+                        <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm font-medium">Manage your daily goals and study time.</p>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        {/* Stats Badge */}
-                        <div className="hidden lg:flex items-center gap-4 bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                            <div className="flex flex-col items-center">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Monthly Progress</span>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-24 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-green-500 transition-all duration-500"
-                                            style={{ width: `${(completionStats.completed / (completionStats.total || 1)) * 100}%` }}
-                                        />
-                                    </div>
-                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
-                                        {completionStats.completed}/{completionStats.total}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 shadow-xl border border-gray-100 dark:border-gray-700 p-2 rounded-2xl">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 p-1.5 rounded-2xl w-full sm:w-auto justify-between sm:justify-start">
                             <button
                                 onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
                                 className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-all"
                             >
-                                <SafeIcon icon={FiChevronLeft} className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                                <SafeIcon icon={FiChevronLeft} className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                             </button>
-                            <span className="font-black text-sm md:text-base w-36 text-center text-gray-900 dark:text-white">
-                                {format(currentMonth, 'MMMM yyyy')}
+                            <span className="font-black text-xs sm:text-sm w-28 sm:w-32 text-center text-gray-900 dark:text-white">
+                                {format(currentMonth, 'MMM yyyy')}
                             </span>
                             <button
                                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
                                 className="p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-all"
                             >
-                                <SafeIcon icon={FiChevronRight} className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                                <SafeIcon icon={FiChevronRight} className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                             </button>
                         </div>
 
                         <button
                             onClick={() => { resetForm(); setShowModal(true); }}
-                            className="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-200 dark:shadow-none transition-all flex items-center gap-2 font-bold"
+                            className="w-full sm:w-auto p-3.5 sm:p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg shadow-blue-200 dark:shadow-none transition-all flex items-center justify-center gap-2 font-bold text-sm"
                         >
                             <SafeIcon icon={FiPlus} className="w-5 h-5" />
-                            <span className="hidden sm:inline">Add Activity</span>
+                            <span>Add Activity</span>
                         </button>
                     </div>
                 </header>
@@ -237,38 +219,45 @@ const StudentCalendar = () => {
                                         key={day.toString()}
                                         onClick={() => setSelectedDate(day)}
                                         className={`
-                      min-h-[100px] md:min-h-[130px] border-b border-r border-gray-50 dark:border-gray-700 p-2 cursor-pointer transition-all relative group
-                      ${!isCurrentMonth ? 'bg-gray-50/30' : 'bg-white dark:bg-gray-800'}
-                      ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/20 ring-2 ring-inset ring-blue-500 z-10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}
-                    `}
+                                            min-h-[60px] sm:min-h-[100px] md:min-h-[130px] border-b border-r border-gray-50 dark:border-gray-700 p-1.5 sm:p-2 cursor-pointer transition-all relative group
+                                            ${!isCurrentMonth ? 'bg-gray-50/30' : 'bg-white dark:bg-gray-800'}
+                                            ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/20 ring-2 ring-inset ring-blue-500 z-10' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}
+                                        `}
                                     >
-                                        <div className="flex justify-between items-start mb-2">
+                                        <div className="flex justify-between items-start mb-1 sm:mb-2">
                                             <span className={`
-                         text-xs md:text-sm font-black w-7 h-7 flex items-center justify-center rounded-xl transition-all
-                         ${isToday(day) ? 'bg-[#E53935] text-white shadow-lg' : isSelected ? 'bg-blue-500 text-white' : 'text-gray-400 dark:text-gray-500'}
-                         ${!isCurrentMonth ? 'opacity-30' : ''}
-                       `}>
+                                                text-[10px] sm:text-xs md:text-sm font-black w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg sm:rounded-xl transition-all
+                                                ${isToday(day) ? 'bg-[#E53935] text-white shadow-md' : isSelected ? 'bg-blue-500 text-white' : 'text-gray-400 dark:text-gray-500'}
+                                                ${!isCurrentMonth ? 'opacity-30' : ''}
+                                            `}>
                                                 {format(day, 'd')}
                                             </span>
-                                            {dayTasks.some(t => t.status === 'completed') && dayTasks.every(t => t.status === 'completed') && (
-                                                <SafeIcon icon={FiCheckCircle} className="w-3 h-3 text-green-500" />
-                                            )}
                                         </div>
 
-                                        <div className="space-y-1 overflow-hidden">
-                                            {dayTasks.slice(0, 3).map(task => (
-                                                <div
-                                                    key={task.id}
-                                                    className={`text-[9px] md:text-[10px] truncate px-1.5 py-1 rounded-lg border font-bold ${TASK_TYPES[task.type].bg} ${TASK_TYPES[task.type].text} ${TASK_TYPES[task.type].border} transition-transform hover:scale-95`}
-                                                >
-                                                    {task.status === 'completed' && '✓ '}{task.title}
-                                                </div>
-                                            ))}
-                                            {dayTasks.length > 3 && (
-                                                <div className="text-[9px] text-gray-400 font-bold px-1.5">
-                                                    + {dayTasks.length - 3} more
-                                                </div>
-                                            )}
+                                        <div className="flex flex-wrap gap-1 mt-1 sm:mt-0">
+                                            {/* Mobile: Dots only to avoid overflow */}
+                                            <div className="sm:hidden flex flex-wrap gap-0.5">
+                                                {dayTasks.slice(0, 4).map(task => (
+                                                    <div key={task.id} className={`w-1.5 h-1.5 rounded-full ${TASK_TYPES[task.type].color === 'blue' ? 'bg-blue-500' : TASK_TYPES[task.type].color === 'red' ? 'bg-red-500' : 'bg-green-500'}`} />
+                                                ))}
+                                            </div>
+                                            
+                                            {/* Desktop: Titles */}
+                                            <div className="hidden sm:block space-y-1 w-full">
+                                                {dayTasks.slice(0, 3).map(task => (
+                                                    <div
+                                                        key={task.id}
+                                                        className={`text-[9px] md:text-[10px] truncate px-1.5 py-1 rounded-lg border font-bold ${TASK_TYPES[task.type].bg} ${TASK_TYPES[task.type].text} ${TASK_TYPES[task.type].border} transition-transform hover:scale-95`}
+                                                    >
+                                                        {task.status === 'completed' && '✓ '}{task.title}
+                                                    </div>
+                                                ))}
+                                                {dayTasks.length > 3 && (
+                                                    <div className="text-[9px] text-gray-400 font-bold px-1.5">
+                                                        + {dayTasks.length - 3}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -367,7 +356,7 @@ const StudentCalendar = () => {
                                 initial={{ scale: 0.9, y: 20 }}
                                 animate={{ scale: 1, y: 0 }}
                                 exit={{ scale: 0.9, y: 20 }}
-                                className="bg-white dark:bg-gray-800 rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative border border-gray-100 dark:border-gray-700"
+                                className="bg-white dark:bg-gray-800 rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl p-6 sm:p-8 max-w-md w-full relative border border-gray-100 dark:border-gray-700"
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 rounded-full transition-all">

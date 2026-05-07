@@ -65,10 +65,10 @@ const AdaptivePreTest = () => {
                   Adaptive
                 </span>
               </div>
-              <h1 className="text-4xl sm:text-5xl font-black mb-4 leading-tight">
+              <h1 className="text-3xl sm:text-5xl font-black mb-4 leading-tight tracking-tight">
                 {course?.name || 'Adaptive Practice Test'}
               </h1>
-              <p className="text-purple-100 text-lg max-w-2xl font-medium opacity-90">
+              <p className="text-purple-100 text-sm sm:text-lg max-w-2xl font-bold opacity-90 uppercase tracking-widest">
                 Experience a realistic testing environment. This test adapts to your skill level in real-time.
               </p>
             </div>
@@ -87,17 +87,17 @@ const AdaptivePreTest = () => {
                     Test Structure & Timing
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-5 bg-purple-50 rounded-2xl border border-purple-100">
-                      <div className="text-purple-700 font-black mb-1">Reading & Writing</div>
-                      <div className="text-sm text-gray-600 font-bold mb-3">2 Modules • 54 Questions</div>
-                      <div className="flex items-center gap-2 text-xs font-black text-purple-600 uppercase">
+                    <div className="p-5 bg-purple-50 dark:bg-purple-900/20 rounded-2xl border border-purple-100 dark:border-purple-800">
+                      <div className="text-purple-700 dark:text-purple-400 font-black mb-1 uppercase text-xs">Reading & Writing</div>
+                      <div className="text-sm text-gray-900 dark:text-white font-black mb-3">2 Modules • 54 Questions</div>
+                      <div className="flex items-center gap-2 text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest">
                         <SafeIcon icon={FiClock} /> 64 Minutes
                       </div>
                     </div>
-                    <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
-                      <div className="text-indigo-700 font-black mb-1">Mathematics</div>
-                      <div className="text-sm text-gray-600 font-bold mb-3">2 Modules • 44 Questions</div>
-                      <div className="flex items-center gap-2 text-xs font-black text-indigo-600 uppercase">
+                    <div className="p-5 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800">
+                      <div className="text-indigo-700 dark:text-indigo-400 font-black mb-1 uppercase text-xs">Mathematics</div>
+                      <div className="text-sm text-gray-900 dark:text-white font-black mb-3">2 Modules • 44 Questions</div>
+                      <div className="flex items-center gap-2 text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
                         <SafeIcon icon={FiClock} /> 70 Minutes
                       </div>
                     </div>
@@ -147,7 +147,7 @@ const AdaptivePreTest = () => {
         </div>
 
         {/* Action Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-4 sm:px-0">
           <motion.div
             whileHover={{ y: -8 }}
             className="group bg-white p-10 rounded-[32px] shadow-xl border border-slate-100 text-center relative overflow-hidden flex flex-col"

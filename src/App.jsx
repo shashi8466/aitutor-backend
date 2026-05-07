@@ -49,6 +49,8 @@ const SalesBot = lazy(() => import('./components/common/SalesBot'));
 const UpgradePlan = lazy(() => import('./components/student/UpgradePlan'));
 const Worksheets = lazy(() => import('./components/student/Worksheets'));
 const StudentFeedback = lazy(() => import('./components/student/StudentFeedback'));
+const SmartAITutor = lazy(() => import('./components/student/agents/SmartAITutor'));
+
 
 // Demo Pages
 const PublicDemoCourseView = lazy(() => import('./components/demo/PublicDemoCourseView'));
@@ -333,6 +335,8 @@ const App = () => {
               <Route path="practice-tests" element={<PracticeTests />} />
               {/* AI Agents */}
               <Route path="tutor" element={<FeatureGate featureKey="feature_ai_tutor"><AITutorAgent /></FeatureGate>} />
+              <Route path="smart-tutor" element={<FeatureGate featureKey="feature_ai_tutor"><SmartAITutor /></FeatureGate>} />
+
               <Route path="plan" element={<FeatureGate featureKey="feature_study_planner"><StudyPlanPage /></FeatureGate>} />
               <Route path="drills" element={<FeatureGate featureKey="feature_weakness_drills"><WeaknessDrills /></FeatureGate>} />
               <Route path="test-review" element={<FeatureGate featureKey="feature_test_review"><TestReview /></FeatureGate>} />

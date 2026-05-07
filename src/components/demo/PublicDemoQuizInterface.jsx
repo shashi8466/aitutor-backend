@@ -68,6 +68,12 @@ const PublicDemoQuizInterface = () => {
   const [breakTimeLeft, setBreakTimeLeft] = useState(600);
   const [securityViolations, setSecurityViolations] = useState([]);
   const [showSecurityAlert, setShowSecurityAlert] = useState(false);
+
+  // Time Tracking State
+  const [questionTimes, setQuestionTimes] = useState({}); // { qId: totalSeconds }
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
+  const [moduleDurations, setModuleDurations] = useState({}); // { moduleKey: totalSeconds }
+  const [moduleStartTime, setModuleStartTime] = useState(Date.now());
   
   // Scoring State
   const [totalScore, setTotalScore] = useState(0);
@@ -253,6 +259,8 @@ const PublicDemoQuizInterface = () => {
       
       setQuestions(firstModule);
       startModuleTimer(firstModule, 'rw_moderate');
+      setModuleStartTime(Date.now());
+      setQuestionStartTime(Date.now());
       console.log(`🚀 [DEMO] Starting test with ${firstModule.length} questions`);
     } catch (err) {
       console.error(`❌ [DEMO] Error loading content:`, err);
@@ -284,12 +292,27 @@ const PublicDemoQuizInterface = () => {
     setFlaggedQuestions(prev => ({ ...prev, [currentQuestionIndex]: !prev[currentQuestionIndex] }));
   };
 
+  const recordTime = () => {
+    const now = Date.now();
+    const diff = Math.floor((now - questionStartTime) / 1000);
+    const qId = questions[currentQuestionIndex]?.id;
+    if (qId) {
+      setQuestionTimes(prev => ({
+        ...prev,
+        [qId]: (prev[qId] || 0) + diff
+      }));
+    }
+    setQuestionStartTime(now);
+  };
+
   const handleNext = () => {
+    recordTime();
     if (currentQuestionIndex < questions.length - 1) setCurrentQuestionIndex(prev => prev + 1);
     else setShowCheckWork(true);
   };
 
   const handleBack = () => {
+    recordTime();
     if (currentQuestionIndex > 0) setCurrentQuestionIndex(prev => prev - 1);
   };
 
@@ -314,6 +337,15 @@ const PublicDemoQuizInterface = () => {
 
   
   const handleNextModule = () => {
+    recordTime();
+
+    // Record Module Duration
+    const mDuration = Math.floor((Date.now() - moduleStartTime) / 1000);
+    setModuleDurations(prev => ({
+      ...prev,
+      [currentModuleKey]: mDuration
+    }));
+
     const threshold = courseInfo?.threshold_percentage || 60;
     
     // Calculate current module score - Exact match with student test
@@ -371,6 +403,8 @@ const PublicDemoQuizInterface = () => {
       setFlaggedQuestions({});
       setShowCheckWork(false);
       startModuleTimer(modules[nextKey], nextKey);
+      setModuleStartTime(Date.now());
+      setQuestionStartTime(Date.now());
       window.scrollTo(0, 0);
     } else {
       // Test complete - show lead form instead of results
@@ -390,6 +424,8 @@ const PublicDemoQuizInterface = () => {
       setFlaggedQuestions({});
       setShowCheckWork(false);
       startModuleTimer(modules[nextKey], nextKey);
+      setModuleStartTime(Date.now());
+      setQuestionStartTime(Date.now());
       window.scrollTo(0, 0);
     }
   };
@@ -571,7 +607,7 @@ const PublicDemoQuizInterface = () => {
           completedAt: new Date().toISOString()
         };
         savedProgress.moduleHistory = moduleHistory;
-        // Save per-module question data (answers) for Answer Summary page
+        // Save per-module question data (answers + time) for Answer Summary & Time Analysis pages
         savedProgress.moduleAnswers = {};
         moduleHistory.forEach(mKey => {
           const mQuestions = modules[mKey] || [];
@@ -582,9 +618,13 @@ const PublicDemoQuizInterface = () => {
             userAnswer: userAnswers[q.id] || null,
             topic: q.topic || 'General',
             isCorrect: userAnswers[q.id] && q.correctAnswer &&
-              userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase()
+              userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
+            timeSpent: questionTimes[q.id] || 0
           }));
         });
+        // Save time tracking data
+        savedProgress.questionTimes = questionTimes;
+        savedProgress.moduleDurations = moduleDurations;
         localStorage.setItem(`demo_progress_${courseId}`, JSON.stringify(savedProgress));
       } catch (e) {
         console.warn("Could not save progress to localStorage:", e);

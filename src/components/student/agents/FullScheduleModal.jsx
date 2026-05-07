@@ -1,11 +1,13 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
 
-const { FiCalendar, FiX, FiCheckCircle, FiFlag, FiAlertCircle, FiRefreshCw } = FiIcons;
+const { FiCalendar, FiX, FiCheckCircle, FiFlag, FiAlertCircle, FiRefreshCw, FiChevronDown, FiChevronUp, FiClock, FiList } = FiIcons;
 
 const FullScheduleModal = ({ plan, onClose }) => {
+  const [expandedWeek, setExpandedWeek] = useState(null);
+
   // Robust check: handle different AI formats (studyPlan, weeks, schedule)
   const rawWeeks = plan?.weeks || plan?.studyPlan || plan?.schedule || [];
 
@@ -13,7 +15,8 @@ const FullScheduleModal = ({ plan, onClose }) => {
     week: w.week || w.month || idx + 1,
     focus: w.focus || w.mathFocus || w.topic || "General Focus",
     goals: Array.isArray(w.goals) ? w.goals : (w.englishFocus ? [w.englishFocus] : []),
-    action_item: w.action_item || w.description || "Review weekly concepts"
+    action_item: w.action_item || w.description || "Review weekly concepts",
+    daily_plan: Array.isArray(w.daily_plan) ? w.daily_plan : []
   })) : [];
 
   const hasWeeks = normalizedWeeks.length > 0;
@@ -90,6 +93,57 @@ const FullScheduleModal = ({ plan, onClose }) => {
                         <p className="text-sm font-medium text-blue-900 dark:text-blue-100">{week.action_item}</p>
                       </div>
                     </div>
+
+                    {/* Daily Plan Section */}
+                    {week.daily_plan && week.daily_plan.length > 0 && (
+                      <div className="mt-6 border-t border-gray-100 dark:border-gray-700 pt-4">
+                        <button 
+                          onClick={() => setExpandedWeek(expandedWeek === idx ? null : idx)}
+                          className="flex items-center gap-2 text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors w-full"
+                        >
+                          <SafeIcon icon={expandedWeek === idx ? FiChevronUp : FiChevronDown} className="w-5 h-5" />
+                          {expandedWeek === idx ? 'Hide Daily Schedule' : 'View Daily Schedule'}
+                        </button>
+                        
+                        <AnimatePresence>
+                          {expandedWeek === idx && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {week.daily_plan.map((day, dIdx) => (
+                                  <div key={dIdx} className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <span className="text-xs font-bold text-gray-500 uppercase">Day {day.day}</span>
+                                      {day.time_allocation && (
+                                        <span className="flex items-center gap-1 text-[10px] font-medium text-gray-400 bg-white dark:bg-gray-900 px-2 py-0.5 rounded-full border border-gray-100 dark:border-gray-700">
+                                          <SafeIcon icon={FiClock} className="w-3 h-3" />
+                                          {day.time_allocation}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <h5 className="font-bold text-sm text-gray-900 dark:text-white mb-2">{day.title}</h5>
+                                    <ul className="space-y-1.5">
+                                      {Array.isArray(day.tasks) ? day.tasks.map((task, tIdx) => (
+                                        <li key={tIdx} className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                          <SafeIcon icon={FiList} className="w-3 h-3 mt-0.5 text-gray-400 flex-shrink-0" />
+                                          <span className="leading-snug">{task}</span>
+                                        </li>
+                                      )) : (
+                                        <li className="text-xs text-gray-600 dark:text-gray-400">{day.tasks}</li>
+                                      )}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}

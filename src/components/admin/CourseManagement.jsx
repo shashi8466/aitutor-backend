@@ -278,7 +278,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
               course={course}
               index={index}
               onDelete={handleDeleteCourse}
-              manageLink={`/admin/course/${course.id}`}
+              manageLink={course.is_adaptive ? `/admin/full-length-test/${course.id}` : `/admin/regular-course/${course.id}`}
             />
           ))}
         </div>

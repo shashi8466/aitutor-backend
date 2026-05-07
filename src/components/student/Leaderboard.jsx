@@ -86,26 +86,26 @@ const Leaderboard = () => {
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Header */}
-        <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <Link to="/student" className="flex items-center gap-2 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white font-bold transition-colors self-start md:self-auto">
+        <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-6 px-4 sm:px-0">
+          <Link to="/student" className="flex items-center gap-2 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white font-black uppercase tracking-widest text-[10px] transition-all self-start md:self-auto bg-white dark:bg-gray-800 px-4 py-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm">
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back
           </Link>
 
           <div className="text-center md:text-right">
-            <h1 className="text-3xl font-extrabold text-black dark:text-white flex items-center gap-2 justify-center md:justify-end">
+            <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white flex items-center gap-2 justify-center md:justify-end tracking-tight">
               <SafeIcon icon={FiAward} className="text-[#E53935]" /> Leaderboard
             </h1>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Top performing students</p>
+            <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-bold uppercase tracking-widest">Top performing students</p>
           </div>
         </div>
 
         {/* Filter Bar */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-8 flex items-center gap-4">
-          <SafeIcon icon={FiFilter} className="text-gray-400 w-5 h-5" />
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 mb-8 flex items-center gap-4 mx-4 sm:mx-0">
+          <SafeIcon icon={FiFilter} className="text-gray-400 w-5 h-5 flex-shrink-0" />
           <select
             value={selectedCourseId}
             onChange={(e) => setSelectedCourseId(e.target.value)}
-            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white font-bold text-sm cursor-pointer outline-none !bg-opacity-100"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white font-black text-xs sm:text-sm cursor-pointer outline-none !bg-opacity-100 uppercase tracking-widest"
           >
             <option value="" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Global Leaderboard (Total SAT)</option>
             {courses.map(course => (
@@ -155,13 +155,13 @@ const Leaderboard = () => {
         )}
 
         {/* List View */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden mx-4 sm:mx-0">
           <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex justify-between items-center">
-            <h2 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <h2 className="font-black text-gray-900 dark:text-white flex items-center gap-2 uppercase tracking-widest text-xs">
               <SafeIcon icon={FiTrendingUp} className="text-blue-500" />
               {selectedCourseId ? 'Course Rankings' : 'Global Rankings'}
             </h2>
-            <span className="text-xs font-bold bg-black text-white px-3 py-1 rounded-full">{students.length} Students</span>
+            <span className="text-[10px] font-black bg-black text-white px-3 py-1 rounded-full uppercase tracking-tighter">{students.length} Students</span>
           </div>
 
           {/* Your Standing (Pinned at top if exists) */}

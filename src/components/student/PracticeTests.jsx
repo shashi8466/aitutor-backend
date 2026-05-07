@@ -96,23 +96,23 @@ const PracticeTests = () => {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8">
-            <div>
-                <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3">
+            <div className="px-4 sm:px-0">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3">
                     <div className="p-2 bg-red-50 dark:bg-red-900/30 rounded-xl">
                         <SafeIcon icon={FiActivity} className="text-[#E53935]" />
                     </div>
                     Practice Tests
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">Admin-curated tests to sharpen your SAT skills.</p>
+                <p className="text-gray-600 dark:text-gray-400 mt-2 text-sm sm:text-base">Admin-curated tests to sharpen your skills.</p>
             </div>
 
             {tests.length > 0 && (
-                <div className="space-y-6">
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <div className="space-y-6 px-4 sm:px-0">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                         <SafeIcon icon={FiPlay} className="text-[#E53935]" />
                         Active Practice Exams
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {tests.map((test, idx) => (
                             <motion.div
                                 key={test.id}
@@ -174,38 +174,35 @@ const PracticeTests = () => {
                         ))}
                     </div>
                     {!isPremium && planSettings && (
-                         <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-4 rounded-2xl flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                         <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 p-4 sm:p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
                                 <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg text-amber-600">
                                     <SafeIcon icon={FiIcons.FiZap} className="w-5 h-5" />
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold text-gray-900 dark:text-white">Free Plan Limit: {planSettings.max_tests} Tests</p>
-                                    <p className="text-xs text-gray-500">Upgrade to Premium for up to 10 full-length practice exams.</p>
+                                    <p className="text-xs text-gray-500">Upgrade to Premium for full-length exams.</p>
                                 </div>
                             </div>
-                            <button onClick={() => navigate('/student/upgrade')} className="px-4 py-2 bg-amber-600 text-white text-xs font-black uppercase rounded-xl hover:bg-amber-700 transition-all">Upgrade Now</button>
+                            <button onClick={() => navigate('/student/upgrade')} className="w-full sm:w-auto px-6 py-2.5 bg-amber-600 text-white text-xs font-black uppercase rounded-xl hover:bg-amber-700 transition-all shadow-md">Upgrade Now</button>
                          </div>
                     )}
                 </div>
-            )}
-
-            {availableCourses.length > 0 && (
-                <div className="space-y-6 pt-8">
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            )}            {availableCourses.length > 0 && (
+                <div className="space-y-6 pt-8 px-4 sm:px-0">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                         <SafeIcon icon={FiBookOpen} className="text-blue-500" />
                         Available Practice Courses
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {availableCourses.map((course) => (
-                            <div key={course.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-8 rounded-3xl border border-blue-100 dark:border-gray-700 shadow-sm relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-4">
-                                    <SafeIcon icon={FiActivity} className="w-12 h-12 text-blue-200/50 group-hover:scale-110 transition-transform" />
+                            <div key={course.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 p-6 sm:p-8 rounded-3xl border border-blue-100 dark:border-gray-700 shadow-sm relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-4 opacity-20 sm:opacity-50">
+                                    <SafeIcon icon={FiActivity} className="w-10 h-10 sm:w-12 sm:h-12 text-blue-200/50 group-hover:scale-110 transition-transform" />
                                 </div>
                                 <div className="relative z-10">
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{course.name}</h3>
+                                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-2">{course.name}</h3>
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 line-clamp-2">{course.description || 'Unlock advanced practice materials for this course.'}</p>
-
                                     <EnrollmentKeyInput onSuccess={loadPracticeTests} />
                                 </div>
                             </div>

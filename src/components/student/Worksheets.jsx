@@ -22,31 +22,31 @@ const Worksheets = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8 px-4 sm:px-0">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-2">Worksheets Library</h1>
-            <p className="text-gray-600 dark:text-gray-400">Extra practice materials curated for you.</p>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-2">Worksheets Library</h1>
+            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">Extra practice materials curated for you.</p>
           </div>
           <div className="relative w-full md:w-80">
-            <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-gray-400 w-4 h-4" />
+            <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Search worksheets..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#E53935] outline-none shadow-sm"
+              className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#E53935] outline-none shadow-sm text-sm"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4 sm:px-0">
           {filtered.map((item, idx) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.05 }}
-              className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all group"
+              className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all group relative overflow-hidden"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-[#E53935]">

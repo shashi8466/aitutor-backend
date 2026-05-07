@@ -8,6 +8,8 @@ import Skeleton from '../common/Skeleton';
 
 // Lazy load admin sections
 const CourseManagement = lazy(() => import('./CourseManagement'));
+const FullLengthTestEditPage = lazy(() => import('./FullLengthTestEditPage'));
+const RegularCourseEditPage = lazy(() => import('./RegularCourseEditPage'));
 const AdminCourseDetail = lazy(() => import('./AdminCourseDetail'));
 const QuestionManagement = lazy(() => import('./QuestionManagement'));
 const FileUpload = lazy(() => import('./FileUpload'));
@@ -104,15 +106,15 @@ const AdminDashboard = () => {
           className="mb-8"
         >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
-              <p className="text-slate-600 dark:text-slate-400 mt-2">Manage courses, questions, content, and settings</p>
+            <div className="text-center md:text-left">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Admin Dashboard</h1>
+              <p className="text-slate-600 dark:text-slate-400 mt-2 text-sm sm:text-base">Manage courses, questions, content, and settings</p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center md:justify-end gap-3">
               <button
                 onClick={() => setShowPreviewer(true)}
-                className="flex items-center px-4 py-2 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors font-black text-xs uppercase tracking-widest border border-sky-200 dark:border-sky-800 shadow-sm"
+                className="flex items-center px-4 py-2 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors font-black text-[10px] sm:text-xs uppercase tracking-widest border border-sky-200 dark:border-sky-800 shadow-sm"
               >
                 <SafeIcon icon={FiIcons.FiEye} className="w-4 h-4 mr-2" />
                 Switch View
@@ -120,7 +122,7 @@ const AdminDashboard = () => {
 
               <button
                 onClick={handleLogout}
-                className="flex items-center px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors font-medium border border-orange-200 dark:border-orange-800 shadow-sm"
+                className="flex items-center px-4 py-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors font-medium text-xs sm:text-sm border border-orange-200 dark:border-orange-800 shadow-sm"
               >
                 <SafeIcon icon={FiLogOut} className="w-4 h-4 mr-2" />
                 Logout
@@ -183,6 +185,8 @@ const AdminDashboard = () => {
             <Route path="/" element={<DashboardHome stats={stats} loading={loading} />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/courses" element={<CourseManagement onStatsUpdate={loadStats} />} />
+            <Route path="/full-length-test/:id" element={<FullLengthTestEditPage />} />
+            <Route path="/regular-course/:id" element={<RegularCourseEditPage />} />
             <Route path="/course/:id" element={<AdminCourseDetail />} />
             <Route path="/detailed-review/:submissionId" element={<DetailedTestReview />} />
             <Route path="/groups" element={<AdminGroupManagement />} />
@@ -244,7 +248,7 @@ const DashboardHome = ({ stats, loading }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="dashboard-card p-6">
           <h2 className="text-xl font-bold mb-4 text-slate-900 dark:text-white">Quick Actions</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               { to: '/admin/courses', icon: FiBook, color: 'bg-sky-500', title: 'Manage Courses', desc: 'Add or edit courses' },
               { to: '/admin/groups', icon: FiLayers, color: 'bg-orange-500', title: 'Student Groups', desc: 'Manage tutor groups' },

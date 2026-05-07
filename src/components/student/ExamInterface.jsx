@@ -356,16 +356,16 @@ const ExamInterface = () => {
                   </div>
                 </div>
                 
-                <div className="flex gap-4">
-                    <button onClick={() => setShowCheckWork(false)} className="px-8 py-3.5 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[15px] hover:bg-slate-50 transition-all flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto">
+                    <button onClick={() => setShowCheckWork(false)} className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[13px] sm:text-[15px] hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
                       <SafeIcon icon={FiChevronLeft} /> Back to Questions
                     </button>
                     {activeModuleIndex < 2 ? (
-                      <button onClick={handleNextModule} className="px-10 py-3.5 bg-blue-600 text-white rounded-full font-black text-[15px] hover:bg-blue-700 transition-all flex items-center gap-3 shadow-xl">
+                      <button onClick={handleNextModule} className="w-full sm:w-auto px-8 sm:px-10 py-3 bg-blue-600 text-white rounded-full font-black text-[13px] sm:text-[15px] hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-xl">
                         Next Module <SafeIcon icon={FiChevronRight} />
                       </button>
                     ) : (
-                      <button onClick={handleFinish} disabled={savingResult} className="px-10 py-3.5 bg-black text-white rounded-full font-black text-[15px] hover:bg-slate-800 transition-all flex items-center gap-3 shadow-xl disabled:opacity-50">
+                      <button onClick={handleFinish} disabled={savingResult} className="w-full sm:w-auto px-8 sm:px-10 py-3 bg-black text-white rounded-full font-black text-[13px] sm:text-[15px] hover:bg-slate-800 transition-all flex items-center justify-center gap-3 shadow-xl disabled:opacity-50">
                         {savingResult ? <SafeIcon icon={FiRefreshCw} className="animate-spin" /> : <SafeIcon icon={FiCheckCircle} />} Submit Test
                       </button>
                     )}
@@ -390,8 +390,8 @@ const ExamInterface = () => {
                 <SafeIcon icon={FiIcons.FiAward} className="w-6 h-6 text-white" />
              </div>
           </div>
-          <h2 className="text-3xl sm:text-5xl font-black text-white mb-2 text-center">Test Completed!</h2>
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-8 text-center">Performance Summary</p>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-2 text-center">Test Completed!</h2>
+          <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px] sm:text-[10px] mb-6 sm:mb-8 text-center">Performance Summary</p>
           
           <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
             <div className="bg-white p-6 rounded-3xl text-center shadow-lg">
@@ -437,33 +437,61 @@ const ExamInterface = () => {
   return (
     <div className="fixed inset-0 z-[999999] bg-white flex flex-col font-sans select-none text-black overflow-hidden take-quiz-force-white px-0">
       <style>{`
-        .take-quiz-force-white header { background: #0f172a !important; color: white !important; min-height: 60px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; position: relative !important; z-index: 10000 !important; }
-        @media (min-width: 640px) { .take-quiz-force-white header { padding: 0 40px !important; } }
-        .take-quiz-force-white footer { background: #ffffff !important; border-top: 1px solid #e2e8f0 !important; min-height: 70px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; position: relative !important; z-index: 10000 !important; }
-        @media (min-width: 640px) { .take-quiz-force-white footer { padding: 0 40px !important; min-height: 60px !important; } }
-        .timer-text { color: #ffffff !important; font-weight: 800 !important; font-size: 16px !important; }
+        .take-quiz-force-white header { 
+          background: #0f172a !important; 
+          color: white !important; 
+          min-height: 54px !important; 
+          display: flex !important; 
+          align-items: center !important; 
+          justify-content: space-between !important; 
+          padding: 0 12px !important; 
+          position: relative !important; 
+          z-index: 10000 !important; 
+        }
+        @media (min-width: 640px) { 
+          .take-quiz-force-white header { padding: 0 40px !important; min-height: 60px !important; } 
+        }
+        
+        .take-quiz-force-white footer { 
+          background: #ffffff !important; 
+          border-top: 1px solid #e2e8f0 !important; 
+          min-height: 64px !important; 
+          display: flex !important; 
+          align-items: center !important; 
+          justify-content: space-between !important; 
+          padding: 0 12px !important; 
+          position: relative !important; 
+          z-index: 10000 !important; 
+        }
+        @media (min-width: 640px) { 
+          .take-quiz-force-white footer { padding: 0 40px !important; min-height: 70px !important; } 
+        }
+
+        .timer-text { color: #ffffff !important; font-weight: 800 !important; font-size: 14px !important; }
         @media (min-width: 640px) { .timer-text { font-size: 18px !important; } }
-        .practice-banner { background: #1e1b4b !important; color: white !important; text-align: center !important; padding: 4px 0 !important; font-size: 10px !important; font-weight: 800 !important; letter-spacing: 0.1em !important; position: relative !important; z-index: 9000 !important; }
+        
+        .practice-banner { background: #1e1b4b !important; color: white !important; text-align: center !important; padding: 4px 0 !important; font-size: 9px !important; font-weight: 800 !important; letter-spacing: 0.1em !important; position: relative !important; z-index: 9000 !important; }
+        @media (min-width: 640px) { .practice-banner { font-size: 10px !important; } }
       `}</style>
 
       <header>
         <div className="flex flex-col">
-          <h2 className="text-[15px] font-bold text-white">
+          <h2 className="text-[12px] sm:text-[15px] font-bold text-white leading-tight truncate max-w-[120px] sm:max-w-none">
               Section 1, Module {activeModuleIndex + 1}: {detectSection()}
           </h2>
-          <span className="text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-3 h-3" /></span>
+          <span className="text-[9px] sm:text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-2.5 h-2.5 sm:w-3 sm:h-3" /></span>
         </div>
         <div className="flex flex-col items-center mt-1">
             <div className="timer-text">{formatTime(timeLeft)}</div>
             <span className="text-[9px] font-bold text-gray-400 tracking-widest cursor-pointer hover:text-white">HIDE</span>
         </div>
-        <div className="flex items-center gap-6 relative">
+        <div className="flex items-center gap-3 sm:gap-6 relative">
            <button 
              onClick={() => setShowMoreMenu(!showMoreMenu)} 
              className="flex flex-col items-center cursor-pointer text-gray-300 hover:text-white bg-transparent border-none p-0 outline-none relative z-[10001]"
            >
-               <span className="text-xl font-black leading-none">⋮</span>
-               <span className="text-[8px] font-bold uppercase tracking-widest">More</span>
+               <span className="text-lg sm:text-xl font-black leading-none">⋮</span>
+               <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest">More</span>
            </button>
 
            <AnimatePresence>
@@ -493,13 +521,13 @@ const ExamInterface = () => {
       <div className="practice-banner">THIS IS A PRACTICE TEST</div>
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[4px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
           <div className="prose prose-slate max-w-none leading-relaxed text-[15px] sm:text-[17px] text-black">
                 <MathRenderer text={currentQuestion?.question_html || currentQuestion?.text || ''} />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-12 bg-white relative z-20">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white relative z-20">
           <div className="flex items-center justify-between mb-8">
              <div className="flex items-center gap-4">
                <div className="bg-black text-white w-8 h-8 flex items-center justify-center font-bold rounded-lg">{currentQuestionIndex + 1}</div>
@@ -538,16 +566,16 @@ const ExamInterface = () => {
                          <button
                             type="button"
                             onClick={() => handleAnswerSelect(letter)}
-                            className={`w-[44px] h-[44px] rounded-full flex items-center justify-center font-bold shrink-0 transition-colors cursor-pointer pointer-events-auto relative z-50 ${isSelected ? 'border-2 border-blue-600 text-blue-600 bg-white ring-4 ring-blue-50 shadow-sm' : 'border border-slate-200 text-slate-400 bg-white group-hover:border-slate-300'}`}
+                            className={`w-[36px] h-[36px] sm:w-[44px] sm:h-[44px] rounded-full flex items-center justify-center font-bold shrink-0 transition-colors cursor-pointer pointer-events-auto relative z-50 text-sm sm:text-base ${isSelected ? 'border-2 border-blue-600 text-blue-600 bg-white ring-4 ring-blue-50 shadow-sm' : 'border border-slate-200 text-slate-400 bg-white group-hover:border-slate-300'}`}
                          >
                             {letter}
                          </button>
                          <div 
                             role="button"
                             onClick={() => handleAnswerSelect(letter)}
-                            className={`flex-1 rounded-2xl p-5 min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
+                            className={`flex-1 rounded-xl sm:rounded-2xl p-3 sm:p-5 min-h-[48px] sm:min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
                          >
-                            <div className="pointer-events-none"><MathRenderer text={optContent} className="text-[17px] text-slate-900" /></div>
+                            <div className="pointer-events-none"><MathRenderer text={optContent} className="text-sm sm:text-[17px] text-slate-900" /></div>
                          </div>
                       </div>
                     );

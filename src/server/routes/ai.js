@@ -389,13 +389,22 @@ router.post('/generate-plan', async (req, res) => {
             "week": 1,
             "focus": "Main focus area (e.g., Linear Equations or Punctuation)",
             "goals": ["Goal 1", "Goal 2", "Goal 3"],
-            "description": "Short explanation of the week's priority"
-          },
-          {
-            "week": 2,
-            "focus": "...",
-            "goals": ["...", "...", "..."],
-            "description": "..."
+            "description": "Short explanation of the week's priority",
+            "daily_plan": [
+              {
+                "day": 1,
+                "title": "Topic-focused practice",
+                "tasks": ["Task 1", "Task 2"],
+                "time_allocation": "e.g., 45 mins Math, 30 mins R&W"
+              },
+              {
+                "day": 2,
+                "title": "...",
+                "tasks": ["...", "..."],
+                "time_allocation": "..."
+              }
+              // Include 7 days per week
+            ]
           }
         ]
       }
@@ -405,6 +414,8 @@ router.post('/generate-plan', async (req, res) => {
       2. Ensure exactly 4-6 weeks of content are provided.
       3. Focus on both Math and Reading & Writing sections based on the score gap.
       4. Use specific SAT topic names (e.g. 'Standard English Conventions', 'Problem Solving and Data Analysis').
+      5. Heavily prioritize the student's weak topics and low-performing areas detected in their history for the first few weeks before focusing on strong topics.
+      6. Provide a full 7-day daily plan for each week, including topic drills, timed exercises, error review, and mock test days.
     `;
     const text = await generateAIResponse([{ role: "user", content: prompt }], true);
     res.json(extractJSON(text));
@@ -415,137 +426,376 @@ router.post('/generate-plan', async (req, res) => {
 
 router.post('/review-test', async (req, res) => {
   try {
-    const { testData } = req.body;
+    const { testData, rawText } = req.body;
+    let analysisInput = "";
 
-    // Extract and validate scores
-    const totalScore = parseInt(testData.score) || 0;
-    const mathScore = parseInt(testData.sectionScores?.math) || 0;
-    const rwScore = parseInt(testData.sectionScores?.rw) || 0;
-    const topicBreakdown = testData.topicBreakdown || [];
-    const studentNotes = testData.mistakesText || '';
+    const textToProcess = rawText || testData;
+    console.log(`🔍 [Test Review] Received input for analysis. Length: ${textToProcess?.length || 0}`);
 
-    // Calculate score analysis
-    const scoreDiff = mathScore - rwScore;
-    const weakerSection = scoreDiff < 0 ? 'Math' : scoreDiff > 0 ? 'Reading & Writing' : 'Balanced';
-    const hasTimeIssues = studentNotes.toLowerCase().includes('time') ||
-      studentNotes.toLowerCase().includes('rushed') ||
-      studentNotes.toLowerCase().includes('ran out');
-
-    // Build comprehensive SAT expert prompt
-    const prompt = `You are an ELITE Digital SAT Test Analyst with 15+ years of experience helping students reach 1500+ scores. Analyze this practice test with SPECIFIC, ACTIONABLE insights.
-
-═══════════════════════════════════════
-📊 STUDENT TEST DATA
-═══════════════════════════════════════
-Total Score: ${totalScore} / 1600
-Math Section: ${mathScore} / 800
-Reading & Writing: ${rwScore} / 800
-Score Gap: ${Math.abs(scoreDiff)} points (${weakerSection} is weaker)
-
-Topic-wise Mistakes: ${topicBreakdown.length > 0 ? topicBreakdown.map(t => `${t.topic}: ${t.mistakes} wrong`).join(', ') : 'Not specified'}
-
-Student Notes: ${studentNotes || 'None provided'}
-${hasTimeIssues ? '⚠️ TIME MANAGEMENT ISSUES DETECTED' : ''}
-
-═══════════════════════════════════════
-📋 DIGITAL SAT BENCHMARKS (Use for comparison)
-═══════════════════════════════════════
-• 1550-1600: Ivy League competitive
-• 1450-1549: Top 20 universities
-• 1350-1449: Top 50 universities  
-• 1200-1349: Good state schools
-• Below 1200: Needs significant improvement
-
-═══════════════════════════════════════
-📝 YOUR ANALYSIS TASK
-═══════════════════════════════════════
-
-1️⃣ SCORE INTERPRETATION
-- What does this total score mean for college admissions?
-- Which section needs more focus based on the ${Math.abs(scoreDiff)}-point gap?
-- Is the score distribution healthy or lopsided?
-
-2️⃣ WEAKNESS IDENTIFICATION (Be SPECIFIC)
-${topicBreakdown.length > 0 ?
-        `- Analyze these weak topics: ${topicBreakdown.map(t => t.topic).join(', ')}
-   - Why do these topics matter for Digital SAT?
-   - Which has highest ROI to fix first?` :
-        `- Infer likely weak areas from the ${weakerSection} being lower
-   - For Math gaps: likely Algebra, Problem Solving, or Advanced Math
-   - For R&W gaps: likely Reading Comprehension or Standard English Conventions`
-      }
-
-3️⃣ STRATEGY ANALYSIS
-${hasTimeIssues ?
-        `- CRITICAL: Address time management issues mentioned
-   - Give specific pacing strategies for Digital SAT (32 min Math, 32 min R&W per module)
-   - Suggest skip/guess strategies for hard questions` :
-        `- Recommend test-taking strategies based on score pattern
-   - Suggest module difficulty preparation (FULL LENGTH TEST awareness)`
-      }
-
-4️⃣ ACTION PLAN (Must be SPECIFIC and NUMBERED)
-- Give 3-4 concrete next steps
-- Include specific topic drills, not generic "practice more"
-- Recommend study time allocation
-
-═══════════════════════════════════════
-📤 REQUIRED OUTPUT FORMAT (JSON ONLY)
-═══════════════════════════════════════
-{
-  "issue_type": "Primary Issue Category (e.g., 'Math Concept Gaps', 'Reading Speed', 'Time Management', 'Careless Errors')",
-  
-  "analysis": "2-3 detailed sentences explaining the main finding. Connect scores → weaknesses → impact. Example: 'Your 620 Math score is 30 points below your R&W, indicating Math should be prioritized. The Algebra mistakes suggest foundational gaps in equation solving that are costing you 4-6 questions per section.'",
-  
-  "breakdown": [
-    {
-      "category": "Specific category name",
-      "status": "Weak" or "Strong" or "Moderate",
-      "advice": "1-2 sentence specific advice"
+    if (rawText || typeof testData === 'string') {
+      analysisInput = `RAW REPORT TEXT: ${textToProcess}`;
+    } else if (testData) {
+      // Extract and validate scores from structured data
+      const totalScore = parseInt(testData.score) || 0;
+      const mathScore = parseInt(testData.sectionScores?.math) || 0;
+      const rwScore = parseInt(testData.sectionScores?.rw) || 0;
+      const topicBreakdown = testData.topicBreakdown || [];
+      const studentNotes = testData.mistakesText || '';
+      
+      analysisInput = `
+        Total Score: ${totalScore} / 1600
+        Math Section: ${mathScore} / 800
+        Reading & Writing: ${rwScore} / 800
+        Topic-wise Mistakes: ${topicBreakdown.map(t => `${t.topic}: ${t.mistakes} wrong`).join(', ')}
+        Student Notes: ${studentNotes}
+      `;
     }
-  ],
-  
-  "next_actions": [
-    "Action 1: Specific drill or resource (e.g., 'Complete 20 Algebra equation problems daily using Khan Academy')",
-    "Action 2: Specific strategy (e.g., 'Use 2-pass method: answer easy questions first, mark hard ones')",
-    "Action 3: Specific timeline (e.g., 'Take next practice test in 7 days to measure progress')"
-  ],
-  
-  "score_summary": "One sentence score interpretation (e.g., 'Your 1250 puts you in the competitive range for Top 50 schools, but you need 100+ more points for Top 20.')",
-  
-  "priority_order": ["Topic 1 to fix first", "Topic 2", "Topic 3"]
-}
 
-CRITICAL: Return ONLY the JSON object. No markdown, no extra text.`;
+    if (!analysisInput || analysisInput.length < 10) {
+      console.warn('⚠️ [Test Review] Analysis input is too short or empty');
+    }
 
-    console.log('🔍 [Test Review] Analyzing scores:', { totalScore, mathScore, rwScore, topicCount: topicBreakdown.length });
+    // Build comprehensive SAT expert prompt for THE NEW UI STRUCTURE
+    const prompt = `You are an ELITE Digital SAT Test Analyst. Analyze this practice test report and return a detailed JSON analysis.
+    
+    IMPORTANT: 
+    - Priority 1: Use the "### STRUCTURED DATA SUMMARY" at the top of the input. It contains precise row-by-row question results.
+    - Priority 2: If no summary is found, use the layout-preserved text below it.
+    - Identify "TOTAL SCORE" (e.g., 414), "Accuracy", and "Time Management" from the data.
+    - Analyze performance patterns: Which topics are missed repeatedly? Is the student rushing (low time) or stuck (high time)?
 
+    INPUT: ${analysisInput.substring(0, 8000)}
+
+    REQUIRED JSON FORMAT:
+    {
+      "performance_summary": "Detailed interpretation of the results. Mention the scores if found. Explain what the score means for college admissions.",
+      "strengths": ["Specific SAT Topic 1", "Specific SAT Topic 2", "..."],
+      "weaknesses": ["Specific SAT Topic 1", "Specific SAT Topic 2", "..."],
+      "accuracy_analysis": "Granular breakdown of module accuracy and mistake patterns. Be specific about question types.",
+      "time_management": "Analysis of pacing (e.g., 'Spending only 5s on Complex Algebra suggests guessing or foundational gaps').",
+      "difficulty_struggles": "Analysis of how they handle Hard vs Easy questions based on the results.",
+      "missed_topics": ["Exact Topic Name 1", "Exact Topic Name 2", "..."],
+      "recommendations": "Comprehensive step-by-step improvement plan (numbered list).",
+      "focus_areas": "Top 3 conceptual priorities to master immediately.",
+      "suggested_drills": [
+        {"topic": "Algebra", "reason": "3 incorrect answers in Linear Equations"},
+        {"topic": "Standard English Conventions", "reason": "Punctuation errors noted in R&W"}
+      ]
+    }
+
+    CRITICAL: 
+    1. If scores are present in the text (e.g. "Total Score: 414"), extract them.
+    2. Return ONLY JSON. 
+    3. Ensure all fields are filled with high-quality, professional SAT advice based on the data.
+    `;
+
+    console.log('🤖 [Test Review] Calling AI for analysis...');
     const text = await generateAIResponse([{ role: "user", content: prompt }], true);
     const result = extractJSON(text);
-
-    console.log('✅ [Test Review] Analysis complete:', result?.issue_type);
+    console.log('✅ [Test Review] AI response parsed successfully:', !!result);
 
     // Ensure all expected fields exist with intelligent fallbacks
     res.json({
-      issue_type: result?.issue_type || (mathScore < rwScore ? 'Math Performance Gap' : 'Reading & Writing Focus Needed'),
-      analysis: result?.analysis || `Your ${totalScore} score shows ${weakerSection} needs attention. Focus on the ${Math.abs(scoreDiff)}-point gap to maximize improvement.`,
-      breakdown: result?.breakdown || [
-        { category: 'Math Section', status: mathScore >= rwScore ? 'Strong' : 'Weak', advice: mathScore < rwScore ? 'Prioritize Algebra and Problem Solving drills' : 'Maintain current performance' },
-        { category: 'Reading & Writing', status: rwScore >= mathScore ? 'Strong' : 'Weak', advice: rwScore < mathScore ? 'Focus on reading speed and comprehension' : 'Maintain current performance' }
-      ],
-      next_actions: result?.next_actions || [
-        `Focus on ${weakerSection} section with daily 30-minute practice`,
-        'Complete 2 full-length timed practice tests this week',
-        'Review all incorrect answers and create an error log'
-      ],
-      score_summary: result?.score_summary || `Your ${totalScore} score is ${totalScore >= 1400 ? 'competitive for top schools' : totalScore >= 1200 ? 'good but has room for improvement' : 'below target - focused practice needed'}.`,
-      priority_order: result?.priority_order || [weakerSection, topicBreakdown[0]?.topic || 'General Practice', 'Time Management']
+      performance_summary: result?.performance_summary || "Based on your report, we recommend focusing on section-specific pacing and conceptual mastery.",
+      strengths: result?.strengths || ["General SAT Knowledge"],
+      weaknesses: result?.weaknesses || ["Advanced Concept Application"],
+      accuracy_analysis: result?.accuracy_analysis || "Your accuracy is consistent but can be improved with targeted drills.",
+      time_management: result?.time_management || "Pacing seems balanced, though high-difficulty questions may need more time.",
+      difficulty_struggles: result?.difficulty_struggles || "Most struggles appear in the high-difficulty module transitions.",
+      missed_topics: result?.missed_topics || ["Complex Equations", "Standard Conventions"],
+      recommendations: result?.recommendations || "1. Review error log\n2. Focus on weak topics\n3. Retake practice test",
+      focus_areas: result?.focus_areas || "Advanced Algebra, Rhetorical Synthesis, Transitions",
+      suggested_drills: result?.suggested_drills || [
+        {topic: "Algebra", reason: "Fundamental to Math score"},
+        {topic: "Reading Comprehension", reason: "Critical for R&W modules"}
+      ]
     });
   } catch (error) {
     console.error('❌ Review-test Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
+
+// ================================================================
+// Dedicated SAT PDF Report Analyzer
+// ================================================================
+router.post('/analyze-sat-report', async (req, res) => {
+  try {
+    const { rawText } = req.body;
+    if (!rawText || rawText.length < 50) {
+      return res.status(400).json({ error: 'No report text provided.' });
+    }
+
+    console.log(`📊 [SAT Analyzer] Processing ${rawText.length} chars...`);
+    // Debug file writing removed as require is not defined in ES modules
+
+    // ── Extract pre-parsed hints from the structured header ─────────────────
+    // Header format (built by clientParser.js buildSATSummaryHeader):
+    //   ### VERIFIED SAT REPORT DATA ...
+    //   STUDENT NAME        : DEMO STUDENT
+    //   TOTAL SAT SCORE     : 638
+    //   ...
+    //   ### END VERIFIED DATA ###
+    const headerBlock = rawText.match(/###\s*VERIFIED SAT REPORT DATA[\s\S]*?###\s*END VERIFIED DATA\s*###/i)?.[0]
+      || rawText.match(/###\s*STRUCTURED SAT DATA[\s\S]*?RAW PDF TEXT:/i)?.[0]
+      || rawText.match(/###\s*STRUCTURED DATA SUMMARY[\s\S]*?RAW PDF TEXT:/i)?.[0]
+      || '';
+
+    const pick = (pattern) => {
+      // Look in headerBlock first, then full rawText
+      const m = (headerBlock || '').match(pattern) || rawText.match(pattern);
+      return m ? m[1].trim() : null;
+    };
+
+    const studentName = pick(/STUDENT\s+NAME\s*[:\|-]+\s*([^#\n]+)/i);
+    let hintScore   = pick(/TOTAL\s+SAT\s+(?:SCORE\s*)?[:\|-]+\s*(\d{3,4})/i)
+                     || pick(/TOTAL\s+SCORE\s*[:\|-]+\s*(\d{3,4})/i)
+                     || pick(/SCORE\s*[:\|-]+\s*(\d{3,4})/i);
+    let hintRW      = pick(/READING\s*[&\s]+\s*WRITING\s*(?:SCORE\s*)?[:\|-]+\s*(\d{3})/i)
+                     || pick(/R&W\s*(?:SCORE\s*)?[:\|-]+\s*(\d{3})/i);
+    let hintMath    = pick(/MATH\s+(?:SCORE\s*)?[:\|-]+\s*(\d{3})/i)
+                     || pick(/MATH\s*[:\|-]+\s*(\d{3})/i);
+    const hintCorrect = pick(/CORRECT\s+ANSWERS\s*[:\|-]+\s*(\d+)/i);
+    const hintWrong   = pick(/INCORRECT\s+ANSWERS\s*[:\|-]+\s*(\d+)/i);
+    const hintTotal   = pick(/TOTAL\s+QUESTIONS\s*[:\|-]+\s*(\d+)/i);
+    const hintAcc     = pick(/ACCURACY\s*[:\|-]+\s*([\d.]+%)/i);
+    const hintTime    = pick(/TOTAL\s+TIME\s*(?:SPENT)?\s*[:\|-]+\s*([^\n#]+)/i);
+    const hintAvgQ    = pick(/AVG\s+TIME\s+PER\s+QUESTION\s*[:\|-]+\s*([^\n#]+)/i);
+    const hintRWTime  = pick(/READING\s*(?:&|AND|\+)?\s*WRITING\s+TIME\s*[:\|-]+\s*([^\n#]+)/i);
+    const hintMathTime= pick(/MATH\s+TIME\s*[:\|-]+\s*([^\n#]+)/i);
+
+    // Handle OCR/PDF split-digit formats like "TOTAL SCORE: 4 | 1 | 4"
+    const extractSplitDigitsAfterLabel = (labelRegex, neededLen = 3) => {
+      const source = `${headerBlock}\n${rawText}`;
+      const m = source.match(labelRegex);
+      if (!m) return null;
+      const tail = m[1];
+      const digits = (tail.match(/\d/g) || []).join('');
+      if (digits.length >= neededLen) return digits.slice(0, neededLen);
+      return null;
+    };
+
+    if (!hintScore) {
+      const splitTotal = extractSplitDigitsAfterLabel(/(?:TOTAL\s+SAT\s+SCORE|TOTAL\s+SCORE|YOUR\s+SCORE)[^\n]{0,40}([^\n]{0,80})/i, 3)
+        || extractSplitDigitsAfterLabel(/(?:TOTAL\s+SAT\s+SCORE|TOTAL\s+SCORE|YOUR\s+SCORE)[^\n]{0,40}([^\n]{0,120})/i, 4);
+      if (splitTotal) hintScore = splitTotal.length >= 4 ? splitTotal.slice(0, 4) : splitTotal;
+    }
+    if (!hintMath) {
+      const splitMath = extractSplitDigitsAfterLabel(/MATH[^\n]{0,40}([^\n]{0,80})/i, 3);
+      if (splitMath) hintMath = splitMath;
+    }
+    if (!hintRW) {
+      const splitRW = extractSplitDigitsAfterLabel(/(?:READING\s*[&\s]+\s*WRITING|R&W)[^\n]{0,40}([^\n]{0,80})/i, 3);
+      if (splitRW) hintRW = splitRW;
+    }
+
+    // ── Extract weak/strong topic lists from header ──────────────────────────
+    const weakBlock   = (headerBlock || rawText).match(/WEAK\s+TOPICS[\s\S]*?(?=STRONG\s+TOPICS|###|$)/i)?.[0] || '';
+    const strongBlock = (headerBlock || rawText).match(/STRONG\s+TOPICS[\s\S]*?(?=###|RAW PDF|$)/i)?.[0] || '';
+
+    const extractTopicList = (block) =>
+      block.split('\n')
+        .filter(l => l.includes('-') || l.includes(':'))
+        .map(l => l.replace(/^[-*•\s]+/, '').split(/[:(]/)[0].trim())
+        .filter(t => t.length > 3 && !/weak|strong|topic|correct|incorrect|extract|raw|available|none/i.test(t));
+
+    const weakTopics   = extractTopicList(weakBlock);
+    const strongTopics = extractTopicList(strongBlock);
+
+    // ── Raw PDF text for the AI (after the header) ──────────────────────────
+    const rawPdfStart = rawText.indexOf('RAW PDF TEXT:');
+    const rawPdfText  = rawPdfStart > -1
+      ? rawText.substring(rawPdfStart + 14).trim().substring(0, 7000)
+      : rawText.substring(0, 7000);
+
+    const hasScore = hintScore && parseInt(hintScore) >= 400;
+
+    console.log(`📊 [SAT Analyzer] student="${studentName}", score=${hintScore}, math=${hintMath}, rw=${hintRW}, weakTopics=${weakTopics.length}`);
+
+    // ── Smart topic inference when no explicit topics available ─────────────
+    const testName = pick(/TEST\s+NAME\s*[:\|-]+\s*([^#\n]+)/i) || 'Full Length Test';
+    const isMathOnly = testName.toLowerCase().includes('math') && !testName.toLowerCase().includes('reading');
+    const isRWOnly = (testName.toLowerCase().includes('reading') || testName.toLowerCase().includes('writing') || testName.toLowerCase().includes('english') || testName.toLowerCase().includes('r&w') || testName.toLowerCase().includes('rw')) && !testName.toLowerCase().includes('math');
+    const isTopicTest = !isMathOnly && !isRWOnly && !testName.toLowerCase().includes('full length') && !testName.toLowerCase().includes('full-length') && testName.trim() !== '' && testName !== 'Test';
+
+    const inferTopicsFromScores = () => {
+      const mathScore = hintMath ? parseInt(hintMath) : null;
+      const rwScore   = hintRW   ? parseInt(hintRW)   : null;
+      const weak = [], strong = [];
+
+      if (isTopicTest) {
+        // Topic test logic: focus entirely on this topic
+        const topic = testName.trim();
+        const score = parseInt(hintScore || hintMath || hintRW || '0');
+        // Simple heuristic: if score is below 500, it's a weakness.
+        // Actually, for a single topic test, we don't know the max score, 
+        // so let's just make it a weakness since they are reviewing it.
+        // We also add it to strong to prevent random SAT topics from leaking in via fallbacks.
+        weak.push(topic);
+        strong.push(topic);
+        return { weak, strong };
+      }
+
+      if (mathScore !== null && !isRWOnly) {
+        if (mathScore < 350) { weak.push('Linear Equations', 'Systems of Equations', 'Quadratic Functions', 'Data Analysis & Statistics'); }
+        else if (mathScore < 500) { weak.push('Linear Equations', 'Systems of Equations'); strong.push('Basic Arithmetic', 'Percentages'); }
+        else if (mathScore < 650) { weak.push('Advanced Functions', 'Geometry'); strong.push('Linear Equations', 'Percentages', 'Ratios'); }
+        else { strong.push('Linear Equations', 'Data Analysis', 'Quadratic Functions'); }
+      }
+      if (rwScore !== null && !isMathOnly) {
+        if (rwScore < 350) { weak.push('Command of Evidence', 'Words in Context', 'Transitions', 'Rhetorical Synthesis'); }
+        else if (rwScore < 500) { weak.push('Command of Evidence', 'Words in Context'); strong.push('Central Idea & Details'); }
+        else if (rwScore < 650) { weak.push('Cross-Text Connections', 'Rhetorical Synthesis'); strong.push('Command of Evidence', 'Words in Context'); }
+        else { strong.push('Command of Evidence', 'Words in Context', 'Inferences'); }
+      }
+      return { weak, strong };
+    };
+
+    const inferred = (weakTopics.length === 0 && strongTopics.length === 0) ? inferTopicsFromScores() : { weak: [], strong: [] };
+    const finalWeakTopics   = weakTopics.length   > 0 ? weakTopics   : inferred.weak;
+    const finalStrongTopics = strongTopics.length > 0 ? strongTopics : inferred.strong;
+
+    const prompt = `You are an elite SAT performance coach. Generate a comprehensive SAT analysis in this EXACT format:
+
+CRITICAL INSTRUCTION: You must strictly align your analysis with the type of test provided.
+- If this is a specific topic test (e.g., "${testName}"), DO NOT generate feedback or drills for unrelated topics (like Reading/Writing if it's a Math topic). Focus entirely on this specific topic.
+- If this is a Math-only test, DO NOT mention Reading & Writing.
+- If this is a Reading & Writing-only test, DO NOT mention Math.
+
+SAT Report Summary
+
+Your uploaded SAT report shows a total SAT score of ${hintScore || 'XXX'}/1600.
+You scored:
+
+Reading & Writing: ${hintRW || 'XXX'}/800
+Math: ${hintMath || 'XXX'}/800
+
+You answered ${hintCorrect || 'XX'} questions correctly out of ${hintTotal || 'XX'} total questions, with an overall accuracy of approximately ${hintAcc || 'XX%'}.
+
+Time Management Analysis
+
+${hintTime && hintTime.trim() !== 'Not available' ? `The report indicates a total time of ${hintTime.trim()}. Average time per question: ${hintAvgQ && hintAvgQ.trim() !== 'Not available' ? hintAvgQ.trim() : 'not specified'}. Reading & Writing time: ${hintRWTime && hintRWTime.trim() !== 'Not available' ? hintRWTime.trim() : 'not specified'}. Math time: ${hintMathTime && hintMathTime.trim() !== 'Not available' ? hintMathTime.trim() : 'not specified'}.` : 'Time data not available from the report.'}
+
+Core Strengths
+${finalStrongTopics.length > 0 ? `Strongest areas include:\n\n${finalStrongTopics.slice(0, 3).join('\n')}` : 'Areas of relative strength need to be identified from the report.'}
+
+Critical Weaknesses
+${finalWeakTopics.length > 0 ? `You struggled heavily in:\n\n${finalWeakTopics.slice(0, 4).join('\n')}` : 'Areas needing improvement need to be identified from the report.'}
+
+Difficulty-Level Struggles
+
+The report shows performance patterns across different question types and complexity levels.
+
+Frequently Missed Topics
+
+Most frequently missed topics include:\n${finalWeakTopics.slice(0, 5).join('\n')}
+
+Personalized Improvement Plan
+Immediate Focus Areas
+Improve foundational concepts
+Strengthen weak topic areas
+Practice targeted drills
+Recommended Strategy
+Focus on weak topics first
+Practice regularly
+Review incorrect answers
+Suggested Weakness Drills
+${finalWeakTopics.slice(0, 6).join('\n')}
+
+RAW REPORT TEXT:
+${rawPdfText}
+
+Return ONLY valid JSON with these fields:
+{
+  "performance_summary": "Start exactly with '# SAT Report Summary\\n\\nYour uploaded SAT report shows:\\n\\n* Total Score: ${hintScore || 'N/A'}/1600\\n* Reading & Writing: ${hintRW || 'N/A'}/800\\n* Math: ${hintMath || 'N/A'}/800\\n* Correct Answers: ${hintCorrect || 'N/A'}/${hintTotal || 'N/A'}\\n* Accuracy: ${hintAcc || 'N/A'}'. Then provide a 2-3 sentence analysis.",
+  "time_management": "Start exactly with '# Time Management Analysis\\n\\n* Total Time: ${hintTime && hintTime.trim() !== 'Not available' ? hintTime.trim() : 'N/A'}\\n* Avg/Question: ${hintAvgQ && hintAvgQ.trim() !== 'Not available' ? hintAvgQ.trim() : 'N/A'}\\n* Reading & Writing: ${hintRWTime && hintRWTime.trim() !== 'Not available' ? hintRWTime.trim() : 'N/A'}\\n* Math: ${hintMathTime && hintMathTime.trim() !== 'Not available' ? hintMathTime.trim() : 'N/A'}\\n\\n'. Then analyze pacing.",
+  "strengths": ${finalStrongTopics.length > 0 ? JSON.stringify(finalStrongTopics.slice(0, 4)) : '["<infer 3 strong topics from the scores>"]'},
+  "weaknesses": ${finalWeakTopics.length > 0 ? JSON.stringify(finalWeakTopics.slice(0, 5)) : '["<infer 4 weak topics from the scores>"]'},
+  "difficulty_struggles": "Start exactly with '# Difficulty-Level Struggles\\n\\n'. Analyze Easy/Medium/Hard question performance based on the report. If no data is available, state that.",
+  "missed_topics": ${finalWeakTopics.length > 0 ? JSON.stringify(finalWeakTopics.slice(0, 5)) : '["<infer 4-5 missed topics from the scores>"]'},
+  "recommendations": "Start exactly with '# Personalized Improvement Plan\\n\\n'. Provide focus areas, study recommendations, and an improvement roadmap based on the available data.",
+  "focus_areas": "List the top 3 priority areas as: Priority 1: <topic>\\nPriority 2: <topic>\\nPriority 3: <topic>",
+  "suggested_drills": [
+    {"topic": "<specific topic>", "reason": "<why they need this drill based on the report>"}
+  ]
+}
+Instructions:
+- NEVER use placeholder text like 'Topic 1', 'N/A topics', or 'Not available' in array fields.
+- For strengths/weaknesses/missed_topics: always return real SAT topic names (e.g. 'Linear Equations', 'Command of Evidence').
+- If this is a specific topic test (e.g. "${testName}"), your arrays MUST ONLY contain that topic or closely related subtopics. Do NOT infer random SAT topics.
+- If this is a Math-only test, your arrays MUST ONLY contain Math topics.
+- If this is a Reading & Writing-only test, your arrays MUST ONLY contain Reading & Writing topics.`;
+
+    const aiText = await generateAIResponse([{ role: 'user', content: prompt }], true);
+    const parsed = extractJSON(aiText);
+    const result = parsed && typeof parsed === 'object' ? parsed : {};
+    if (!parsed) {
+      console.warn('⚠️ [SAT Analyzer] AI returned invalid/unparseable JSON. Using fallbacks.');
+    }
+
+    console.log('✅ [SAT Analyzer] Analysis complete.');
+
+    // ── Guarantee every field is filled — use weak topics as hard fallback ──
+    const safeFallbackWeaknesses = finalWeakTopics.length > 0
+      ? finalWeakTopics.slice(0, 4)
+      : ['Command of Evidence', 'Words in Context', 'Linear Equations', 'Data Analysis'];
+
+    const safeFallbackStrengths = finalStrongTopics.length > 0
+      ? finalStrongTopics.slice(0, 3)
+      : ['Cross-Text Connections', 'Percentages', 'Problem Solving & Data Analysis'];
+
+    const safeFallbackDrills = safeFallbackWeaknesses.slice(0, 3).map((t, i) => ({
+      topic: t,
+      reason: i === 0 ? 'Most frequently missed topic in your report' :
+             i === 1 ? 'Second most frequent error pattern' :
+                       'Third area needing focused practice'
+    }));
+
+    const isNotAvailable = (arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return true;
+      const first = arr[0];
+      if (typeof first === 'string') {
+        const lower = first.toLowerCase();
+        return lower === 'not found' || lower === 'not available' || lower.includes('not available') || lower === 'n/a' || lower.includes('n/a');
+      }
+      // If it's an object (like suggested_drills), check its values
+      if (typeof first === 'object' && first !== null) {
+        const topic = (first.topic || '').toLowerCase();
+        return topic === 'not found' || topic === 'not available' || topic.includes('not available') || topic === 'n/a' || topic.includes('n/a');
+      }
+      return false;
+    };
+
+    const getFallbackPerformanceSummary = () => {
+      return `# SAT Report Summary\n\nYour uploaded SAT report shows:\n\n* Total Score: ${hintScore || 'Not Found'}/1600\n* Reading & Writing: ${hintRW || 'Not Found'}/800\n* Math: ${hintMath || 'Not Found'}/800\n* Correct Answers: ${hintCorrect || 'Not Found'}/${hintTotal || 'Not Found'}\n* Accuracy: ${hintAcc || 'Not Found'}\n\nBased on your report, focus on building fundamental skills and test-taking strategies.`;
+    };
+
+    const getFallbackTimeManagement = () => {
+      const hasTime = hintTime && hintTime.trim() !== 'Not available';
+      return `# Time Management Analysis\n\n* Total Time: ${hasTime ? hintTime.trim() : 'Not available'}\n* Avg/Question: ${hintAvgQ && hintAvgQ.trim() !== 'Not available' ? hintAvgQ.trim() : 'Not available'}\n* Reading & Writing: ${hintRWTime && hintRWTime.trim() !== 'Not available' ? hintRWTime.trim() : 'Not available'}\n* Math: ${hintMathTime && hintMathTime.trim() !== 'Not available' ? hintMathTime.trim() : 'Not available'}\n\n${hasTime ? 'Based on your test duration, review your pacing strategy for each section.' : 'Timing data was not available in this report.'}`;
+    };
+
+    const str = (v) => Array.isArray(v) ? v.join('\n') : String(v || '');
+
+    res.json({
+      performance_summary  : result.performance_summary || getFallbackPerformanceSummary(),
+      strengths            : !isNotAvailable(result.strengths) ? result.strengths : safeFallbackStrengths,
+      weaknesses           : !isNotAvailable(result.weaknesses) ? result.weaknesses : safeFallbackWeaknesses,
+      accuracy_analysis    : str(result.accuracy_analysis) || 'See performance summary.',
+      time_management      : result.time_management || getFallbackTimeManagement(),
+      difficulty_struggles : str(result.difficulty_struggles) || '# Difficulty-Level Struggles\n\nFocus on mastering fundamental concepts before advancing to complex problems.',
+      missed_topics        : !isNotAvailable(result.missed_topics) ? result.missed_topics : safeFallbackWeaknesses,
+      recommendations      : str(result.recommendations) || '# Personalized Improvement Plan\n\n1. Master weak topics through targeted practice.\n2. Review incorrect answers carefully.',
+      focus_areas          : str(result.focus_areas) || safeFallbackWeaknesses.slice(0, 3).map((t, i) => `Priority ${i+1}: ${t}`).join('\n'),
+      suggested_drills     : !isNotAvailable(result.suggested_drills) ? result.suggested_drills : safeFallbackDrills,
+    });
+
+  } catch (error) {
+    console.error('❌ [SAT Analyzer] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 router.post('/quiz-from-content', async (req, res) => {
   try {

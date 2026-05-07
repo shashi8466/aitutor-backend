@@ -285,7 +285,7 @@ const StudentCourseList = () => {
                <h3 className="relative z-10 text-[14px] font-bold text-white tracking-wide">{cat}</h3>
              </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {groups[cat].map((course, idx) => (
               <CourseCard
                 key={course.id}
@@ -313,7 +313,7 @@ const StudentCourseList = () => {
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {coursesList.map((course, idx) => (
           <CourseCard
             key={course.id}
@@ -348,15 +348,15 @@ const StudentCourseList = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-10 pb-12">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-gray-100 dark:border-gray-800/50 pb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-gray-100 dark:border-gray-800/50 pb-8 px-4 sm:px-0">
         <div className="flex-1">
-          <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">Courses</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">Master each topic and boost your SAT/PSAT scores!</p>
+          <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tight uppercase">Courses</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm sm:text-lg font-bold uppercase tracking-widest">Master each topic and boost your scores!</p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           {/* Subject Switch */}
-          <div className="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-full flex relative shadow-inner border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-full flex relative shadow-inner border border-gray-200 dark:border-gray-700 overflow-x-auto no-scrollbar scrollbar-hide">
             {['SAT', 'ACT', 'AP'].map((category) => (
               <button
                 key={category}
@@ -364,7 +364,7 @@ const StudentCourseList = () => {
                   setActiveCategory(category);
                   setActiveSubcategory('All');
                 }}
-                className={`relative px-6 py-2.5 rounded-full text-sm font-bold transition-all z-10 ${
+                className={`relative px-5 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all z-10 flex-shrink-0 ${
                   activeCategory === category 
                     ? 'text-white' 
                     : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
@@ -396,10 +396,10 @@ const StudentCourseList = () => {
         </div>
 
       {/* Subcategory Pills */}
-      <div className="flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-4 duration-500">
+      <div className="flex flex-nowrap sm:flex-wrap gap-2 overflow-x-auto no-scrollbar scrollbar-hide px-4 sm:px-0 animate-in fade-in slide-in-from-top-4 duration-500 pb-2">
         <button
           onClick={() => setActiveSubcategory('All')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${activeSubcategory === 'All' ? 'bg-[#E53935] border-[#E53935] text-white shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#E53935] hover:text-[#E53935]'}`}
+          className={`px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all border flex-shrink-0 ${activeSubcategory === 'All' ? 'bg-[#E53935] border-[#E53935] text-white shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#E53935] hover:text-[#E53935]'}`}
         >
           All
         </button>
@@ -407,7 +407,7 @@ const StudentCourseList = () => {
           <button
             key={sub}
             onClick={() => setActiveSubcategory(sub)}
-            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border ${activeSubcategory === sub ? 'bg-[#E53935] border-[#E53935] text-white shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#E53935] hover:text-[#E53935]'}`}
+            className={`px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all border flex-shrink-0 ${activeSubcategory === sub ? 'bg-[#E53935] border-[#E53935] text-white shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#E53935] hover:text-[#E53935]'}`}
           >
             {sub}
           </button>
@@ -416,8 +416,8 @@ const StudentCourseList = () => {
 
       {/* Enrolled Section */}
       {enrolledCourses.length > 0 && (
-        <section>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+        <section className="px-4 sm:px-0">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
             <SafeIcon icon={FiCheckCircle} className="text-green-500" /> My Enrollments
           </h2>
           {renderCourseGrid(enrolledCourses, true)}
@@ -425,8 +425,8 @@ const StudentCourseList = () => {
       )}
 
       {/* Available Section */}
-      <section>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+      <section className="px-4 sm:px-0">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
           <SafeIcon icon={FiBook} className="text-[#E53935]" /> Available Courses
         </h2>
         {availableCourses.length > 0 ? (

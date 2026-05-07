@@ -88,6 +88,9 @@ router.post('/send-otp', async (req, res) => {
         // Check if SMS is configured
         const hasTwilioConfig = process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER;
         
+        let smsSent = false;
+        let smsError = null;
+        
         if (hasTwilioConfig) {
             try {
                 console.log(`📱 [OTP] Sending SMS to ${phone}`);
@@ -98,13 +101,15 @@ router.post('/send-otp', async (req, res) => {
 
                 if (!smsResult.ok) {
                     console.error('❌ [OTP] SMS sending failed:', smsResult.error);
-                    // Don't return error, just log it and continue with OTP generation
+                    smsError = smsResult.error;
                     console.log(`📋 [OTP] OTP generated but SMS failed. OTP for testing: ${otp}`);
                 } else {
                     console.log(`✅ [OTP] SMS sent successfully to ${phone}`);
+                    smsSent = true;
                 }
-            } catch (smsError) {
-                console.error('❌ [OTP] SMS sending error:', smsError);
+            } catch (err) {
+                console.error('❌ [OTP] SMS sending error:', err);
+                smsError = err.message;
                 console.log(`📋 [OTP] OTP generated but SMS failed. OTP for testing: ${otp}`);
             }
         } else {
@@ -112,11 +117,19 @@ router.post('/send-otp', async (req, res) => {
             console.log(`📋 [OTP] To enable SMS, set TWILIO_FROM_NUMBER environment variable`);
         }
 
+        if (hasTwilioConfig && !smsSent) {
+            return res.status(500).json({ 
+                success: false, 
+                error: `Failed to send SMS: ${smsError || 'Unknown error'}. Please try again or contact support.`,
+                otpForTesting: process.env.NODE_ENV === 'development' ? otp : undefined
+            });
+        }
+
         res.json({ 
             success: true, 
             message: hasTwilioConfig ? 'OTP sent successfully' : 'OTP generated (SMS not configured)',
             debugMode: !hasTwilioConfig,
-            otpForTesting: hasTwilioConfig ? undefined : otp // Only include OTP in debug mode
+            otpForTesting: hasTwilioConfig ? undefined : otp 
         });
     } catch (error) {
         console.error('❌ [OTP] Error sending OTP:', error);

@@ -487,22 +487,22 @@ const QuizInterface = () => {
           <p className="text-gray-500 mb-6 font-medium">Test session completed successfully</p>
 
           {/* Section Scores Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 transition-all hover:shadow-md">
               <p className="text-[10px] text-blue-800 dark:text-blue-400 font-black uppercase tracking-widest mb-1">Overall</p>
-              <p className="text-3xl font-black text-blue-900 dark:text-blue-200">{res?.totalScore || res?.scaledScore || scaledScore}</p>
-              <p className="text-xs font-bold text-blue-700/60">{percentage}% Accuracy</p>
+              <p className="text-2xl sm:text-3xl font-black text-blue-900 dark:text-blue-200">{res?.totalScore || res?.scaledScore || scaledScore}</p>
+              <p className="text-[10px] font-bold text-blue-700/60 uppercase tracking-tighter">{percentage}% Accuracy</p>
             </div>
             
             {isAdaptive ? (
                 <>
                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
                         <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">R&W Section</p>
-                        <p className="text-3xl font-black text-gray-900 dark:text-white">{res?.rwScore || 0}</p>
+                        <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.rwScore || 0}</p>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
                         <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Math Section</p>
-                        <p className="text-3xl font-black text-gray-900 dark:text-white">{res?.mathScore || 0}</p>
+                        <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.mathScore || 0}</p>
                     </div>
                 </>
             ) : (
@@ -594,18 +594,18 @@ const QuizInterface = () => {
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         className="fixed top-0 right-0 h-full w-full max-w-[320px] bg-white dark:bg-gray-950 shadow-[-10px_0_30px_rgba(0,0,0,0.1)] border-l border-gray-100 dark:border-gray-800 z-[100] flex flex-col"
       >
-        <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+        <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="bg-red-50 dark:bg-red-900/30 p-2 rounded-xl">
               <SafeIcon icon={FiGrid} className="w-5 h-5 text-[#E53935]" />
             </div>
-            <h3 className="text-xl font-black text-gray-900 dark:text-white">Navigation</h3>
+            <h3 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white">Navigation</h3>
           </div>
           <button
             onClick={() => setShowQuestionGrid(false)}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all"
           >
-            <SafeIcon icon={FiX} className="w-6 h-6" />
+            <SafeIcon icon={FiX} className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
@@ -706,11 +706,11 @@ const QuizInterface = () => {
 
             {/* Question Image/Visual */}
             {currentQuestion.image && (
-              <div className="mb-8 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm max-w-[80%] md:max-w-[60%] lg:max-w-[50%] hover:shadow-md transition-shadow">
+              <div className="mb-8 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm max-w-full sm:max-w-[80%] md:max-w-[60%] lg:max-w-[50%] hover:shadow-md transition-shadow">
                 <img 
                   src={currentQuestion.image} 
                   alt="Question diagram" 
-                  className="w-full h-auto max-h-[400px] object-contain bg-white block"
+                  className="w-full h-auto max-h-[400px] object-contain bg-white block mx-auto"
                   onError={(e) => {
                     console.warn("Failed to load question image:", currentQuestion.image);
                     e.target.style.display = 'none';

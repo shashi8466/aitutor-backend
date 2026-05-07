@@ -147,19 +147,19 @@ Comments: ${formData.message || 'None'}`;
   const StarRating = ({ value, label, onSelect, icon: Icon = FiStar }) => (
     <div className="space-y-2">
       <label className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">{label}</label>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
             key={star}
             type="button"
             onClick={() => onSelect(star)}
-            className={`p-2 rounded-lg transition-all ${
+            className={`p-1.5 sm:p-2 rounded-lg transition-all ${
               value >= star 
                 ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' 
                 : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600'
             }`}
           >
-            <Icon className={`w-6 h-6 ${value >= star ? 'fill-current' : ''}`} />
+            <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${value >= star ? 'fill-current' : ''}`} />
           </button>
         ))}
       </div>
@@ -181,7 +181,7 @@ Comments: ${formData.message || 'None'}`;
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 font-sans">
       <Toast message={toast?.message} type={toast?.type} onClose={() => setToast(null)} />
       <div className="max-w-4xl mx-auto">
-        <header className="mb-10 text-center">
+        <header className="mb-10 text-center px-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -189,30 +189,30 @@ Comments: ${formData.message || 'None'}`;
           >
             <SafeIcon icon={FiMessageSquare} className="w-8 h-8" />
           </motion.div>
-          <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Student Feedback</h1>
-          <p className="text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
+          <h1 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Student Feedback</h1>
+          <p className="text-gray-600 dark:text-gray-400 max-w-xl mx-auto text-sm sm:text-base">
             Your feedback helps us improve. Tell us about your experience with the tests and courses you've completed.
           </p>
         </header>
 
         {submissions.length === 0 ? (
-          <div className="bg-white dark:bg-gray-900 p-12 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 text-center">
+          <div className="bg-white dark:bg-gray-900 p-8 sm:p-12 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 text-center mx-4 sm:mx-0">
             <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
               <SafeIcon icon={FiAlertCircle} className="w-10 h-10 text-gray-400" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Attempts Detected</h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-sm mx-auto">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2">No Attempts Detected</h2>
+            <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-sm mx-auto text-sm sm:text-base">
               You haven't attempted any tests or courses yet. Start your learning journey to provide feedback!
             </p>
             <button
               onClick={() => window.location.href = '/student/courses'}
-              className="px-8 py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg"
+              className="w-full sm:w-auto px-8 py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg"
             >
               Browse Courses
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 px-4 sm:px-0">
             {/* Sidebar info */}
             <div className="space-y-6">
               <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800">
@@ -256,8 +256,8 @@ Comments: ${formData.message || 'None'}`;
             </div>
 
             {/* Main Form */}
-            <div className="md:col-span-2">
-              <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-8">
+            <div className="lg:col-span-2">
+              <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900 p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 space-y-8">
                 {/* Attempt Selector */}
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Select Activity to Review</label>
@@ -280,7 +280,7 @@ Comments: ${formData.message || 'None'}`;
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 gap-8">
                   <StarRating 
                     label="Learning Experience" 
                     value={formData.rating} 
@@ -323,10 +323,8 @@ Comments: ${formData.message || 'None'}`;
                     value={formData.message}
                     onChange={(e) => setFormData({...formData, message: e.target.value})}
                   />
-                </div>
-
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
-                  <label className="flex items-center gap-2 cursor-pointer group">
+                </div>                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <label className="flex items-center gap-2 cursor-pointer group w-full sm:w-auto">
                     <input
                       type="checkbox"
                       className="w-5 h-5 rounded border-gray-300 text-[#E53935] focus:ring-[#E53935]"
@@ -341,7 +339,7 @@ Comments: ${formData.message || 'None'}`;
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex items-center gap-2 px-8 py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-[#E53935] text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-black transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submitting ? (
                       <FiLoader className="w-4 h-4 animate-spin" />

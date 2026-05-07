@@ -261,7 +261,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            READING & WRITING - PART 1
+                                            Reading & Writing – Part 1
                                         </h3>
                                                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             {getTopicsForLevel('Moderate').map((topic, i) => (
@@ -297,7 +297,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            READING & WRITING
+                                            Reading & Writing – Part 2
                                         </h3>
                                                                             </div>
                                     <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
@@ -319,7 +319,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            MATH - PART 1
+                                            Math – Part 1
                                         </h3>
                                                                             </div>
                                     <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">
@@ -341,7 +341,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight mb-4 italic">
-                                            MATH
+                                            Math – Part 2
                                         </h3>
                                                                             </div>
                                     <div className="flex items-center gap-2 text-gray-400 px-4 py-2 bg-gray-200 rounded-full text-xs font-black uppercase">

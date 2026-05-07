@@ -356,11 +356,11 @@ const CourseView = () => {
   return (
     <div className="min-h-screen bg-[#FAFAFA] pb-12">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-10 text-center">
-          <h1 className="text-3xl font-extrabold text-black mb-3">
+        <div className="mb-10 text-center px-4 sm:px-0">
+          <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">
             <span className="text-[#E53935]">{course.name}</span>
           </h1>
-          <p className="text-gray-600 text-lg font-medium">
+          <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
             Complete each level to unlock the next difficulty.
           </p>
         </div>
@@ -368,32 +368,32 @@ const CourseView = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10 bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white p-6 sm:p-8 rounded-3xl shadow-2xl border border-gray-800 text-center relative overflow-hidden"
+          className="mb-10 bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white p-6 sm:p-12 rounded-3xl shadow-2xl border border-gray-800 text-center relative overflow-hidden mx-4 sm:mx-0"
         >
           <div className="relative z-10 flex flex-col items-center">
             {isCourseCompleted && (
-              <div className="bg-[#E53935] text-white p-2 rounded-full mb-4 shadow-lg shadow-red-500/50 animate-bounce">
+              <div className="bg-[#E53935] text-white p-2.5 rounded-full mb-6 shadow-lg shadow-red-500/50 animate-bounce">
                 <SafeIcon icon={FiAward} className="w-6 h-6" />
               </div>
             )}
 
-            <div className="flex items-center justify-center gap-2 mb-2 flex-wrap">
-              <span className="text-gray-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider">{scoreData.label}</span>
+            <div className="flex flex-col items-center gap-3 mb-6">
+              <span className="text-gray-400 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">{scoreData.label}</span>
               {isCourseCompleted && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-green-900/50 text-green-400 border border-green-800 animate-pulse">
-                  <SafeIcon icon={FiTrendingUp} className="w-3 h-3 mr-1" /> Final
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-green-900/50 text-green-400 border border-green-800 font-black uppercase tracking-widest animate-pulse">
+                  <SafeIcon icon={FiTrendingUp} className="w-3 h-3 mr-2" /> Performance Unlocked
                 </span>
               )}
             </div>
 
-            <div className="inline-block bg-white/10 backdrop-blur-md p-4 sm:p-6 px-8 sm:px-10 rounded-2xl border border-white/20 transform hover:scale-105 transition-transform cursor-default">
+            <div className="inline-block bg-white/5 backdrop-blur-xl p-6 sm:p-10 px-8 sm:px-16 rounded-[2rem] border border-white/10 transform hover:scale-105 transition-all cursor-default shadow-inner">
               {isCourseCompleted ? (
-                <div className="text-4xl sm:text-6xl font-extrabold text-[#E53935] tracking-tight">
-                  {scoreData.score} <span className="text-xl sm:text-2xl text-white/50 font-normal">/ {scoreData.max}</span>
+                <div className="text-4xl sm:text-7xl font-black text-[#E53935] tracking-tighter">
+                  {scoreData.score} <span className="text-base sm:text-2xl text-white/30 font-bold uppercase tracking-widest">/ {scoreData.max}</span>
                 </div>
               ) : (
-                <div className="text-base sm:text-xl font-bold text-gray-400 tracking-tight py-2 sm:py-4">
-                  Complete All Levels to View Score
+                <div className="text-xs sm:text-lg font-black text-gray-500 tracking-[0.1em] uppercase py-2 sm:py-4">
+                  Complete All Levels to Reveal Score
                 </div>
               )}
             </div>
@@ -406,20 +406,20 @@ const CourseView = () => {
         </motion.div>
 
         {course.is_adaptive ? (
-          <div className="space-y-10">
-            <div className="bg-white p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 text-center relative overflow-hidden">
+          <div className="space-y-10 px-4 sm:px-0">
+            <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 text-center relative overflow-hidden">
                <div className="relative z-10">
-                 <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md">
-                   <SafeIcon icon={FiTarget} className="w-10 h-10 text-purple-700" />
+                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-purple-100 dark:bg-purple-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
+                   <SafeIcon icon={FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-purple-700 dark:text-purple-400" />
                  </div>
-                 <h2 className="text-3xl font-extrabold text-gray-900 mb-4">FULL LENGTH TEST</h2>
-                 <p className="text-gray-600 text-lg mb-8 max-w-2xl mx-auto">
+                 <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 uppercase tracking-tight">FULL LENGTH TEST</h2>
+                 <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
                    This is a full-length, FULL LENGTH TEST containing Reading & Writing and Math sections. The difficulty of the second module will adapt based on your performance in the first module.
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button
                       onClick={() => navigate(`/student/adaptive-pre-test/${courseId}`)}
-                      className="px-8 py-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                      className="w-full sm:w-auto px-10 py-4 bg-purple-600 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-purple-700 transition-all shadow-lg hover:shadow-purple-500/20 hover:-translate-y-1"
                     >
                       Start Full-Length Test
                     </button>

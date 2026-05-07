@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import { aiService } from '../../../services/api';
 import axios from 'axios';
 
-const { FiMessageSquare, FiLayers, FiCheckSquare, FiFileText, FiSend, FiLoader, FiCpu, FiHeadphones, FiList, FiPlay, FiPause, FiChevronRight, FiAlertTriangle, FiUser, FiAward } = FiIcons;
+const { FiMessageSquare, FiLayers, FiCheckSquare, FiFileText, FiSend, FiLoader, FiCpu, FiHeadphones, FiList, FiPlay, FiPause, FiChevronRight, FiAlertTriangle, FiUser, FiAward, FiActivity, FiPieChart, FiTarget, FiZap } = FiIcons;
 
 const checkBackendHealth = async () => {
   try {
@@ -18,9 +18,10 @@ const checkBackendHealth = async () => {
   }
 };
 
-const SmartAIPanel = ({ content, summary }) => {
-  // Tabs: chat, flashcards, quiz, podcast, summary, chapters, exam
-  const [activeTab, setActiveTab] = useState('chapters');
+const SmartAIPanel = ({ content, summary, mode = 'study', reportData = null, parsedReportData = null, selectedSubmission = null }) => {
+  // Tabs: chat, flashcards, quiz, podcast, summary, chapters, exam, analysis
+  const [activeTab, setActiveTab] = useState(mode === 'report' ? 'analysis' : 'chapters');
+
 
   // Chat State
   const [messages, setMessages] = useState([]);
@@ -33,8 +34,10 @@ const SmartAIPanel = ({ content, summary }) => {
     chapters: [],
     exam: { Easy: [], Medium: [], Hard: [] },
     podcast: null,
-    summary: summary || null
+    summary: summary || null,
+    analysis: reportData || null
   });
+
 
   const [userExamAnswers, setUserExamAnswers] = useState({});
   const [userQuizAnswers, setUserQuizAnswers] = useState({});
@@ -42,6 +45,11 @@ const SmartAIPanel = ({ content, summary }) => {
 
   // Ensure content is always a string to prevent errors
   const safeContent = content || '';
+
+  const testName = (selectedSubmission?.courses?.name || '').toLowerCase();
+  const isMathOnly = testName.includes('math') && !testName.includes('reading') && !testName.includes('writing');
+  const isRWOnly = (testName.includes('reading') || testName.includes('writing') || testName.includes('english') || testName.includes('r&w') || testName.includes('rw')) && !testName.includes('math');
+  const isFullLength = !isMathOnly && !isRWOnly;
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -72,16 +80,25 @@ const SmartAIPanel = ({ content, summary }) => {
   useEffect(() => {
     if (content) {
       if (messages.length === 0) {
-        setMessages([{ id: 1, sender: 'ai', text: `**Welcome!** I've analyzed your document. Check the **Chapters** tab for an outline, or ask me anything here.` }]);
+        const welcomeMsg = mode === 'report' 
+          ? `**Report Analyzed!** I've extracted the insights from your SAT report. Check the **Analysis** tab for your performance breakdown.`
+          : `**Welcome!** I've analyzed your document. Check the **Chapters** tab for an outline, or ask me anything here.`;
+        setMessages([{ id: 1, sender: 'ai', text: welcomeMsg }]);
       }
 
-      // Update summary if passed via props later
-      if (summary && !dataCache.summary) {
+      // Update summary/analysis if passed via props
+      if (summary && summary !== dataCache.summary) {
         setDataCache(prev => ({ ...prev, summary }));
+      }
+      if (reportData && reportData !== dataCache.analysis) {
+        console.log('📈 [SmartAIPanel] Syncing reportData to cache:', !!reportData);
+        setDataCache(prev => ({ ...prev, analysis: reportData }));
+        if (activeTab !== 'analysis' && mode === 'report') setActiveTab('analysis');
       }
     }
     return () => window.speechSynthesis.cancel();
-  }, [content, summary]);
+  }, [content, summary, reportData, mode, activeTab, dataCache.analysis, dataCache.summary]);
+
 
   // Auto-load Chapters
   useEffect(() => {
@@ -339,14 +356,15 @@ const SmartAIPanel = ({ content, summary }) => {
 
       <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center gap-2 overflow-x-auto no-scrollbar shadow-sm z-10">
         {[
-          { id: 'chapters', icon: FiList, label: 'Chapters' },
-          { id: 'chat', icon: FiMessageSquare, label: 'Chat' },
-          { id: 'flashcards', icon: FiLayers, label: 'Flashcards' },
-          { id: 'quiz', icon: FiCheckSquare, label: 'Quizzes' },
-          { id: 'exam', icon: FiAward, label: 'Full Exam' },
-          { id: 'podcast', icon: FiHeadphones, label: 'Podcast' },
-          { id: 'summary', icon: FiFileText, label: 'Summary' },
-        ].map(tab => (
+          { id: 'analysis', icon: FiActivity, label: 'Analysis', show: mode === 'report' },
+          { id: 'chapters', icon: FiList, label: 'Chapters', show: true },
+          { id: 'chat', icon: FiMessageSquare, label: 'Chat', show: true },
+          { id: 'flashcards', icon: FiLayers, label: 'Flashcards', show: true },
+          { id: 'quiz', icon: FiCheckSquare, label: 'Quizzes', show: true },
+          { id: 'exam', icon: FiAward, label: 'Full Exam', show: true },
+          { id: 'podcast', icon: FiHeadphones, label: 'Podcast', show: true },
+          { id: 'summary', icon: FiFileText, label: 'Summary', show: true },
+        ].filter(t => t.show).map(tab => (
           <button
             key={tab.id}
             onClick={() => loadFeature(tab.id)}
@@ -355,6 +373,7 @@ const SmartAIPanel = ({ content, summary }) => {
             <SafeIcon icon={tab.icon} className="w-3 h-3" /> {tab.label}
           </button>
         ))}
+
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 relative custom-scrollbar">
@@ -656,6 +675,223 @@ const SmartAIPanel = ({ content, summary }) => {
                   </h3>
                   <div className="prose prose-red dark:prose-invert text-gray-700 dark:text-gray-300 leading-relaxed font-bold">
                     <ReactMarkdown>{dataCache.summary?.summary}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'analysis' && dataCache.analysis && (
+                <div className="max-w-7xl mx-auto p-6">
+                  {/* Header */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8 mb-8">
+                    <div className="text-center">
+                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">SAT Performance Analysis</h2>
+                      <p className="text-slate-600 dark:text-slate-400">Your detailed SAT score breakdown and performance insights</p>
+                      
+                      {/* Score Display */}
+                      <div className={`grid grid-cols-1 ${isFullLength ? 'md:grid-cols-3' : 'md:grid-cols-1 max-w-sm mx-auto'} gap-6 mt-8`}>
+                        {isFullLength && (
+                          <div className="text-center">
+                            <div className="bg-slate-100 dark:bg-slate-700 rounded-xl p-6">
+                              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-1">Total Score</p>
+                              <p className="text-4xl font-bold text-slate-900 dark:text-white">{(() => {
+                                if (parsedReportData?.totalScore) return parsedReportData.totalScore;
+                                const summary = String(dataCache.analysis.performance_summary || '');
+                                const m = summary.match(/Total\s+Score[^\d]*(\d{3,4})\s*\/\s*1600/i) || summary.match(/(\d{3,4})\s*\/\s*1600/);
+                                return m ? m[1] : '--';
+                              })()}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">/ 1600</p>
+                            </div>
+                          </div>
+                        )}
+                        {(isFullLength || isMathOnly) && (
+                          <div className="text-center">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6">
+                              <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-1">Math</p>
+                              <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">{(() => {
+                                if (parsedReportData?.mathScore) return parsedReportData.mathScore;
+                                const summary = String(dataCache.analysis.performance_summary || '');
+                                const m = summary.match(/Math[^\d]*(\d{3})\s*\/\s*800/i);
+                                return m ? m[1] : '--';
+                              })()}</p>
+                              <p className="text-sm text-blue-600 dark:text-blue-400">/ {isMathOnly ? (parsedReportData?.totalScore ? '1600' : '800') : '800'}</p>
+                            </div>
+                          </div>
+                        )}
+                        {(isFullLength || isRWOnly) && (
+                          <div className="text-center">
+                            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-6">
+                              <p className="text-sm font-semibold text-green-600 dark:text-green-400 mb-1">Reading & Writing</p>
+                              <p className="text-4xl font-bold text-green-900 dark:text-green-100">{(() => {
+                                if (parsedReportData?.rwScore) return parsedReportData.rwScore;
+                                const summary = String(dataCache.analysis.performance_summary || '');
+                                const m = summary.match(/Reading\s*(?:&|and|\+)\s*Writing[^\d]*(\d{3})\s*\/\s*800/i) || summary.match(/(?:R&W|RW)[^\d]*(\d{3})\s*\/\s*800/i);
+                                return m ? m[1] : '--';
+                              })()}</p>
+                              <p className="text-sm text-green-600 dark:text-green-400">/ {isRWOnly ? (parsedReportData?.totalScore ? '1600' : '800') : '800'}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                    {/* Performance Summary */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8 mb-8">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">Performance Summary</h3>
+                    <div className="prose prose-slate dark:prose-invert max-w-none">
+                      <ReactMarkdown>
+                        {(() => {
+                          let text = dataCache.analysis.performance_summary || 'Loading analysis...';
+                          if (isMathOnly) text = text.replace(/\* Reading & Writing:.*?\n/i, '').replace(/\* Total Score:.*?\n/i, '');
+                          if (isRWOnly) text = text.replace(/\* Math:.*?\n/i, '').replace(/\* Total Score:.*?\n/i, '');
+                          return text;
+                        })()}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+
+                  {/* Time Management Analysis */}
+                  {dataCache.analysis.time_management && (
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 p-8 mb-8">
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center">
+                          <FiActivity className="w-5 h-5 text-white" />
+                        </div>
+                        Time Management Analysis
+                      </h3>
+                      <div className="prose prose-slate dark:prose-invert max-w-none">
+                        <ReactMarkdown>
+                          {(() => {
+                            let text = dataCache.analysis.time_management;
+                            if (isMathOnly) text = text.replace(/\* Reading & Writing:.*?\n/i, '');
+                            if (isRWOnly) text = text.replace(/\* Math:.*?\n/i, '');
+                            return text;
+                          })()}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Strengths & Weaknesses */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Core Strengths */}
+                    <div className="bg-green-50 dark:bg-green-900/20 p-8 rounded-2xl shadow-lg border border-green-200 dark:border-green-800">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                          <FiCheckSquare className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="text-xl font-bold text-green-900 dark:text-green-100">Core Strengths</h4>
+                          <p className="text-green-700 dark:text-green-300 text-sm font-medium">Topics you've mastered</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {Array.isArray(dataCache.analysis.strengths) && dataCache.analysis.strengths.length > 0 ? (
+                          dataCache.analysis.strengths.map((s, i) => (
+                            <div key={i} className="flex items-start gap-3 bg-white/70 dark:bg-green-900/30 p-4 rounded-xl border border-green-200 dark:border-green-700">
+                              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-white text-xs font-bold">✓</span>
+                              </div>
+                              <span className="text-green-900 dark:text-green-100 font-semibold">{s}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-green-700 dark:text-green-300 font-medium bg-white/50 dark:bg-green-900/20 p-4 rounded-xl">
+                            Analyzing your strengths...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Critical Weaknesses */}
+                    <div className="bg-red-50 dark:bg-red-900/20 p-8 rounded-2xl shadow-lg border border-red-200 dark:border-red-800">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
+                          <FiTarget className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="text-xl font-bold text-red-900 dark:text-red-100">Critical Weaknesses</h4>
+                          <p className="text-red-700 dark:text-red-300 text-sm font-medium">Areas needing focus</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        {Array.isArray(dataCache.analysis.weaknesses) && dataCache.analysis.weaknesses.length > 0 ? (
+                          dataCache.analysis.weaknesses.map((w, i) => (
+                            <div key={i} className="flex items-start gap-3 bg-white/70 dark:bg-red-900/30 p-4 rounded-xl border border-red-200 dark:border-red-700">
+                              <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-white text-xs font-bold">!</span>
+                              </div>
+                              <span className="text-red-900 dark:text-red-100 font-semibold">{w}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-red-700 dark:text-red-300 font-medium bg-white/50 dark:bg-red-900/20 p-4 rounded-xl">
+                            Identifying improvement areas...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Topic Analysis & Difficulty */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Frequently Missed Topics */}
+                    <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
+                          <FiAlertTriangle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="text-xl font-bold text-slate-900 dark:text-white">Frequently Missed Topics</h4>
+                          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Question types needing practice</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(dataCache.analysis.missed_topics || []).length > 0 ? (
+                          dataCache.analysis.missed_topics.map((t, i) => (
+                            <div key={i} className="px-3 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 rounded-xl text-sm font-bold border border-orange-200 dark:border-orange-700">
+                              {t}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 p-4 rounded-xl w-full">
+                            Processing missed topics...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Personalized Improvement Plan */}
+                  <div className="bg-indigo-600 p-8 rounded-2xl shadow-lg text-white mb-8">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <FiZap className="w-6 h-6 text-yellow-300" />
+                      </div>
+                      <div>
+                        <h4 className="text-2xl font-bold text-white">Personalized Improvement Plan</h4>
+                        <p className="text-indigo-200 font-medium">Your path to SAT success</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-indigo-200 text-sm font-bold uppercase tracking-widest mb-3">Top Recommendations</p>
+                        <div className="text-white leading-relaxed">
+                          <ReactMarkdown>
+                            {dataCache.analysis.recommendations || 'Generating personalized recommendations...'}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-indigo-200 text-sm font-bold uppercase tracking-widest mb-3">Priority Focus Areas</p>
+                        <div className="text-white leading-relaxed">
+                          <ReactMarkdown>
+                            {dataCache.analysis.focus_areas || 'Identifying focus areas...'}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

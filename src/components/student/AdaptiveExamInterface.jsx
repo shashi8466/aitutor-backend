@@ -385,13 +385,22 @@ const AdaptiveExamInterface = () => {
         let rwPath = 'moderate';
         let mathPath = 'moderate';
 
-        const moduleDetails = {};
+        const calculatedModuleDetails = {};
         const topicStats = {};
+        const moduleAnswers = {};
 
         moduleHistory.forEach(mKey => {
             const mQs = modules[mKey];
             const isRW = mKey.startsWith('rw');
             const diff = mKey.split('_')[1]; // moderate, easy, hard
+
+            // Map answers for this module
+            moduleAnswers[mKey] = mQs.map(q => ({
+              ...q,
+              userAnswer: userAnswers[q.id] || '',
+              isCorrect: userAnswers[q.id] && q.correctAnswer && 
+                         userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase()
+            }));
             
             // 1. Difficulty Weights (Easy=1, Moderate=2, Hard=3)
             const weight = diff === 'hard' ? 3 : (diff === 'moderate' ? 2 : 1);
@@ -437,7 +446,7 @@ const AdaptiveExamInterface = () => {
                 else topicStats[topic].incorrect++;
             });
 
-            moduleDetails[mKey] = {
+            calculatedModuleDetails[mKey] = {
                 correct: moduleCorrect,
                 incorrect: moduleIncorrect,
                 unanswered: moduleUnanswered,
@@ -455,9 +464,9 @@ const AdaptiveExamInterface = () => {
         const mathSectionScale = mathPath === 'hard' ? 600 : 500;
 
         // Final score calculation: 200 + (Weighted_Raw / Weighted_Max) * Section_Scale
-        const rwScore = rwMax > 0 ? Math.round(200 + (rwRaw / rwMax) * rwSectionScale) : 200;
-        const mathScore = mathMax > 0 ? Math.round(200 + (mathRaw / mathMax) * mathSectionScale) : 200;
-        const totalScore = rwScore + mathScore;
+        const finalRwScore = rwMax > 0 ? Math.round(200 + (rwRaw / rwMax) * rwSectionScale) : 200;
+        const finalMathScore = mathMax > 0 ? Math.round(200 + (mathRaw / mathMax) * mathSectionScale) : 200;
+        const finalTotalScore = finalRwScore + finalMathScore;
 
         const totalCorrect = pathQuestions.filter(q => {
             const ans = userAnswers[q.id];
@@ -466,11 +475,11 @@ const AdaptiveExamInterface = () => {
         const accuracyVal = Math.round((totalCorrect / pathQuestions.length) * 100);
 
         // Update State for UI
-        setTotalScore(totalScore);
-        setRwScore(rwScore);
-        setMathScore(mathScore);
+        setTotalScore(finalTotalScore);
+        setRwScore(finalRwScore);
+        setMathScore(finalMathScore);
         setAccuracy(accuracyVal);
-        setModuleDetails(moduleDetails);
+        setModuleDetails(calculatedModuleDetails);
 
         // Segregate topic stats by section
         const sectionTopicStats = { rw: {}, math: {} };
@@ -482,20 +491,42 @@ const AdaptiveExamInterface = () => {
             else sectionTopicStats.math[t] = topicStats[t];
         });
 
+        // Calculate total test duration from question times
+        const totalDuration = Object.values(questionTimes).reduce((a, b) => a + b, 0);
+
+        // Construct full responses array for the dashboard with explicit section labels
+        const fullResponses = pathQuestions.map(q => {
+            // Find which module this question belonged to
+            const moduleKey = Object.keys(modules).find(k => modules[k].some(mq => mq.id === q.id));
+            const isRW = moduleKey && moduleKey.startsWith('rw');
+            
+            return {
+                ...q,
+                section: isRW ? 'Reading & Writing' : 'Math',
+                question_text: q.text,
+                selected_answer: userAnswers[q.id] || '',
+                is_correct: userAnswers[q.id] && q.correctAnswer &&
+                            userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
+                is_unattempted: !userAnswers[q.id],
+                time_spent: questionTimes[q.id] || 0
+            };
+        });
+
         const response = await gradingService.submitAdaptiveTest({
             courseId: parseInt(courseId),
             questionIds,
             answers,
-            duration: 0,
+            duration: totalDuration,
             scores: {
-                totalScore,
-                rwScore,
-                mathScore,
+                totalScore: finalTotalScore,
+                rwScore: finalRwScore,
+                mathScore: finalMathScore,
                 accuracy: accuracyVal,
                 totalCorrect,
-                moduleDetails,
+                moduleDetails: calculatedModuleDetails,
                 sectionTopicStats,
-                securityViolations // Include violations in the submission
+                securityViolations, 
+                responses: fullResponses 
             }
         });
 
@@ -512,10 +543,14 @@ const AdaptiveExamInterface = () => {
 
         setSubmissionResult({
             ...response.data,
-            rwScore,
-            mathScore,
-            totalScore,
-            moduleDetails,
+            student_name: user?.full_name || user?.name || "Student",
+            responses: fullResponses,
+            moduleHistory,
+            moduleAnswers,
+            rwScore: finalRwScore,
+            mathScore: finalMathScore,
+            totalScore: finalTotalScore,
+            moduleDetails: calculatedModuleDetails,
             topicStats,
             sectionTopicStats,
             questionTimes,
@@ -551,10 +586,8 @@ const AdaptiveExamInterface = () => {
   const getHeaderTitle = () => {
     const section = detectSection();
     const difficulty = currentModuleKey.split('_')[1];
-    if (difficulty === 'moderate') return `${section} - Part 1`;
-    if (difficulty === 'easy') return `${section} - E`;
-    if (difficulty === 'hard') return `${section} - H`;
-    return `${section} - ${difficulty ? difficulty.toUpperCase() : ''}`;
+    if (difficulty === 'moderate') return `${section} – Part 1`;
+    return `${section} – Part 2`;
   };
 
   if (loading) return <div className="h-screen flex items-center justify-center font-bold text-[#2E4DC6]">Initializing Adaptive Exam Environment...</div>;
@@ -599,8 +632,8 @@ const AdaptiveExamInterface = () => {
               <p className="text-slate-500 font-medium">Review your work before you finish this section. You can click any question number to return to it.</p>
             </div>
 
-            <div className="p-10">
-              <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-10 gap-4">
+            <div className="p-6 sm:p-10">
+              <div className="grid grid-cols-4 sm:grid-cols-7 md:grid-cols-10 gap-3 sm:gap-4">
                 {questions.map((q, idx) => {
                   const isAnswered = !!userAnswers[q.id];
                   const isFlagged = flaggedQuestions[idx];
@@ -608,7 +641,7 @@ const AdaptiveExamInterface = () => {
                     <button 
                       key={idx} 
                       onClick={() => { setShowCheckWork(false); setCurrentQuestionIndex(idx); }}
-                      className={`aspect-square w-full rounded-xl relative flex items-center justify-center font-bold text-xl transition-all border-2 ${isAnswered ? 'bg-[#2E4DC6] border-[#2E4DC6] text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}
+                      className={`aspect-square w-full rounded-xl relative flex items-center justify-center font-bold text-lg sm:text-xl transition-all border-2 ${isAnswered ? 'bg-[#2E4DC6] border-[#2E4DC6] text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}
                     >
                       {idx + 1}
                       {isFlagged && (
@@ -622,7 +655,7 @@ const AdaptiveExamInterface = () => {
               </div>
             </div>
 
-            <div className="p-10 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+            <div className="p-6 sm:p-10 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6">
               <div className="flex gap-4">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
                   <div className="w-3.5 h-3.5 rounded bg-[#2E4DC6]"></div> Answered
@@ -632,11 +665,11 @@ const AdaptiveExamInterface = () => {
                 </div>
               </div>
               
-              <div className="flex gap-4">
-                  <button onClick={() => setShowCheckWork(false)} className="px-8 py-3.5 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[15px] hover:bg-slate-50 transition-all flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <button onClick={() => setShowCheckWork(false)} className="w-full sm:w-auto px-8 py-3.5 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[15px] hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
                     <SafeIcon icon={FiChevronLeft} /> Back to Questions
                   </button>
-                  <button onClick={handleNextModule} className="px-10 py-3.5 bg-blue-600 text-white rounded-full font-black text-[15px] hover:bg-blue-700 transition-all flex items-center gap-3 shadow-xl">
+                  <button onClick={handleNextModule} className="w-full sm:w-auto px-10 py-3.5 bg-blue-600 text-white rounded-full font-black text-[15px] hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-xl">
                     {moduleHistory.length < 4 ? 'Next Module' : 'Submit Test'} <SafeIcon icon={FiChevronRight} />
                   </button>
               </div>
@@ -673,10 +706,10 @@ const AdaptiveExamInterface = () => {
           </div>
 
           {/* Right Side: Instructions */}
-          <div className="max-w-xl space-y-8">
+          <div className="max-w-xl space-y-6 sm:space-y-8">
             <div className="space-y-4">
-              <h2 className="text-4xl font-black tracking-tight text-white">Practice Test Break</h2>
-              <p className="text-gray-400 text-lg leading-relaxed">
+              <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white">Practice Test Break</h2>
+              <p className="text-gray-400 text-base sm:text-lg leading-relaxed">
                 You can resume this practice test as soon as you're ready to move on. On test day, you'll wait until the clock counts down. Read below to see how breaks work on test day.
               </p>
             </div>
@@ -684,12 +717,12 @@ const AdaptiveExamInterface = () => {
             <div className="h-px bg-white/10 w-full" />
 
             <div className="space-y-6">
-              <h3 className="text-2xl font-black text-[#FFD700]">Take a Break: Do Not Close Your Device</h3>
-              <p className="text-gray-400">After the break, a <span className="text-white font-bold">Resume Testing Now</span> button will appear and you'll start the next section.</p>
+              <h3 className="text-xl sm:text-2xl font-black text-[#FFD700]">Take a Break: Do Not Close Your Device</h3>
+              <p className="text-sm sm:text-base text-gray-400">After the break, a <span className="text-white font-bold">Resume Testing Now</span> button will appear and you'll start the next section.</p>
               
               <div className="space-y-4">
-                <p className="text-sm font-black uppercase tracking-widest text-gray-500">Follow these rules during the break:</p>
-                <ul className="space-y-3 text-gray-300 font-medium">
+                <p className="text-xs sm:text-sm font-black uppercase tracking-widest text-gray-500">Follow these rules during the break:</p>
+                <ul className="space-y-3 text-sm sm:text-base text-gray-300 font-medium">
                   {[
                     "Do not disturb students who are still testing.",
                     "Do not exit the app or close your laptop.",
@@ -732,13 +765,13 @@ const AdaptiveExamInterface = () => {
         )}
       </AnimatePresence>
       <style>{`
-        .take-quiz-force-white header { background: #0f172a !important; color: white !important; min-height: 60px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; position: relative !important; z-index: 10000 !important; }
+        .take-quiz-force-white header { background: #0f172a !important; color: white !important; min-height: 60px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 12px !important; position: relative !important; z-index: 10000 !important; }
         @media (min-width: 640px) { .take-quiz-force-white header { padding: 0 40px !important; } }
-        .take-quiz-force-white footer { background: #ffffff !important; border-top: 1px solid #e2e8f0 !important; min-height: 70px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 16px !important; position: relative !important; z-index: 10000 !important; }
+        .take-quiz-force-white footer { background: #ffffff !important; border-top: 1px solid #e2e8f0 !important; min-height: 75px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 12px !important; position: relative !important; z-index: 10000 !important; }
         @media (min-width: 640px) { .take-quiz-force-white footer { padding: 0 40px !important; min-height: 60px !important; } }
-        .timer-text { color: #ffffff !important; font-weight: 800 !important; font-size: 16px !important; }
+        .timer-text { color: #ffffff !important; font-weight: 800 !important; font-size: 15px !important; }
         @media (min-width: 640px) { .timer-text { font-size: 18px !important; } }
-        .practice-banner { background: #1e1b4b !important; color: white !important; text-align: center !important; padding: 4px 0 !important; font-size: 10px !important; font-weight: 800 !important; letter-spacing: 0.1em !important; position: relative !important; z-index: 9000 !important; }
+        .practice-banner { background: #1e1b4b !important; color: white !important; text-align: center !important; padding: 6px 0 !important; font-size: 9px !important; font-weight: 800 !important; letter-spacing: 0.1em !important; position: relative !important; z-index: 9000 !important; }
       `}</style>
 
       <header>
@@ -787,19 +820,19 @@ const AdaptiveExamInterface = () => {
 
       <div className="practice-banner">THIS IS A PRACTICE TEST</div>
       
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
+      <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-2 sm:pt-4 bg-white relative z-10">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
           <div className="prose prose-slate max-w-none leading-[1.6] text-[16px] sm:text-[18px] text-slate-900 font-medium tracking-tight antialiased">
                 <MathRenderer text={currentQuestion?.text || ''} courseId={courseId} />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 md:p-12 bg-white relative z-20">
-          <div className="flex items-center justify-between mb-8">
-             <div className="flex items-center gap-4">
-               <div className="bg-black text-white w-8 h-8 flex items-center justify-center font-bold rounded-lg">{currentQuestionIndex + 1}</div>
-               <button onClick={toggleFlag} className={`flex items-center gap-2 text-sm font-bold border-b-2 border-dashed ${flaggedQuestions[currentQuestionIndex] ? 'text-black border-black' : 'text-gray-800 border-gray-400'}`}>
-                  <SafeIcon icon={FiStar} className={flaggedQuestions[currentQuestionIndex] ? 'fill-current' : ''} /> Mark for Review
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white relative z-20">
+          <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+             <div className="flex items-center gap-3">
+               <div className="bg-black text-white w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-bold rounded-lg text-sm sm:text-base">{currentQuestionIndex + 1}</div>
+               <button onClick={toggleFlag} className={`flex items-center gap-2 text-xs sm:text-sm font-bold border-b-2 border-dashed ${flaggedQuestions[currentQuestionIndex] ? 'text-black border-black' : 'text-gray-800 border-gray-400'}`}>
+                  <SafeIcon icon={FiStar} className={flaggedQuestions[currentQuestionIndex] ? 'fill-current' : ''} /> <span className="whitespace-nowrap">Mark for Review</span>
                </button>
              </div>
           </div>
@@ -834,9 +867,9 @@ const AdaptiveExamInterface = () => {
                          <div 
                             role="button"
                             onClick={() => handleAnswerSelect(letter)}
-                            className={`flex-1 rounded-2xl p-5 min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
+                            className={`flex-1 rounded-2xl p-4 sm:p-5 min-h-[50px] sm:min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
                          >
-                            <div className="pointer-events-none"><MathRenderer text={optContent} courseId={courseId} className="text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
+                            <div className="pointer-events-none"><MathRenderer text={optContent} courseId={courseId} className="text-[15px] sm:text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
                          </div>
                       </div>
                     );
@@ -847,37 +880,39 @@ const AdaptiveExamInterface = () => {
       </main>
 
       <footer>
-        <div className="text-[10px] sm:text-sm font-bold flex-1 text-slate-900 truncate max-w-[80px] sm:max-w-none">{user?.name || 'Student'}</div>
-        <div className="relative flex justify-center shrink-0 mx-2">
-          <button onClick={() => setShowNavigation(!showNavigation)} className="bg-black text-white px-3 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-2 sm:gap-3">
+        <div className="text-[10px] sm:text-sm font-bold flex-1 text-slate-900 truncate max-w-[60px] sm:max-w-none px-1">
+          {user?.name || 'Student'}
+        </div>
+        <div className="relative flex justify-center shrink-0 mx-1">
+          <button onClick={() => setShowNavigation(!showNavigation)} className="bg-black text-white px-2 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-1.5 sm:gap-3">
               <span className="hidden sm:inline">Question </span>{currentQuestionIndex + 1}<span className="sm:hidden"> / </span><span className="hidden sm:inline"> of </span>{questions.length}
-              <SafeIcon icon={showNavigation ? FiX : FiChevronDown} className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+              <SafeIcon icon={showNavigation ? FiX : FiChevronDown} className="w-2.5 h-2.5 sm:w-4 sm:h-4 text-gray-400" />
           </button>
           <AnimatePresence>
           {showNavigation && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-[80px] sm:bottom-[130px] bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-[0_0_40px_-10px_rgba(0,0,0,0.15)] z-[1000] w-[90vw] sm:w-[420px] left-1/2 -translate-x-1/2 flex flex-col items-center max-h-[70vh] overflow-y-auto">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-[85px] sm:bottom-[130px] bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-[0_0_40px_-10px_rgba(0,0,0,0.2)] z-[1000] w-[94vw] sm:w-[420px] left-1/2 -translate-x-1/2 flex flex-col items-center max-h-[75vh] overflow-y-auto">
                <div className="hidden sm:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 rotate-45"></div>
                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 w-full relative">
-                  <span className="font-bold text-sm text-slate-900 w-full text-center">
-                      {detectSection()} - Module {moduleHistory.length % 2 === 1 ? '1' : '2'} Questions
+                  <span className="font-black text-[10px] sm:text-sm text-slate-900 w-full text-center uppercase tracking-widest px-8">
+                      {detectSection()} - Module {moduleHistory.length % 2 === 1 ? '1' : '2'}
                   </span>
-                  <SafeIcon icon={FiX} onClick={() => setShowNavigation(false)} className="cursor-pointer text-gray-400 absolute right-0 top-0" />
+                  <SafeIcon icon={FiX} onClick={() => setShowNavigation(false)} className="cursor-pointer text-gray-400 absolute right-0 top-0 w-4 h-4" />
                </div>
                <div className="flex flex-wrap gap-2 mb-8 justify-center">
                    {questions.map((q, idx) => (
-                       <div key={idx} onClick={() => { setCurrentQuestionIndex(idx); setShowNavigation(false); }} className={`w-[34px] h-[34px] flex items-center justify-center font-black rounded-sm cursor-pointer transition-all text-sm border ${userAnswers[q.id] ? 'text-blue-600 border-blue-600 bg-blue-50' : 'text-blue-600 border-blue-600 border-dashed bg-white'}`}>
+                       <div key={idx} onClick={() => { setCurrentQuestionIndex(idx); setShowNavigation(false); }} className={`w-[32px] h-[32px] sm:w-[34px] sm:h-[34px] flex items-center justify-center font-black rounded-sm cursor-pointer transition-all text-xs sm:text-sm border ${userAnswers[q.id] ? 'text-blue-600 border-blue-600 bg-blue-50' : 'text-blue-600 border-blue-600 border-dashed bg-white'}`}>
                            {idx + 1}
                        </div>
                    ))}
                </div>
-               <button onClick={() => { setShowNavigation(false); setShowCheckWork(true); }} className="px-5 py-1.5 rounded-full border border-blue-600 text-blue-600 font-bold text-sm hover:bg-blue-50 transition-all">Go to Review Page</button>
+               <button onClick={() => { setShowNavigation(false); setShowCheckWork(true); }} className="w-full sm:w-auto px-5 py-2.5 rounded-full border-2 border-blue-600 text-blue-600 font-black text-xs sm:text-sm hover:bg-blue-50 transition-all uppercase tracking-widest">Go to Review Page</button>
             </motion.div>
           )}
           </AnimatePresence>
         </div>
-        <div className="flex items-center gap-3 sm:gap-8 flex-1 justify-end">
-          <button onClick={handleBack} disabled={currentQuestionIndex === 0} className="font-bold text-xs sm:text-sm text-blue-600 disabled:opacity-30 hover:underline">Back</button>
-          <button onClick={handleNext} className="px-4 sm:px-8 py-2 sm:py-2.5 bg-blue-600 text-white rounded-full font-bold text-xs sm:text-sm hover:bg-blue-700 transition-colors shadow-sm">
+        <div className="flex items-center gap-4 sm:gap-8 flex-1 justify-end px-1">
+          <button onClick={handleBack} disabled={currentQuestionIndex === 0} className="font-bold text-[10px] sm:text-sm text-blue-600 disabled:opacity-30 hover:underline uppercase tracking-widest">Back</button>
+          <button onClick={handleNext} className="px-4 sm:px-8 py-2 sm:py-2.5 bg-blue-600 text-white rounded-full font-black text-[10px] sm:text-sm hover:bg-blue-700 transition-colors shadow-lg uppercase tracking-widest">
             {currentQuestionIndex === questions.length - 1 ? 'Review' : 'Next'}
           </button>
         </div>

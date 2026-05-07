@@ -301,8 +301,8 @@ const ScorePredictor = () => {
                                 className="space-y-10"
                             >
                                 <div className="flex items-center gap-3 px-4">
-                                    <div className={`w-2 h-8 rounded-full ${subject.id === 'MATH' ? 'bg-blue-600' : 'bg-purple-600'}`} />
-                                    <h2 className="text-3xl font-black text-gray-900 dark:text-white">{subject.name} Result</h2>
+                                    <div className={`w-1.5 h-6 sm:w-2 sm:h-8 rounded-full ${subject.id === 'MATH' ? 'bg-blue-600' : 'bg-purple-600'}`} />
+                                    <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{subject.name} Result</h2>
                                     <span className="bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 text-[10px] font-black uppercase px-2 py-0.5 rounded-md tracking-wider">Attempted</span>
                                 </div>
                                 
@@ -353,21 +353,21 @@ const ScorePredictor = () => {
                                             <SafeIcon icon={FiBarChart2} className="w-7 h-7 text-[#E53935]" />
                                             <h3 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">Module Proficiency</h3>
                                         </div>
-                                        <div className="space-y-10">
+                                        <div className="space-y-8 sm:space-y-10">
                                             {['Easy', 'Medium', 'Hard'].map(level => {
                                                 const score = data.prediction.levelScores[level] || 0;
                                                 return (
-                                                    <div key={level} className="flex items-center gap-8">
-                                                        <div className="w-24">
-                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-1">{level}</p>
-                                                            <p className="text-xl font-black text-gray-900 dark:text-white">Level</p>
+                                                    <div key={level} className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8">
+                                                        <div className="w-full sm:w-24 flex sm:block items-baseline gap-2">
+                                                            <p className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">{level} Level</p>
+                                                            <p className="text-lg sm:text-xl font-black text-gray-900 dark:text-white sm:hidden">Proficiency</p>
                                                         </div>
                                                         <div className="flex-1">
-                                                            <div className="flex justify-between mb-2">
-                                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mastery</span>
-                                                                <span className="text-sm font-black text-gray-900 dark:text-white">{score}%</span>
+                                                            <div className="flex justify-between mb-1.5">
+                                                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest hidden sm:block">Mastery</span>
+                                                                <span className="text-sm font-black text-gray-900 dark:text-white ml-auto">{score}%</span>
                                                             </div>
-                                                            <div className="h-4 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden p-1 shadow-inner">
+                                                            <div className="h-3 sm:h-4 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden p-0.5 sm:p-1 shadow-inner">
                                                                 <motion.div
                                                                     initial={{ width: 0 }}
                                                                     animate={{ width: `${score}%` }}
@@ -393,8 +393,8 @@ const ScorePredictor = () => {
                             className="space-y-8"
                         >
                             <div className="flex items-center gap-3 px-4">
-                                <div className="w-2 h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
-                                <h2 className="text-3xl font-black text-gray-900 dark:text-white">{subject.name} Predictor</h2>
+                                <div className="w-1.5 h-6 sm:w-2 sm:h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
+                                <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{subject.name} Predictor</h2>
                                 <span className="bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 text-[10px] font-black uppercase px-2 py-0.5 rounded-md tracking-wider">Unattempted</span>
                             </div>
                             <div className="max-w-4xl">

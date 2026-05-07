@@ -674,6 +674,8 @@ export const aiService = {
   },
   generateStudyPlan: async (data) => axios.post('/api/ai/generate-plan', { diagnosticData: data }),
   reviewTest: async (data) => axios.post('/api/ai/review-test', { testData: data }),
+  analyzeSATReport: async (rawText) => axios.post('/api/ai/analyze-sat-report', { rawText }),
+
   salesChat: async (msg, hist) => axios.post('/api/ai/sales-chat', { message: msg, history: hist }),
   summarizeContent: async (ctx) => axios.post('/api/ai/summarize', { context: ctx }),
   generateFlashcards: async (ctx) => axios.post('/api/ai/flashcards', { context: ctx }),

@@ -29,7 +29,16 @@ body {
 
 html, body, #root {
   max-width: 100%;
+  min-height: 100%;
   overflow-x: hidden;
+  position: relative;
+}
+
+/* Better tap targets for mobile */
+@media (max-width: 640px) {
+  button, a, input, select {
+    min-height: 44px;
+  }
 }
 
 @layer base {
@@ -96,6 +105,15 @@ html, body, #root {
   
   .responsive-table-container {
     @apply overflow-x-auto -mx-4 sm:mx-0 rounded-xl border border-slate-200 dark:border-slate-800;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .responsive-table-container::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .responsive-table-container::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-700 rounded-full;
   }
 }
 
@@ -187,15 +205,39 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
     padding-left: max(1rem, env(safe-area-inset-left));
     padding-right: max(1rem, env(safe-area-inset-right));
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-top: max(1rem, env(safe-area-inset-top));
   }
 
   /* Compact oversized utility usage that appears across many screens. */
-  .p-12 { padding: 1rem !important; }
-  .p-10 { padding: 1rem !important; }
-  .p-8 { padding: 0.875rem !important; }
-  .px-10 { padding-left: 1rem !important; padding-right: 1rem !important; }
-  .px-8 { padding-left: 0.875rem !important; padding-right: 0.875rem !important; }
-  .py-8 { padding-top: 0.875rem !important; padding-bottom: 0.875rem !important; }
+  .p-12 { padding: 1.5rem !important; }
+  .p-10 { padding: 1.25rem !important; }
+  .p-8 { padding: 1rem !important; }
+  .px-10 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+  .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+  .py-8 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+  
+  /* Text adjustments */
+  .text-4xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+  .text-5xl { font-size: 2.25rem !important; line-height: 2.5rem !important; }
+  .text-6xl { font-size: 2.5rem !important; line-height: 1 !important; }
+  
+  /* Grid adjustments */
+  .grid-cols-2, .grid-cols-3, .grid-cols-4 {
+    grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+  }
+  
+  .sm\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Modal and Overlay Responsiveness */
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-sm;
+}
+
+.modal-content {
+  @apply w-full max-w-2xl bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto;
 }
 
 /* Custom Font Utilities */

@@ -6,7 +6,7 @@ import { uploadService, courseService } from '../../services/api';
 
 // Lazy load complex modals
 const AITutorModal = lazy(() => import('./AITutorModal'));
-const SmartContentModal = lazy(() => import('./SmartContentModal'));
+
 
 const { FiBook, FiVideo, FiMessageCircle, FiAward, FiArrowLeft, FiFileText, FiDownload, FiEye, FiX, FiExternalLink, FiCpu, FiZap } = FiIcons;
 
@@ -15,7 +15,7 @@ const LevelDashboard = () => {
   const navigate = useNavigate();
   const [uploads, setUploads] = useState([]);
   const [showAI, setShowAI] = useState(false);
-  const [showSmartContent, setShowSmartContent] = useState(false); // New State
+
   const [loading, setLoading] = useState(true);
   const [course, setCourse] = useState(null);
   
@@ -80,10 +80,10 @@ const LevelDashboard = () => {
           <div className="w-16 h-16 bg-[#E53935] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-200">
             <SafeIcon icon={FiBook} className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold text-black mb-2">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-black mb-2">
             {level} Level Dashboard
           </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto font-medium">
+          <p className="text-gray-600 max-w-2xl mx-auto font-medium text-sm sm:text-base">
             Access study materials, watch videos, ask questions, or take a quiz to test your knowledge.
           </p>
         </div>
@@ -131,31 +131,20 @@ const LevelDashboard = () => {
         </div>
 
         {/* 3 Action Cards - Themed */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 px-2 sm:px-0">
 
           {/* Card 1: Videos - White with Red Accent */}
           <Link to={`/student/course/${courseId}/level/${level}/video`} className="group h-full">
-            <div className="h-full bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-2xl p-8 text-center transition-all cursor-pointer group-hover:-translate-y-1 group-hover:shadow-lg flex flex-col items-center justify-center">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 shadow-sm text-[#E53935] group-hover:bg-[#E53935] group-hover:text-white transition-colors">
-                <SafeIcon icon={FiVideo} className="w-8 h-8" />
+            <div className="h-full bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer group-hover:-translate-y-1 group-hover:shadow-lg flex flex-col items-center justify-center">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 shadow-sm text-[#E53935] group-hover:bg-[#E53935] group-hover:text-white transition-colors">
+                <SafeIcon icon={FiVideo} className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Premade Videos</h3>
-              <p className="text-sm text-gray-600 font-medium">Watch instructional videos</p>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">Premade Videos</h3>
+              <p className="text-xs sm:text-sm text-gray-600 font-medium">Watch instructional videos</p>
             </div>
           </Link>
 
-          {/* Card 2: Smart AI Tutor */}
-          <div onClick={() => setShowSmartContent(true)} className="group h-full cursor-pointer">
-            <div className="h-full bg-[#1A2333] hover:bg-[#1e293b] border border-gray-800 rounded-2xl p-6 text-center transition-all group-hover:-translate-y-1 group-hover:shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
-              <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mb-4 text-white group-hover:bg-white/20 transition-colors">
-                <SafeIcon icon={FiCpu} className="w-7 h-7" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">Smart AI Tutor</h3>
-              <p className="text-[10px] text-gray-400 font-medium leading-relaxed">
-                Upload PDFs/Videos to extract & chat with content
-              </p>
-            </div>
-          </div>
+
 
           {/* Card 3: Practice Quiz */}
           <Link 
@@ -195,9 +184,8 @@ const LevelDashboard = () => {
 
         </div>
 
-        {/* Back Link */}
         <div className="mt-12 text-center">
-          <Link to={`/student/course/${courseId}`} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors">
+          <Link to={`/student/course/${courseId}`} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors py-2">
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Topics
           </Link>
         </div>
@@ -208,10 +196,6 @@ const LevelDashboard = () => {
             <AITutorModal question={genericQuestion} userAnswer="" correctAnswer="" onClose={() => setShowAI(false)} />
           )}
 
-          {/* NEW SMART CONTENT MODAL */}
-          {showSmartContent && (
-            <SmartContentModal onClose={() => setShowSmartContent(false)} />
-          )}
         </Suspense>
 
       </div>
@@ -263,7 +247,7 @@ const DocumentViewer = ({ file, onClose }) => {
       </div>
 
       {/* Viewer Content */}
-      <div className="w-full h-[600px] bg-gray-100 relative">
+      <div className="w-full h-[400px] sm:h-[600px] bg-gray-100 relative">
         {isImage ? (
           <div className="w-full h-full flex items-center justify-center p-4">
             <img src={url} alt="Preview" className="max-w-full max-h-full object-contain shadow-sm bg-white" />

@@ -95,42 +95,42 @@ const ProgressTracker = ({ courseId }) => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid grid-cols-1 md:grid-cols-4 gap-4"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 px-4 sm:px-0"
       >
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
-              <p className="text-sm text-gray-600">Study Streak</p>
-              <p className="text-2xl font-bold text-orange-600">{progressData.studyStreak} days</p>
+              <p className="text-[10px] sm:text-sm text-gray-500 font-bold uppercase tracking-wider">Streak</p>
+              <p className="text-xl sm:text-2xl font-black text-orange-600">{progressData.studyStreak}d</p>
             </div>
-            <SafeIcon icon={FiAward} className="w-8 h-8 text-orange-500" />
+            <SafeIcon icon={FiAward} className="w-6 h-6 sm:w-8 sm:h-8 text-orange-500 opacity-20" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
-              <p className="text-sm text-gray-600">Total Study Time</p>
-              <p className="text-2xl font-bold text-blue-600">{progressData.totalStudyTime}h</p>
+              <p className="text-[10px] sm:text-sm text-gray-500 font-bold uppercase tracking-wider">Time</p>
+              <p className="text-xl sm:text-2xl font-black text-blue-600">{progressData.totalStudyTime}h</p>
             </div>
-            <SafeIcon icon={FiClock} className="w-8 h-8 text-blue-500" />
+            <SafeIcon icon={FiClock} className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 opacity-20" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
-              <p className="text-sm text-gray-600">Avg Score</p>
-              <p className="text-2xl font-bold text-green-600">{progressData.monthlyStats.averageScore}%</p>
+              <p className="text-[10px] sm:text-sm text-gray-500 font-bold uppercase tracking-wider">Score</p>
+              <p className="text-xl sm:text-2xl font-black text-green-600">{progressData.monthlyStats.averageScore}%</p>
             </div>
-            <SafeIcon icon={FiTarget} className="w-8 h-8 text-green-500" />
+            <SafeIcon icon={FiTarget} className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 opacity-20" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <div className="flex items-center justify-between">
+        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div>
-              <p className="text-sm text-gray-600">Improvement</p>
-              <p className="text-2xl font-bold text-purple-600">+{progressData.monthlyStats.improvement}%</p>
+              <p className="text-[10px] sm:text-sm text-gray-500 font-bold uppercase tracking-wider">Gain</p>
+              <p className="text-xl sm:text-2xl font-black text-purple-600">+{progressData.monthlyStats.improvement}%</p>
             </div>
-            <SafeIcon icon={FiTrendingUp} className="w-8 h-8 text-purple-500" />
+            <SafeIcon icon={FiTrendingUp} className="w-6 h-6 sm:w-8 sm:h-8 text-purple-500 opacity-20" />
           </div>
         </div>
       </motion.div>
@@ -140,7 +140,7 @@ const ProgressTracker = ({ courseId }) => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
+        className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 sm:p-6 mx-4 sm:mx-0"
       >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-gray-900">Performance Overview</h3>
@@ -188,7 +188,7 @@ const ProgressTracker = ({ courseId }) => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
+        className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 sm:p-6 mx-4 sm:mx-0"
       >
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Topic Performance</h3>
         <div className="space-y-4">
@@ -224,7 +224,7 @@ const ProgressTracker = ({ courseId }) => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
+        className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 sm:p-6 mx-4 sm:mx-0"
       >
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
           <SafeIcon icon={FiCalendar} className="w-5 h-5 mr-2 text-blue-600" />

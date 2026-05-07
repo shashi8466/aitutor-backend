@@ -61,6 +61,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
       title: "AI Agents Suite",
       items: [
         { name: <BrandName className="text-sm" />, path: '/student/tutor', icon: FiCpu, badge: '24/7', settingKey: 'feature_ai_tutor' },
+        { name: 'Smart AI Tutor', path: '/student/smart-tutor', icon: FiFileText, badge: 'NEW', settingKey: 'feature_ai_tutor' },
         { name: 'Study Plan Agent', path: '/student/plan', icon: FiActivity, settingKey: 'feature_study_planner' },
         { name: 'Weakness Drills', path: '/student/drills', icon: FiTarget, settingKey: 'feature_weakness_drills' },
         { name: 'Test Review Agent', path: '/student/test-review', icon: FiPieChart, settingKey: 'feature_test_review' },

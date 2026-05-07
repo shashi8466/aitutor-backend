@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
-const { FiPrinter, FiArrowLeft, FiCheck, FiX, FiMinus } = FiIcons;
+const { FiPrinter, FiArrowLeft, FiCheck, FiX, FiMinus, FiCalendar, FiClock, FiMonitor, FiBarChart2 } = FiIcons;
 
 const DemoReport = () => {
     const { courseId } = useParams();
@@ -31,6 +31,8 @@ const DemoReport = () => {
     const { totalScore, rwScore, mathScore, moduleDetails, completedAt } = finalScores;
     const moduleHistory = reportData.moduleHistory || [];
     const moduleAnswers = reportData.moduleAnswers || {};
+    const questionTimes = reportData.questionTimes || {};
+    const moduleDurations = reportData.moduleDurations || {};
 
     // Process Topic Data
     const rwTopics = {};
@@ -108,6 +110,47 @@ const DemoReport = () => {
         return new Date(dateString).toLocaleDateString('en-US', options);
     };
 
+    const formatTimeDisplay = (seconds) => {
+        if (!seconds && seconds !== 0) return '—';
+        if (seconds < 60) return `${seconds}s`;
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return s > 0 ? `${m}m ${s}s` : `${m}m`;
+    };
+
+    // Time Analysis Computations
+    const computeTimeAnalysis = () => {
+        const sections = { rw: { label: 'Reading & Writing', questions: [], totalTime: 0, moduleTime: 0 }, math: { label: 'Math', questions: [], totalTime: 0, moduleTime: 0 } };
+        moduleHistory.forEach(mKey => {
+            const isRW = mKey.startsWith('rw');
+            const sec = isRW ? 'rw' : 'math';
+            const qs = moduleAnswers[mKey] || [];
+            sections[sec].moduleTime += (moduleDurations[mKey] || 0);
+            qs.forEach((q, idx) => {
+                const t = q.timeSpent || questionTimes[q.id] || 0;
+                sections[sec].questions.push({
+                    ...q,
+                    moduleLabel: mKey,
+                    qNum: sections[sec].questions.length + 1,
+                    timeSpent: t
+                });
+                sections[sec].totalTime += t;
+            });
+        });
+        // Compute averages
+        ['rw', 'math'].forEach(sec => {
+            const qs = sections[sec].questions;
+            sections[sec].avgTime = qs.length > 0 ? Math.round(sections[sec].totalTime / qs.length) : 0;
+        });
+        const totalTime = sections.rw.totalTime + sections.math.totalTime;
+        const totalQs = sections.rw.questions.length + sections.math.questions.length;
+        const totalAvg = totalQs > 0 ? Math.round(totalTime / totalQs) : 0;
+        return { sections, totalTime, totalQs, totalAvg };
+    };
+
+    const timeAnalysis = computeTimeAnalysis();
+    const hasTimeData = timeAnalysis.totalTime > 0;
+
     const handlePrint = () => {
         window.print();
     };
@@ -135,63 +178,91 @@ const DemoReport = () => {
             <div id="report-content" className="max-w-4xl mx-auto mt-8 space-y-8 md:space-y-12 print:mt-0 print:space-y-0 print:gap-y-0">
                 
                 {/* PAGE 1: Cover Sheet */}
-                <div className="bg-white shadow-2xl overflow-hidden mb-8 md:mb-12 print:mb-0 print:shadow-none print:break-after-page print:break-inside-avoid-page print:h-screen flex flex-col w-full relative">
-                    <div className="flex-[3] bg-gradient-to-br from-[#1a237e] via-[#311b92] to-[#e65100] p-8 md:p-16 flex flex-col relative z-10" style={{ color: 'white' }}>
+                <div className="bg-white shadow-2xl overflow-hidden mb-8 md:mb-12 print:mb-0 print:shadow-none print:break-after-page print:break-inside-avoid-page print:h-screen flex flex-col w-full relative p-4 md:p-8">
+                    
+                    {/* Top Browser-like Header */}
+                    <div className="flex justify-between items-center text-[10px] text-gray-400 mb-2 px-2">
+                        <div className="flex items-center gap-1">
+                             <SafeIcon icon={FiCalendar} className="text-[10px]" />
+                             <span>{new Date().toLocaleDateString()}, {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
+                        <div className="font-bold tracking-tight">AIPrep365</div>
+                    </div>
+
+                    <div className="flex-[3] bg-gradient-to-br from-[#1a237e] via-[#311b92] to-[#e65100] p-8 md:p-16 flex flex-col relative z-10 rounded-xl" style={{ color: 'white' }}>
                         {/* Header Info */}
                         <div className="flex justify-between items-start">
-                            <div className="space-y-1 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.9)' }}>
-                                <div>{formatDate(completedAt)} (Demo FULL LENGTH TEST)</div>
-                                <div>Test Version: Digital SAT</div>
-                                <div>Pace: Standard</div>
+                            <div className="space-y-3 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                                <div className="flex items-center gap-3">
+                                    <SafeIcon icon={FiCalendar} className="text-lg opacity-80" />
+                                    <span>{formatDate(completedAt)} (Demo FULL LENGTH TEST)</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <SafeIcon icon={FiMonitor} className="text-lg opacity-80" />
+                                    <span>Test Version: Digital SAT</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <SafeIcon icon={FiClock} className="text-lg opacity-80" />
+                                    <span>Pace: Standard</span>
+                                </div>
                             </div>
-                            <div className="bg-white p-3 rounded-xl flex items-center justify-center shadow-lg">
+                            <div className="bg-white px-5 py-3 rounded-xl flex items-center justify-center shadow-lg">
                                 <span className="text-[#E53935] font-black tracking-tighter text-2xl" style={{ WebkitTextFillColor: '#E53935' }}>AIPrep365</span>
                             </div>
                         </div>
 
                         {/* Title and Score Area - Flex Layout to prevent overlap */}
-                        <div className="mt-auto flex flex-col md:flex-row print:flex-row justify-between items-start md:items-end print:items-end gap-8 pt-16 md:pt-24 pb-4 md:pb-8">
-                            <div className="flex-1 max-w-[100%] md:max-w-[60%]">
-                                <h1 className="text-4xl md:text-7xl print:text-7xl font-black leading-none tracking-tight uppercase break-words" style={{ color: 'white' }}>
+                        <div className="mt-auto flex flex-col md:flex-row print:flex-row justify-between items-center md:items-end print:items-end gap-8 pt-16 md:pt-24 pb-4 md:pb-8">
+                            <div className="flex-1 max-w-[100%] md:max-w-[60%] flex flex-col items-start">
+                                <h1 className="text-4xl md:text-6xl print:text-6xl font-black leading-none tracking-tight uppercase break-words" style={{ color: 'white' }}>
                                     {studentName}
                                 </h1>
-                                <div className="mt-16 text-sm font-medium leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
-                                    prepared by<br/>
-                                    AIPrep365 Platform<br/>
-                                    aiprep365.com
+                                <div className="w-16 h-1.5 bg-white mt-6 rounded-full opacity-60"></div>
+
+                                <div className="mt-20 flex items-center gap-4">
+                                    <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
+                                        <SafeIcon icon={FiBarChart2} className="text-2xl" />
+                                    </div>
+                                    <div className="text-sm font-medium leading-relaxed" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                                        <div className="opacity-70">Prepared by</div>
+                                        <div className="font-bold text-base">AIPrep365 Platform</div>
+                                        <div className="opacity-70">aiprep365.com</div>
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Score Circle (No Overhang in print to prevent clipping) */}
-                            <div className="shrink-0 mb-0 md:-mb-40 print:mb-8 mr-0 md:mr-12 print:mr-12 relative z-20 mx-auto md:mx-0">
-                                <div className="w-56 h-56 md:w-80 md:h-80 print:w-80 print:h-80 rounded-full border-[12px] border-white/30 flex flex-col items-center justify-center backdrop-blur-md print:backdrop-blur-none bg-white/20 print:bg-transparent relative shadow-2xl print:shadow-none">
+                            <div className="shrink-0 mb-0 md:mb-4 print:mb-8 mr-0 md:mr-12 print:mr-12 relative z-20 mx-auto md:mx-0">
+                                <div className="w-56 h-56 md:w-80 md:h-80 print:w-80 print:h-80 rounded-full border-[16px] border-white/20 flex flex-col items-center justify-center backdrop-blur-md print:backdrop-blur-none bg-white/10 print:bg-transparent relative shadow-2xl print:shadow-none">
                                     <svg className="absolute inset-0 w-full h-full -rotate-90">
-                                        <circle cx="50%" cy="50%" r="46%" fill="transparent" stroke="white" strokeWidth="8" strokeDasharray={`${(totalScore/1600)*100} 100`} pathLength="100" />
+                                        <circle cx="50%" cy="50%" r="46%" fill="transparent" stroke="white" strokeWidth="12" strokeDasharray={`${(totalScore/1600)*100} 100`} pathLength="100" strokeLinecap="round" className="opacity-100" />
                                     </svg>
-                                    <span className="text-2xl font-bold" style={{ color: 'white' }}>Score</span>
-                                    <span className="text-7xl md:text-8xl print:text-8xl font-black tracking-tighter" style={{ color: 'white' }}>{totalScore}</span>
+                                    <span className="text-2xl font-bold mb-2" style={{ color: 'white' }}>Score</span>
+                                    <span className="text-8xl md:text-9xl print:text-9xl font-black tracking-tighter" style={{ color: 'white' }}>{totalScore}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
                     {/* Bottom White Section */}
-                    <div className="flex-[1] min-h-[300px] bg-white p-8 md:p-16 flex flex-col justify-end border-b-[16px] border-gray-50">
-                         <div className="pl-4 border-l-4 border-black space-y-8 relative ml-8 mb-8">
-                             <div className="relative">
-                                 <div className="absolute -left-[27px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border-4 border-black"></div>
-                                 <h3 className="text-xl font-black text-gray-900" style={{ color: '#111' }}>Scores and history</h3>
-                             </div>
-                             <div className="relative">
-                                 <div className="absolute -left-[27px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border-4 border-black"></div>
-                                 <h3 className="text-xl font-black text-gray-900" style={{ color: '#111' }}>Answer Summary</h3>
-                             </div>
-                             <div className="relative">
-                                 <div className="absolute -left-[27px] top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border-4 border-black"></div>
-                                 <h3 className="text-xl font-black text-gray-900" style={{ color: '#111' }}>Data (for tutor use)</h3>
-                             </div>
+                    <div className="flex-[1] bg-white p-8 md:p-16 flex flex-col justify-center">
+                         <div className="max-w-md mx-auto w-full">
+                            <div className="pl-8 border-l-[3px] border-gray-900 space-y-12 relative">
+                                <div className="relative">
+                                    <div className="absolute -left-[41px] top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-[3px] border-gray-900 shadow-sm"></div>
+                                    <h3 className="text-xl font-bold text-gray-900 tracking-tight">Scores and history</h3>
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute -left-[41px] top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-[3px] border-gray-900 shadow-sm"></div>
+                                    <h3 className="text-xl font-bold text-gray-900 tracking-tight">Answer Summary</h3>
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute -left-[41px] top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white border-[3px] border-gray-900 shadow-sm"></div>
+                                    <h3 className="text-xl font-bold text-gray-900 tracking-tight">Data (for tutor use)</h3>
+                                </div>
+                            </div>
                          </div>
-                         <div className="text-center w-full text-xs text-gray-400 font-bold uppercase tracking-widest mt-auto">
+                         <div className="text-center w-full text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-16">
                              © AIPrep365 Demo Report
                          </div>
                     </div>
@@ -295,36 +366,188 @@ const DemoReport = () => {
                             <div className="flex items-center gap-2"><div className="w-5 h-5 rounded bg-red-500"></div> Incorrect answer</div>
                         </div>
                         {/* Module columns */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="flex flex-wrap gap-4 print:flex-nowrap print:flex-row print:gap-1.5 print:w-full">
                             {moduleHistory.map((mKey, colIdx) => {
                                 const qs = moduleAnswers[mKey] || [];
                                 return (
-                                    <div key={colIdx} className="bg-gray-50 rounded-xl p-3">
-                                        <div className="font-black text-center text-gray-800 text-xs mb-3 pb-2 border-b border-gray-200 leading-tight">
+                                    <div key={colIdx} className="w-full md:flex-1 print:w-[24.5%] bg-gray-50 rounded-xl p-3 print:p-2 print:bg-gray-50 print:break-inside-avoid shadow-sm border border-gray-100 print:border-gray-200 flex flex-col">
+                                        <div className="font-black text-center text-gray-800 text-[10px] mb-3 pb-2 border-b border-gray-200 leading-tight uppercase tracking-wider print:mb-2 print:pb-1">
                                             {getModuleLabel(mKey)}
                                         </div>
                                         {/* Column headers */}
-                                        <div className="grid grid-cols-4 text-[9px] font-bold text-gray-500 text-center mb-1">
-                                            <span className="col-span-1">#</span>
-                                            <span className="col-span-1 leading-tight">Your<br/>Ans</span>
-                                            <span className="col-span-1 leading-tight">Cor<br/>rect</span>
-                                            <span className="col-span-1">Tag</span>
+                                        <div className="flex text-[8px] font-black text-gray-400 text-center mb-2 uppercase tracking-tighter w-full">
+                                            <span className="w-[15%]">#</span>
+                                            <span className="w-[30%] leading-none">Your<br/>Ans</span>
+                                            <span className="w-[30%] leading-none">Cor<br/>rect</span>
+                                            <span className="w-[25%]">Tag</span>
                                         </div>
                                         {/* Rows */}
-                                        {qs.map((q, idx) => (
-                                            <div key={idx} className="grid grid-cols-4 text-[10px] text-center py-0.5 border-b border-gray-100 items-center">
-                                                <span className="text-gray-500 font-medium">{idx + 1}</span>
-                                                <span className={`mx-auto w-5 h-5 flex items-center justify-center rounded text-white font-bold text-[9px] ${q.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}>
-                                                    {q.userAnswer || '—'}
-                                                </span>
-                                                <span className="text-gray-700 font-semibold">{q.correctAnswer || '—'}</span>
-                                                <span className="text-gray-400 text-[8px] truncate">{(q.topic || '').substring(0, 4)}</span>
-                                            </div>
-                                        ))}
+                                        <div className="flex-1 space-y-0.5">
+                                            {qs.map((q, idx) => (
+                                                <div key={idx} className="flex text-[9px] text-center py-1 border-b border-gray-100/50 items-center w-full print:py-0.5">
+                                                    <span className="w-[15%] text-gray-400 font-bold">{idx + 1}</span>
+                                                    <div className="w-[30%] flex justify-center">
+                                                        <span className={`w-4 h-4 flex items-center justify-center rounded-sm text-white font-black text-[8px] ${q.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}>
+                                                            {q.userAnswer || '—'}
+                                                        </span>
+                                                    </div>
+                                                    <span className="w-[30%] text-gray-700 font-bold">{q.correctAnswer || '—'}</span>
+                                                    <span className="w-[25%] text-gray-400 text-[7px] font-medium truncate px-0.5">{(q.topic || '').substring(0, 4)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 );
                             })}
                         </div>
+                    </div>
+                    <div className="py-4 mt-auto text-center text-xs text-gray-400 border-t border-gray-100">aiprep365.com</div>
+                </div>
+
+                {/* PAGE 4: Time-Based Analysis */}
+                <div className="bg-white shadow-2xl overflow-hidden mb-8 md:mb-12 print:mb-0 print:shadow-none print:break-after-page print:min-h-screen flex flex-col">
+                    <div className="bg-gradient-to-r from-[#0d47a1] to-[#1565c0] text-white px-8 py-6 flex justify-between items-center" style={{ color: 'white' }}>
+                        <h2 className="text-xl font-bold tracking-wide" style={{ color: 'white' }}>Time-Based Analysis</h2>
+                        <span className="opacity-80 font-medium" style={{ color: 'white' }}>Pacing & Performance Insights</span>
+                    </div>
+
+                    <div className="p-8 md:p-12 flex-1">
+                        {!hasTimeData ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </div>
+                                <p className="text-gray-400 font-bold">Time data not available for this attempt.</p>
+                                <p className="text-gray-300 text-sm mt-1">Retake the test to see per-question pacing insights.</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Summary Cards */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                                    {[
+                                        { label: 'Total Time', value: formatTimeDisplay(timeAnalysis.totalTime), sub: 'entire test', color: '#1a237e' },
+                                        { label: 'Avg / Question', value: `${timeAnalysis.totalAvg}s`, sub: 'across all sections', color: '#1a237e' },
+                                        { label: 'R&W Section', value: formatTimeDisplay(timeAnalysis.sections.rw.totalTime), sub: `avg ${timeAnalysis.sections.rw.avgTime}s/q`, color: '#4a148c' },
+                                        { label: 'Math Section', value: formatTimeDisplay(timeAnalysis.sections.math.totalTime), sub: `avg ${timeAnalysis.sections.math.avgTime}s/q`, color: '#e65100' },
+                                    ].map((card, i) => (
+                                        <div key={i} className="rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-center text-center bg-white">
+                                            <div className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">{card.label}</div>
+                                            <div className="text-3xl font-black" style={{ color: card.color }}>{card.value}</div>
+                                            <div className="text-xs text-gray-400 mt-1">{card.sub}</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Section-by-Section Tables */}
+                                {['rw', 'math'].map(secKey => {
+                                    const sec = timeAnalysis.sections[secKey];
+                                    const slowThresh = sec.avgTime * 2;
+                                    const fastThresh = sec.avgTime * 0.5;
+                                    return (
+                                        <div key={secKey} className="mb-10">
+                                            {/* Section Header */}
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div>
+                                                    <h3 className="text-lg font-black text-gray-900">{sec.label}</h3>
+                                                    <p className="text-xs text-gray-400 font-medium mt-0.5">
+                                                        {sec.questions.length} questions · Total: {formatTimeDisplay(sec.totalTime)} · Avg: {sec.avgTime}s/question
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-3 text-[10px] font-bold">
+                                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-100 border-2 border-red-400 inline-block"></span> Slow (&gt;{Math.round(slowThresh)}s)</span>
+                                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-100 border-2 border-green-400 inline-block"></span> Fast (&lt;{Math.round(fastThresh)}s)</span>
+                                                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-100 border-2 border-gray-300 inline-block"></span> Normal</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Bar Chart */}
+                                            <div className="overflow-x-auto mb-4">
+                                                <div className="flex items-end gap-1 h-24 min-w-full" style={{ minWidth: `${sec.questions.length * 22}px` }}>
+                                                    {sec.questions.map((q, idx) => {
+                                                        const t = q.timeSpent;
+                                                        const maxTime = Math.max(...sec.questions.map(qq => qq.timeSpent), 1);
+                                                        const heightPct = maxTime > 0 ? (t / maxTime) * 100 : 0;
+                                                        const isSlow = t > slowThresh && sec.avgTime > 0;
+                                                        const isFast = t < fastThresh && t > 0 && sec.avgTime > 0;
+                                                        const barColor = isSlow ? '#ef4444' : isFast ? '#22c55e' : '#6366f1';
+                                                        return (
+                                                            <div key={idx} className="flex flex-col items-center" style={{ minWidth: '18px', flex: '1' }}>
+                                                                <div
+                                                                    className="w-full rounded-t-sm transition-all"
+                                                                    style={{ height: `${Math.max(heightPct, 4)}%`, backgroundColor: barColor, opacity: 0.85 }}
+                                                                    title={`Q${q.qNum}: ${t}s`}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div className="flex gap-1 mt-1" style={{ minWidth: `${sec.questions.length * 22}px` }}>
+                                                    {sec.questions.map((q, idx) => (
+                                                        <div key={idx} className="text-center text-[8px] text-gray-400" style={{ minWidth: '18px', flex: '1' }}>{q.qNum}</div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Detail Table */}
+                                            <div className="overflow-hidden rounded-xl border border-gray-200">
+                                                <table className="w-full text-xs border-collapse">
+                                                    <thead>
+                                                        <tr style={{ backgroundColor: '#1a237e', color: '#ffffff' }}>
+                                                            <th className="text-left py-3 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: '#ffffff' }}>#</th>
+                                                            <th className="text-left py-3 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: '#ffffff' }}>Topic</th>
+                                                            <th className="text-center py-3 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: '#ffffff' }}>Your Ans</th>
+                                                            <th className="text-center py-3 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: '#ffffff' }}>Correct</th>
+                                                            <th className="text-center py-3 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: '#ffffff' }}>Result</th>
+                                                            <th className="text-center py-3 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: '#ffffff' }}>Time</th>
+                                                            <th className="text-center py-3 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: '#ffffff' }}>Pace</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-100">
+                                                        {sec.questions.map((q, idx) => {
+                                                            const t = q.timeSpent;
+                                                            const isSlow = t > slowThresh && sec.avgTime > 0;
+                                                            const isFast = t < fastThresh && t > 0 && sec.avgTime > 0;
+                                                            return (
+                                                                <tr key={idx} className={isSlow ? 'border-l-4 border-l-red-500' : isFast ? 'border-l-4 border-l-green-500' : ''} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f5f7ff', borderBottom: '1px solid #e5e7eb' }}>
+                                                                    <td className="py-2.5 px-4 font-black" style={{ color: '#111827', fontSize: '12px' }}>{q.qNum}</td>
+                                                                    <td className="py-2.5 px-4 font-semibold" style={{ color: '#1f2937', fontSize: '11px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={q.topic || 'General'}>{(q.topic || 'General').substring(0, 22)}</td>
+                                                                    <td className="py-2.5 px-4 text-center font-black" style={{ color: q.userAnswer ? '#374151' : '#9ca3af', fontSize: '12px' }}>{q.userAnswer || '—'}</td>
+                                                                    <td className="py-2.5 px-4 text-center font-black" style={{ color: '#1a237e', fontSize: '12px' }}>{q.correctAnswer || '—'}</td>
+                                                                    <td className="py-2.5 px-4 text-center">
+                                                                        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-[9px] font-black ${q.isCorrect ? 'bg-green-500' : q.userAnswer ? 'bg-red-500' : 'bg-gray-300'}`}>
+                                                                            {q.isCorrect ? '✓' : q.userAnswer ? '✗' : '○'}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="py-2.5 px-4 text-center font-black" style={{ color: isSlow ? '#dc2626' : isFast ? '#16a34a' : '#374151', fontSize: '12px' }}>
+                                                                        {t > 0 ? `${t}s` : <span style={{ color: '#9ca3af' }}>—</span>}
+                                                                    </td>
+                                                                    <td className="py-2.5 px-4 text-center">
+                                                                        {t === 0 ? <span style={{ color: '#d1d5db', fontSize: '10px' }}>—</span>
+                                                                        : isSlow ? <span style={{ padding: '2px 8px', borderRadius: '999px', backgroundColor: '#fee2e2', color: '#991b1b', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Slow</span>
+                                                                        : isFast ? <span style={{ padding: '2px 8px', borderRadius: '999px', backgroundColor: '#dcfce7', color: '#166534', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fast</span>
+                                                                        : <span style={{ padding: '2px 8px', borderRadius: '999px', backgroundColor: '#e0e7ff', color: '#3730a3', fontWeight: '900', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Normal</span>}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Legend / Insight Footer */}
+                                <div className="mt-6 p-5 rounded-2xl bg-blue-50 border border-blue-100">
+                                    <p className="text-xs font-black text-blue-700 uppercase tracking-widest mb-2">How to read this</p>
+                                    <ul className="text-xs text-blue-800 space-y-1 font-medium">
+                                        <li>🔴 <strong>Slow</strong>: Time &gt; 2× section average — may indicate difficulty or confusion</li>
+                                        <li>🟢 <strong>Fast</strong>: Time &lt; 0.5× section average — great pacing or possible guessing</li>
+                                        <li>🔵 <strong>Normal</strong>: Time within expected range for SAT</li>
+                                    </ul>
+                                </div>
+                            </>
+                        )}
                     </div>
                     <div className="py-4 mt-auto text-center text-xs text-gray-400 border-t border-gray-100">aiprep365.com</div>
                 </div>

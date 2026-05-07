@@ -265,7 +265,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                         name="phone"
                         value={formData.phone}
                         onChange={handleChange}
-                        placeholder="e.g., +91XXXXXXXXXX"
+                        placeholder="e.g., +1 713 452 0639"
                         className={`w-full pl-10 pr-4 py-3 bg-white border-2 ${otpVerified ? 'border-green-500' : 'border-gray-200 focus:border-[#E53935]'} rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50 ${otpVerified ? 'cursor-not-allowed bg-gray-50' : ''}`}
                       />
                       {otpVerified && (
@@ -287,7 +287,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                   </div>
                   {!otpVerified && (
                     <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 ml-1 font-medium italic">
-                      Please enter your mobile number with country code (e.g., +91 for India)
+                      Include country code: <strong>+1</strong> for USA, <strong>+91</strong> for India
                     </p>
                   )}
                 </div>
