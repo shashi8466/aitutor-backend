@@ -16,11 +16,7 @@
     "lint:error": "eslint . --quiet",
     "preview": "vite preview",
     "start": "node src/server/index.js",
-    "worker:notifications": "node src/server/workers/notificationWorker.js",
-    "test:notifications": "node test-notifications.js",
-    "check": "node check-backend-advanced.js",
-    "verify": "node check-backend-advanced.js",
-    "quick-start": "node check-backend-advanced.js && npm run dev"
+    "worker:notifications": "node src/server/workers/notificationWorker.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

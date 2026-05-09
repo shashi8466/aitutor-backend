@@ -618,7 +618,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                     <div className={`w-12 h-6 flex-shrink-0 rounded flex items-center justify-center text-[10px] font-black text-white ${topic.accuracy >= 80 ? 'bg-green-600' : topic.accuracy >= 50 ? 'bg-yellow-600' : 'bg-red-600'}`}>
                                         {topic.accuracy}%
                                     </div>
-                                    <span className="font-black text-gray-900 whitespace-normal leading-tight">{topic.name}</span>
+                                    <span className="font-black text-[#0a0e2a] whitespace-normal leading-tight">{topic.name}</span>
                                 </div>
                                 <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6">
                                     <div className="scale-90 sm:scale-100">{renderDotSequence(topic.correct, topic.total)}</div>
@@ -637,21 +637,21 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
             <div className="mt-16 print:mt-12 overflow-x-hidden px-4 sm:px-0">
                 <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-6 gap-4">
                     <div>
-                        <h3 className="text-2xl sm:text-4xl font-black text-gray-900 mb-1">{sectionTitle}</h3>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        <h3 className="text-2xl sm:text-4xl font-black text-[#0a0e2a] mb-1">{sectionTitle}</h3>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
                             {responses.length} questions - Total: {formatTime(totalSec)} - Avg: {avgSec}s/question
                         </p>
                     </div>
-                    <div className="flex flex-wrap gap-4 text-[9px] font-black uppercase text-gray-400 pb-1">
+                    <div className="flex flex-wrap gap-4 text-[9px] font-black uppercase text-gray-600 pb-1">
                         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border-2 border-red-500"></div> SLOW</div>
                         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border-2 border-green-500"></div> FAST</div>
-                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border-2 border-gray-300"></div> NORMAL</div>
+                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full border-2 border-gray-400"></div> NORMAL</div>
                     </div>
                 </div>
                 
                 <div className="rounded-2xl overflow-x-auto border-2 border-[#1a237e] shadow-2xl print:shadow-none custom-scrollbar">
                     <table className="w-full text-left font-bold text-xs border-collapse min-w-[600px]">
-                        <thead className="bg-[#1a237e] text-white uppercase tracking-widest text-[10px]">
+                        <thead className="bg-[#1a237e] text-white !text-white uppercase tracking-widest text-[10px]">
                             <tr>
                                 <th className="py-5 px-6 text-center w-16 border-r border-white/20">#</th>
                                 <th className="py-5 px-6 border-r border-white/20">Topic</th>
@@ -665,16 +665,16 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         <tbody className="bg-white">
                             {responses.map((q, i) => (
                                 <tr key={i} className="border-b-2 border-gray-100 print:break-inside-avoid">
-                                    <td className="py-4 px-6 text-center text-gray-400 border-r-2 border-gray-50">{i + 1}</td>
-                                    <td className="py-4 px-6 font-black text-gray-900 border-r-2 border-gray-50 whitespace-normal min-w-[200px] leading-tight">{q.topic}</td>
-                                    <td className="py-4 px-6 text-center font-black text-gray-900 border-r-2 border-gray-50">{q.selected_answer || '-'}</td>
+                                    <td className="py-4 px-6 text-center text-gray-500 border-r-2 border-gray-50">{i + 1}</td>
+                                    <td className="py-4 px-6 font-black text-[#0a0e2a] border-r-2 border-gray-50 whitespace-normal min-w-[200px] leading-tight">{q.topic}</td>
+                                    <td className="py-4 px-6 text-center font-black text-[#0a0e2a] border-r-2 border-gray-50">{q.selected_answer || '-'}</td>
                                     <td className="py-4 px-6 text-center font-black text-[#1a237e] border-r-2 border-gray-50">{q.correct_answer}</td>
                                     <td className="py-4 px-3 sm:px-6 text-center border-r-2 border-gray-50">
-                                        <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center text-white text-[10px] font-black ${q.is_correct ? 'bg-green-500' : 'bg-red-500'}`}>
+                                        <div className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center text-white text-[10px] font-black ${q.is_correct ? 'bg-green-600' : 'bg-red-600'}`}>
                                             {q.is_correct ? '✓' : '✗'}
                                         </div>
                                     </td>
-                                    <td className="py-4 px-3 sm:px-6 text-center border-r-2 border-gray-50 text-gray-900">{q.time_spent || 0}s</td>
+                                    <td className="py-4 px-3 sm:px-6 text-center border-r-2 border-gray-50 text-[#0a0e2a] font-bold">{q.time_spent || 0}s</td>
                                     <td className="py-4 px-3 sm:px-6 text-center">
                                         <div className="bg-[#e8eaf6] text-[#1a237e] px-3 py-1 rounded-full text-[8px] font-black uppercase inline-block shadow-sm">NORMAL</div>
                                     </td>
@@ -688,7 +688,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 py-10 px-4 print:p-0 print:bg-white print:overflow-visible print:h-auto" id="report-container">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900/90 py-10 px-4 print:p-0 print:bg-white print:overflow-visible print:h-auto transition-colors duration-300" id="report-container">
             <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     @page { size: A4 portrait; margin: 0; }
@@ -699,6 +699,8 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         margin: 0 !important; 
                         padding: 0 !important; 
                         background: white !important; 
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                     /* 
                        AGGRESSIVE PRINT CLEANUP 
@@ -770,6 +772,46 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                     table { page-break-inside: auto !important; width: 100% !important; border-collapse: collapse !important; }
                     thead { display: table-header-group !important; }
                     * { box-shadow: none !important; filter: none !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                }
+
+                /* FORCE READABILITY ON SCREEN WHEN IN DARK MODE */
+                #report-container [class*="bg-white"],
+                #report-container .bg-white,
+                #report-container .section-break:not(.bg-\[\#1a237e\]) {
+                    color: #0a0e2a !important;
+                }
+                
+                #report-container [class*="bg-white"] td,
+                #report-container [class*="bg-white"] p,
+                #report-container [class*="bg-white"] span:not(.text-white):not(.bg-blue-600),
+                #report-container [class*="bg-white"] div:not(.bg-blue-600):not(.bg-green-600):not(.bg-red-600):not(.bg-\[\#1a237e\]) {
+                    color: #0a0e2a !important;
+                    opacity: 1 !important;
+                }
+
+                /* Ensure table content is strictly high contrast */
+                #report-container table tbody td {
+                    color: #0a0e2a !important;
+                    font-weight: 700 !important;
+                }
+                
+                /* Protect specific colors */
+                #report-container .text-white,
+                #report-container .bg-\[\#1a237e\] *,
+                #report-container thead *,
+                #report-container .bg-blue-600 *,
+                #report-container .text-yellow-400 {
+                    /* Do not override these */
+                }
+
+                #report-container .text-gray-400,
+                #report-container .text-gray-500,
+                #report-container .text-gray-600 {
+                    color: #475569 !important; /* Slate 600 - much more readable */
+                }
+
+                #report-container table {
+                    border-color: #cbd5e1 !important;
                 }
             `}} />
 
@@ -863,26 +905,26 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         <div className="relative flex items-center justify-center mb-10">
                             {renderCircularProgress(totalScore, 1600, 256, 15, '#1a237e', '#f1f5f9')}
                             <div className="absolute flex flex-col items-center justify-center">
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Score</span>
+                                <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Total Score</span>
                                 <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{totalScore}</span>
-                                <span className="text-[10px] font-black text-gray-400">400 to 1600</span>
+                                <span className="text-[10px] font-black text-gray-500">400 to 1600</span>
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-12 sm:gap-16">
                             <div className="relative flex items-center justify-center">
                                 {renderCircularProgress(mathScore, 800, 176, 10, '#1a237e', '#f1f5f9')}
                                 <div className="absolute flex flex-col items-center justify-center">
-                                    <span className="text-[8px] font-black text-gray-500 uppercase">Math</span>
+                                    <span className="text-[8px] font-black text-gray-600 uppercase">Math</span>
                                     <span className="text-4xl font-black text-[#1a237e]">{mathScore}</span>
-                                    <span className="text-[8px] font-black text-gray-400">200 to 800</span>
+                                    <span className="text-[8px] font-black text-gray-500">200 to 800</span>
                                 </div>
                             </div>
                             <div className="relative flex items-center justify-center">
                                 {renderCircularProgress(rwScore, 800, 176, 10, '#1a237e', '#f1f5f9')}
                                 <div className="absolute flex flex-col items-center justify-center text-center">
-                                    <span className="text-[8px] font-black text-gray-500 uppercase leading-tight">Reading &<br/>Writing</span>
+                                    <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Reading &<br/>Writing</span>
                                     <span className="text-4xl font-black text-[#1a237e]">{rwScore}</span>
-                                    <span className="text-[8px] font-black text-gray-400">200 to 800</span>
+                                    <span className="text-[8px] font-black text-gray-500">200 to 800</span>
                                 </div>
                             </div>
                         </div>
@@ -890,7 +932,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
 
                     <div className="rounded-3xl overflow-x-auto border-2 border-[#1a237e] shadow-2xl print:shadow-none mx-0 sm:mx-4 custom-scrollbar px-4 sm:px-0">
                         <table className="w-full text-left font-bold border-collapse min-w-[600px] sm:min-w-0">
-                            <thead className="bg-[#1a237e] text-white text-[10px] sm:text-[11px] uppercase tracking-widest">
+                            <thead className="bg-[#1a237e] text-white !text-white text-[10px] sm:text-[11px] uppercase tracking-widest">
                                 <tr>
                                     <th className="py-4 sm:py-6 px-4 sm:px-10 border-r-2 border-white/10">Section</th>
                                     <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">Correct</th>
@@ -899,19 +941,19 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                     <th className="py-4 sm:py-6 px-4 sm:px-10 text-right">Score</th>
                                 </tr>
                             </thead>
-                            <tbody className="text-gray-900 bg-white">
+                            <tbody className="text-[#0a0e2a] bg-white">
                                 <tr className="border-b-2 border-gray-100">
-                                    <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-gray-900 text-xs sm:text-lg">Reading & Writing</td>
-                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-gray-900 text-xs sm:text-lg">{rwResponses.filter(r=>r.is_correct).length}</td>
-                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-gray-900 text-xs sm:text-lg">{rwResponses.length}</td>
-                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-gray-900 text-xs sm:text-lg">{rwResponses.length > 0 ? Math.round((rwResponses.filter(r=>r.is_correct).length/rwResponses.length)*100) : 0}%</td>
+                                    <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Reading & Writing</td>
+                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.filter(r=>r.is_correct).length}</td>
+                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length}</td>
+                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length > 0 ? Math.round((rwResponses.filter(r=>r.is_correct).length/rwResponses.length)*100) : 0}%</td>
                                     <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{rwScore}</td>
                                 </tr>
                                 <tr className="border-b-2 border-gray-100">
-                                    <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-gray-900 text-xs sm:text-lg">Math</td>
-                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-gray-900 text-xs sm:text-lg">{mathResponses.filter(r=>r.is_correct).length}</td>
-                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-gray-900 text-xs sm:text-lg">{mathResponses.length}</td>
-                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-gray-900 text-xs sm:text-lg">{mathResponses.length > 0 ? Math.round((mathResponses.filter(r=>r.is_correct).length/mathResponses.length)*100) : 0}%</td>
+                                    <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Math</td>
+                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.filter(r=>r.is_correct).length}</td>
+                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length}</td>
+                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length > 0 ? Math.round((mathResponses.filter(r=>r.is_correct).length/mathResponses.length)*100) : 0}%</td>
                                     <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{mathScore}</td>
                                 </tr>
                                 <tr className="bg-[#1a237e] text-white">
@@ -935,24 +977,24 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-16">
                         <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Total Time</span>
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Total Time</span>
                             <span className="text-3xl sm:text-5xl font-black text-[#1a237e]">{formatTime(totalTime.total)}</span>
-                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mt-2">entire test</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">entire test</span>
                         </div>
                         <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Avg / Question</span>
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Avg / Question</span>
                             <span className="text-3xl sm:text-5xl font-black text-[#1a237e]">{totalTime.avg}s</span>
-                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mt-2">across all sections</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">across all sections</span>
                         </div>
                         <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">R&W Section</span>
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">R&W Section</span>
                             <span className="text-3xl sm:text-5xl font-black text-purple-700">{formatTime(rwTime.total)}</span>
-                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mt-2">avg {rwTime.avg}s/q</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {rwTime.avg}s/q</span>
                         </div>
                         <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">Math Section</span>
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Math Section</span>
                             <span className="text-3xl sm:text-5xl font-black text-orange-600">{formatTime(mathTime.total)}</span>
-                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mt-2">avg {mathTime.avg}s/q</span>
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {mathTime.avg}s/q</span>
                         </div>
                     </div>
 

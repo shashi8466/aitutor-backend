@@ -76,8 +76,13 @@ const AdaptiveExamInterface = () => {
   // 1. Initial Setup: Load Course and Questions
   useEffect(() => {
     wasDarkMode.current = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
-    document.documentElement.classList.remove('dark');
-    document.body.classList.remove('dark');
+    if (showResults && wasDarkMode.current) {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else if (!showResults) {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
     
     if (courseId) {
       loadInitialData();
@@ -89,7 +94,7 @@ const AdaptiveExamInterface = () => {
         document.body.classList.add('dark');
       }
     };
-  }, [courseId]);
+  }, [courseId, showResults]);
 
   const loadInitialData = async () => {
     setLoading(true);

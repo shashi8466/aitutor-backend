@@ -47,7 +47,7 @@ const DetailedTestReview = lazy(() => import('./components/student/DetailedTestR
 const WeeklyReport = lazy(() => import('./components/common/WeeklyReport'));
 const SalesBot = lazy(() => import('./components/common/SalesBot'));
 const UpgradePlan = lazy(() => import('./components/student/UpgradePlan'));
-const Worksheets = lazy(() => import('./components/student/Worksheets'));
+
 const StudentFeedback = lazy(() => import('./components/student/StudentFeedback'));
 const SmartAITutor = lazy(() => import('./components/student/agents/SmartAITutor'));
 
@@ -113,7 +113,7 @@ axios.defaults.timeout = 60000; // 60 seconds timeout for all requests
 axios.interceptors.request.use(
   async (config) => {
     try {
-      // 1. Only add token if it's an API request to our own backend (relative or matching BACKEND_URL)
+      // 1. Only add token if it's an API request to our own backend
       const isInternalApi = config.url && (
         config.url.includes('/api/') || 
         (BACKEND_URL && config.url.includes(BACKEND_URL)) ||
@@ -121,30 +121,32 @@ axios.interceptors.request.use(
       );
 
       if (isInternalApi) {
-        // 2. Get the session from Supabase with a timeout to prevent hanging the entire app
+        // 2. Get the session from Supabase with a timeout
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Supabase session request timed out')), 10000)
+          setTimeout(() => reject(new Error('Supabase session request timed out')), 5000)
         );
 
-        const sessionResult = await Promise.race([sessionPromise, timeoutPromise]);
+        const sessionResult = await Promise.race([sessionPromise, timeoutPromise]).catch(err => {
+          console.warn('📡 [Auth Interceptor] Session check failed/timed out:', err.message);
+          return null;
+        });
+
         const session = sessionResult?.data?.session;
         
         if (session?.access_token) {
           config.headers.Authorization = `Bearer ${session.access_token}`;
-          // console.log(`📡 [Auth] Token attached to ${config.url}`);
         } else {
-          console.warn(`📡 [Auth] No session found for internal API: ${config.url}`);
+          console.warn(`📡 [Auth] NO SESSION FOUND for internal API: ${config.url}. Status: ${sessionResult ? 'No Session' : 'Timeout/Error'}`);
         }
       }
 
-      // 🕵️ Preview Mode Header (Synced from AuthContext via localStorage)
       const previewUserId = localStorage.getItem('preview_user_id');
       if (previewUserId && config.headers) {
         config.headers['X-Preview-User-Id'] = previewUserId;
       }
     } catch (error) {
-      console.warn('📡 [Auth Interceptor] Non-fatal info:', error.message);
+      console.warn('📡 [Auth Interceptor] Unexpected error:', error.message);
     }
 
     return config;
@@ -183,6 +185,27 @@ axios.interceptors.response.use(
         // Add a small delay before retry
         await new Promise(resolve => setTimeout(resolve, 1000));
         return axios(config);
+      }
+    }
+    
+    // Handle 401 Unauthorized (Expired tokens)
+    if (error.response?.status === 401 && !config._isRetry) {
+      console.warn('🔐 [Auth] 401 Unauthorized detected. Attempting to refresh session...');
+      config._isRetry = true;
+      
+      try {
+        // Force a session refresh
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (session?.access_token) {
+          console.log('✅ [Auth] Session refreshed successfully. Retrying request...');
+          config.headers.Authorization = `Bearer ${session.access_token}`;
+          return axios(config);
+        } else {
+          console.error('❌ [Auth] Session refresh failed or returned no token:', refreshError?.message);
+        }
+      } catch (refreshErr) {
+        console.error('💥 [Auth] Fatal error during session refresh:', refreshErr.message);
       }
     }
     

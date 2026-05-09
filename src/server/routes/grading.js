@@ -22,7 +22,10 @@ router.get('/parent/student/:studentId/submissions', async (req, res) => {
 
         if (!userId) {
             console.warn('⚠️ [ParentReport] Unauthorized: No userId in request');
-            return res.status(401).json({ error: 'Unauthorized' });
+            return res.status(401).json({ 
+                error: 'Unauthorized',
+                debug: { hasReqUser: !!req.user, authFailure: req.authFailure, hasAuthHeader: !!req.headers.authorization }
+            });
         }
 
         // 1. Verify user is a parent and has THIS student linked
@@ -81,7 +84,12 @@ router.get('/parent/student/:studentId/submissions', async (req, res) => {
 router.get('/parent/my-children', async (req, res) => {
     try {
         const userId = req.user?.id;
-        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!userId) {
+            return res.status(401).json({ 
+                error: 'Unauthorized',
+                debug: { hasReqUser: !!req.user, authFailure: req.authFailure, hasAuthHeader: !!req.headers.authorization }
+            });
+        }
 
         // 1. Get parent profile to see linked students
         const { data: parent, error: pError } = await supabase
@@ -450,7 +458,13 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
         console.log(`   - Answers count: ${answers?.length || 0}`);
         console.log(`   - Has scores: ${!!scores}`);
         
-        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!userId) {
+            console.warn(`[Grading] Unauthorized adaptive test submission attempt`);
+            return res.status(401).json({ 
+                error: 'Unauthorized',
+                debug: { hasReqUser: !!req.user, authFailure: req.authFailure, hasAuthHeader: !!req.headers.authorization }
+            });
+        }
 
         // 1. Fetch correct answers to verify and store responses
         const { data: questions, error: qError } = await supabase

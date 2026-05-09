@@ -86,6 +86,9 @@ export const getUserFromRequest = async (req) => {
 
         if (error) {
             console.error(`[${timestamp}] ❌ JWT Verification Failed (${req.method} ${url}):`, error.message);
+            if (error.message.includes('expired')) {
+                console.warn(`[${timestamp}] ⏰ Token for ${url} is EXPIRED.`);
+            }
             req.authFailure = `JWT Verification Failed: ${error.message}`;
             return null;
         }
