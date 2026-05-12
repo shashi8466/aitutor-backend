@@ -218,7 +218,25 @@ BEGIN
     WHERE id = p_question_ids[v_index];
     
     v_answer := p_answers[v_index];
-    v_is_correct := (v_answer = v_question.correct_answer);
+    -- Support multiple accepted answers (JSON array, comma-separated, or pipe-separated)
+    v_is_correct := EXISTS (
+      SELECT 1 FROM (
+        SELECT LOWER(TRIM(a)) as accepted
+        FROM unnest(regexp_split_to_array(COALESCE(v_question.correct_answer, ''), '[,|]')) a
+        UNION
+        -- If it looks like a JSON array, try parsing it
+        SELECT LOWER(TRIM(val))
+        FROM (
+          SELECT CASE 
+            WHEN COALESCE(v_question.correct_answer, '') ~ '^\s*\[.*\]\s*$' 
+            THEN jsonb_array_elements_text(v_question.correct_answer::jsonb)
+            ELSE NULL
+          END as val
+        ) j
+        WHERE val IS NOT NULL
+      ) all_accepted
+      WHERE accepted = LOWER(TRIM(COALESCE(v_answer, '')))
+    );
     
     -- Record internal response
     INSERT INTO test_responses (submission_id, question_id, selected_answer, is_correct)

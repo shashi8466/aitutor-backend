@@ -604,10 +604,23 @@ export const questionService = {
   getAll: async (filters = {}) => {
     let query = supabase.from('questions').select('*').order('created_at', { ascending: true });
 
-    if (filters.courseId) query = query.eq('course_id', filters.courseId);
-    if (filters.level) query = query.eq('level', filters.level);
-    if (filters.type) query = query.eq('type', filters.type);
-    if (filters.uploadId) query = query.eq('upload_id', filters.uploadId);
+    // Apply filters strictly - ALL provided filters must match (AND logic)
+    if (filters.courseId) {
+      query = query.eq('course_id', filters.courseId);
+    }
+    
+    if (filters.level) {
+      query = query.eq('level', filters.level);
+    }
+    
+    if (filters.type) {
+      query = query.eq('type', filters.type);
+    }
+    
+    // Critical: uploadId must be handled strictly to prevent falling back to a full table scan
+    if (filters.uploadId !== undefined && filters.uploadId !== null && filters.uploadId !== '') {
+      query = query.eq('upload_id', filters.uploadId);
+    }
 
     return await query;
   },

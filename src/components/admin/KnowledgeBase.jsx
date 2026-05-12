@@ -42,12 +42,20 @@ const KnowledgeBase = () => {
   };
 
   const loadQuestions = async (uploadId) => {
+    if (!uploadId) return;
+    
     setLoadingQuestions(true);
+    setQuestions([]); // Clear previous questions immediately to prevent stale data display
+    
     try {
-      const { data } = await questionService.getAll({ uploadId });
-      setQuestions(data);
+      console.log(`🔍 Loading questions for upload: ${uploadId}`);
+      const { data, error } = await questionService.getAll({ uploadId });
+      
+      if (error) throw error;
+      setQuestions(data || []);
     } catch (error) {
-      console.error("Failed to load questions:", error);
+      console.error('Error loading questions:', error);
+      setQuestions([]);
     } finally {
       setLoadingQuestions(false);
     }

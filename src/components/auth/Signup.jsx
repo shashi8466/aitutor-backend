@@ -395,6 +395,7 @@ const Signup = () => {
                   id="mobile"
                   name="mobile"
                   type="tel"
+                  required
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="Mobile Number"
                   value={formData.mobile}
@@ -403,9 +404,9 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* FATHER'S NAME (New) */}
+            {/* FATHER'S NAME */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Father's Name (Optional)</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Father's Name</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <SafeIcon icon={FiUsers} className="h-5 w-5 text-gray-400" />
@@ -414,6 +415,7 @@ const Signup = () => {
                   id="fatherName"
                   name="fatherName"
                   type="text"
+                  required
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="Father/Guardian Name"
                   value={formData.fatherName}

@@ -21,10 +21,12 @@ const QuestionManagement = () => {
   // Filters state
   const [filters, setFilters] = useState({
     courseId: '',
+    uploadId: '',
     level: '',
     type: '',
     search: ''
   });
+  const [uploads, setUploads] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
@@ -49,6 +51,28 @@ const QuestionManagement = () => {
     }
   };
 
+  const loadUploads = async (courseId) => {
+    if (!courseId) {
+      setUploads([]);
+      return;
+    }
+    try {
+      const { data } = await uploadService.getAll({ courseId });
+      // Only meaningful ones
+      setUploads(data.filter(u => u.questions_count > 0 || u.category === 'quiz_document'));
+    } catch (error) {
+      console.error('Error loading uploads:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (filters.courseId) {
+      loadUploads(filters.courseId);
+    } else {
+      setUploads([]);
+    }
+  }, [filters.courseId]);
+
   const loadQuestions = async () => {
     setFetchingQuestions(true);
     setLoading(true);
@@ -56,6 +80,7 @@ const QuestionManagement = () => {
       // Create a clean params object with only active filters
       const params = {};
       if (filters.courseId) params.courseId = filters.courseId;
+      if (filters.uploadId) params.uploadId = filters.uploadId;
       if (filters.level) params.level = filters.level;
       if (filters.type) params.type = filters.type;
 
@@ -95,7 +120,9 @@ const QuestionManagement = () => {
       return;
     }
 
-    const confirmMsg = `Are you sure you want to delete ALL displayed questions (${questions.length})? This cannot be undone.`;
+    const confirmMsg = filters.uploadId === 'manual' 
+      ? `🚨 WARNING: You are about to permanently delete ALL ${questions.length} orphaned questions for this course. These questions are not linked to any file and are likely causing data pollution. Continue?`
+      : `Are you sure you want to delete ALL displayed questions (${questions.length})? This cannot be undone.`;
 
     if (window.confirm(confirmMsg)) {
       try {
@@ -161,6 +188,17 @@ const QuestionManagement = () => {
               <span>Delete All Found</span>
             </motion.button>
           )}
+          {filters.uploadId === 'manual' && questions.length > 0 && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleBulkDelete}
+              className="bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-orange-700 transition-colors shadow-lg"
+            >
+              <SafeIcon icon={FiTrash2} className="w-4 h-4" />
+              <span>Purge All Orphans</span>
+            </motion.button>
+          )}
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
@@ -204,6 +242,20 @@ const QuestionManagement = () => {
               <option value="">All Courses</option>
               {courses.map(course => (
                 <option key={course.id} value={course.id}>{course.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Source File</label>
+            <select
+              value={filters.uploadId}
+              onChange={(e) => handleFilterChange('uploadId', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">All Files / Sources</option>
+              <option value="manual">Manual Entry / Orphans (No File)</option>
+              {uploads.map(u => (
+                <option key={u.id} value={u.id}>{u.file_name} ({u.level})</option>
               ))}
             </select>
           </div>

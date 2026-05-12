@@ -108,40 +108,74 @@ const ExamInterface = () => {
       const levelsToLoad = ['Easy', 'Medium', 'Hard'];
       let allTargetQuestions = [];
 
-      for (const lvl of levelsToLoad) {
-          const { data: latestUploadData } = await supabase
-            .from('uploads')
-            .select('id, course_id, category')
-            .eq('course_id', cId)
-            .eq('category', 'quiz_document')
-            .ilike('level', lvl)
-            .in('status', ['completed', 'warning'])
-            .order('created_at', { ascending: false })
-            .limit(1);
+      // 1. First, try to find a single upload that covers ALL levels for this course
+      const { data: globalUpload } = await supabase
+        .from('uploads')
+        .select('id')
+        .eq('course_id', cId)
+        .eq('category', 'quiz_document')
+        .eq('level', 'All')
+        .in('status', ['completed', 'warning'])
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-          let levelQuestions = [];
-          if (latestUploadData?.[0]) {
-            const { data: qData } = await supabase
-              .from('questions')
-              .select('*')
-              .eq('upload_id', latestUploadData[0].id)
-              .order('id', { ascending: true });
-            levelQuestions = qData || [];
-          } else {
-             const { data: manualQuestions } = await supabase
-              .from('questions')
-              .select('*')
+      if (globalUpload?.[0]) {
+        console.log(`🎯 [Exam] Found global upload ${globalUpload[0].id} for course ${cId}`);
+        const { data: qData } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('upload_id', globalUpload[0].id)
+          .order('id', { ascending: true });
+        
+        if (qData && qData.length > 0) {
+          allTargetQuestions = qData.map(q => ({
+            ...q,
+            computedLevel: q.level || 'Medium'
+          }));
+        }
+      }
+
+      // 2. If no global upload found (or it had no questions), fall back to per-level LATEST uploads
+      if (allTargetQuestions.length === 0) {
+        console.log(`📂 [Exam] No global upload, fetching per-level for course ${cId}`);
+        for (const lvl of levelsToLoad) {
+            const { data: latestUploadData } = await supabase
+              .from('uploads')
+              .select('id')
               .eq('course_id', cId)
-              .is('upload_id', null)
+              .eq('category', 'quiz_document')
               .ilike('level', lvl)
-              .order('id', { ascending: true });
-              levelQuestions = manualQuestions || [];
-          }
-          
-          levelQuestions.forEach(q => {
-             q.computedLevel = lvl;
-          });
-          allTargetQuestions = [...allTargetQuestions, ...levelQuestions];
+              .in('status', ['completed', 'warning'])
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+            if (latestUploadData?.[0]) {
+              const { data: qData } = await supabase
+                .from('questions')
+                .select('*')
+                .eq('upload_id', latestUploadData[0].id)
+                .order('id', { ascending: true });
+              
+              if (qData) {
+                const mapped = qData.map(q => ({ ...q, computedLevel: lvl }));
+                allTargetQuestions = [...allTargetQuestions, ...mapped];
+              }
+            } else {
+               // Fallback to manual questions ONLY if no upload exists for this level
+               const { data: manualQuestions } = await supabase
+                .from('questions')
+                .select('*')
+                .eq('course_id', cId)
+                .is('upload_id', null)
+                .ilike('level', lvl)
+                .order('id', { ascending: true });
+                
+               if (manualQuestions) {
+                 const mapped = manualQuestions.map(q => ({ ...q, computedLevel: lvl }));
+                 allTargetQuestions = [...allTargetQuestions, ...mapped];
+               }
+            }
+        }
       }
 
       if (allTargetQuestions.length > 0) {
@@ -219,8 +253,28 @@ const ExamInterface = () => {
             const moduleQs = allQuestions.filter(q => q.computedLevel === lvl);
             if (moduleQs.length > 0) {
                 const correctCount = moduleQs.filter(q => {
-                   const ans = userAnswers[q.id];
-                   return ans && q.correctAnswer && ans.toString().trim() === q.correctAnswer.toString().trim();
+                   const studentAns = (userAnswers[q.id] || '').toString().trim().toLowerCase();
+                   if (!studentAns || !q.correctAnswer) return false;
+                   
+                   let acceptedAnswers = [];
+                   const rawCorrect = q.correctAnswer.toString().trim();
+                   
+                   // Robust multi-format parsing
+                   if (rawCorrect.startsWith('[') && rawCorrect.endsWith(']')) {
+                     try {
+                       // Handle JSON array format ["2", "-12"]
+                       const parsed = JSON.parse(rawCorrect);
+                       acceptedAnswers = Array.isArray(parsed) ? parsed.map(a => a.toString().trim().toLowerCase()) : [parsed.toString().trim().toLowerCase()];
+                     } catch (e) {
+                       // Fallback to comma split if JSON parse fails
+                       acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
+                     }
+                   } else {
+                     // Handle comma or pipe separated format "2, -12"
+                     acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
+                   }
+                   
+                   return acceptedAnswers.includes(studentAns);
                 }).length;
                 moduleScores[lvl.toLowerCase()] = {
                     correct: correctCount,
@@ -543,9 +597,16 @@ const ExamInterface = () => {
                  </div>
               )}
 
-              {(!currentQuestion?.options || currentQuestion.options.filter(o => o && o.toString().trim() !== '').length === 0) ? (
+              {/* Detect if this is an SPR (Student-Produced Response / Short Answer) */}
+              {(
+                (!currentQuestion?.options || currentQuestion.options.filter(o => o && o.toString().trim() !== '').length === 0) || 
+                currentQuestion?.type === 'short_answer' || 
+                currentQuestion?.type === 'spr' ||
+                // If correct answer is a JSON array or has commas, it's likely an SPR with multiple answers
+                (currentQuestion?.correctAnswer && (currentQuestion.correctAnswer.toString().includes(',') || currentQuestion.correctAnswer.toString().includes('|') || currentQuestion.correctAnswer.toString().startsWith('[')))
+              ) ? (
                   <div className="w-full flex flex-col mt-4">
-                      <p className="text-[15px] font-bold text-slate-500 mb-4 uppercase tracking-wider">Student-Produced Response</p>
+                      <p className="text-[15px] font-bold text-slate-500 mb-4 uppercase tracking-wider">STUDENT-PRODUCED RESPONSE</p>
                       <div className="relative w-full max-w-[180px] transition-all mb-12">
                           <input 
                             type="text" 

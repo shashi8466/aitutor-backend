@@ -33,53 +33,51 @@ const StudentCourseList = () => {
   const COURSE_TAXONOMY = {
     'SAT Math': {
       'Algebra': [
-        'linear equations in one variable',
-        'linear functions',
-        'linear equations in two variables',
-        'systems of two linear equations in two variables',
-        'linear inequalities in one or two variables'
+        'Linear equations in one variable',
+        'Linear functions',
+        'Linear equations in two variables',
+        'Systems of two linear equations in two variables',
+        'Linear inequalities in one or two variables'
       ],
       'Advanced Math': [
-        'nonlinear functions',
-        'nonlinear equations in one variable and systems of equations in two variables',
-        'equivalent expressions'
+        'Nonlinear functions',
+        'Nonlinear equations in one variable and systems of equations in two variables',
+        'Equivalent expressions'
       ],
       'Problem-Solving and Data Analysis': [
-        'ratios, rates, proportional relationships, and units',
-        'percentages',
-        'one-variable data: distributions and measures of center and spread',
-        'one variable data distributions',
-        'two-variable data: models and scatterplots',
-        'probability and conditional probability',
-        'inference from sample statistics and margin of error',
-        'evaluating statistical claims',
-        'observational studies and experiments'
+        'Ratios, rates, proportional relationships, and units',
+        'Percentages',
+        'One-variable data: Distributions and measures of center and spread',
+        'Two-variable data: Models and scatterplots',
+        'Probability and conditional probability',
+        'Inference from sample statistics and margin of error',
+        'Evaluating statistical claims: Observational studies and experiments'
       ],
       'Geometry and Trigonometry': [
-        'area and volume',
-        'lines, angles, and triangles',
-        'right triangles and trigonometry',
-        'circles'
+        'Area and volume',
+        'Lines, angles, and triangles',
+        'Right triangles and trigonometry',
+        'Circles'
       ]
     },
     'SAT Reading & Writing': {
       'Craft and Structure': [
-        'words in context',
-        'text structure and purpose',
-        'cross-text connections'
+        'Words in Context',
+        'Text Structure and Purpose',
+        'Cross-Text Connections'
       ],
       'Information and Ideas': [
-        'central ideas and details',
-        'command of evidence',
-        'inferences'
+        'Central Ideas and Details',
+        'Command of Evidence',
+        'Inferences'
       ],
       'Standard English Conventions': [
-        'boundaries',
-        'form, structure, and sense'
+        'Boundaries',
+        'Form, Structure, and Sense'
       ],
       'Expression of Ideas': [
-        'transitions',
-        'rhetorical synthesis'
+        'Transitions',
+        'Rhetorical Synthesis'
       ]
     }
   };
@@ -92,6 +90,7 @@ const StudentCourseList = () => {
       };
     }
 
+    // If explicit category exists, use it
     if (course.category && course.category.trim() !== '') {
       return { 
         section: course.tutor_type || 'Other', 
@@ -99,18 +98,25 @@ const StudentCourseList = () => {
       };
     }
 
-    const n = course.name.toLowerCase().trim();
+    // Fallback: Guess category (Topic) based on name from COURSE_TAXONOMY
+    const n = (course.name || '').toLowerCase().trim();
     for (const [section, categories] of Object.entries(COURSE_TAXONOMY)) {
-      for (const [cat, courses] of Object.entries(categories)) {
-        if (courses.some(c => n.includes(c))) {
+      // Only match if the course's tutor_type matches the section (e.g. 'SAT Math')
+      if (course.tutor_type && course.tutor_type !== section) continue;
+
+      for (const [cat, subtopics] of Object.entries(categories)) {
+        if (subtopics.some(s => n === s.toLowerCase() || n.includes(s.toLowerCase()))) {
           return { section, category: cat };
         }
       }
     }
-    // Fallback based on name keywords
-    if (n.includes('math') || n.includes('quant')) return { section: 'SAT Math', category: 'General' };
-    if (n.includes('reading') || n.includes('writing') || n.includes('english') || n.includes('r & d')) return { section: 'SAT Reading & Writing', category: 'General' };
-    return { section: 'Other', category: 'General' };
+
+    // Fallback based on keywords
+    const tutorTypeLower = (course.tutor_type || '').toLowerCase();
+    if (tutorTypeLower.includes('math') || n.includes('math')) return { section: 'SAT Math', category: 'General' };
+    if (tutorTypeLower.includes('reading') || tutorTypeLower.includes('writing') || n.includes('reading') || n.includes('writing')) return { section: 'SAT Reading & Writing', category: 'General' };
+    
+    return { section: course.tutor_type || 'Other', category: 'General' };
   };
 
   useEffect(() => {

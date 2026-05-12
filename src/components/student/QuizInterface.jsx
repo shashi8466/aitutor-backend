@@ -205,29 +205,61 @@ const QuizInterface = () => {
 
       // 2. Standard Quiz Loading (Original Logic)
       const dbLevel = level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
-      const { data: latestUploadData, error: uploadErr } = await supabase
+      // 1. Try to find a single upload that covers ALL levels for this course (Global Test)
+      const { data: globalUploadData } = await supabase
         .from('uploads')
-        .select('id, created_at, level, status, category, questions_count')
+        .select('id')
         .eq('course_id', cId)
         .eq('category', 'quiz_document')
-        .ilike('level', dbLevel)
+        .eq('level', 'All')
         .in('status', ['completed', 'warning'])
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (uploadErr) throw uploadErr;
-
-      let targetQuestions = [];
-      if (latestUploadData && latestUploadData.length > 0) {
-        const { data: questionsData, error: qErr } = await supabase
+      if (globalUploadData?.[0]) {
+        const { data: qData } = await supabase
           .from('questions')
           .select('*')
-          .eq('upload_id', latestUploadData[0].id)
+          .eq('upload_id', globalUploadData[0].id)
           .order('id', { ascending: true });
-        if (!qErr) targetQuestions = questionsData || [];
-      } else {
-        const { data: manualQuestions } = await supabase.from('questions').select('*').eq('course_id', cId).is('upload_id', null).ilike('level', dbLevel);
-        targetQuestions = manualQuestions || [];
+        
+        if (qData && qData.length > 0) {
+          targetQuestions = qData.map(q => ({
+            ...q,
+            computedLevel: q.level || dbLevel
+          }));
+        }
+      }
+
+      // 2. If no global upload found, fall back to the latest upload for THIS specific level
+      if (targetQuestions.length === 0) {
+        const { data: latestUploadData } = await supabase
+          .from('uploads')
+          .select('id')
+          .eq('course_id', cId)
+          .eq('category', 'quiz_document')
+          .ilike('level', dbLevel)
+          .in('status', ['completed', 'warning'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (latestUploadData?.[0]) {
+          const { data: qData } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('upload_id', latestUploadData[0].id)
+            .order('id', { ascending: true });
+          targetQuestions = qData || [];
+        } else {
+          // Final fallback to manual questions
+          const { data: manualQuestions } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('course_id', cId)
+            .is('upload_id', null)
+            .ilike('level', dbLevel);
+          targetQuestions = manualQuestions || [];
+        }
       }
 
       setQuestions(targetQuestions);
@@ -239,19 +271,53 @@ const QuizInterface = () => {
     }
   };
 
+  const checkAnswerRobustly = (studentAns, correctAnswer) => {
+    const sAns = (studentAns || '').toString().trim().toLowerCase();
+    if (!sAns || !correctAnswer) return false;
+    
+    const rawCorrect = correctAnswer.toString().trim();
+    let acceptedAnswers = [];
+    
+    if (rawCorrect.startsWith('[') && rawCorrect.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(rawCorrect);
+        acceptedAnswers = Array.isArray(parsed) ? parsed.map(a => a.toString().trim().toLowerCase()) : [parsed.toString().trim().toLowerCase()];
+      } catch (e) {
+        acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
+      }
+    } else {
+      acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
+    }
+    
+    return acceptedAnswers.includes(sAns);
+  };
+
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
-  const isMCQ = currentQuestion?.type === 'mcq';
-  const isShortAnswer = !isMCQ;
+  const isMCQ = currentQuestion?.type === 'mcq' && 
+                 !(currentQuestion?.correct_answer?.toString().includes(',') || 
+                   currentQuestion?.correct_answer?.toString().includes('|') || 
+                   currentQuestion?.correct_answer?.toString().startsWith('['));
+  const isShortAnswer = !isMCQ || currentQuestion?.type === 'short_answer' || currentQuestion?.type === 'spr';
 
   const getDisplayAnswer = (q) => {
     if (!q) return '';
+    const rawCorrect = (q.correct_answer || q.correctAnswer || '').toString().trim();
+    
+    // If it's a multi-answer format, return a clean readable version
+    if (rawCorrect.startsWith('[') && rawCorrect.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(rawCorrect);
+        return Array.isArray(parsed) ? parsed.join(' or ') : parsed.toString();
+      } catch (e) { return rawCorrect; }
+    }
+    
     if (q.type === 'short_answer' && /^[A-E]$/i.test(q.correct_answer)) {
       const match = q.explanation?.match(/(?:Therefore|Thus|Hence|So|Consequently|is|=)\s*([-]?\d+(?:\.\d+)?)/i);
       if (match && match[1]) return match[1];
       return "See Explanation";
     }
-    return q.correct_answer;
+    return rawCorrect.replace(/[|]/g, ' or ');
   };
 
   const handleAnswerSelect = (answer) => {
@@ -297,8 +363,8 @@ const QuizInterface = () => {
     
     // Calculate current module score
     const correctCount = questions.filter((q, idx) => {
-      const ans = userAnswers[idx];
-      return ans && q.correct_answer && ans.toString().trim().toLowerCase() === q.correct_answer.toString().trim().toLowerCase();
+      // Use the helper method for consistent multi-answer validation
+      return isCorrectAnswer(idx);
     }).length;
     const percentage = (correctCount / questions.length) * 100;
 
@@ -334,13 +400,14 @@ const QuizInterface = () => {
   const isCorrectAnswer = (idx = currentQuestionIndex) => {
     const q = questions[idx];
     if (!q) return false;
-    const ans = userAnswers[idx];
-    if (!ans) return false;
-    const isExact = ans.toString().trim().toLowerCase() === q.correct_answer?.toString().trim().toLowerCase();
-    if (isExact) return true;
+    const studentAns = userAnswers[idx];
+    const isCorrect = checkAnswerRobustly(studentAns, q.correct_answer);
+    if (isCorrect) return true;
+    
+    // Fallback for OCR-imported answers found in explanation
     const displayAns = getDisplayAnswer(q);
     if (displayAns !== "See Explanation" && displayAns !== q.correct_answer) {
-      return ans.toString().trim() === displayAns.toString().trim();
+      return (studentAns || '').toString().trim().toLowerCase() === displayAns.toLowerCase();
     }
     return false;
   };
@@ -376,7 +443,7 @@ const QuizInterface = () => {
             let moduleCorrect = 0;
             mQs.forEach(q => {
                 const ans = allUserAnswers[q.id];
-                const isCorrect = ans && q.correct_answer && ans.toString().trim().toLowerCase() === q.correct_answer.toString().trim().toLowerCase();
+                const isCorrect = checkAnswerRobustly(ans, q.correct_answer);
                 if (isCorrect) {
                   moduleCorrect++;
                   if (isRW) rwRaw += weight; else mathRaw += weight;
@@ -401,7 +468,7 @@ const QuizInterface = () => {
 
         const totalCorrect = pathQuestions.filter(q => {
             const ans = allUserAnswers[q.id];
-            return ans && q.correct_answer && ans.toString().trim().toLowerCase() === q.correct_answer.toString().trim().toLowerCase();
+            return checkAnswerRobustly(ans, q.correct_answer);
         }).length;
         const accuracyVal = Math.round((totalCorrect / pathQuestions.length) * 100);
 

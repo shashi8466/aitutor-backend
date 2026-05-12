@@ -350,7 +350,20 @@ router.delete('/:id', async (req, res) => {
 
     console.log(` - File URL: ${upload.file_url}`);
 
-    // 2. Delete from Storage (before deleting DB record)
+    // 2. Delete related questions explicitly (Safety against missing DB CASCADE)
+    console.log(` - Deleting questions associated with upload ID: ${id}...`);
+    const { error: questionsDeleteError } = await supabaseAdmin
+      .from('questions')
+      .delete()
+      .eq('upload_id', id);
+    
+    if (questionsDeleteError) {
+      console.warn('⚠️ [DELETE] Failed to delete associated questions (continuing):', questionsDeleteError.message);
+    } else {
+      console.log(' ✅ Associated questions deleted.');
+    }
+
+    // 3. Delete from Storage
     if (upload.file_url) {
       try {
         // Extract storage path from URL (Assuming documents bucket)

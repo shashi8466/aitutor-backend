@@ -7,43 +7,100 @@ import axios from 'axios';
 
 const { FiX, FiSave, FiUpload, FiFile, FiVideo, FiBook, FiCheck, FiTrash2, FiLoader, FiAlertCircle, FiDollarSign, FiUsers, FiAlertTriangle, FiKey, FiCopy, FiClock, FiActivity } = FiIcons;
 
+const TAXONOMY = {
+  'SAT': {
+    'SAT Math': {
+      'Algebra': [
+        'Linear equations in one variable',
+        'Linear functions',
+        'Linear equations in two variables',
+        'Systems of two linear equations in two variables',
+        'Linear inequalities in one or two variables'
+      ],
+      'Advanced Math': [
+        'Nonlinear functions',
+        'Nonlinear equations in one variable and systems of equations in two variables',
+        'Equivalent expressions'
+      ],
+      'Problem-Solving and Data Analysis': [
+        'Ratios, rates, proportional relationships, and units',
+        'Percentages',
+        'One-variable data: Distributions and measures of center and spread',
+        'Two-variable data: Models and scatterplots',
+        'Probability and conditional probability',
+        'Inference from sample statistics and margin of error',
+        'Evaluating statistical claims: Observational studies and experiments'
+      ],
+      'Geometry and Trigonometry': [
+        'Area and volume',
+        'Lines, angles, and triangles',
+        'Right triangles and trigonometry',
+        'Circles'
+      ]
+    },
+    'SAT Reading & Writing': {
+      'Craft and Structure': [
+        'Words in Context',
+        'Text Structure and Purpose',
+        'Cross-Text Connections'
+      ],
+      'Information and Ideas': [
+        'Central Ideas and Details',
+        'Command of Evidence',
+        'Inferences'
+      ],
+      'Standard English Conventions': [
+        'Boundaries',
+        'Form, Structure, and Sense'
+      ],
+      'Expression of Ideas': [
+        'Transitions',
+        'Rhetorical Synthesis'
+      ]
+    }
+  },
+  'ACT': {
+    'ACT Math': { 'General': ['General ACT Math'] },
+    'ACT English': { 'General': ['General ACT English'] },
+    'ACT Science': { 'General': ['General ACT Science'] }
+  },
+  'AP': {
+    'AP Physics': { 'General': ['General AP Physics'] },
+    'AP Chemistry': { 'General': ['General AP Chemistry'] },
+    'AP Biology': { 'General': ['General AP Biology'] },
+    'AP Pre-Calculus': { 'General': ['General AP Pre-Calculus'] },
+    'Algebra 1': { 'General': ['General Algebra 1'] },
+    'Algebra 2': { 'General': ['General Algebra 2'] },
+    'Geometry': { 'General': ['General Geometry'] }
+  }
+};
+
 const CourseForm = ({ course, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
-    name: course?.name || '',
-    tutor_type: course?.tutor_type || 'General',
-    description: course?.description || '',
-    status: course?.status || 'active',
-    price_full: course?.price_full || '',
-    manual_enrollment_count: course?.manual_enrollment_count || '',
-    price_section_a: course?.price_section_a || '',
-    price_section_b: course?.price_section_b || '',
-    start_date: course?.start_date ? new Date(course.start_date).toISOString().slice(0, 16) : '',
-    is_practice: course?.is_practice || false,
-    is_demo: course?.is_demo || false,
-    main_category: course?.main_category || 'SAT',
-    category: course?.category || ''
+  const [formData, setFormData] = useState(() => {
+    const mainCat = course?.main_category || 'SAT';
+    const subCourses = Object.keys(TAXONOMY[mainCat] || {});
+    const subCat = course?.tutor_type || (subCourses.length > 0 ? subCourses[0] : 'General');
+    const topics = Object.keys(TAXONOMY[mainCat]?.[subCat] || {});
+    const topic = course?.category || (topics.length > 0 ? topics[0] : '');
+    const subTopics = TAXONOMY[mainCat]?.[subCat]?.[topic] || [];
+    const name = course?.name || (subTopics.length > 0 ? subTopics[0] : '');
+
+    return {
+      name,
+      tutor_type: subCat,
+      description: course?.description || '',
+      status: course?.status || 'active',
+      price_full: course?.price_full || '',
+      manual_enrollment_count: course?.manual_enrollment_count || '',
+      price_section_a: course?.price_section_a || '',
+      price_section_b: course?.price_section_b || '',
+      start_date: course?.start_date ? new Date(course.start_date).toISOString().slice(0, 16) : '',
+      is_practice: course?.is_practice || false,
+      is_demo: course?.is_demo || false,
+      main_category: mainCat,
+      category: topic
+    };
   });
-
-  const COURSE_CATEGORIES = {
-    'SAT': ['SAT Math', 'SAT Reading & Writing'],
-    'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
-    'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry']
-  };
-
-  const CATEGORY_OPTIONS = {
-    'SAT Math': [
-      'Algebra',
-      'Advanced Math',
-      'Problem-Solving and Data Analysis',
-      'Geometry and Trigonometry'
-    ],
-    'SAT Reading & Writing': [
-      'Craft and Structure',
-      'Information and Ideas',
-      'Standard English Conventions',
-      'Expression of Ideas'
-    ]
-  };
 
   const [newFiles, setNewFiles] = useState({});
   const [existingFiles, setExistingFiles] = useState({});
@@ -51,7 +108,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
   const [fetchingUploads, setFetchingUploads] = useState(false);
   const [error, setError] = useState('');
   const [uploadStatus, setUploadStatus] = useState({ message: '', type: 'info' });
-
+  
   // Enrollment Key State
   const [generateKey, setGenerateKey] = useState(false);
   const [generatedKey, setGeneratedKey] = useState(null);
@@ -115,18 +172,45 @@ const CourseForm = ({ course, onClose, onSave }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'main_category') {
-      const defaultSub = COURSE_CATEGORIES[value]?.[0] || 'General';
+      const subCourses = Object.keys(TAXONOMY[value] || {});
+      const defaultSubCourse = subCourses.length > 0 ? subCourses[0] : 'General';
+      const topics = Object.keys(TAXONOMY[value]?.[defaultSubCourse] || {});
+      const defaultTopic = topics.length > 0 ? topics[0] : '';
+      const subTopics = TAXONOMY[value]?.[defaultSubCourse]?.[defaultTopic] || [];
+      const defaultSubTopic = subTopics.length > 0 ? subTopics[0] : '';
+      
       setFormData({
         ...formData,
         main_category: value,
-        tutor_type: defaultSub,
-        category: CATEGORY_OPTIONS[defaultSub]?.[0] || ''
+        tutor_type: defaultSubCourse,
+        category: defaultTopic,
+        name: defaultSubTopic // Auto-populate name with default sub-topic
       });
     } else if (name === 'tutor_type') {
+      const topics = Object.keys(TAXONOMY[formData.main_category]?.[value] || {});
+      const defaultTopic = topics.length > 0 ? topics[0] : '';
+      const subTopics = TAXONOMY[formData.main_category]?.[value]?.[defaultTopic] || [];
+      const defaultSubTopic = subTopics.length > 0 ? subTopics[0] : '';
+
       setFormData({
         ...formData,
         tutor_type: value,
-        category: CATEGORY_OPTIONS[value]?.[0] || ''
+        category: defaultTopic,
+        name: defaultSubTopic // Auto-populate name with default sub-topic
+      });
+    } else if (name === 'category') {
+      const subTopics = TAXONOMY[formData.main_category]?.[formData.tutor_type]?.[value] || [];
+      const defaultSubTopic = subTopics.length > 0 ? subTopics[0] : '';
+
+      setFormData({
+        ...formData,
+        category: value,
+        name: defaultSubTopic // Auto-populate name with default sub-topic
+      });
+    } else if (name === 'subtopic') {
+      setFormData({
+        ...formData,
+        name: value
       });
     } else {
       setFormData({ ...formData, [name]: value });
@@ -389,86 +473,104 @@ const CourseForm = ({ course, onClose, onSave }) => {
               </div>
             )}
 
-            {/* Basic Info */}
+            {/* 4-Level Hierarchy Selection - EXACT MATCH TO DESIGN */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
-              <h4 className="font-bold text-gray-900 dark:text-white text-lg border-b dark:border-slate-800 pb-2 mb-4">Course Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                {/* Level 1: Main Course */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Course Name</label>
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">1. Main Course</label>
+                  <select
+                    name="main_category"
+                    value={formData.main_category}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                  >
+                    {Object.keys(TAXONOMY).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Level 2: Sub Course */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">2. Sub Course</label>
+                  <select
+                    name="tutor_type"
+                    value={formData.tutor_type}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                  >
+                    {Object.keys(TAXONOMY[formData.main_category] || {}).map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Level 3: Topic */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">3. Topic</label>
+                  <select
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                  >
+                    <option value="">Select Topic</option>
+                    {Object.keys(TAXONOMY[formData.main_category]?.[formData.tutor_type] || {}).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Level 4: Sub Topic */}
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">4. Sub Topic</label>
+                  <select
+                    name="subtopic"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                  >
+                    <option value="">Select Sub Topic</option>
+                    {(TAXONOMY[formData.main_category]?.[formData.tutor_type]?.[formData.category] || []).map(sub => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Final Course Name (Sub Topic Display - EDITABLE) */}
+                <div className="md:col-span-2 pt-2">
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Final Course Name (displayed to students)</label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 bg-white"
+                    placeholder="Enter course title"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-700 bg-gray-50/30 font-medium transition-all"
                   />
+                  <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1.5 italic">
+                    <SafeIcon icon={FiIcons.FiZap} className="w-3.5 h-3.5 text-amber-500" />
+                    This name is auto-populated by the selected Sub Topic. You can edit it if needed.
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Main Course</label>
-                  <select
-                    name="main_category"
-                    value={formData.main_category}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  >
-                    {Object.keys(COURSE_CATEGORIES).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Subcourse</label>
-                  <select
-                    name="tutor_type"
-                    value={formData.tutor_type}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  >
-                    {COURSE_CATEGORIES[formData.main_category]?.map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
-                    ))}
-                  </select>
-                </div>
-                {CATEGORY_OPTIONS[formData.tutor_type] && (
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Category (Required)</label>
-                    <select
-                      name="category"
-                      value={formData.category}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                    >
-                      <option value="">Select a category</option>
-                      {CATEGORY_OPTIONS[formData.tutor_type].map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Description</label>
                   <textarea
                     name="description"
                     value={formData.description}
                     onChange={handleChange}
                     rows={2}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+                    placeholder="Enter course description (optional)"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white transition-all"
                   />
                 </div>
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Date & Time</label>
-                <input
-                  type="datetime-local"
-                  name="start_date"
-                  value={formData.start_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                />
-              </div>
             </div>
+
 
             {/* Display Settings (Price & Enrollment) */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
