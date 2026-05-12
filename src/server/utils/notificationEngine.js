@@ -254,8 +254,9 @@ export async function sendSMS({ to, message }) {
     try {
         if (!to) return { ok: false, error: 'No phone number' };
         
-        // Ensure phone number has + prefix for Twilio E.164 compliance
-        const formattedTo = String(to).startsWith('+') ? to : `+${to}`;
+        // 🟢 FIX: Strip whitespace for E.164 compliance
+        const cleanTo = String(to).replace(/\s+/g, '');
+        const formattedTo = cleanTo.startsWith('+') ? cleanTo : `+${cleanTo}`;
         
         const settings = await getInternalSettings();
         const smsConfig = settings?.sms_config || {};
@@ -270,12 +271,16 @@ export async function sendSMS({ to, message }) {
 
 export async function sendWhatsApp({ to, message }) {
     if (!to) return { ok: false, error: 'No phone number' };
+    
+    // 🟢 FIX: Strip whitespace
+    const cleanTo = String(to).replace(/\s+/g, '');
+    
     const settings = await getInternalSettings();
     const smsConfig = settings?.sms_config || {};
     let fromRaw = (smsConfig.enabled && smsConfig.whatsapp_number) ? (smsConfig.whatsapp_number || smsConfig.from_number) : (process.env.TWILIO_WHATSAPP_NUMBER || process.env.WHATSAPP_FROM_NUMBER || process.env.TWILIO_FROM_NUMBER || process.env.TWILIO_PHONE_NUMBER);
     if (!fromRaw) return { ok: false, error: 'TWILIO_WHATSAPP_NUMBER missing' };
     const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`;
-    const toWA  = to.startsWith('whatsapp:')      ? to       : `whatsapp:${to}`;
+    const toWA  = cleanTo.startsWith('whatsapp:') ? cleanTo : `whatsapp:${cleanTo}`;
     return twilioSend({ from, to: toWA, body: message });
 }
 

@@ -392,10 +392,11 @@ const QuizInterface = () => {
             };
         });
 
-        const rwSectionMax = rwPath === 'hard' ? 800 : 700;
-        const mathSectionMax = mathPath === 'hard' ? 800 : 700;
-        const rwScore = rwMax > 0 ? Math.round((rwRaw / rwMax) * rwSectionMax) : 0;
-        const mathScore = mathMax > 0 ? Math.round((mathRaw / mathMax) * mathSectionMax) : 0;
+        const rwSectionScale = rwPath === 'hard' ? 600 : 500; // Hard: 200-800, Easy: 200-700
+        const mathSectionScale = mathPath === 'hard' ? 600 : 500;
+        
+        const rwScore = rwMax > 0 ? Math.round(200 + (rwRaw / rwMax) * rwSectionScale) : 200;
+        const mathScore = mathMax > 0 ? Math.round(200 + (mathRaw / mathMax) * mathSectionScale) : 200;
         const totalScore = rwScore + mathScore;
 
         const totalCorrect = pathQuestions.filter(q => {

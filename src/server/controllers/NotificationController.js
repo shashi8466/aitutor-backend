@@ -347,7 +347,7 @@ class NotificationController {
    */
   async logNotification(notificationData) {
     try {
-      const NotificationLog = require('../models/NotificationLog');
+      const { default: NotificationLog } = await import('../models/NotificationLog.js');
       const log = new NotificationLog(notificationData);
       await log.save();
     } catch (error) {

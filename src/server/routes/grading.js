@@ -221,7 +221,7 @@ router.get('/parent/student/:studentId/dashboard-data', async (req, res) => {
  * POST /api/grading/submit-test
  * Submit and grade a test
  */
-router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotification, async (req, res) => {
+router.post('/submit-test', async (req, res) => {
     try {
         const userId = req.user?.id;
         const { courseId, level, questionIds, answers, duration, mode = 'test', moduleDetails: reqModuleDetails } = req.body;
@@ -233,6 +233,29 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
 
         if (!courseId || !level || !questionIds || !answers) {
             return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        // 1. Idempotency Check: Prevent duplicate submissions within a short window (30s)
+        const { data: existingSub } = await supabase
+            .from('test_submissions')
+            .select('id, raw_score, raw_score_percentage, scaled_score')
+            .eq('user_id', userId)
+            .eq('course_id', courseId)
+            .eq('level', level)
+            .gt('created_at', new Date(Date.now() - 30000).toISOString())
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (existingSub) {
+            console.log(`♻️ [Grading] Duplicate quiz submission detected for user ${userId}. Returning existing result ${existingSub.id}.`);
+            return res.json({
+                submissionId: existingSub.id,
+                rawScore: existingSub.raw_score,
+                rawPercentage: existingSub.raw_score_percentage,
+                scaledScore: existingSub.scaled_score,
+                isDuplicate: true
+            });
         }
 
         if (questionIds.length !== answers.length) {
@@ -337,15 +360,9 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
                     console.error('⚠️ [Trigger] Modular calculation error:', calcError.message);
                 }
             }
-
             // Background tasks: Trigger notifications without blocking the response
             try {
                 await notificationMiddleware.scheduler.triggerTestCompletionNotification(result.submission_id, userId, modularScores);
-                
-                // 🟢 IMMEDIATELY PROCESS OUTBOX
-                processOutboxOnce({ limit: 5 }).catch(err => {
-                    console.warn('⚠️ [Trigger] Immediate outbox processing background error:', err.message);
-                });
             } catch (innerError) {
                 console.error('⚠️ [Trigger] Notification background task failed:', innerError.message);
             }
@@ -357,9 +374,9 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
         try {
             console.log(`🔍 [Weakness] Starting analysis for regular test submission ${result.submission_id}`);
             
-            // Import weakness analysis services
-            const { default: weaknessAnalysis } = require('../services/weaknessAnalysis');
-            const { default: drillGenerator } = require('../services/drillGenerator');
+            // Dynamic import for ESM compatibility
+            const { default: weaknessAnalysis } = await import('../../services/weaknessAnalysis.js');
+            const { default: drillGenerator } = await import('../../services/drillGenerator.js');
             
             // Fetch detailed responses for analysis
             const { data: detailedResponses, error: respFetchError } = await supabase
@@ -446,7 +463,7 @@ router.post('/submit-test', notificationMiddleware.triggerTestCompletionNotifica
  * POST /api/grading/submit-adaptive-test
  * Separate endpoint for FULL LENGTH TEST submissions to ensure zero impact on existing system.
  */
-router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletionNotification, async (req, res) => {
+router.post('/submit-adaptive-test', async (req, res) => {
     try {
         const userId = req.user?.id;
         const { courseId, questionIds, answers, duration, scores } = req.body;
@@ -463,6 +480,30 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
             return res.status(401).json({ 
                 error: 'Unauthorized',
                 debug: { hasReqUser: !!req.user, authFailure: req.authFailure, hasAuthHeader: !!req.headers.authorization }
+            });
+        }
+
+        // 1. Idempotency Check: Prevent duplicate submissions within a short window (30s)
+        const { data: existingSub } = await supabase
+            .from('test_submissions')
+            .select('id, scaled_score, math_scaled_score, reading_scaled_score')
+            .eq('user_id', userId)
+            .eq('course_id', courseId)
+            .eq('level', 'Adaptive')
+            .gt('created_at', new Date(Date.now() - 30000).toISOString()) // 30 seconds ago
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (existingSub) {
+            console.log(`♻️ [Grading] Duplicate adaptive submission detected for user ${userId}. Returning existing result ${existingSub.id}.`);
+            return res.json({
+                submissionId: existingSub.id,
+                scaledScore: existingSub.scaled_score,
+                rwScore: scores?.rwScore, 
+                mathScore: scores?.mathScore,
+                accuracy: scores?.accuracy,
+                metadata: scores
             });
         }
 
@@ -488,7 +529,8 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
             // Robust matching: Try both number and string comparison
             const q = (questions || []).find(dq => String(dq.id) === String(qId));
             const studentAns = String(answers?.[idx] || '').trim();
-            const isCorrect = q && studentAns && studentAns.toLowerCase() === String(q.correct_answer || '').trim().toLowerCase();
+            // Strictly cast to boolean to avoid Postgres 22P02 error
+            const isCorrect = !!(q && studentAns && studentAns.toLowerCase() === String(q.correct_answer || '').trim().toLowerCase());
             
             // Use numeric ID for the array storage (compatible with int8[] columns)
             const numericQId = parseInt(qId);
@@ -554,8 +596,8 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
             console.log(`🔍 [Weakness] Starting analysis for submission ${submission.id}`);
             
             // Import weakness analysis services
-            const { default: weaknessAnalysis } = require('../services/weaknessAnalysis');
-            const { default: drillGenerator } = require('../services/drillGenerator');
+            const { default: weaknessAnalysis } = await import('../../services/weaknessAnalysis.js');
+            const { default: drillGenerator } = await import('../../services/drillGenerator.js');
             
             // Fetch detailed responses for analysis
             const { data: detailedResponses, error: respFetchError } = await supabase
@@ -631,10 +673,9 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
             console.warn('Sync progress failed for adaptive:', e.message);
         }
 
-        // 5. Trigger notifications
+        // 5. Trigger notifications (Background)
         try {
             await notificationMiddleware.scheduler.triggerTestCompletionNotification(submission.id, userId, scores.moduleDetails);
-            processOutboxOnce({ limit: 5 }).catch(() => {});
         } catch (e) {
             console.warn('Notification failed for adaptive:', e.message);
         }
@@ -654,77 +695,7 @@ router.post('/submit-adaptive-test', notificationMiddleware.triggerTestCompletio
     }
 });
 
-/**
- * POST /api/grading/notify-results
- * Explicitly trigger notifications for a test (Legacy fallback/Robustness)
- */
-router.post('/notify-results', async (req, res) => {
-    try {
-        const { submissionId, studentName, scaledScore, questionIds, answers, mode = 'test', moduleScores, moduleDetails } = req.body;
-        const userId = req.user?.id;
-
-        if (!submissionId) {
-            console.warn('⚠️ [NotifyResults] Missing submissionId');
-            return res.status(400).json({ error: 'submissionId is required' });
-        }
-
-        console.log(`📬 [NotifyResults] Explicit request to notify for sub ${submissionId} (Student: ${studentName}, Score: ${scaledScore})`);
-
-        let modularScores = moduleDetails || moduleScores || null;
-        
-        // If modularScores not provided but we have Qs and As, calculate them as fallback
-        if (!modularScores && (mode === 'test' || mode === 'comprehensive') && questionIds && answers) {
-            try {
-                const { data: questionData } = await supabase
-                    .from('questions')
-                    .select('id, level, correct_answer')
-                    .in('id', questionIds);
-
-                if (questionData && questionData.length > 0) {
-                    modularScores = {
-                        easy: { correct: 0, total: 0 },
-                        medium: { correct: 0, total: 0 },
-                        hard: { correct: 0, total: 0 }
-                    };
-
-                    questionIds.forEach((qId, idx) => {
-                        const q = questionData.find(dq => String(dq.id) === String(qId));
-                        if (q) {
-                            const qLevel = (q.level || 'medium').toLowerCase();
-                            if (modularScores[qLevel]) {
-                                modularScores[qLevel].total++;
-                                if (answers[idx] && q.correct_answer && answers[idx].toString().trim() === q.correct_answer.toString().trim()) {
-                                    modularScores[qLevel].correct++;
-                                }
-                            }
-                        }
-                    });
-                    console.log(`📊 [NotifyResults] Calculated modular scores:`, modularScores);
-                }
-            } catch (calcError) {
-                console.warn('⚠️ [NotifyResults] Could not calculate modular breakdown:', calcError.message);
-            }
-        }
-
-        // We re-trigger the scheduler logic for this specific submission
-        await notificationMiddleware.scheduler.triggerTestCompletionNotification(submissionId, userId, modularScores);
-
-        // Immediately attempt outbox processing so the user sees results quickly
-        console.log(`🚀 [NotifyResults] Immediate outbox processing started...`);
-        processOutboxOnce({ limit: 5 }).catch(err => {
-            console.warn('⚠️ [NotifyResults] Immediate processing background error:', err.message);
-        });
-
-        res.json({ 
-            success: true, 
-            message: 'Notifications queued and processing started' 
-        });
-
-    } catch (error) {
-        console.error('❌ [NotifyResults] Fatal error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
+// --- ANALYTICS & WEAKNESS ROUTES ---
 
 /**
  * POST /api/grading/weakness-analysis/global
@@ -742,8 +713,8 @@ router.post('/weakness-analysis/global', async (req, res) => {
         console.log(`🌐 [GlobalAnalysis] Starting cross-test analysis for user ${userId}`);
 
         // Import services
-        const { default: weaknessAnalysis } = require('../../services/weaknessAnalysis');
-        const { default: drillGenerator } = require('../../services/drillGenerator');
+        const { default: weaknessAnalysis } = await import('../../services/weaknessAnalysis.js');
+        const { default: drillGenerator } = await import('../../services/drillGenerator.js');
 
         // 1. Perform global analysis
         const globalAnalysis = await weaknessAnalysis.analyzeGlobalPerformance(userId, supabase);

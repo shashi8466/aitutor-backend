@@ -73,9 +73,10 @@ export const calculateSatScore = (easy, medium, hard) => {
   // Weighted average accuracy across levels
   const weightedAccuracy = (e * 1 + m * 2 + h * 3) / 6; // 0–100 range
   
-  // Apply the 800-point scale mapping
-  const finalScore = (weightedAccuracy / 100) * 800;
-
+  // Apply the 200-800 scale mapping
+  // Formula: 200 + (Accuracy_Ratio * (800 - 200))
+  const finalScore = 200 + (weightedAccuracy / 100) * 600;
+  
   return Math.round(finalScore);
 };
 

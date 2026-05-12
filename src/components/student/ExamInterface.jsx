@@ -40,6 +40,7 @@ const ExamInterface = () => {
   const [eliminatedOptions, setEliminatedOptions] = useState({}); 
   const [showTimer, setShowTimer] = useState(true);
   const wasDarkMode = useRef(false);
+  const isSubmittingRef = useRef(false); // Hard lock to prevent duplicate submissions
 
 
   useEffect(() => {
@@ -198,6 +199,13 @@ const ExamInterface = () => {
 
   const handleFinish = async () => {
     if (activeModuleIndex < 2) return;
+    // 🔒 Hard submission lock — prevents duplicate API calls from double-clicks
+    // or rapid state updates before React re-renders the disabled button state.
+    if (isSubmittingRef.current) {
+      console.warn('⚠️ [ExamInterface] Submission already in progress — ignoring duplicate call.');
+      return;
+    }
+    isSubmittingRef.current = true;
     setSavingResult(true);
     try {
         const finalQuestionIds = allQuestions.map(q => q.id);
@@ -240,23 +248,14 @@ const ExamInterface = () => {
         setShowResults(true);
         setShowCheckWork(false); 
         
-        try {
-            await axios.post('/api/grading/notify-results', {
-                submissionId: response.data.submissionId,
-                courseName: courseInfo?.name || 'Your Course',
-                studentName: user?.name,
-                scaledScore: response.data.scaledScore,
-                accuracy: Math.round(response.data.rawPercentage),
-                questionIds: finalQuestionIds,
-                answers: finalAnswers,
-                moduleScores, // Explicitly pass the calculated scores
-                mode: 'test'
-            });
-        } catch (e) {}
+        // Backend now handles notification automatically via submitTest
     } catch (err) {
         setError("Failed to submit exam.");
+        // Release lock on error so the student can retry
+        isSubmittingRef.current = false;
     } finally {
         setSavingResult(false);
+        // Note: lock stays 'true' on success to prevent any re-submission
     }
   };
 

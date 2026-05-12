@@ -42,6 +42,7 @@ const AdaptiveExamInterface = () => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [savingResult, setSavingResult] = useState(false);
+  const submissionLockedRef = useRef(false);
   const [submissionResult, setSubmissionResult] = useState(null);
   const [courseInfo, setCourseInfo] = useState(null);
   const [showNavigation, setShowNavigation] = useState(false);
@@ -369,6 +370,8 @@ const AdaptiveExamInterface = () => {
 
   // 5. Final Grading & Submission
   const handleFinish = async () => {
+    if (submissionLockedRef.current) return;
+    submissionLockedRef.current = true;
     setSavingResult(true);
     try {
         // Collect all questions from the history (adaptive path)
@@ -674,8 +677,13 @@ const AdaptiveExamInterface = () => {
                   <button onClick={() => setShowCheckWork(false)} className="w-full sm:w-auto px-8 py-3.5 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[15px] hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
                     <SafeIcon icon={FiChevronLeft} /> Back to Questions
                   </button>
-                  <button onClick={handleNextModule} className="w-full sm:w-auto px-10 py-3.5 bg-blue-600 text-white rounded-full font-black text-[15px] hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-xl">
-                    {moduleHistory.length < 4 ? 'Next Module' : 'Submit Test'} <SafeIcon icon={FiChevronRight} />
+                  <button 
+                    onClick={handleNextModule} 
+                    disabled={savingResult}
+                    className={`w-full sm:w-auto px-10 py-3.5 rounded-full font-black text-[15px] transition-all flex items-center justify-center gap-3 shadow-xl ${savingResult ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                  >
+                    {savingResult ? 'Submitting...' : (moduleHistory.length < 4 ? 'Next Module' : 'Submit Test')} 
+                    {!savingResult && <SafeIcon icon={FiChevronRight} />}
                   </button>
               </div>
             </div>
