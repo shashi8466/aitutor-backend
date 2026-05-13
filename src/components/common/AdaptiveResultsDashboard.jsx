@@ -614,15 +614,15 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                     <div className="space-y-4">
                         {topics.map((topic, idx) => (
                             <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between py-4 border-b-2 border-gray-100 print:break-inside-avoid gap-4">
-                                <div className="flex items-center gap-4 sm:gap-6">
-                                    <div className={`w-12 h-6 flex-shrink-0 rounded flex items-center justify-center text-[10px] font-black text-white ${topic.accuracy >= 80 ? 'bg-green-600' : topic.accuracy >= 50 ? 'bg-yellow-600' : 'bg-red-600'}`}>
+                                <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                                    <div className={`px-2.5 py-1 min-w-[3.5rem] flex-shrink-0 rounded flex items-center justify-center text-[10px] font-black text-white shadow-sm ${topic.accuracy >= 80 ? 'bg-green-600' : topic.accuracy >= 50 ? 'bg-yellow-600' : 'bg-red-600'}`}>
                                         {topic.accuracy}%
                                     </div>
-                                    <span className="font-black text-[#0a0e2a] whitespace-normal leading-tight">{topic.name}</span>
+                                    <span className="font-black text-[#0a0e2a] whitespace-normal leading-tight flex-1 break-words">{topic.name}</span>
                                 </div>
-                                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6">
-                                    <div className="scale-90 sm:scale-100">{renderDotSequence(topic.correct, topic.total)}</div>
-                                    <span className="font-black text-[10px] sm:text-xs text-gray-600 whitespace-nowrap">{topic.correct} of {topic.total}</span>
+                                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 flex-shrink-0">
+                                    <div className="scale-75 sm:scale-100 origin-right sm:origin-center">{renderDotSequence(topic.correct, topic.total)}</div>
+                                    <span className="font-black text-[10px] sm:text-xs text-gray-600 whitespace-nowrap min-w-[4rem] text-right">{topic.correct} of {topic.total}</span>
                                 </div>
                             </div>
                         ))}

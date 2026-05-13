@@ -299,25 +299,25 @@ const DetailedTestReview = () => {
                         >
                             {/* Question Header */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg ${response.is_correct
+                                <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex-shrink-0 flex items-center justify-center font-black text-base sm:text-lg ${response.is_correct
                                         ? 'bg-green-100 text-green-600'
                                         : 'bg-red-100 text-red-600'
                                         }`}>
                                         {index + 1}
                                     </div>
-                                    <div>
-                                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                                            <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                                            <p className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-gray-400 truncate max-w-[120px] sm:max-w-none">
                                                 {response.section || response.question?.section || 'General'}
                                             </p>
-                                            <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                            <p className="text-xs font-bold text-blue-600">
+                                            <span className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></span>
+                                            <p className="text-[9px] sm:text-xs font-bold text-blue-600 truncate flex-1">
                                                 {response.topic || response.question?.topic || 'General Topic'}
                                             </p>
                                         </div>
-                                        <div className="flex items-center gap-3">
-                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <span className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[10px] font-black uppercase tracking-wider ${
                                                 String(response.difficulty || response.question?.difficulty).toLowerCase().includes('hard') ? 'bg-red-50 text-red-600' :
                                                 String(response.difficulty || response.question?.difficulty).toLowerCase().includes('easy') ? 'bg-green-50 text-green-600' :
                                                 'bg-blue-50 text-blue-600'
@@ -325,20 +325,20 @@ const DetailedTestReview = () => {
                                                 {response.difficulty || response.question?.difficulty || 'Medium'}
                                             </span>
                                             {response.time_spent > 0 && (
-                                                <span className="flex items-center gap-1.5 text-xs text-gray-500 font-bold">
-                                                    <SafeIcon icon={FiClock} className="w-3.5 h-3.5" />
+                                                <span className="flex items-center gap-1 text-[10px] sm:text-xs text-gray-500 font-bold whitespace-nowrap">
+                                                    <SafeIcon icon={FiClock} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                                     {response.time_spent}s
                                                 </span>
                                             )}
                                         </div>
                                     </div>
                                 </div>
-                                <div className={`px-4 py-2 rounded-xl flex items-center gap-2 self-start sm:self-center ${response.is_correct
-                                    ? 'bg-green-600 text-white shadow-lg shadow-green-200'
-                                    : 'bg-red-600 text-white shadow-lg shadow-red-200'
+                                <div className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl flex items-center gap-2 self-start sm:self-center flex-shrink-0 ${response.is_correct
+                                    ? 'bg-green-600 text-white shadow-md sm:shadow-lg shadow-green-200'
+                                    : 'bg-red-600 text-white shadow-md sm:shadow-lg shadow-red-200'
                                     }`}>
-                                    <SafeIcon icon={response.is_correct ? FiCheckCircle : FiXCircle} className="w-4 h-4" />
-                                    <span className="text-sm font-black uppercase tracking-widest">
+                                    <SafeIcon icon={response.is_correct ? FiCheckCircle : FiXCircle} className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                    <span className="text-[10px] sm:text-sm font-black uppercase tracking-widest whitespace-nowrap">
                                         {response.is_correct ? 'Correct' : 'Incorrect'}
                                     </span>
                                 </div>

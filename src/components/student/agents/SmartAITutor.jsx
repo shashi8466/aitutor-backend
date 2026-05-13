@@ -253,20 +253,19 @@ ${text ? text.substring(0, 4000) : '(Not available — graphical PDF)'}`;
 
       {/* Content Body */}
       <div className="flex-1 overflow-hidden relative bg-[#F9FAFB] dark:bg-slate-900/50">
-        
         {/* A. Upload State */}
         {viewState === 'upload' && (
-          <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-4 overflow-y-auto custom-scrollbar">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 max-w-lg w-full text-center"
+              className="bg-white dark:bg-gray-800 p-6 sm:p-10 rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 max-w-lg w-full text-center my-auto"
             >
-              <div className="w-20 h-20 bg-red-50 dark:bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                 <SafeIcon icon={FiUpload} className="w-10 h-10 text-[#E53935]" />
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-50 dark:bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                 <SafeIcon icon={FiUpload} className="w-8 h-8 sm:w-10 sm:h-10 text-[#E53935]" />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Upload Knowledge</h2>
-              <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">Select analysis type and upload your document.</p>
+              <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Upload Knowledge</h2>
+              <p className="text-gray-500 dark:text-gray-400 mb-6 text-xs sm:text-sm font-medium">Select analysis type and upload your document.</p>
 
               {/* Mode Toggle */}
               <div className="flex bg-gray-100 dark:bg-gray-700/50 p-1 rounded-xl mb-6 max-w-xs mx-auto">

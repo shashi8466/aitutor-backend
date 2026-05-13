@@ -21,9 +21,9 @@ const {
 
 function Badge({ label, value, color }) {
   return (
-    <div className={"px-3 sm:px-4 py-2 sm:py-3 rounded-xl border flex flex-col justify-center min-w-[100px] sm:min-w-[120px] transition-all duration-300 " + color}>
-      <span className="text-[8px] sm:text-[10px] uppercase font-black opacity-80 mb-0.5 tracking-wider">{label}</span>
-      <span className="text-xs sm:text-sm font-black truncate">{value}</span>
+    <div className={"px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border flex flex-col justify-center min-w-0 flex-1 sm:min-w-[120px] transition-all duration-300 shadow-sm " + color}>
+      <span className="text-[8px] sm:text-[10px] uppercase font-black opacity-80 mb-0.5 tracking-[0.1em] whitespace-nowrap">{label}</span>
+      <span className="text-xs sm:text-base font-black truncate">{value}</span>
     </div>
   );
 }
@@ -53,12 +53,12 @@ function ProgressRow({ icon, color, bg, label, count, max }) {
 function LevelScore({ label, score, color }) {
   const displayScore = score || 0;
   return (
-    <div>
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">{label}</span>
-        <span className="text-xs font-black text-slate-900 dark:text-white">{displayScore}%</span>
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{label}</span>
+        <span className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">{displayScore}%</span>
       </div>
-      <div className="h-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden shadow-inner">
+      <div className="h-2 sm:h-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden shadow-inner p-0.5">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: displayScore + "%" }}

@@ -141,11 +141,12 @@ const StudentSidebar = ({ isOpen, onClose }) => {
       <div className={`
         fixed top-0 left-0 bottom-0 z-50 w-72 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none
         lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        overflow-hidden flex flex-col
       `}>
         {/* Logo Area */}
-        <div className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 justify-between">
+        <div className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 justify-between flex-shrink-0">
           <div className="flex items-center">
-            <div className="h-12 w-auto max-w-[150px] flex items-center justify-center mr-3 overflow-hidden text-black dark:text-white">
+            <div className="h-10 w-auto max-w-[120px] flex items-center justify-center mr-3 overflow-hidden text-black dark:text-white">
             {appSettings.logoUrl ? (
               <img src={appSettings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
             ) : (
@@ -155,23 +156,24 @@ const StudentSidebar = ({ isOpen, onClose }) => {
             )}
             </div>
             <div>
-              <span className="font-extrabold text-xl text-gray-900 dark:text-white tracking-tight block leading-none">
-                {appSettings.appName === 'Aiprep365' || appSettings.appName === 'AIPrep365' || !appSettings.appName ? <BrandName className="text-xl" /> : appSettings.appName}
+              <span className="font-extrabold text-lg text-gray-900 dark:text-white tracking-tight block leading-none">
+                {appSettings.appName === 'Aiprep365' || appSettings.appName === 'AIPrep365' || !appSettings.appName ? <BrandName className="text-lg" /> : appSettings.appName}
               </span>
-              <span className="text-[10px] uppercase font-bold text-[#E53935] tracking-widest">Learning</span>
+              <span className="text-[9px] uppercase font-bold text-[#E53935] tracking-widest mt-0.5 block">Learning Portal</span>
             </div>
           </div>
           {/* Close Button (Mobile Only) */}
-          <button onClick={onClose} className="lg:hidden p-2 text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="lg:hidden p-2 text-gray-400 hover:text-[#E53935] transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
             <SafeIcon icon={FiX} className="w-6 h-6" />
           </button>
         </div>
 
         {/* Scrollable Menu */}
-        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 custom-scrollbar scroll-smooth">
           {menuGroups.map((group, idx) => (
-            <div key={idx}>
-              <p className="px-4 text-[10px] font-extrabold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <div key={idx} className="mb-6 last:mb-0">
+              <p className="px-4 text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"></span>
                 {group.title}
               </p>
               {group.items.map(renderLink)}

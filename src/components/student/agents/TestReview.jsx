@@ -101,26 +101,28 @@ const TestReview = () => {
                       <SafeIcon icon={FiFileText} className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-bold text-xl text-gray-900 dark:text-white">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                        <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white leading-tight">
                           {courseName}
                         </h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          performance.color === 'green' ? 'bg-green-100 text-green-700' :
-                          performance.color === 'blue' ? 'bg-blue-100 text-blue-700' :
-                          performance.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
-                          performance.color === 'orange' ? 'bg-orange-100 text-orange-700' :
-                          'bg-red-100 text-red-700'
-                        }`}>
-                          {performance.level}
-                        </span>
-                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${
-                          sub.level === 'Hard' ? 'bg-red-100 text-red-700' :
-                          sub.level === 'Medium' ? 'bg-orange-100 text-orange-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {sub.level || 'Practice'}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap ${
+                            performance.color === 'green' ? 'bg-green-100 text-green-700' :
+                            performance.color === 'blue' ? 'bg-blue-100 text-blue-700' :
+                            performance.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
+                            performance.color === 'orange' ? 'bg-orange-100 text-orange-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {performance.level}
+                          </span>
+                          <span className={`px-2 py-0.5 sm:py-1 rounded text-[9px] sm:text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${
+                            sub.level === 'Hard' ? 'bg-red-100 text-red-700' :
+                            sub.level === 'Medium' ? 'bg-orange-100 text-orange-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {sub.level || 'Practice'}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-2">
@@ -142,10 +144,10 @@ const TestReview = () => {
                   </div>
 
                   {/* Score Display */}
-                  <div className="flex flex-col items-center lg:flex-row gap-4">
-                    <div className="text-center lg:text-right">
-                      <p className="text-xs text-gray-400 font-black uppercase mb-1">Score</p>
-                      <p className={`text-3xl font-black ${
+                  <div className="flex flex-col items-center lg:flex-row gap-4 w-full lg:w-auto pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100 dark:border-gray-700">
+                    <div className="text-center lg:text-right flex-1 lg:flex-none">
+                      <p className="text-[10px] text-gray-400 font-black uppercase mb-1 tracking-widest">Score</p>
+                      <p className={`text-2xl sm:text-3xl font-black ${
                         performance.color === 'green' ? 'text-green-600' :
                         performance.color === 'blue' ? 'text-blue-600' :
                         performance.color === 'yellow' ? 'text-yellow-600' :
@@ -154,13 +156,13 @@ const TestReview = () => {
                       }`}>
                         {score}
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-[10px] text-gray-400 mt-1 font-bold">
                         {isSAT ? 'SAT Score' : 'Test Score'}
                       </p>
                     </div>
                     <button
                       onClick={() => navigate(`/student/detailed-review/${sub.id}`)}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-200 dark:shadow-none"
+                      className="w-full lg:w-auto px-5 py-2.5 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-sm sm:text-base"
                     >
                       <SafeIcon icon={FiArrowRight} />
                       Detailed Review
