@@ -75,19 +75,12 @@ export const calculateSessionScore = (category, levelName, percentageScore) => {
 };
 
 export const calculateSatScore = (easy, medium, hard) => {
-  // UPDATED: Difficulty Weights (Easy=1, Moderate=2, Hard=3)
-  // ⚖️ Weighted Model: (E*1 + M*2 + H*3) / 6
+  // Use the maximum accuracy achieved across any level to represent the section's current peak
+  const maxAccuracy = Math.max(Number(easy) || 0, Number(medium) || 0, Number(hard) || 0);
   
-  const e = Number(easy) || 0;
-  const m = Number(medium) || 0;
-  const h = Number(hard) || 0;
-
-  // Weighted average accuracy across levels
-  const weightedAccuracy = (e * 1 + m * 2 + h * 3) / 6; // 0–100 range
-  
-  // Apply the 200-800 scale mapping
-  // Formula: 200 + (Accuracy_Ratio * (800 - 200))
-  const finalScore = 200 + (weightedAccuracy / 100) * 600;
+  // Apply the standard linear 200-800 scale mapping
+  // This ensures that 4% accuracy = 224, 100% = 800, etc.
+  const finalScore = 200 + (maxAccuracy / 100) * 600;
   
   return Math.round(finalScore);
 };
@@ -138,9 +131,13 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     submissionsData.forEach(sub => {
       const cat = getCategory(sub);
       
-      // Track attempts
-      if (cat === 'MATH' || sub.math_scaled_score > 0) hasMathAttempts = true;
-      if (cat === 'RW' || sub.reading_scaled_score > 0) hasRWAttempts = true;
+      // Track attempts: Only count as an attempt if the scaled score is ABOVE the baseline (200)
+      // or if it's explicitly categorized and has a non-zero accuracy
+      const hasMathVal = sub.math_scaled_score > 200 || (cat === 'MATH' && sub.raw_score_percentage > 0);
+      const hasRWVal = sub.reading_scaled_score > 200 || (cat === 'RW' && sub.raw_score_percentage > 0);
+
+      if (hasMathVal) hasMathAttempts = true;
+      if (hasRWVal) hasRWAttempts = true;
 
       // Find highest adaptive scores across ALL tests (Superscore style)
       if (sub.level === 'Adaptive') {

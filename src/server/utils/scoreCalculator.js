@@ -22,23 +22,28 @@ export const getCategory = (courseName, tutorType) => {
   const type = (tutorType || '').toLowerCase();
   const name = (courseName || '').toLowerCase();
 
-  // RW Keywords - CHECK THESE FIRST
-  if (
-    type.includes('reading') || type.includes('writing') || 
-    type.includes('verbal') || type.includes('rw') ||
-    name.includes('english') || name.includes('reading') || 
-    name.includes('writing') || name.includes('verbal') || 
-    name.includes('grammar') || name.includes('r & d') || 
-    name.includes('r&d') || name.includes('literacy')
-  ) return 'RW';
+  // Math Keywords (Highly Specific)
+  const mathKeywords = [
+    'math', 'quant', 'algebra', 'geometry', 'calc', 'trig', 'functions', 'linear', 
+    'equations', 'expressions', 'ratios', 'percentages', 'probability', 'statistics',
+    'inference', 'area', 'volume', 'triangles', 'circles', 'number', 'operations',
+    'inequalities', 'systems', 'nonlinear', 'modeling', 'data analysis'
+  ];
 
-  // Math Keywords
-  if (
-    type.includes('math') || type.includes('quant') || 
-    name.includes('math') || name.includes('algebra') ||
-    name.includes('geometry') || name.includes('calc') ||
-    name.includes('quant')
-  ) return 'MATH';
+  if (mathKeywords.some(kw => type.includes(kw) || name.includes(kw))) {
+    return 'MATH';
+  }
+
+  // RW Keywords (Comprehensive)
+  const rwKeywords = [
+    'reading', 'writing', 'verbal', 'rw', 'english', 'grammar', 'r & d', 'r&d', 
+    'literacy', 'evidence', 'expression', 'ideas', 'structure', 'context', 
+    'synthesis', 'rhetorical', 'conventions'
+  ];
+
+  if (rwKeywords.some(kw => type.includes(kw) || name.includes(kw))) {
+    return 'RW';
+  }
 
   return 'RW'; // Default fallback
 };
@@ -98,18 +103,14 @@ export const calculateTotalSATScore = (progressEntries) => {
   };
 };
 
-// SAT-style weighted scoring model - matches frontend calculateSatScore
+// SAT-style scoring model - Linear mapping from 200 to 800 based on peak accuracy
 export const calculateSatScore = (easy, medium, hard) => {
-  // UPDATED: Difficulty Weights (Easy=1, Moderate=2, Hard=3)
-  // ⚖️ Weighted Model: (E*1 + M*2 + H*3) / 6
-  const e = Number(easy) || 0;
-  const m = Number(medium) || 0;
-  const h = Number(hard) || 0;
-
-  const weightedAccuracy = (e * 1 + m * 2 + h * 3) / 6; // 0–100 range
-  const rawScore = (weightedAccuracy / 100) * 800;
-
-  // Clamp defensively to valid SAT section bounds
-  const finalScore = Math.min(800, Math.max(0, rawScore));
-  return Math.round(finalScore);
+  // Use the maximum accuracy achieved across any level to represent the section's current peak
+  const maxAccuracy = Math.max(Number(easy) || 0, Number(medium) || 0, Number(hard) || 0);
+  
+  // Apply the standard linear 200-800 scale mapping (matching TestReview page)
+  const finalScore = 200 + (maxAccuracy / 100) * 600;
+  
+  // Enforce section bounds [200, 800]
+  return Math.min(800, Math.max(200, Math.round(finalScore)));
 };
