@@ -79,10 +79,12 @@ const CourseForm = ({ course, onClose, onSave }) => {
   const [formData, setFormData] = useState(() => {
     const mainCat = course?.main_category || 'SAT';
     const subCourses = Object.keys(TAXONOMY[mainCat] || {});
-    const subCat = course?.tutor_type || (subCourses.length > 0 ? subCourses[0] : 'General');
-    const topics = Object.keys(TAXONOMY[mainCat]?.[subCat] || {});
+    const subCat = course?.tutor_type || (subCourses.length > 0 ? subCourses[0] : '');
+    
+    const topics = subCat ? Object.keys(TAXONOMY[mainCat]?.[subCat] || {}) : [];
     const topic = course?.category || (topics.length > 0 ? topics[0] : '');
-    const subTopics = TAXONOMY[mainCat]?.[subCat]?.[topic] || [];
+    
+    const subTopics = (mainCat && subCat && topic) ? (TAXONOMY[mainCat]?.[subCat]?.[topic] || []) : [];
     const name = course?.name || (subTopics.length > 0 ? subTopics[0] : '');
 
     return {
@@ -516,13 +518,13 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     required
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
                   >
-                    <option value="">Select Topic</option>
+                    {!formData.category && <option value="">Select Topic</option>}
                     {Object.keys(TAXONOMY[formData.main_category]?.[formData.tutor_type] || {}).map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
                 </div>
-
+                
                 {/* Level 4: Sub Topic */}
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">4. Sub Topic</label>
@@ -532,7 +534,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     onChange={handleChange}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
                   >
-                    <option value="">Select Sub Topic</option>
+                    {!formData.name && <option value="">Select Sub Topic</option>}
                     {(TAXONOMY[formData.main_category]?.[formData.tutor_type]?.[formData.category] || []).map(sub => (
                       <option key={sub} value={sub}>{sub}</option>
                     ))}
