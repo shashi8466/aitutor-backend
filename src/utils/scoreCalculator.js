@@ -23,25 +23,37 @@ export const getCategory = (item) => {
 
   // Handle both flat objects and nested courses objects
   const type = (item.tutor_type || item.courses?.tutor_type || '').toLowerCase();
-  const name = (item.name || item.courses?.name || '').toLowerCase();
+  const name = (item.name || item.courses?.name || item.course_name || '').toLowerCase();
 
-  // RW Keywords (Added 'r & d', 'verbal', 'literacy') - CHECK THESE FIRST
-  if (
-    type.includes('reading') || type.includes('writing') || 
-    type.includes('verbal') || type.includes('rw') ||
-    name.includes('english') || name.includes('reading') || 
-    name.includes('writing') || name.includes('verbal') || 
-    name.includes('grammar') || name.includes('r & d') || 
-    name.includes('r&d') || name.includes('literacy')
-  ) return 'RW';
+  // Math Keywords (Highly Specific)
+  const mathKeywords = [
+    'math', 'quant', 'algebra', 'geometry', 'calc', 'trig', 'functions', 'linear', 
+    'equations', 'expressions', 'ratios', 'percentages', 'probability', 'statistics',
+    'inference', 'area', 'volume', 'triangles', 'circles', 'number', 'operations',
+    'inequalities', 'systems', 'nonlinear', 'modeling', 'data analysis'
+  ];
 
-  // Math Keywords
-  if (
-    type.includes('math') || type.includes('quant') || 
-    name.includes('math') || name.includes('algebra') || 
-    name.includes('geometry') || name.includes('calc') ||
-    name.includes('quant')
-  ) return 'MATH';
+  if (mathKeywords.some(kw => type.includes(kw) || name.includes(kw))) {
+    return 'MATH';
+  }
+
+  // RW Keywords (Added 'r & d', 'verbal', 'literacy', 'evidence', 'expression')
+  const rwKeywords = [
+    'reading', 'writing', 'verbal', 'rw', 'english', 'grammar', 'r & d', 'r&d', 
+    'literacy', 'evidence', 'expression', 'ideas', 'structure', 'context', 
+    'synthesis', 'rhetorical', 'conventions'
+  ];
+
+  if (rwKeywords.some(kw => type.includes(kw) || name.includes(kw))) {
+    return 'RW';
+  }
+
+  // Fallback check: if it contains 'test' or 'exam' but no math keywords, it's likely RW or mixed
+  if (name.includes('test') || name.includes('exam') || type.includes('test')) {
+    // If it's a full length test, it could be both, but we usually default to RW if unspecified
+    // However, adaptive tests are handled separately in the calculator
+    return 'RW';
+  }
 
   return 'RW'; // Default fallback
 };
@@ -92,18 +104,27 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
   const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 0) : 0;
 
   // 3. Aggregate BEST accuracy per level (Easy/Medium/Hard) across all courses
-  // for each category (MATH, RW). This powers the weighted SAT formula.
   const levelAccuracies = {
     MATH: { Easy: 0, Medium: 0, Hard: 0 },
     RW: { Easy: 0, Medium: 0, Hard: 0 }
   };
 
+  let hasMathAttempts = baselineMath > 0;
+  let hasRWAttempts = baselineRW > 0;
+
   const updateLevelAccuracy = (item, rawPercentage) => {
     const cat = getCategory(item);
     const levelRaw = item.level || 'Medium';
     const level = levelRaw.charAt(0).toUpperCase() + levelRaw.slice(1).toLowerCase();
+    
     if (!['Easy', 'Medium', 'Hard'].includes(level)) return;
+    
     const pct = Math.round(rawPercentage || 0);
+    if (pct > 0) {
+      if (cat === 'MATH') hasMathAttempts = true;
+      if (cat === 'RW') hasRWAttempts = true;
+    }
+
     if (pct > levelAccuracies[cat][level]) {
       levelAccuracies[cat][level] = pct;
     }
@@ -115,6 +136,12 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
 
   if (Array.isArray(submissionsData)) {
     submissionsData.forEach(sub => {
+      const cat = getCategory(sub);
+      
+      // Track attempts
+      if (cat === 'MATH' || sub.math_scaled_score > 0) hasMathAttempts = true;
+      if (cat === 'RW' || sub.reading_scaled_score > 0) hasRWAttempts = true;
+
       // Find highest adaptive scores across ALL tests (Superscore style)
       if (sub.level === 'Adaptive') {
         if (sub.math_scaled_score > bestAdaptiveMath) bestAdaptiveMath = sub.math_scaled_score;
@@ -127,7 +154,10 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
   // B. From progress table (fallback / supplement)
   if (Array.isArray(progressData)) {
     progressData.forEach(p => {
-      if (typeof p.score === 'number') {
+      if (typeof p.score === 'number' && p.score > 0) {
+        const cat = getCategory(p);
+        if (cat === 'MATH') hasMathAttempts = true;
+        if (cat === 'RW') hasRWAttempts = true;
         updateLevelAccuracy(p, p.score);
       }
     });
@@ -142,24 +172,28 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
 
   const satMath = hasMathLevels
     ? calculateSatScore(mathLevels.Easy, mathLevels.Medium, mathLevels.Hard)
-    : baselineMath;
+    : (hasMathAttempts ? baselineMath : 200);
 
   const satRW = hasRWLevels
     ? calculateSatScore(rwLevels.Easy, rwLevels.Medium, rwLevels.Hard)
-    : baselineRW;
+    : (hasRWAttempts ? baselineRW : 200);
 
   // 5. Final section scores for dashboards: prioritize BEST (Highest) score achieved.
   // Fallback to pure weighted SAT-style scores if no adaptive scores exist.
   // Apply Minimum Fallbacks: RW=200, Math=200, Total=400
-  let displayMath = bestAdaptiveMath || Math.min(800, Math.max(0, satMath));
-  let displayRW = bestAdaptiveRW || Math.min(800, Math.max(0, satRW));
+  let displayMath = bestAdaptiveMath || satMath;
+  let displayRW = bestAdaptiveRW || satRW;
 
-  // Enforce Minimums
+  // Enforce Minimums Strictly
   if (displayMath < 200) displayMath = 200;
   if (displayRW < 200) displayRW = 200;
 
+  // If NO attempts at all in a section, force it to 200 (Don't let diagnostics or weighted scores override)
+  if (!hasMathAttempts) displayMath = 200;
+  if (!hasRWAttempts) displayRW = 200;
+
   const total = displayMath + displayRW;
-  const baselineTotal = baselineMath + baselineRW;
+  const baselineTotal = (baselineMath || 200) + (baselineRW || 200);
 
   return {
     current: total,
@@ -173,8 +207,8 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     gap: Math.max(0, target - total),
     baselineTotal: baselineTotal,
     totalImprovement: Math.max(0, total - baselineTotal),
-    mathImprovement: Math.max(0, displayMath - baselineMath),
-    rwImprovement: Math.max(0, displayRW - baselineRW),
+    mathImprovement: Math.max(0, displayMath - (baselineMath || 200)),
+    rwImprovement: Math.max(0, displayRW - (baselineRW || 200)),
     isMathMaxed: displayMath >= 800,
     isRWMaxed: displayRW >= 800
   };
