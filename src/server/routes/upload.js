@@ -249,13 +249,23 @@ router.post('/', upload.single('file'), async (req, res) => {
 
               Object.entries(imageUrlMap).forEach(([placeholder, url]) => {
                 const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                // Regex to match [IMAGE: placeholder] with optional surrounding spaces
-                const tagRegex = new RegExp(`\\s*\\[IMAGE:\\s*${escapedPlaceholder}\\s*\\]\\s*`, 'gi');
+                // More robust regex to match [IMAGE: placeholder] regardless of casing or extra spaces
+                const tagRegex = new RegExp(`\\[IMAGE:\\s*${escapedPlaceholder}\\s*\\]`, 'gi');
                 
-                const imgTag = `<div class="my-4 flex justify-center"><img src="${url}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-sm border border-slate-200" /></div>`;
+                const imgTag = `<div class="docx-image-wrapper my-4 flex justify-center"><img src="${url}" alt="Option Image" class="max-w-full h-auto rounded-lg shadow-sm border border-slate-200" /></div>`;
                 
                 finalQuestionText = finalQuestionText.replace(tagRegex, imgTag);
                 finalExplanationText = finalExplanationText.replace(tagRegex, imgTag);
+                
+                // ALSO replace in options if it's an MCQ
+                if (q.options && Array.isArray(q.options)) {
+                  q.options = q.options.map(opt => {
+                    if (typeof opt === 'string') {
+                      return opt.replace(tagRegex, imgTag);
+                    }
+                    return opt;
+                  });
+                }
               });
 
               return {

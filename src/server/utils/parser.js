@@ -41,8 +41,9 @@ const extractOptionsFromLine = (text, currentOptionsCount = 0) => {
 
   // Stricter regex for SAT: Only A-E
   // Must be Uppercase. 
-  // Can be at start of line OR preceded by 1+ spaces if at least 2 chars total.
-  const optRegex = /(?:^|[\s\t]+)([A-E])[\s]*[).][\s]*/g;
+  // We now allow it anywhere in the line as long as it follows our sequence (A, B, C...)
+  // Support A), A., (A)
+  const optRegex = /(?:^|[\s\t>\](])([A-E])[\s]*[).][\s]*/g;
   const matches = [...text.matchAll(optRegex)];
 
   if (matches.length > 0) {
@@ -416,6 +417,28 @@ const parseTextToQuestions = (text) => {
 
       const { remainingText: lineAfterOptionExtraction, options: extractedFromLine } = extractOptionsFromLine(line, currentQuestion.options.length);
       if (extractedFromLine.length > 0) {
+        // SELF-HEALING: If we just found the FIRST option (A), and the question stem ends with images,
+        // those images probably belong to the options (usually Option A).
+        if (currentQuestion.options.length === 0 && currentQuestion.question) {
+          const imageTagRegex = /\[IMAGE\s*:\s*[^\]]+\]\s*$/i;
+          let match;
+          const trailingImages = [];
+          
+          // Pull all trailing images from the question stem
+          let qText = currentQuestion.question.trim();
+          while ((match = qText.match(imageTagRegex))) {
+            trailingImages.unshift(match[0].trim());
+            qText = qText.replace(imageTagRegex, '').trim();
+          }
+          currentQuestion.question = qText;
+          
+          if (trailingImages.length > 0) {
+            const combinedImages = trailingImages.join('\n');
+            if (extractedFromLine[0]) extractedFromLine[0] = combinedImages + "\n" + extractedFromLine[0];
+            else extractedFromLine[0] = combinedImages;
+          }
+        }
+
         if (currentQuestion.options.length === 0 && lineAfterOptionExtraction) currentQuestion.question += (currentQuestion.question ? ' ' : '') + lineAfterOptionExtraction;
         currentQuestion.options.push(...extractedFromLine);
         continue;
@@ -424,11 +447,14 @@ const parseTextToQuestions = (text) => {
       if (currentQuestion.explanation !== null) {
         currentQuestion.explanation += (currentQuestion.explanation ? '\n' : '') + line;
       } else if (currentQuestion.options.length === 0 && !currentQuestion.correctAnswer) {
+        // Still in question stem
+        const isImage = line.match(/\[IMAGE\s*:\s*[^\]]+\]/i);
         if (currentQuestion.question) {
-          const needsNewline = line.includes('$') || line.includes('\\(') || line.match(/\[IMAGE\s*:\s*[^\]]+\]/i) || currentQuestion.question.length > 100;
+          const needsNewline = line.includes('$') || line.includes('\\(') || isImage || currentQuestion.question.length > 100;
           currentQuestion.question += (needsNewline ? '\n' : ' ') + line;
         } else currentQuestion.question = line;
       } else if (currentQuestion.options.length > 0) {
+        // Append to the last option found
         currentQuestion.options[currentQuestion.options.length - 1] += '\n' + line;
       }
     }

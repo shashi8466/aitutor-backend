@@ -286,3 +286,28 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
 .responsive-table-container table {
   min-width: 640px;
 }
+
+/* DOCX Extracted Image Handling */
+.docx-image-wrapper {
+  @apply transition-all duration-300;
+}
+
+.docx-image-wrapper img {
+  @apply max-h-[400px] object-contain mx-auto transition-all;
+}
+
+/* Specific overrides for MCQ options to make them more compact */
+.math-content .docx-image-wrapper {
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.math-content .docx-image-wrapper img {
+  max-height: 250px !important; /* Smaller graphs in options */
+  @apply shadow-none border-0 bg-transparent p-0;
+}
+
+/* If the image is the ONLY thing in the option, make it clean */
+.math-content > .docx-image-wrapper:only-child {
+  margin: 0 !important;
+}

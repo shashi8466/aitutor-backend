@@ -135,45 +135,38 @@ const ExamInterface = () => {
         }
       }
 
-      // 2. If no global upload found (or it had no questions), fall back to per-level LATEST uploads
+      // 2. If no global upload, fetch per-level using ONLY the latest upload per level.
+      //    STRICT ISOLATION: never fall back to orphaned/unlinked questions.
       if (allTargetQuestions.length === 0) {
         console.log(`📂 [Exam] No global upload, fetching per-level for course ${cId}`);
         for (const lvl of levelsToLoad) {
             const { data: latestUploadData } = await supabase
               .from('uploads')
-              .select('id')
+              .select('id, file_name')
               .eq('course_id', cId)
               .eq('category', 'quiz_document')
               .ilike('level', lvl)
               .in('status', ['completed', 'warning'])
-              .order('created_at', { ascending: false })
+              .order('id', { ascending: false })
               .limit(1);
 
             if (latestUploadData?.[0]) {
+              console.log(`✅ [Exam] Level ${lvl}: using upload ${latestUploadData[0].id} (${latestUploadData[0].file_name})`);
               const { data: qData } = await supabase
                 .from('questions')
                 .select('*')
                 .eq('upload_id', latestUploadData[0].id)
                 .order('id', { ascending: true });
               
-              if (qData) {
+              if (qData && qData.length > 0) {
                 const mapped = qData.map(q => ({ ...q, computedLevel: lvl }));
                 allTargetQuestions = [...allTargetQuestions, ...mapped];
+                console.log(`✅ [Exam] Loaded ${qData.length} questions for level ${lvl}`);
               }
             } else {
-               // Fallback to manual questions ONLY if no upload exists for this level
-               const { data: manualQuestions } = await supabase
-                .from('questions')
-                .select('*')
-                .eq('course_id', cId)
-                .is('upload_id', null)
-                .ilike('level', lvl)
-                .order('id', { ascending: true });
-                
-               if (manualQuestions) {
-                 const mapped = manualQuestions.map(q => ({ ...q, computedLevel: lvl }));
-                 allTargetQuestions = [...allTargetQuestions, ...mapped];
-               }
+              // STRICT: Skip this level — do NOT fall back to orphaned questions.
+              // Orphaned questions (upload_id = null) are legacy data and must not be shown.
+              console.warn(`⚠️ [Exam] No upload found for level ${lvl} in course ${cId}. Skipping.`);
             }
         }
       }
@@ -622,7 +615,7 @@ const ExamInterface = () => {
                     const letter = String.fromCharCode(65 + idx);
                     const isSelected = selectedAnswer === letter;
                     return (
-                      <div key={letter} className="flex gap-4 group relative z-40">
+                      <div key={letter} className="flex flex-col sm:flex-row gap-2 sm:gap-4 group relative z-40">
                          <button
                             type="button"
                             onClick={() => handleAnswerSelect(letter)}
@@ -635,7 +628,9 @@ const ExamInterface = () => {
                             onClick={() => handleAnswerSelect(letter)}
                             className={`flex-1 rounded-xl sm:rounded-2xl p-3 sm:p-5 min-h-[48px] sm:min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
                          >
-                            <div className="pointer-events-none"><MathRenderer text={optContent} className="text-sm sm:text-[17px] text-slate-900" /></div>
+                            <div className="pointer-events-none w-full">
+                               <MathRenderer text={optContent} className="text-sm sm:text-[17px] text-slate-900" />
+                            </div>
                          </div>
                       </div>
                     );

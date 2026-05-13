@@ -152,7 +152,7 @@ const AdaptiveExamInterface = () => {
         }
       });
 
-      const latestUploadIds = Object.values(slotLatestUploadId);
+      const latestUploadIds = Object.values(slotLatestUploadId).filter(id => id !== null && id !== undefined);
       if (latestUploadIds.length === 0) throw new Error("No valid module uploads identified.");
 
       console.log(`📚 [EXAM] Identified latest uploads:`, slotToFileName);
@@ -161,7 +161,7 @@ const AdaptiveExamInterface = () => {
       const { data: qData, error: qError } = await supabase
         .from('questions')
         .select('*')
-        .in('upload_id', latestUploadIds);
+        .in('upload_id', latestUploadIds).order('id', { ascending: true });
 
       if (qError) throw qError;
       if (!qData || qData.length === 0) throw new Error("No questions found in the identified uploads.");
@@ -869,7 +869,7 @@ const AdaptiveExamInterface = () => {
                     const letter = String.fromCharCode(65 + idx);
                     const isSelected = selectedAnswer === letter;
                     return (
-                      <div key={letter} className="flex gap-4 group relative z-40">
+                      <div key={letter} className="flex flex-col sm:flex-row gap-2 sm:gap-4 group relative z-40">
                          <button
                             type="button"
                             onClick={() => handleAnswerSelect(letter)}
@@ -882,7 +882,9 @@ const AdaptiveExamInterface = () => {
                             onClick={() => handleAnswerSelect(letter)}
                             className={`flex-1 rounded-2xl p-4 sm:p-5 min-h-[50px] sm:min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
                          >
-                            <div className="pointer-events-none"><MathRenderer text={optContent} courseId={courseId} className="text-[15px] sm:text-[17px] text-slate-800 font-normal leading-normal antialiased" /></div>
+                            <div className="pointer-events-none w-full">
+                               <MathRenderer text={optContent} courseId={courseId} className="text-[15px] sm:text-[17px] text-slate-800 font-normal leading-normal antialiased" />
+                            </div>
                          </div>
                       </div>
                     );

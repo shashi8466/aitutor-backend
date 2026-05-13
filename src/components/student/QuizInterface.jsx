@@ -171,7 +171,7 @@ const QuizInterface = () => {
           }
         });
 
-        const latestUploadIds = Object.values(slotLatestUploadId);
+        const latestUploadIds = Object.values(slotLatestUploadId).filter(id => !!id);
         if (latestUploadIds.length > 0) {
           const { data: qData, error: qError } = await supabase
             .from('questions')
@@ -203,20 +203,25 @@ const QuizInterface = () => {
         setIsAdaptive(false);
       }
 
-      // 2. Standard Quiz Loading (Original Logic)
-      const dbLevel = level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
-      // 1. Try to find a single upload that covers ALL levels for this course (Global Test)
+      // 2. Standard Quiz Loading
+      // STRICT ISOLATION: Only load questions from a specific upload. NEVER fall back to orphaned questions.
+      let targetQuestions = [];
+      // Guard: level may be undefined when accessed via SAT practice mode fallback (no :level param in URL)
+      const dbLevel = level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Moderate';
+
+      // Step A: Try to find a single upload covering ALL levels (Global Test document)
       const { data: globalUploadData } = await supabase
         .from('uploads')
-        .select('id')
+        .select('id, file_name')
         .eq('course_id', cId)
         .eq('category', 'quiz_document')
         .eq('level', 'All')
         .in('status', ['completed', 'warning'])
-        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(1);
 
       if (globalUploadData?.[0]) {
+        console.log(`🎯 [QUIZ] Found global upload ${globalUploadData[0].id}: ${globalUploadData[0].file_name}`);
         const { data: qData } = await supabase
           .from('questions')
           .select('*')
@@ -224,41 +229,35 @@ const QuizInterface = () => {
           .order('id', { ascending: true });
         
         if (qData && qData.length > 0) {
-          targetQuestions = qData.map(q => ({
-            ...q,
-            computedLevel: q.level || dbLevel
-          }));
+          targetQuestions = qData.map(q => ({ ...q, computedLevel: q.level || dbLevel }));
+          console.log(`✅ [QUIZ] Loaded ${targetQuestions.length} questions from global upload.`);
         }
       }
 
-      // 2. If no global upload found, fall back to the latest upload for THIS specific level
+      // Step B: No global upload — find the latest upload for this specific level
       if (targetQuestions.length === 0) {
         const { data: latestUploadData } = await supabase
           .from('uploads')
-          .select('id')
+          .select('id, file_name')
           .eq('course_id', cId)
           .eq('category', 'quiz_document')
           .ilike('level', dbLevel)
           .in('status', ['completed', 'warning'])
-          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
           .limit(1);
 
         if (latestUploadData?.[0]) {
+          console.log(`✅ [QUIZ] Level "${dbLevel}": using upload ${latestUploadData[0].id} (${latestUploadData[0].file_name})`);
           const { data: qData } = await supabase
             .from('questions')
             .select('*')
             .eq('upload_id', latestUploadData[0].id)
             .order('id', { ascending: true });
           targetQuestions = qData || [];
+          console.log(`✅ [QUIZ] Loaded ${targetQuestions.length} questions.`);
         } else {
-          // Final fallback to manual questions
-          const { data: manualQuestions } = await supabase
-            .from('questions')
-            .select('*')
-            .eq('course_id', cId)
-            .is('upload_id', null)
-            .ilike('level', dbLevel);
-          targetQuestions = manualQuestions || [];
+          // STRICT: No upload found → show empty. Do NOT fall back to orphaned questions.
+          console.warn(`⚠️ [QUIZ] No upload found for course ${cId}, level "${dbLevel}". No questions will load.`);
         }
       }
 
@@ -816,16 +815,19 @@ const QuizInterface = () => {
                       key={idx} 
                       onClick={() => handleAnswerSelect(letter)} 
                       disabled={submitted} 
-                      className={`w-full p-4 text-left rounded-xl border transition-all flex items-center gap-4 group ${containerClass}`}
+                      className={`w-full p-4 text-left rounded-xl border transition-all flex flex-col sm:flex-row items-start gap-3 sm:gap-4 group ${containerClass}`}
                     >
-                      <span className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-black transition-colors shadow-sm shrink-0 ${circleClass}`}>
-                        {letter}
-                      </span>
-                      <span className={`font-normal text-[16px] md:text-[17px] flex-1 leading-relaxed text-slate-800 dark:text-slate-200 ${isSelected || (submitted && letter === currentQuestion.correct_answer) ? 'font-semibold' : ''}`}>
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <span className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-black transition-colors shadow-sm shrink-0 ${circleClass}`}>
+                          {letter}
+                        </span>
+                        {/* On mobile, show a small label or just keep it compact */}
+                      </div>
+                      <div className={`font-normal text-[16px] md:text-[17px] flex-1 leading-relaxed text-slate-800 dark:text-slate-200 w-full ${isSelected || (submitted && letter === currentQuestion.correct_answer) ? 'font-semibold' : ''}`}>
                         <MathRenderer text={option || ''} courseId={courseId} />
-                      </span>
-                      {submitted && letter === currentQuestion.correct_answer && <SafeIcon icon={FiCheck} className="ml-auto w-5 h-5 text-green-600" />}
-                      {submitted && isSelected && letter !== currentQuestion.correct_answer && <SafeIcon icon={FiX} className="ml-auto w-5 h-5 text-[#E53935]" />}
+                      </div>
+                      {submitted && letter === currentQuestion.correct_answer && <SafeIcon icon={FiCheck} className="ml-auto w-5 h-5 text-green-600 shrink-0" />}
+                      {submitted && isSelected && letter !== currentQuestion.correct_answer && <SafeIcon icon={FiX} className="ml-auto w-5 h-5 text-[#E53935] shrink-0" />}
                     </button>
                   );
                 })}
