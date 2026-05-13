@@ -291,7 +291,7 @@ const StudentCourseList = () => {
                <h3 className="relative z-10 text-[14px] font-bold text-white tracking-wide">{cat}</h3>
              </div>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {groups[cat].map((course, idx) => (
               <CourseCard
                 key={course.id}
@@ -319,7 +319,7 @@ const StudentCourseList = () => {
     }
 
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {coursesList.map((course, idx) => (
           <CourseCard
             key={course.id}
@@ -456,13 +456,13 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
     transition={{ delay: index * 0.05 }}
     className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-all group flex flex-col h-full"
   >
-    <div className="p-6 flex-1">
-      <div className="flex items-center gap-4 mb-4">
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${isEnrolled ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : isPremiumRestricted ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 group-hover:bg-[#E53935] group-hover:text-white'}`}>
-          <SafeIcon icon={isPremiumRestricted ? FiIcons.FiLock : (course.is_adaptive ? FiIcons.FiActivity : FiBook)} className="w-7 h-7" />
+    <div className="p-5 md:p-6 flex-1">
+      <div className="flex items-center gap-3 md:gap-4 mb-4">
+        <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0 transition-all duration-300 shadow-sm ${isEnrolled ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : isPremiumRestricted ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 group-hover:bg-[#E53935] group-hover:text-white'}`}>
+          <SafeIcon icon={isPremiumRestricted ? FiIcons.FiLock : (course.is_adaptive ? FiIcons.FiActivity : FiBook)} className="w-5 h-5 md:w-7 md:h-7" />
         </div>
         <div className="flex-1 min-w-0">
-          <span className={`text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-md mb-1.5 inline-block ${
+          <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-md mb-1 md:mb-1.5 inline-block ${
             (course.tutor_type || '').toLowerCase().includes('math') || (course.tutor_type || '').toLowerCase().includes('quant')
               ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
               : (course.tutor_type || '').toLowerCase().includes('reading') || (course.tutor_type || '').toLowerCase().includes('writing') || (course.tutor_type || '').toLowerCase().includes('english')
@@ -471,13 +471,13 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
           }`}>
             {course.tutor_type || 'General'}
           </span>
-          <h3 className="font-extrabold text-lg text-gray-900 dark:text-white leading-tight line-clamp-2 group-hover:text-[#E53935] transition-colors flex items-center gap-2">
+          <h3 className="font-extrabold text-sm md:text-lg text-gray-900 dark:text-white leading-tight line-clamp-2 group-hover:text-[#E53935] transition-colors flex items-center gap-1 md:gap-2">
             {course.name}
-            {isPremiumRestricted && <FiIcons.FiZap className="w-4 h-4 text-amber-500 fill-amber-500" />}
+            {isPremiumRestricted && <FiIcons.FiZap className="w-3 h-3 md:w-4 md:h-4 text-amber-500 fill-amber-500 flex-shrink-0" />}
           </h3>
         </div>
       </div>
-      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{course.description}</p>
+      <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{course.description}</p>
 
       {isEnrolled && (
         <div className="mt-4 flex items-center gap-2">

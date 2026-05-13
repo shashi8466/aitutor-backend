@@ -209,17 +209,18 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
   }
 
   /* Compact oversized utility usage that appears across many screens. */
-  .p-12 { padding: 1.5rem !important; }
-  .p-10 { padding: 1.25rem !important; }
-  .p-8 { padding: 1rem !important; }
-  .px-10 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
-  .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
-  .py-8 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+  /* Remove !important to allow component-specific overrides like pt-16 */
+  .p-12 { padding: 1.5rem; }
+  .p-10 { padding: 1.25rem; }
+  .p-8 { padding: 1rem; }
+  .px-10 { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .px-8 { padding-left: 1rem; padding-right: 1rem; }
+  .py-8 { padding-top: 1rem; padding-bottom: 1rem; }
   
   /* Text adjustments */
-  .text-4xl { font-size: 1.875rem !important; line-height: 2.25rem !important; }
-  .text-5xl { font-size: 2.25rem !important; line-height: 2.5rem !important; }
-  .text-6xl { font-size: 2.5rem !important; line-height: 1 !important; }
+  .text-4xl { font-size: 1.75rem !important; line-height: 2.1rem !important; }
+  .text-5xl { font-size: 2rem !important; line-height: 2.3rem !important; }
+  .text-6xl { font-size: 2.25rem !important; line-height: 1 !important; }
   
   /* Grid adjustments */
   .grid-cols-2, .grid-cols-3, .grid-cols-4 {

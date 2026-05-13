@@ -97,21 +97,21 @@ const AIPrep365LandingPage = () => {
           animate={isMobileMenuOpen ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
           className="lg:hidden mt-3 overflow-hidden"
         >
-          <div className="mx-auto max-w-[1500px] rounded-[24px] border border-white/5 bg-slate-900/90 p-6 backdrop-blur-2xl shadow-2xl space-y-6">
+          <div className="mx-auto max-w-[1500px] rounded-[24px] border border-white/5 bg-slate-900/90 p-6 pt-10 backdrop-blur-2xl shadow-2xl space-y-6 relative">
             <div className="flex flex-col gap-4">
               {['FEATURES', 'RESULTS', 'HOW IT WORKS', 'PRICING'].map((item) => (
                 <button
                   key={item}
                   onClick={() => handleScroll(item.toLowerCase().replace(' ', '-'))}
-                  className="text-left text-sm font-bold tracking-widest text-slate-400 hover:text-white uppercase py-2 border-b border-white/5"
+                  className="text-left text-sm font-bold tracking-widest text-slate-400 hover:text-white uppercase py-3 border-b border-white/5"
                 >
                   {item}
                 </button>
               ))}
             </div>
             <div className="grid grid-cols-2 gap-4 pt-4">
-              <button onClick={handleLoginClick} className="w-full py-4 rounded-2xl border border-sky-500 text-sky-500 text-xs font-black uppercase tracking-widest">Login</button>
-              <button onClick={handleSignupClick} className="w-full py-4 rounded-2xl bg-orange-500 text-slate-950 text-xs font-black uppercase tracking-widest">Sign Up</button>
+              <button onClick={handleLoginClick} className="w-full py-4 rounded-2xl border border-sky-500 text-sky-500 text-[10px] font-black uppercase tracking-widest">Login</button>
+              <button onClick={handleSignupClick} className="w-full py-4 rounded-2xl bg-orange-500 text-slate-950 text-[10px] font-black uppercase tracking-widest">Sign Up</button>
             </div>
           </div>
         </motion.div>
@@ -143,10 +143,10 @@ const AIPrep365LandingPage = () => {
               <button onClick={handleBookDemoClick} className="rounded-xl border border-white/10 bg-white/5 px-10 py-4 text-[12px] font-black uppercase tracking-widest text-white backdrop-blur-xl transition-all hover:bg-white/10 hover:-translate-y-1 active:scale-95">Book a Demo</button>
             </motion.div>
 
-            <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-center lg:justify-start gap-8 text-[11px] font-black text-slate-500 uppercase mt-10">
-              <div className="flex items-center gap-2">✅ INSTANT FEEDBACK</div>
-              <div className="flex items-center gap-2">✅ PERSONALIZED LEARNING</div>
-              <div className="flex items-center gap-2">✅ BUILT FOR SAT SUCCESS</div>
+            <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-center lg:justify-start gap-4 md:gap-8 text-[9px] md:text-[11px] font-black text-slate-500 uppercase mt-10">
+              <div className="flex items-center gap-2 whitespace-nowrap">✅ INSTANT FEEDBACK</div>
+              <div className="flex items-center gap-2 whitespace-nowrap">✅ PERSONALIZED LEARNING</div>
+              <div className="flex items-center gap-2 whitespace-nowrap">✅ BUILT FOR SAT SUCCESS</div>
             </motion.div>
           </motion.div>
 
@@ -349,10 +349,10 @@ const AIPrep365LandingPage = () => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
-              className="rounded-[40px] p-8 md:p-12 border border-orange-500/30 bg-orange-500/5 backdrop-blur-xl shadow-[0_30px_60px_-15px_rgba(249,115,22,0.15)] relative overflow-hidden flex flex-col group"
+              className="rounded-[40px] p-8 md:p-12 border border-orange-500/30 bg-orange-500/5 backdrop-blur-xl shadow-[0_30px_60px_-15px_rgba(249,115,22,0.15)] relative overflow-hidden flex flex-col group pt-16 md:pt-12"
             >
-              <div className="absolute top-0 right-0 p-3">
-                <span className="bg-orange-500 text-slate-950 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-tighter">Most Popular</span>
+              <div className="absolute top-0 right-0 p-4">
+                <span className="bg-orange-500 text-slate-950 text-[9px] md:text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-tighter">Most Popular</span>
               </div>
 
               <div className="mb-8">
@@ -395,16 +395,18 @@ const AIPrep365LandingPage = () => {
             <div className="relative overflow-hidden rounded-3xl border border-sky-500/20 bg-sky-500/5 p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 group">
               <div className="absolute inset-0 bg-gradient-to-r from-sky-500/0 via-sky-500/5 to-sky-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
 
-              <div className="flex items-center gap-6 relative z-10">
-                <div className="w-16 h-16 rounded-2xl bg-sky-500/20 flex items-center justify-center text-3xl shadow-lg ring-1 ring-sky-500/30">
-                  🎁
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-white uppercase tracking-tight mb-1">Invite & Earn Premium for Free!</h4>
-                  <p className="text-sky-400 font-bold text-sm tracking-wide flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-                    Refer 3 friends and get a Premium subscription absolutely FREE
-                  </p>
+              <div className="flex flex-col sm:flex-row items-center gap-4 md:gap-6 relative z-10 w-full md:w-auto">
+                <div className="flex items-center gap-4 md:gap-6">
+                  <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-sky-500/20 flex-shrink-0 flex items-center justify-center text-2xl shadow-lg ring-1 ring-sky-500/30">
+                    🎁
+                  </div>
+                  <div>
+                    <h4 className="text-lg md:text-xl font-black text-white uppercase tracking-tight mb-1">Invite & Earn Premium!</h4>
+                    <p className="text-sky-400 font-bold text-[10px] md:text-sm tracking-wide flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                      Refer 3 friends and get Premium FREE
+                    </p>
+                  </div>
                 </div>
               </div>
 
