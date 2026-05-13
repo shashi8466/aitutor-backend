@@ -21,13 +21,13 @@ const SCORING_CONFIG = {
 export const getCategory = (item) => {
   if (!item) return 'RW';
 
-  // Handle both flat objects and nested courses objects
-  const type = (item.tutor_type || item.courses?.tutor_type || '').toLowerCase();
-  const name = (item.name || item.courses?.name || item.course_name || '').toLowerCase();
+  // Handle both flat objects and nested course(s) objects
+  const type = (item.tutor_type || item.courses?.tutor_type || item.course?.tutor_type || '').toLowerCase();
+  const name = (item.name || item.courses?.name || item.course?.name || item.course_name || '').toLowerCase();
 
-  // Math Keywords (Highly Specific)
+  // Math Keywords (Highly Specific) - Checked FIRST
   const mathKeywords = [
-    'math', 'quant', 'algebra', 'geometry', 'calc', 'trig', 'functions', 'linear', 
+    'linear', 'functions', 'math', 'quant', 'algebra', 'geometry', 'calc', 'trig', 
     'equations', 'expressions', 'ratios', 'percentages', 'probability', 'statistics',
     'inference', 'area', 'volume', 'triangles', 'circles', 'number', 'operations',
     'inequalities', 'systems', 'nonlinear', 'modeling', 'data analysis'
@@ -115,7 +115,7 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     const pct = Math.round(rawPercentage || 0);
     if (pct > 0) {
       if (cat === 'MATH') hasMathAttempts = true;
-      if (cat === 'RW') hasRWAttempts = true;
+      else if (cat === 'RW') hasRWAttempts = true;
     }
 
     if (pct > levelAccuracies[cat][level]) {
@@ -131,10 +131,8 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     submissionsData.forEach(sub => {
       const cat = getCategory(sub);
       
-      // Track attempts: Only count as an attempt if the scaled score is ABOVE the baseline (200)
-      // or if it's explicitly categorized and has a non-zero accuracy
-      const hasMathVal = sub.math_scaled_score > 200 || (cat === 'MATH' && sub.raw_score_percentage > 0);
-      const hasRWVal = sub.reading_scaled_score > 200 || (cat === 'RW' && sub.raw_score_percentage > 0);
+      const hasMathVal = (cat === 'MATH' && (sub.raw_score_percentage > 0 || sub.math_scaled_score > 200)) || sub.math_scaled_score > 200;
+      const hasRWVal = (cat === 'RW' && (sub.raw_score_percentage > 0 || sub.reading_scaled_score > 200)) || sub.reading_scaled_score > 200;
 
       if (hasMathVal) hasMathAttempts = true;
       if (hasRWVal) hasRWAttempts = true;
