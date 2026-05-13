@@ -50,12 +50,10 @@ export const getCategory = (item) => {
 
   // Fallback check: if it contains 'test' or 'exam' but no math keywords, it's likely RW or mixed
   if (name.includes('test') || name.includes('exam') || type.includes('test')) {
-    // If it's a full length test, it could be both, but we usually default to RW if unspecified
-    // However, adaptive tests are handled separately in the calculator
     return 'RW';
   }
 
-  return 'RW'; // Default fallback
+  return null; // No clear category
 };
 
 // Core Score Calculation Helper
@@ -107,6 +105,8 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
 
   const updateLevelAccuracy = (item, rawPercentage) => {
     const cat = getCategory(item);
+    if (!cat) return; // Ignore unclassified items
+    
     const levelRaw = item.level || 'Medium';
     const level = levelRaw.charAt(0).toUpperCase() + levelRaw.slice(1).toLowerCase();
     
@@ -131,18 +131,23 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     submissionsData.forEach(sub => {
       const cat = getCategory(sub);
       
-      const hasMathVal = (cat === 'MATH' && (sub.raw_score_percentage > 0 || sub.math_scaled_score > 200)) || sub.math_scaled_score > 200;
-      const hasRWVal = (cat === 'RW' && (sub.raw_score_percentage > 0 || sub.reading_scaled_score > 200)) || sub.reading_scaled_score > 200;
+      // Track attempts: Only count as an attempt if the scaled score is ABOVE the baseline (200)
+      // or if it's explicitly categorized and has a non-zero accuracy
+      const hasMathVal = (cat === 'MATH' && (sub.raw_score_percentage > 0 || sub.math_scaled_score > 200)) || (sub.math_scaled_score > 200);
+      const hasRWVal = (cat === 'RW' && (sub.raw_score_percentage > 0 || sub.reading_scaled_score > 200)) || (sub.reading_scaled_score > 200);
 
       if (hasMathVal) hasMathAttempts = true;
       if (hasRWVal) hasRWAttempts = true;
 
-      // Find highest adaptive scores across ALL tests (Superscore style)
-      if (sub.level === 'Adaptive') {
-        if (sub.math_scaled_score > bestAdaptiveMath) bestAdaptiveMath = sub.math_scaled_score;
-        if (sub.reading_scaled_score > bestAdaptiveRW) bestAdaptiveRW = sub.reading_scaled_score;
+      // Update levels only for recognized categories
+      if (cat) {
+        // Find highest adaptive scores across ALL tests (Superscore style)
+        if (sub.level === 'Adaptive') {
+          if (sub.math_scaled_score > bestAdaptiveMath) bestAdaptiveMath = sub.math_scaled_score;
+          if (sub.reading_scaled_score > bestAdaptiveRW) bestAdaptiveRW = sub.reading_scaled_score;
+        }
+        updateLevelAccuracy(sub, sub.raw_score_percentage);
       }
-      updateLevelAccuracy(sub, sub.raw_score_percentage);
     });
   }
 
@@ -151,9 +156,13 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     progressData.forEach(p => {
       if (typeof p.score === 'number' && p.score > 0) {
         const cat = getCategory(p);
-        if (cat === 'MATH') hasMathAttempts = true;
-        if (cat === 'RW') hasRWAttempts = true;
-        updateLevelAccuracy(p, p.score);
+        if (cat === 'MATH') {
+          hasMathAttempts = true;
+          updateLevelAccuracy(p, p.score);
+        } else if (cat === 'RW') {
+          hasRWAttempts = true;
+          updateLevelAccuracy(p, p.score);
+        }
       }
     });
   }

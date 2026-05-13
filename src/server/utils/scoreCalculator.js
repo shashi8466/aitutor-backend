@@ -45,7 +45,7 @@ export const getCategory = (courseName, tutorType) => {
     return 'RW';
   }
 
-  return 'RW'; // Default fallback
+  return null; // Default fallback
 };
 
 export const calculateSessionScore = (category, levelName, percentageScore) => {
