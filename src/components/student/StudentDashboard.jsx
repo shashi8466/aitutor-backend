@@ -328,7 +328,7 @@ const StudentDashboard = () => {
                 <div className="flex flex-col items-center">
                   <CircularProgress value={scores.total} max={1600} size={140} strokeWidth={12} color="#0ea5e9" />
                   <div className="mt-4 text-center">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Current Score</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Best Score</p>
                     <p className="text-2xl font-extrabold">{scores.total}</p>
                   </div>
                 </div>

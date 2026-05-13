@@ -110,17 +110,15 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
   };
 
   // A. From submissions (authoritative test data)
-  let latestAdaptiveMath = 0;
-  let latestAdaptiveRW = 0;
+  let bestAdaptiveMath = 0;
+  let bestAdaptiveRW = 0;
 
   if (Array.isArray(submissionsData)) {
-    // Sort by date to get the LATEST adaptive scores
-    const sortedSubs = [...submissionsData].sort((a, b) => new Date(b.test_date || b.created_at) - new Date(a.test_date || a.created_at));
-    
-    sortedSubs.forEach(sub => {
+    submissionsData.forEach(sub => {
+      // Find highest adaptive scores across ALL tests (Superscore style)
       if (sub.level === 'Adaptive') {
-        if (!latestAdaptiveMath && sub.math_scaled_score) latestAdaptiveMath = sub.math_scaled_score;
-        if (!latestAdaptiveRW && sub.reading_scaled_score) latestAdaptiveRW = sub.reading_scaled_score;
+        if (sub.math_scaled_score > bestAdaptiveMath) bestAdaptiveMath = sub.math_scaled_score;
+        if (sub.reading_scaled_score > bestAdaptiveRW) bestAdaptiveRW = sub.reading_scaled_score;
       }
       updateLevelAccuracy(sub, sub.raw_score_percentage);
     });
@@ -150,10 +148,15 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     ? calculateSatScore(rwLevels.Easy, rwLevels.Medium, rwLevels.Hard)
     : baselineRW;
 
-  // 5. Final section scores for dashboards: prioritize LATEST Adaptive score if available, 
-  // otherwise fallback to pure weighted SAT-style scores.
-  const displayMath = latestAdaptiveMath || Math.min(800, Math.max(0, satMath));
-  const displayRW = latestAdaptiveRW || Math.min(800, Math.max(0, satRW));
+  // 5. Final section scores for dashboards: prioritize BEST (Highest) score achieved.
+  // Fallback to pure weighted SAT-style scores if no adaptive scores exist.
+  // Apply Minimum Fallbacks: RW=200, Math=200, Total=400
+  let displayMath = bestAdaptiveMath || Math.min(800, Math.max(0, satMath));
+  let displayRW = bestAdaptiveRW || Math.min(800, Math.max(0, satRW));
+
+  // Enforce Minimums
+  if (displayMath < 200) displayMath = 200;
+  if (displayRW < 200) displayRW = 200;
 
   const total = displayMath + displayRW;
   const baselineTotal = baselineMath + baselineRW;
@@ -162,9 +165,6 @@ export const calculateStudentScore = (progressData, diagnosticData, submissionsD
     current: total,
     math: displayMath,
     rw: displayRW,
-    // For now, best/latest are the same weighted scores (can be extended later)
-    weightedMath: displayMath,
-    weightedRW: displayRW,
     bestMath: displayMath,
     bestRW: displayRW,
     latestMath: displayMath,
