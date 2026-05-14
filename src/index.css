@@ -115,6 +115,17 @@ html, body, #root {
   .responsive-table-container::-webkit-scrollbar-thumb {
     @apply bg-slate-300 dark:bg-slate-700 rounded-full;
   }
+
+  @keyframes marquee {
+    0% { transform: translateX(100vw); }
+    100% { transform: translateX(-100%); }
+  }
+
+  .animate-marquee {
+    animation: marquee 60s linear infinite;
+    display: inline-block;
+    will-change: transform;
+  }
 }
 
 /* ==========================================================================

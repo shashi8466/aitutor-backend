@@ -192,6 +192,13 @@ const Navbar = () => {
           )}
         </AnimatePresence>
       </nav>
+
+      {/* Sticky Marquee / Announcement Bar */}
+      <div className="mx-auto mt-2 max-w-[1500px] overflow-hidden rounded-md border border-white/10 bg-slate-900/90 py-1.5 backdrop-blur-xl w-full shadow-xl">
+        <div className="animate-marquee whitespace-nowrap text-xs sm:text-sm text-slate-200 font-bold tracking-wide">
+          “Certain instructional materials and practice content used by our tutors may include officially licensed or authorized resources from the College Board. All copyrights and trademarks related to such materials remain the property of their respective owners and are used solely for educational and tutoring purposes.”
+        </div>
+      </div>
     </header>
   );
 };
