@@ -85,9 +85,14 @@ export const getUserFromRequest = async (req) => {
         const user = authData?.user;
 
         if (error) {
-            console.error(`[${timestamp}] ❌ JWT Verification Failed (${req.method} ${url}):`, error.message);
-            if (error.message.includes('expired')) {
-                console.warn(`[${timestamp}] ⏰ Token for ${url} is EXPIRED.`);
+            if (error.message && error.message.includes('Auth session missing!')) {
+                // Supabase v2 getUser without a persisted session sometimes throws this if token is invalidated.
+                console.warn(`[${timestamp}] ⚠️ Auth session missing (Token invalid or expired) for ${req.method} ${url}`);
+            } else {
+                console.error(`[${timestamp}] ❌ JWT Verification Failed (${req.method} ${url}):`, error.message);
+                if (error.message && error.message.includes('expired')) {
+                    console.warn(`[${timestamp}] ⏰ Token for ${url} is EXPIRED.`);
+                }
             }
             req.authFailure = `JWT Verification Failed: ${error.message}`;
             return null;
