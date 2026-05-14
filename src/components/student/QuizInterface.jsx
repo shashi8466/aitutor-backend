@@ -542,6 +542,54 @@ const QuizInterface = () => {
       ? res.scaledScore 
       : Math.round(200 + (percentage / 100) * 600);
     const isPassed = percentage >= 15;
+    const testedSections = new Set();
+    questions.forEach(q => {
+      const s = (q.section || q.topic || '').toLowerCase();
+      if (s.includes('read') || s.includes('writ') || s.includes('rw') || s.includes('vocab')) testedSections.add('rw');
+      if (s.includes('math') || s.includes('algebra') || s.includes('geometry') || s.includes('problem')) testedSections.add('math');
+    });
+    if (testedSections.size === 0) {
+      testedSections.add('rw');
+      testedSections.add('math');
+    }
+
+    const processedSectionScores = [];
+    if (!isAdaptive && res?.sectionScores) {
+      let rwTotal = 0, rwCorrect = 0, rwScaled = 0, rwCount = 0;
+      let mathData = null;
+
+      Object.entries(res.sectionScores).forEach(([section, data]) => {
+        const sec = section.toLowerCase();
+        if (sec.includes('read') || sec.includes('writ') || sec.includes('rw')) {
+          rwTotal += data.total || 0;
+          rwCorrect += data.correct || 0;
+          if (data.scaled_score) {
+            rwScaled += data.scaled_score;
+            rwCount += 1;
+          }
+        } else if (sec.includes('math')) {
+          mathData = data;
+        }
+      });
+
+      if (testedSections.has('rw') && rwTotal > 0) {
+        processedSectionScores.push({
+          name: 'Reading & Writing',
+          total: rwTotal,
+          correct: rwCorrect,
+          scaled_score: rwCount > 0 ? Math.round(rwScaled / rwCount) : 200
+        });
+      }
+
+      if (testedSections.has('math') && mathData && mathData.total > 0) {
+        processedSectionScores.push({
+          name: 'Math',
+          total: mathData.total,
+          correct: mathData.correct,
+          scaled_score: mathData.scaled_score || 200
+        });
+      }
+    }
 
     return (
       <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-950 flex flex-col items-center justify-center p-4 transition-colors">
@@ -573,14 +621,12 @@ const QuizInterface = () => {
                     </div>
                 </>
             ) : (
-              res?.sectionScores && Object.entries(res.sectionScores).map(([section, data]) => (
-                data.total > 0 && (
-                  <div key={section} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{section}</p>
-                    <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
-                    <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
-                  </div>
-                )
+              processedSectionScores.map((data) => (
+                <div key={data.name} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{data.name}</p>
+                  <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
+                  <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
+                </div>
               ))
             )}
           </div>
