@@ -542,15 +542,24 @@ const QuizInterface = () => {
       ? res.scaledScore 
       : Math.round(200 + (percentage / 100) * 600);
     const isPassed = percentage >= 15;
+    const isRWCourse = (courseInfo?.category || '').toLowerCase().includes('reading') || (courseInfo?.name || '').toLowerCase().includes('rhetorical') || (courseInfo?.name || '').toLowerCase().includes('reading');
+    const isMathCourse = (courseInfo?.category || '').toLowerCase().includes('math') || (courseInfo?.name || '').toLowerCase().includes('math');
+
     const testedSections = new Set();
     questions.forEach(q => {
       const s = (q.section || q.topic || '').toLowerCase();
-      if (s.includes('read') || s.includes('writ') || s.includes('rw') || s.includes('vocab')) testedSections.add('rw');
+      if (s.includes('read') || s.includes('writ') || s.includes('rw') || s.includes('vocab') || s.includes('rhetorical') || s.includes('synthesis') || s.includes('english')) testedSections.add('rw');
       if (s.includes('math') || s.includes('algebra') || s.includes('geometry') || s.includes('problem')) testedSections.add('math');
     });
+    
+    // If we couldn't parse the questions, rely on the course metadata
     if (testedSections.size === 0) {
-      testedSections.add('rw');
-      testedSections.add('math');
+      if (isRWCourse) testedSections.add('rw');
+      else if (isMathCourse) testedSections.add('math');
+      else {
+        testedSections.add('rw');
+        testedSections.add('math');
+      }
     }
 
     const processedSectionScores = [];
@@ -688,84 +697,7 @@ const QuizInterface = () => {
     );
   }
 
-  const QuestionGrid = ({ questions, userAnswers, currentQuestionIndex, jumpToQuestion, setShowQuestionGrid }) => (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={() => setShowQuestionGrid(false)}
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90]"
-      />
 
-      {/* Sidebar */}
-      <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed top-0 right-0 h-full w-full max-w-[320px] bg-white dark:bg-gray-950 shadow-[-10px_0_30px_rgba(0,0,0,0.1)] border-l border-gray-100 dark:border-gray-800 z-[100] flex flex-col"
-      >
-        <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="bg-red-50 dark:bg-red-900/30 p-2 rounded-xl">
-              <SafeIcon icon={FiGrid} className="w-5 h-5 text-[#E53935]" />
-            </div>
-            <h3 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white">Navigation</h3>
-          </div>
-          <button
-            onClick={() => setShowQuestionGrid(false)}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all"
-          >
-            <SafeIcon icon={FiX} className="w-5 h-5 sm:w-6 sm:h-6" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Question List</p>
-          <div className="grid grid-cols-4 gap-3">
-            {questions.map((_, idx) => {
-              const isAnswered = !!userAnswers[idx];
-              const isCurrent = idx === currentQuestionIndex;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => jumpToQuestion(idx)}
-                  className={`
-                  aspect-square rounded-xl font-bold text-sm transition-all flex items-center justify-center border-2
-                  ${isCurrent ? 'bg-[#E53935] border-[#E53935] text-white shadow-lg shadow-red-200 dark:shadow-none' :
-                      isAnswered ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-900/50 dark:text-green-400' :
-                        'bg-gray-50 border-gray-100 text-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500 hover:border-gray-300 dark:hover:border-gray-600'}
-                `}
-                >
-                  {idx + 1}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
-          <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Legend</p>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 text-sm font-bold text-gray-600 dark:text-gray-400">
-              <div className="w-4 h-4 rounded-md bg-[#E53935]"></div>
-              <span>Active Question</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm font-bold text-gray-600 dark:text-gray-400">
-              <div className="w-4 h-4 rounded-md bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800"></div>
-              <span>Answered</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm font-bold text-gray-600 dark:text-gray-400">
-              <div className="w-4 h-4 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"></div>
-              <span>Not Attempted</span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </>
-  );
 
   return (
     <div className="dark">
@@ -1008,14 +940,82 @@ const QuizInterface = () => {
       </div>
       <AnimatePresence>
         {showQuestionGrid && (
-          <QuestionGrid
-            key="navigation-sidebar"
-            questions={questions}
-            userAnswers={userAnswers}
-            currentQuestionIndex={currentQuestionIndex}
-            jumpToQuestion={jumpToQuestion}
-            setShowQuestionGrid={setShowQuestionGrid}
-          />
+          <React.Fragment key="navigation-sidebar">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowQuestionGrid(false)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90]"
+            />
+
+            {/* Sidebar */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 h-full w-full max-w-[320px] bg-white dark:bg-gray-950 shadow-[-10px_0_30px_rgba(0,0,0,0.1)] border-l border-gray-100 dark:border-gray-800 z-[100] flex flex-col"
+            >
+              <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="bg-red-50 dark:bg-red-900/30 p-2 rounded-xl">
+                    <SafeIcon icon={FiGrid} className="w-5 h-5 text-[#E53935]" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white">Navigation</h3>
+                </div>
+                <button
+                  onClick={() => setShowQuestionGrid(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all"
+                >
+                  <SafeIcon icon={FiX} className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Question List</p>
+                <div className="grid grid-cols-4 gap-3">
+                  {questions.map((_, idx) => {
+                    const isAnswered = !!userAnswers[idx];
+                    const isCurrent = idx === currentQuestionIndex;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => jumpToQuestion(idx)}
+                        className={`
+                        aspect-square rounded-xl font-bold text-sm transition-all flex items-center justify-center border-2
+                        ${isCurrent ? 'bg-[#E53935] border-[#E53935] text-white shadow-lg shadow-red-200 dark:shadow-none' :
+                            isAnswered ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-900/50 dark:text-green-400' :
+                              'bg-gray-50 border-gray-100 text-gray-400 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-500 hover:border-gray-300 dark:hover:border-gray-600'}
+                      `}
+                      >
+                        {idx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
+                <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Legend</p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-sm font-bold text-gray-600 dark:text-gray-400">
+                    <div className="w-4 h-4 rounded-md bg-[#E53935]"></div>
+                    <span>Active Question</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm font-bold text-gray-600 dark:text-gray-400">
+                    <div className="w-4 h-4 rounded-md bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800"></div>
+                    <span>Answered</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm font-bold text-gray-600 dark:text-gray-400">
+                    <div className="w-4 h-4 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700"></div>
+                    <span>Not Attempted</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </React.Fragment>
         )}
       </AnimatePresence>
       {showAITutor && <AITutorModal question={currentQuestion} userAnswer={selectedAnswer} correctAnswer={currentQuestion.correct_answer} onClose={() => setShowAITutor(false)} />}

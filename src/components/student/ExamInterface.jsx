@@ -325,10 +325,12 @@ const ExamInterface = () => {
     const isRWKeywords = text.includes(' passage ') || text.includes(' text ') || 
                          text.includes(' author ') || text.includes(' logically completes ') ||
                          topic.includes('read') || topic.includes('writ') || 
-                         topic.includes('english') || topic.includes('literacy');
+                         topic.includes('english') || topic.includes('literacy') ||
+                         topic.includes('rhetorical') || topic.includes('synthesis');
 
-    const isReadingCourse = courseName.includes('reading') || courseName.includes('writing') || courseName.includes('words');
-    const isMathCourse = courseName.includes('math') || courseName.includes('algebra') || courseName.includes('calc');
+    const courseCategory = (courseInfo?.category || '').toLowerCase();
+    const isReadingCourse = courseName.includes('reading') || courseName.includes('writing') || courseName.includes('words') || courseName.includes('rhetorical') || courseName.includes('synthesis') || courseCategory === 'reading_writing' || courseCategory.includes('reading');
+    const isMathCourse = courseName.includes('math') || courseName.includes('algebra') || courseName.includes('calc') || courseCategory === 'math' || courseCategory.includes('math');
 
     if (isReadingCourse && !isMathSymbolic) return 'Reading & Writing';
     if (isMathCourse) return 'Math';
