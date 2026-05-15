@@ -105,12 +105,12 @@ const Leaderboard = () => {
           <select
             value={selectedCourseId}
             onChange={(e) => setSelectedCourseId(e.target.value)}
-            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white font-black text-xs sm:text-sm cursor-pointer outline-none !bg-opacity-100 uppercase tracking-widest"
+            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white font-black text-[10px] sm:text-sm cursor-pointer outline-none !bg-opacity-100 uppercase tracking-widest truncate min-w-0"
           >
             <option value="" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Global Leaderboard (Total SAT)</option>
             {courses.map(course => (
               <option key={course.id} value={course.id} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-                {course.name} (SAT Score)
+                {course.name.length > 25 ? course.name.substring(0, 25) + '...' : course.name}
               </option>
             ))}
           </select>

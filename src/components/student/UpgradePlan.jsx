@@ -136,12 +136,13 @@ const UpgradePlan = () => {
             transition={{ delay: 0.4 }}
             className="bg-gray-900 dark:bg-black rounded-[2.5rem] sm:rounded-[40px] p-6 sm:p-10 border-4 border-[#E53935] shadow-[0_20px_60px_-15px_rgba(229,57,53,0.3)] relative sm:scale-110 z-10 my-8 sm:my-0"
           >
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#E53935] to-[#D32F2F] text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-[0.2em] shadow-xl">
-              Most Popular
+            <div className="flex flex-col items-center mb-8">
+              <div className="mb-6">
+                <span className="bg-[#E53935] text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-xl">Most Popular</span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-black text-white mb-2 uppercase">Premium</h3>
+              <p className="text-gray-400 mb-0 font-medium text-sm sm:text-base text-center">Full AI-Powered experience</p>
             </div>
-            
-            <h3 className="text-2xl sm:text-3xl font-black text-white mb-2">Premium</h3>
-            <p className="text-gray-400 mb-6 font-medium text-sm sm:text-base">Full AI-Powered experience</p>
             <div className="flex items-baseline gap-1 mb-8">
               <span className="text-4xl sm:text-5xl font-black text-white">₹1999</span>
               <span className="text-sm sm:text-lg text-gray-400 font-bold">/year</span>

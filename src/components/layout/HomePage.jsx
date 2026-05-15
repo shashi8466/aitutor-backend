@@ -28,12 +28,20 @@ const AIPrep365LandingPage = () => {
     const element = document.getElementById(id);
     if (element) {
       setIsMobileMenuOpen(false);
-      const headerOffset = 100;
+      const headerOffset = 150; // Increased offset for header + marquee
       const elementPosition = element.getBoundingClientRect().top;
       const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
       window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
     }
   };
+
+  // Handle Hash Scroll on load/change
+  React.useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) {
+      setTimeout(() => handleScroll(hash), 500);
+    }
+  }, [window.location.hash]);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -71,7 +79,7 @@ const AIPrep365LandingPage = () => {
 
           <div className="hidden lg:flex items-center gap-10 text-sm font-semibold tracking-wide text-slate-400">
             {['FEATURES', 'RESULTS', 'HOW IT WORKS', 'PRICING'].map((item) => (
-              <button key={item} onClick={() => handleScroll(item.toLowerCase().replace(' ', '-'))} className="hover:text-white transition-all uppercase">{item}</button>
+              <Link key={item} to={`/#${item.toLowerCase().replace(/ /g, '-')}`} onClick={() => handleScroll(item.toLowerCase().replace(/ /g, '-'))} className="hover:text-white transition-all uppercase">{item}</Link>
             ))}
           </div>
 
@@ -107,13 +115,14 @@ const AIPrep365LandingPage = () => {
           <div className="mx-auto max-w-[1500px] rounded-[24px] border border-white/5 bg-slate-900/90 p-6 pt-10 backdrop-blur-2xl shadow-2xl space-y-6 relative">
             <div className="flex flex-col gap-4">
               {['FEATURES', 'RESULTS', 'HOW IT WORKS', 'PRICING'].map((item) => (
-                <button
+                <Link
                   key={item}
-                  onClick={() => handleScroll(item.toLowerCase().replace(' ', '-'))}
+                  to={`/#${item.toLowerCase().replace(/ /g, '-')}`}
+                  onClick={() => handleScroll(item.toLowerCase().replace(/ /g, '-'))}
                   className="text-left text-sm font-bold tracking-widest text-slate-400 hover:text-white uppercase py-3 border-b border-white/5"
                 >
                   {item}
-                </button>
+                </Link>
               ))}
             </div>
             <div className="grid grid-cols-2 gap-4 pt-4">
@@ -356,18 +365,18 @@ const AIPrep365LandingPage = () => {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5 }}
-              className="rounded-[40px] p-8 md:p-12 border border-orange-500/30 bg-orange-500/5 backdrop-blur-xl shadow-[0_30px_60px_-15px_rgba(249,115,22,0.15)] relative overflow-hidden flex flex-col group pt-16 md:pt-12"
+              className="rounded-[40px] p-8 md:p-12 border border-orange-500/30 bg-orange-500/5 backdrop-blur-xl shadow-[0_30px_60px_-15px_rgba(249,115,22,0.15)] relative overflow-hidden flex flex-col group pt-10 md:pt-12"
             >
-              <div className="absolute top-0 right-0 p-4">
-                <span className="bg-orange-500 text-slate-950 text-[9px] md:text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-tighter">Most Popular</span>
-              </div>
 
-              <div className="mb-8">
+              <div className="flex flex-col items-center mb-8">
+                <div className="mb-6">
+                  <span className="bg-orange-500 text-slate-950 text-[10px] md:text-xs font-black px-6 py-2 rounded-full uppercase tracking-[0.2em] shadow-xl">Most Popular</span>
+                </div>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl">💎</span>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Premium Plan</h3>
                 </div>
-                <p className="text-orange-400 font-bold text-sm tracking-wide">🚀 Unlock Full Access – Best for serious students</p>
+                <p className="text-orange-400 font-bold text-sm tracking-wide text-center">🚀 Unlock Full Access – Best for serious students</p>
               </div>
 
               <ul className="space-y-5 mb-12 flex-1">

@@ -55,7 +55,7 @@ const Navbar = () => {
             </>
           ) : (
             ['FEATURES', 'RESULTS', 'HOW IT WORKS', 'PRICING'].map((item) => (
-              <Link key={item} to="/" className="hover:text-white transition-all uppercase">{item}</Link>
+              <Link key={item} to={`/#${item.toLowerCase().replace(/ /g, '-')}`} className="hover:text-white transition-all uppercase">{item}</Link>
             ))
           )}
         </div>
@@ -149,7 +149,7 @@ const Navbar = () => {
                         {['FEATURES', 'RESULTS', 'HOW IT WORKS', 'PRICING'].map((item) => (
                           <Link 
                             key={item} 
-                            to="/" 
+                            to={`/#${item.toLowerCase().replace(/ /g, '-')}`} 
                             onClick={closeMenu}
                             className="block text-lg font-black text-slate-300 hover:text-white transition-all uppercase tracking-tighter"
                           >

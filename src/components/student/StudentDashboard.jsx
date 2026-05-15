@@ -56,7 +56,7 @@ function LevelScore({ label, score, color }) {
     <div className="w-full">
       <div className="flex justify-between items-center mb-1.5">
         <span className="text-[9px] sm:text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{label}</span>
-        <span className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">{displayScore}%</span>
+        <span className="text-[10px] sm:text-xs font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md truncate max-w-[50px]">{Math.round(displayScore)}%</span>
       </div>
       <div className="h-2 sm:h-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden shadow-inner p-0.5">
         <motion.div
@@ -376,9 +376,9 @@ const StudentDashboard = () => {
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mx-4 sm:mx-0">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-lg">Continue Learning</h3>
-              <button onClick={() => navigate('/student/courses')} className="text-sky-600 text-sm font-bold hover:underline">View All</button>
+            <div className="flex justify-between items-center mb-6 gap-2">
+              <h3 className="font-bold text-base sm:text-lg truncate">Continue Learning</h3>
+              <button onClick={() => navigate('/student/courses')} className="text-sky-600 text-xs sm:text-sm font-bold hover:underline whitespace-nowrap flex-shrink-0">View All</button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {enrollments.slice(0, 3).map(course => {
@@ -386,13 +386,13 @@ const StudentDashboard = () => {
                 return (
                   <div key={course.enrollmentId || course.id} className="p-5 border border-slate-100 dark:border-slate-800 rounded-2xl hover:shadow-md transition-all">
                     <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={"w-10 h-10 rounded-xl flex items-center justify-center " + (courseType === 'MATH' ? 'bg-sky-50 text-sky-600' : 'bg-green-50 text-green-600')}>
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className={"w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 " + (courseType === 'MATH' ? 'bg-sky-50 text-sky-600' : 'bg-green-50 text-green-600')}>
                           <SafeIcon icon={FiBook} className="w-5 h-5" />
                         </div>
-                        <h4 className="font-bold truncate max-w-[120px]">{course.name}</h4>
+                        <h4 className="font-bold truncate text-sm sm:text-base" title={course.name}>{course.name}</h4>
                       </div>
-                      <span className="text-lg font-black text-sky-600">{course.courseScaledScore}</span>
+                      <span className="text-base sm:text-lg font-black text-sky-600 ml-2">{course.courseScaledScore}</span>
                     </div>
                     <div className="space-y-3 mb-6">
                       <LevelScore key="lvl-easy" label="Easy" score={course.levelScores?.Easy} color={courseType === 'MATH' ? 'bg-sky-400' : 'bg-green-400'} />

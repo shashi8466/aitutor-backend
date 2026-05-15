@@ -186,7 +186,7 @@ const SalesBot = () => {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-white dark:bg-gray-800 w-[calc(100vw-2rem)] sm:w-80 md:w-96 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-4 flex flex-col max-h-[550px]"
+            className="bg-white dark:bg-gray-800 w-[calc(100vw-1.5rem)] sm:w-80 md:w-96 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-4 flex flex-col max-h-[80vh] sm:max-h-[550px]"
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 text-white flex justify-between items-center shadow-lg">
@@ -214,7 +214,7 @@ const SalesBot = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900 custom-scrollbar h-[350px]">
               {messages.map((msg, idx) => (
                 <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-800 rounded-tl-none'}`}>
+                  <div className={`max-w-[88%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words overflow-hidden ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-800 rounded-tl-none'}`} style={{ overflowWrap: 'anywhere' }}>
                     {msg.text}
                   </div>
                   {idx === messages.length - 1 && <QuickActions />}
