@@ -8,6 +8,7 @@ import { questionService, progressService, enrollmentService, gradingService, pl
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
+import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
 
 const {
   FiChevronLeft, FiChevronRight, FiClock, FiGrid, FiMoreVertical, FiEdit3, FiInfo, FiChevronDown, FiStar, FiSlash, FiX, FiMapPin, FiFlag, FiLogOut, FiTrash2, FiType, FiFilePlus, FiTarget, FiCheckCircle, FiRefreshCw
@@ -39,6 +40,8 @@ const ExamInterface = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [eliminatedOptions, setEliminatedOptions] = useState({}); 
   const [showTimer, setShowTimer] = useState(true);
+  const [questionTimes, setQuestionTimes] = useState({});
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const wasDarkMode = useRef(false);
   const isSubmittingRef = useRef(false); // Hard lock to prevent duplicate submissions
 
@@ -46,8 +49,13 @@ const ExamInterface = () => {
   useEffect(() => {
     // Store previous theme state and enforce light mode for the test
     wasDarkMode.current = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
-    document.documentElement.classList.remove('dark');
-    document.body.classList.remove('dark');
+    if (showResults && wasDarkMode.current) {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else if (!showResults) {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
     
     return () => {
       // Restore the user's preferred theme upon exit
@@ -56,7 +64,7 @@ const ExamInterface = () => {
         document.body.classList.add('dark');
       }
     };
-  }, []);
+  }, [showResults]);
 
   useEffect(() => {
     if (courseId) {
@@ -89,6 +97,7 @@ const ExamInterface = () => {
       const moduleDuration = filtered.length * rate;
       setTotalTime(moduleDuration);
       setTimeLeft(moduleDuration);
+      setQuestionStartTime(Date.now());
     }
   }, [allQuestions, activeModuleIndex]);
 
@@ -195,6 +204,19 @@ const ExamInterface = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const recordTime = () => {
+    const now = Date.now();
+    const diff = Math.floor((now - questionStartTime) / 1000);
+    const qId = questions[currentQuestionIndex]?.id;
+    if (qId) {
+      setQuestionTimes(prev => ({
+        ...prev,
+        [qId]: (prev[qId] || 0) + diff
+      }));
+    }
+    setQuestionStartTime(now);
+  };
+
   const handleAnswerSelect = (answer) => {
     const q = questions[currentQuestionIndex];
     if (q) {
@@ -207,11 +229,13 @@ const ExamInterface = () => {
   };
 
   const handleNext = () => {
+    recordTime();
     if (currentQuestionIndex < questions.length - 1) setCurrentQuestionIndex(prev => prev + 1);
     else setShowCheckWork(true);
   };
 
   const handleBack = () => {
+    recordTime();
     if (currentQuestionIndex > 0) setCurrentQuestionIndex(prev => prev - 1);
   };
 
@@ -220,11 +244,13 @@ const ExamInterface = () => {
       setActiveModuleIndex(prev => prev + 1);
       setShowCheckWork(false);
       setCurrentQuestionIndex(0);
+      setQuestionStartTime(Date.now());
       window.scrollTo(0, 0);
     }
   };
 
   const handleFinish = async () => {
+    recordTime();
     if (activeModuleIndex < 2) return;
     // 🔒 Hard submission lock — prevents duplicate API calls from double-clicks
     // or rapid state updates before React re-renders the disabled button state.
@@ -286,9 +312,41 @@ const ExamInterface = () => {
             mode: 'test'
         });
 
+        const sectionName = detectSection(); // Returns 'Reading & Writing' or 'Math'
+        const isRW = sectionName === 'Reading & Writing';
+        
+        // Construct full responses array for the dashboard with explicit section labels
+        const fullResponses = allQuestions.map(q => {
+            return {
+                ...q,
+                section: sectionName,
+                question_text: q.text,
+                selected_answer: userAnswers[q.id] || '',
+                is_correct: userAnswers[q.id] && q.correctAnswer &&
+                            userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
+                is_unattempted: !userAnswers[q.id],
+                time_spent: questionTimes[q.id] || 0
+            };
+        });
+        
+        const totalCorrect = fullResponses.filter(r => r.is_correct).length;
+        const accuracyVal = Math.round((totalCorrect / allQuestions.length) * 100);
+        
+        // Use backend score if present, else estimate
+        const finalTotalScore = response.data?.scaled_score || response.data?.score || Math.round(200 + (totalCorrect / allQuestions.length) * 600);
+
         const finalResult = {
             ...response.data,
-            moduleScores
+            moduleScores,
+            course: courseInfo,
+            student_name: user?.name || user?.full_name || "Student",
+            responses: fullResponses,
+            rwScore: isRW ? finalTotalScore : 0,
+            mathScore: !isRW ? finalTotalScore : 0,
+            totalScore: finalTotalScore,
+            scaled_score: finalTotalScore,
+            accuracy: accuracyVal,
+            test_date: new Date().toISOString()
         };
 
         setSubmissionResult(finalResult);
@@ -379,7 +437,7 @@ const ExamInterface = () => {
                     return (
                       <button 
                         key={idx} 
-                        onClick={() => { setShowCheckWork(false); setCurrentQuestionIndex(idx); }}
+                        onClick={() => { setShowCheckWork(false); setCurrentQuestionIndex(idx); setQuestionStartTime(Date.now()); }}
                         className={`aspect-square w-full rounded-xl relative flex items-center justify-center font-bold text-xl transition-all border-2 ${isAnswered ? 'bg-[#2E4DC6] border-[#2E4DC6] text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}
                       >
                         {idx + 1}
@@ -405,7 +463,7 @@ const ExamInterface = () => {
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto">
-                    <button onClick={() => setShowCheckWork(false)} className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[13px] sm:text-[15px] hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
+                    <button onClick={() => { setShowCheckWork(false); setQuestionStartTime(Date.now()); }} className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[13px] sm:text-[15px] hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
                       <SafeIcon icon={FiChevronLeft} /> Back to Questions
                     </button>
                     {activeModuleIndex < 2 ? (
@@ -426,59 +484,12 @@ const ExamInterface = () => {
   }
 
   if (showResults) {
-    const res = submissionResult;
-    const percentage = res ? Math.round(res.rawPercentage || 0) : 0;
-    const modScores = res?.moduleScores || {};
-
     return (
-      <div className="fixed inset-0 z-[999999] bg-[#0F172A]/90 backdrop-blur-md flex flex-col items-center justify-center p-4">
-        <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="bg-[#1E293B] p-8 sm:p-12 rounded-[48px] shadow-2xl max-w-2xl w-full border border-white/10 flex flex-col items-center relative overflow-y-auto max-h-[95vh]">
-          <div className="w-16 h-16 bg-blue-600/20 rounded-2xl rotate-12 flex items-center justify-center mb-6">
-             <div className="w-12 h-12 bg-blue-600 rounded-xl -rotate-12 flex items-center justify-center shadow-xl shadow-blue-900/50">
-                <SafeIcon icon={FiIcons.FiAward} className="w-6 h-6 text-white" />
-             </div>
-          </div>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-2 text-center">Test Completed!</h2>
-          <p className="text-slate-400 font-bold uppercase tracking-widest text-[9px] sm:text-[10px] mb-6 sm:mb-8 text-center">Performance Summary</p>
-          
-          <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            <div className="bg-white p-6 rounded-3xl text-center shadow-lg">
-              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] mb-2">Scaled Score</p>
-              <div className="flex flex-col"><span className="text-4xl font-black text-[#2E4DC6]">{res?.scaledScore || '-'}</span></div>
-            </div>
-            <div className="bg-white p-6 rounded-3xl text-center shadow-lg">
-              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-[0.2em] mb-2">Accuracy</p>
-              <div className="flex flex-col"><span className="text-4xl font-black text-slate-900">{percentage}%</span></div>
-            </div>
-          </div>
-
-          <div className="w-full space-y-3 mb-10">
-            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em] mb-2">Module Breakdown</p>
-            {['Easy', 'Medium', 'Hard'].map(lvl => {
-              const data = modScores[lvl.toLowerCase()];
-              if (!data) return null;
-              return (
-                <div key={lvl} className="flex items-center justify-between bg-white/5 border border-white/10 p-4 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${lvl === 'Easy' ? 'bg-green-500' : lvl === 'Medium' ? 'bg-orange-500' : 'bg-red-500'}`}></div>
-                    <span className="text-white font-bold">{lvl} Module</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-slate-400 text-xs font-bold">{data.correct} / {data.total}</span>
-                    <span className={`text-sm font-black ${data.percentage >= 70 ? 'text-green-400' : data.percentage >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
-                      {data.percentage}%
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <Link to="/student" className="w-full py-4 bg-black text-white rounded-[24px] font-black text-lg hover:bg-slate-900 transition-all text-center flex items-center justify-center gap-3">
-              Back to Dashboard <SafeIcon icon={FiChevronRight} className="w-5 h-5 text-slate-400" />
-          </Link>
-        </motion.div>
-      </div>
+      <AdaptiveResultsDashboard 
+        submission={submissionResult} 
+        onExit={() => navigate(`/student/course/${courseId}`)} 
+        adminMode={false} 
+      />
     );
   }
 
