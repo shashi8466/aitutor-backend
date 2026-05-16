@@ -41,6 +41,52 @@ const generateEnrollmentKey = (courseName) => {
 };
 
 /**
+ * Helper to check if a key code is orphaned (course deleted or null) and purge it
+ */
+const checkAndPurgeOrphanedKey = async (keyCode, ignoreKeyId = null) => {
+    let query = supabaseAdmin
+        .from('enrollment_keys')
+        .select('id, course_id')
+        .eq('key_code', keyCode);
+
+    if (ignoreKeyId) {
+        query = query.neq('id', ignoreKeyId);
+    }
+
+    const { data: existingKeys } = await query;
+    if (!existingKeys || existingKeys.length === 0) {
+        return null; // No existing key found
+    }
+
+    for (const key of existingKeys) {
+        if (!key.course_id) {
+            console.log(`🧹 [ENROLLMENT] Purging orphaned key ${key.id} (${keyCode}) with null course_id`);
+            await supabaseAdmin.from('enrollment_keys').delete().eq('id', key.id);
+            continue;
+        }
+
+        // Check if referenced course_id actually exists in courses table
+        const { data: course } = await supabaseAdmin
+            .from('courses')
+            .select('id')
+            .eq('id', key.course_id)
+            .maybeSingle();
+
+        if (!course) {
+            console.log(`🧹 [ENROLLMENT] Purging orphaned key ${key.id} (${keyCode}) for deleted course ${key.course_id}`);
+            await supabaseAdmin.from('enrollment_keys').delete().eq('id', key.id);
+            continue;
+        }
+
+        // Active key exists for a valid course
+        return key;
+    }
+
+    return null; // All found keys were orphaned and purged
+};
+
+
+/**
  * POST /api/enrollment/create-key
  * Create a new enrollment key
  */
@@ -95,12 +141,8 @@ router.post('/create-key', async (req, res) => {
                 return res.status(400).json({ error: 'Enrollment Key must be between 4 and 12 characters.' });
             }
 
-            // Check if it's already taken
-            const { data: existing } = await supabaseAdmin
-                .from('enrollment_keys')
-                .select('id')
-                .eq('key_code', keyCode)
-                .single();
+            // Check if it's already taken (and auto-purge if orphaned)
+            const existing = await checkAndPurgeOrphanedKey(keyCode);
 
             if (existing) {
                 return res.status(400).json({ error: `The code '${keyCode}' is already in use. Please choose another.` });
@@ -113,11 +155,7 @@ router.post('/create-key', async (req, res) => {
             while (!isUnique && attempts < 10) {
                 keyCode = generateEnrollmentKey(course.name);
 
-                const { data: existing } = await supabaseAdmin
-                    .from('enrollment_keys')
-                    .select('id')
-                    .eq('key_code', keyCode)
-                    .single();
+                const existing = await checkAndPurgeOrphanedKey(keyCode);
 
                 if (!existing) {
                     isUnique = true;
@@ -490,13 +528,8 @@ router.patch('/key/:keyId', async (req, res) => {
                 if (newCode.length < 4 || newCode.length > 12) {
                     return res.status(400).json({ error: 'Enrollment Key must be between 4 and 12 characters.' });
                 }
-                // Check if another key already has this code
-                const { data: existing } = await supabaseAdmin
-                    .from('enrollment_keys')
-                    .select('id')
-                    .eq('key_code', newCode)
-                    .neq('id', keyId)
-                    .maybeSingle();
+                // Check if another key already has this code (and auto-purge if orphaned)
+                const existing = await checkAndPurgeOrphanedKey(newCode, keyId);
 
                 if (existing) {
                     return res.status(400).json({ error: `The code '${newCode}' is already in use by another key.` });

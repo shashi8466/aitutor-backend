@@ -455,7 +455,22 @@ export const courseService = {
     return await supabase.from('courses').update(courseData).eq('id', id).select().single();
   },
   delete: async (id) => {
-    return await supabase.from('courses').delete().eq('id', id);
+    try {
+      // 1. Explicitly delete any enrollment keys linked to this course to release key codes
+      await supabase.from('enrollment_keys').delete().eq('course_id', id);
+
+      // 2. Explicitly delete any student groups linked to this course
+      await supabase.from('student_groups').delete().eq('course_id', id);
+
+      // 3. Explicitly delete any enrollments linked to this course
+      await supabase.from('enrollments').delete().eq('course_id', id);
+
+      // 4. Finally delete the course itself
+      return await supabase.from('courses').delete().eq('id', id);
+    } catch (error) {
+      console.error('Error in courseService.delete:', error);
+      throw error;
+    }
   },
   /**
    * Uploads a file to the server for processing/storage
