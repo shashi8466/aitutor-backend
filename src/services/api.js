@@ -822,14 +822,23 @@ export const progressService = {
     if (error) throw error;
     return { success: true, message: 'Progress saved', isNewHigh: true }; // Simplified response
   },
-  getAllUserProgress: async (userId) => {
+  getUserProgress: async (userId, courseId = null) => {
     try {
-      const { data, error } = await supabase.from('student_progress').select('*').eq('user_id', userId);
+      let query = supabase.from('student_progress').select('*').eq('user_id', userId);
+      if (courseId) {
+        query = query.eq('course_id', courseId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
       return { data: data || [] };
-    } catch {
+    } catch (err) {
+      console.error('Error fetching progress:', err);
       return { data: [] };
     }
   },
+  getAllUserProgress: async (userId) => {
+    return progressService.getUserProgress(userId);
+  }
 };
 
 // --- PLAN SERVICE ---
@@ -876,8 +885,12 @@ export const planService = {
       updated_at: new Date().toISOString()
     });
   },
-  getContentAccess: async () => {
-    return await supabase.from('plan_content_access').select('*');
+  getContentAccess: async (planType = null) => {
+    let query = supabase.from('plan_content_access').select('*');
+    if (planType) {
+      query = query.eq('plan_type', planType.toLowerCase());
+    }
+    return await query;
   },
   addContentAccess: async (accessData) => {
     return await supabase.from('plan_content_access').insert([accessData]).select();

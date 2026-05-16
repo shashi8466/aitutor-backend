@@ -38,20 +38,20 @@ const CourseView = () => {
   const checkAccessAndLoad = async () => {
     setLoading(true);
     try {
-      // 1. Fetch course details first to check if it's a demo or free course
-      const courseRes = await courseService.getById(courseId);
+      // 1. Fetch course details and check enrollment in parallel
+      const [courseRes, isEnrolledRes] = await Promise.all([
+        courseService.getById(courseId),
+        enrollmentService.isEnrolled(user.id, parseInt(courseId)).catch(err => {
+          console.warn('Enrollment check failed:', err);
+          return false;
+        })
+      ]);
+
       const courseData = courseRes.data;
       setCourse(courseData);
+      let isEnrolled = isEnrolledRes;
 
-      // 2. Check enrollment
-      let isEnrolled = false;
-      try {
-        isEnrolled = await enrollmentService.isEnrolled(user.id, parseInt(courseId));
-      } catch (err) {
-        console.warn('Enrollment check failed, possibly due to network timeout:', err);
-        // If course is a demo, we can safely assume access is allowed even if DB check fails
-        if (courseData?.is_demo) isEnrolled = true;
-      }
+      if (!isEnrolled && courseData?.is_demo) isEnrolled = true;
 
       // 3. Bypass enrollment block for demo courses or if already enrolled
       if (!isEnrolled && !courseData?.is_demo) {
@@ -113,12 +113,12 @@ const CourseView = () => {
       }
 
       // 4. Load course content (since access is granted)
-      const [uploadsResponse, allProgressRes, planRes, submissionsRes, planAccessRes] = await Promise.all([
+      const [uploadsResponse, courseProgressRes, planRes, submissionsRes, planAccessRes] = await Promise.all([
         uploadService.getAll({ courseId }),
-        progressService.getAllUserProgress(user.id),
+        progressService.getUserProgress(user.id, courseId),
         planService.getPlan(user.id),
-        gradingService.getAllMyScores(user.id),
-        planService.getContentAccess()
+        gradingService.getMyScores(courseId),
+        planService.getContentAccess(user?.plan_type || 'free')
       ]);
 
       const accessData = planAccessRes.data || [];
@@ -138,11 +138,8 @@ const CourseView = () => {
       setCourse(courseData);
       setUploads(uploadsResponse.data);
 
-      const pData = allProgressRes.data || [];
-      const sData = submissionsRes.data?.submissions || [];
-
-      setCourseProgress(pData.filter(p => Number(p.course_id) === Number(courseId)));
-      setCourseSubmissions(sData.filter(s => Number(s.course_id) === Number(courseId)));
+      setCourseProgress(courseProgressRes.data || []);
+      setCourseSubmissions(submissionsRes.data?.submissions || []);
 
       if (planRes.data && planRes.data.diagnostic_data) {
         setDiagnostic(planRes.data.diagnostic_data);

@@ -207,7 +207,7 @@ const Leaderboard = () => {
                       {getRankBadge(index + 1)}
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 dark:text-white text-sm">{student.name}</h3>
+                      <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate max-w-[150px] sm:max-w-none">{student.name}</h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                         Level {student.levels_completed || 0} Achiever
                       </p>

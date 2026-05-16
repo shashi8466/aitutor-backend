@@ -29,7 +29,7 @@ function Badge({ label, value, color }) {
 }
 
 function ProgressRow({ icon, color, bg, label, count, max }) {
-  const percent = Math.min(100, (count / max) * 100);
+  const percent = Math.round(Math.min(100, (count / max) * 100));
   return (
     <div>
       <div className="flex justify-between items-center mb-2">

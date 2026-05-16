@@ -305,6 +305,29 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 API: http://localhost:${PORT}/api`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   
+  // Render Keep-Alive Self-Ping
+  // Prevents the Free Tier web service from sleeping after 15 minutes of inactivity
+  try {
+    const APP_URL = process.env.RENDER_EXTERNAL_URL || 'https://aiprep365.com';
+    const PING_INTERVAL = 14 * 60 * 1000; // 14 minutes
+    
+    setInterval(() => {
+      fetch(`${APP_URL}/api/health`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === 'ok') {
+            console.log(`[Keep-Alive] Successfully pinged ${APP_URL} at ${new Date().toISOString()}`);
+          }
+        })
+        .catch(err => {
+          console.error(`[Keep-Alive] Ping failed:`, err.message);
+        });
+    }, PING_INTERVAL);
+    console.log('⏰ Keep-Alive service initialized (14m interval)');
+  } catch (err) {
+    console.error('❌ Keep-Alive service failed to start:', err.message);
+  }
+
   try {
     notificationMiddleware.initializeScheduler();
     console.log('🔔 Notification scheduler initialized');
