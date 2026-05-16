@@ -63,6 +63,29 @@ const UserManagement = () => {
     }
   };
 
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you absolutely sure you want to permanently delete this user? All their data, progress, and records will be completely erased. This cannot be undone.')) {
+      return;
+    }
+
+    setUpdating(prev => ({ ...prev, [userId]: true }));
+    try {
+      await authService.deleteUser(userId);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      if (selectedUser?.id === userId) {
+        setShowManageModal(false);
+        setSelectedUser(null);
+      }
+      setError('');
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError('Failed to delete user: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setUpdating(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+
   const toggleCourseAssignment = async (courseId) => {
     if (!selectedUser) return;
 
@@ -489,6 +512,25 @@ const UserManagement = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Danger Zone: Delete User */}
+                <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-800">
+                  <h4 className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2">Danger Zone</h4>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-red-50 dark:bg-red-900/10 p-4 rounded-2xl border border-red-100 dark:border-red-900/30">
+                    <div>
+                      <h4 className="text-sm font-black text-red-900 dark:text-red-200 uppercase tracking-widest">Permanently Delete User</h4>
+                      <p className="text-xs text-red-700 dark:text-red-400 font-medium">This action cannot be undone. All user data, progress, and records will be wiped.</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteUser(selectedUser.id)}
+                      disabled={updating[selectedUser.id]}
+                      className="px-4 py-2.5 rounded-xl text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-200 dark:shadow-none transition-all flex items-center gap-2 whitespace-nowrap self-end sm:self-auto"
+                    >
+                      <SafeIcon icon={FiX} className="w-4 h-4" />
+                      {updating[selectedUser.id] ? 'Deleting...' : 'Delete User'}
+                    </button>
+                  </div>
+                </div>
 
                 <button
                   onClick={() => setShowManageModal(false)}

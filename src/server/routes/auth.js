@@ -1,6 +1,7 @@
 import express from 'express';
 import BrevoEmailService from '../services/BrevoEmailService.js';
 import { getUserFromRequest } from '../utils/authHelper.js';
+import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 
 const router = express.Router();
 const emailService = new BrevoEmailService();
@@ -186,6 +187,55 @@ router.post('/test-welcome-email', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+/**
+ * DELETE /api/auth/user/:userId
+ * Permanently delete a user and all related records (Admin only)
+ */
+router.delete('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const requestingUser = await getUserFromRequest(req);
+    if (!requestingUser) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Verify requesting user is admin
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', requestingUser.id)
+      .single();
+
+    if (profile?.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Admin access required to delete users' });
+    }
+
+    console.log(`🗑️ [AUTH] Admin ${requestingUser.email} initiating permanent deletion for user ${userId}`);
+
+    // 1. Delete user from Supabase Auth (this completely purges their auth.users record)
+    // Note: ON DELETE CASCADE on profiles table in postgres handles the profile deletion automatically.
+    const { data, error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (authError) {
+      console.error('❌ [AUTH] Failed to delete user from Supabase Auth:', authError.message);
+      throw authError;
+    }
+
+    // 2. As an extra precautionary cleanup, explicitly delete any remaining records across tables
+    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+    await supabaseAdmin.from('enrollments').delete().eq('user_id', userId);
+    await supabaseAdmin.from('progress').delete().eq('user_id', userId);
+    await supabaseAdmin.from('test_submissions').delete().eq('user_id', userId);
+    await supabaseAdmin.from('student_states').delete().eq('user_id', userId);
+    await supabaseAdmin.from('test_reviews').delete().eq('user_id', userId);
+
+    console.log(`✅ [AUTH] User ${userId} successfully deleted and cleaned up.`);
+    res.json({ success: true, message: 'User successfully deleted.' });
+  } catch (error) {
+    console.error('❌ [AUTH] User deletion error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

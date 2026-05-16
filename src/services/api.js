@@ -379,6 +379,15 @@ export const authService = {
     } catch (error) {
       return { success: false, error: error.message };
     }
+  },
+  deleteUser: async (userId) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = {};
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`;
+    }
+    const response = await axios.delete(`/api/auth/user/${userId}`, { headers });
+    return response.data;
   }
 };
 
