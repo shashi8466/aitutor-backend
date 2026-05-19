@@ -146,7 +146,7 @@ const TutorInvitations = ({ dashboardData, isParentLoading }) => {
                                         <SafeIcon icon={FiLink} className="w-5 h-5 text-indigo-600" />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-gray-900 dark:text-white leading-tight">{invite.course?.name || 'Assigned Course'}</h4>
+                                        <h4 className="font-bold text-gray-900 dark:text-white leading-tight">{invite.key_type === 'global' || invite.course_id === null ? 'All Courses Access (Global Key)' : (invite.course?.name || 'Assigned Course')}</h4>
                                         <p className="text-xs text-gray-500 font-medium">Code: <span className="text-indigo-600 font-black">{invite.key_code}</span></p>
                                     </div>
                                 </div>

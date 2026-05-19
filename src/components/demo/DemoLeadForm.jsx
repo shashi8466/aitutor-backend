@@ -17,95 +17,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  // OTP States
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpError, setOtpError] = useState('');
-  const [countdown, setCountdown] = useState(0);
-  const [canResend, setCanResend] = useState(true);
-
-  // Timer effect for Resend OTP
-  React.useEffect(() => {
-    let timer;
-    if (countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-    } else {
-      setCanResend(true);
-    }
-    return () => clearInterval(timer);
-  }, [countdown]);
-
-  const handleSendOTP = async () => {
-    if (!formData.phone) {
-      setOtpError('Please enter a phone number first.');
-      return;
-    }
-
-    // Country code validation
-    if (!formData.phone.startsWith('+')) {
-      setOtpError('Please include country code (e.g., +91) before your mobile number.');
-      return;
-    }
-
-    setOtpLoading(true);
-    setOtpError('');
-    try {
-      const cleanedPhone = formData.phone.replace(/[^\d+]/g, '');
-      const res = await axios.post('/api/demo/send-otp', { phone: cleanedPhone });
-      setOtpSent(true);
-      setCountdown(30);
-      setCanResend(false);
-
-      // Handle debug mode - show OTP for testing
-      if (res.data.debugMode && res.data.otpForTesting) {
-        console.log(`🔑 [DEBUG] OTP for testing: ${res.data.otpForTesting}`);
-        setOtpError(`🔑 DEBUG MODE - Your OTP is: ${res.data.otpForTesting}`);
-      }
-    } catch (err) {
-      console.error('❌ API Error: POST /api/demo/send-otp -', err.response?.status);
-      if (err.response?.status === 404) {
-        setOtpError('SERVER ERROR: API endpoint not found. Please refresh the page or wait for the backend to sync.');
-      } else {
-        setOtpError(err.response?.data?.error || 'Failed to send OTP. Please try again.');
-      }
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    if (!otp) {
-      setOtpError('Please enter the OTP.');
-      return;
-    }
-
-    setOtpLoading(true);
-    setOtpError('');
-    try {
-      const cleanedPhone = formData.phone.replace(/[^\d+]/g, '');
-      const res = await axios.post('/api/demo/verify-otp', { 
-        phone: cleanedPhone,
-        otp 
-      });
-      if (res.data.success) {
-        setOtpVerified(true);
-        setOtpSent(false); // Hide OTP input after verification
-      }
-    } catch (err) {
-      console.error('❌ API Error: POST /api/demo/verify-otp -', err.response?.status);
-      if (err.response?.status === 404) {
-        setOtpError('SERVER ERROR: Verification endpoint not found. Please wait for the backend to sync.');
-      } else {
-        setOtpError(err.response?.data?.error || 'Invalid OTP, please try again.');
-      }
-    } finally {
-      setOtpLoading(false);
-    }
-  };
+  // NOTE: OTP verification temporarily disabled (Twilio not working for USA numbers).
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -253,97 +165,34 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
 
                 <div>
                   <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1">Phone Number</label>
-                  <div className="relative flex gap-2">
-                    <div className="relative flex-1">
-                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                        <SafeIcon icon={FiPhone} className="w-4 h-4" />
-                      </div>
-                      <input
-                        required
-                        disabled={otpVerified}
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        placeholder="e.g., +1 713 452 0639"
-                        className={`w-full pl-10 pr-4 py-3 bg-white border-2 ${otpVerified ? 'border-green-500' : 'border-gray-200 focus:border-[#E53935]'} rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50 ${otpVerified ? 'cursor-not-allowed bg-gray-50' : ''}`}
-                      />
-                      {otpVerified && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600">
-                          <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
-                        </div>
-                      )}
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                      <SafeIcon icon={FiPhone} className="w-4 h-4" />
                     </div>
-                    {!otpVerified && (
-                      <button
-                        type="button"
-                        onClick={handleSendOTP}
-                        disabled={otpLoading || !canResend || !formData.phone}
-                        className="px-4 py-3 bg-[#E53935] text-white rounded-xl font-black text-xs hover:bg-red-700 transition-all disabled:opacity-50 whitespace-nowrap shadow-md active:scale-95"
-                      >
-                        {otpLoading ? <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" /> : (otpSent ? (canResend ? 'Resend OTP' : `Resend in ${countdown}s`) : 'Send OTP')}
-                      </button>
-                    )}
+                    <input
+                      required
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="e.g., +1 713 452 0639"
+                      className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50"
+                    />
                   </div>
-                  {!otpVerified && (
-                    <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 ml-1 font-medium italic">
-                      Include country code: <strong>+1</strong> for USA, <strong>+91</strong> for India
-                    </p>
-                  )}
+                  <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 ml-1 font-medium italic">
+                    Include country code: <strong>+1</strong> for USA, <strong>+91</strong> for India
+                  </p>
                 </div>
 
-                <AnimatePresence>
-                  {otpSent && !otpVerified && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1 mt-2">Enter OTP</label>
-                      <div className="relative flex gap-2">
-                        <input
-                          type="text"
-                          maxLength="6"
-                          value={otp}
-                          onChange={(e) => setOtp(e.target.value)}
-                          placeholder="6-digit code"
-                          className="flex-1 px-4 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 text-center tracking-[0.5em] font-bold text-lg placeholder-gray-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleVerifyOTP}
-                          disabled={otpLoading || otp.length < 6}
-                          className="px-6 bg-[#E53935] text-white rounded-xl font-bold text-xs hover:bg-red-700 transition-all disabled:opacity-50"
-                        >
-                          {otpLoading ? <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" /> : 'Verify'}
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {otpError && (
-                  <p className="text-[10px] text-red-500 font-bold uppercase tracking-tight ml-1">{otpError}</p>
-                )}
-
                 <button
-                  disabled={loading || !otpVerified}
+                  disabled={loading}
                   type="submit"
-                  onClick={(e) => {
-                    if (!otpVerified) {
-                      e.preventDefault();
-                      setOtpError('Please verify your mobile number to continue.');
-                    }
-                  }}
-                  className={`w-full mt-2 py-3 ${otpVerified ? 'bg-black hover:bg-gray-800' : 'bg-gray-300 cursor-not-allowed'} text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg`}
+                  className="w-full mt-2 py-3 bg-black hover:bg-gray-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
                 >
                   {loading ? (
                     <SafeIcon icon={FiLoader} className="w-5 h-5 animate-spin" />
                   ) : (
-                    <>
-                      Submit & Get Score
-                    </>
+                    <>Submit &amp; Get Score</>
                   )}
                 </button>
               </form>
