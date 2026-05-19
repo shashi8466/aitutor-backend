@@ -25,7 +25,9 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
         maxStudents: '',
         validUntil: '',
         description: '',
-        selectedCourseId: courseId === 'all' ? '' : courseId
+        selectedCourseId: courseId === 'all' ? '' : courseId,
+        keyType: 'single',
+        autoEnrollNewCourses: false
     });
 
     useEffect(() => {
@@ -53,8 +55,10 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
             return;
         }
 
-        const targetCourseId = courseId === 'all' ? formData.selectedCourseId : courseId;
-        if (!targetCourseId) {
+        const isGlobal = formData.keyType === 'global';
+        const targetCourseId = isGlobal ? null : (courseId === 'all' ? formData.selectedCourseId : courseId);
+        
+        if (!isGlobal && !targetCourseId) {
             alert('Please select a course');
             return;
         }
@@ -67,11 +71,14 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
         try {
             const payload = {
                 courseId: targetCourseId,
+                keyType: formData.keyType,
+                autoEnrollNewCourses: isGlobal ? formData.autoEnrollNewCourses : false,
                 maxUses: formData.maxUses === '' ? null : parseInt(formData.maxUses),
                 maxStudents: formData.maxStudents === '' ? null : parseInt(formData.maxStudents),
                 validUntil: formData.validUntil || null,
-                description: formData.description || `Key for ${courses.find(c => String(c.id) === String(targetCourseId))?.name || courseName}`,
-                keyCode: formData.keyCode || undefined
+                description: formData.description || (isGlobal ? 'Global Enrollment Key' : `Key for ${courses.find(c => String(c.id) === String(targetCourseId))?.name || courseName}`),
+                keyCode: formData.keyCode || undefined,
+                customCode: formData.keyCode || undefined
             };
 
             if (isEditing) {
@@ -84,7 +91,28 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
             resetForm();
         } catch (error) {
             console.error('Error saving key:', error);
-            alert(error.response?.data?.error || 'Failed to save key');
+            const errData = error.response?.data;
+            const errMessage = (errData?.details || errData?.message || error.message || '').toLowerCase();
+            
+            const isMigrationPending = 
+                errData?.code === 'MIGRATION_PENDING' || 
+                errMessage.includes('auto_enroll_new_courses') || 
+                errMessage.includes('key_type') || 
+                errMessage.includes('schema cache') ||
+                (errMessage.includes('column') && errMessage.includes('enrollment_keys'));
+
+            if (isMigrationPending) {
+                alert(
+                    `⚠️ DATABASE SYNC REQUIRED\n\n` +
+                    `The Global Enrollment Keys feature requires a database schema migration to be applied.\n\n` +
+                    `👉 Instruction:\n` +
+                    `Please copy the contents of the migration SQL file located at:\n` +
+                    `"src/supabase/migrations/1776800000000-global_enrollment_keys.sql"\n\n` +
+                    `and run it in your Supabase SQL Editor to enable Global Enrollment Keys.`
+                );
+            } else {
+                alert(errData?.error || 'Failed to save key');
+            }
         }
     };
 
@@ -98,7 +126,9 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
             maxStudents: '',
             validUntil: '',
             description: '',
-            selectedCourseId: courseId === 'all' ? '' : courseId
+            selectedCourseId: courseId === 'all' ? '' : courseId,
+            keyType: 'single',
+            autoEnrollNewCourses: false
         });
     };
 
@@ -111,7 +141,9 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
             maxStudents: key.max_students !== null ? key.max_students : '',
             validUntil: key.valid_until ? new Date(key.valid_until).toISOString().slice(0, 16) : '',
             description: key.description || '',
-            selectedCourseId: key.course_id
+            selectedCourseId: key.course_id || '',
+            keyType: key.key_type || (key.course_id ? 'single' : 'global'),
+            autoEnrollNewCourses: key.auto_enroll_new_courses || false
         });
         setIsEditing(true);
         setShowForm(true);
@@ -136,17 +168,27 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
         }
     };
 
-    const deleteKey = async (keyId) => {
-        if (window.confirm('Are you sure you want to delete this specific enrollment key? This action cannot be undone.')) {
+    const deleteKey = async (key) => {
+        const isGlobal = key.key_type === 'global' || key.course_id === null;
+        const warningMsg = isGlobal
+            ? `⚠️ GLOBAL KEY DELETION\n\nDeleting "${key.key_code}" will immediately revoke access for ALL students who enrolled using this key across all courses.\n\nThis action cannot be undone. Continue?`
+            : `Are you sure you want to delete the enrollment key "${key.key_code}"?\n\nAll students who enrolled using this key will lose access to their course.\n\nThis action cannot be undone.`;
+
+        if (window.confirm(warningMsg)) {
             try {
-                await axios.delete(`/api/enrollment/key/${keyId}`);
+                const response = await axios.delete(`/api/enrollment/key/${key.id}`);
+                const revoked = response.data?.revokedEnrollments;
                 await loadKeys();
+                if (revoked > 0) {
+                    alert(`✅ Key deleted. ${revoked} student enrollment${revoked !== 1 ? 's' : ''} have been revoked.`);
+                }
             } catch (error) {
                 console.error('Error deleting key:', error);
                 alert('Failed to delete key');
             }
         }
     };
+
 
     return (
         <div className="space-y-6">
@@ -209,21 +251,73 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        {courseId === 'all' && (
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Target Course <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={formData.selectedCourseId}
-                                    onChange={(e) => setFormData({ ...formData, selectedCourseId: e.target.value })}
-                                    className="w-full px-4 py-3 border-2 border-white dark:border-gray-700 shadow-sm rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-bold"
-                                >
-                                    <option value="">Select a course...</option>
-                                    {courses.map(c => (
-                                        <option key={c.id} value={c.id}>{c.name} (ID: {c.id})</option>
-                                    ))}
-                                </select>
+                        {/* Access Type Selector */}
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                Access Type <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                value={formData.keyType}
+                                onChange={(e) => setFormData({ 
+                                    ...formData, 
+                                    keyType: e.target.value,
+                                    selectedCourseId: e.target.value === 'global' ? '' : (courseId === 'all' ? '' : courseId)
+                                })}
+                                className="w-full px-4 py-3 border-2 border-white dark:border-gray-700 shadow-sm rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-bold"
+                            >
+                                <option value="single">Single Course Access (Course-Specific Key)</option>
+                                <option value="global">All Courses Access (Global Enrollment Key)</option>
+                            </select>
+                        </div>
+
+                        {formData.keyType === 'single' ? (
+                            courseId === 'all' ? (
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Target Course <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={formData.selectedCourseId}
+                                        onChange={(e) => setFormData({ ...formData, selectedCourseId: e.target.value })}
+                                        className="w-full px-4 py-3 border-2 border-white dark:border-gray-700 shadow-sm rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-bold"
+                                    >
+                                        <option value="">Select a course...</option>
+                                        {courses.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name} (ID: {c.id})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ) : (
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Target Course
+                                    </label>
+                                    <input
+                                        type="text"
+                                        disabled
+                                        value={courseName}
+                                        className="w-full px-4 py-3 border-2 border-gray-100 dark:border-gray-700 shadow-sm rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-bold"
+                                    />
+                                </div>
+                            )
+                        ) : (
+                            <div className="md:col-span-2 bg-blue-100/30 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-200/50 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="checkbox"
+                                        id="autoEnrollNewCourses"
+                                        checked={formData.autoEnrollNewCourses}
+                                        onChange={(e) => setFormData({ ...formData, autoEnrollNewCourses: e.target.checked })}
+                                        className="w-5 h-5 rounded text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                    />
+                                    <label htmlFor="autoEnrollNewCourses" className="cursor-pointer select-none">
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300 block">Auto-enroll in future courses</span>
+                                        <span className="text-[10px] text-gray-500 font-medium">Newly created courses will be automatically accessible to users of this key</span>
+                                    </label>
+                                </div>
+                                <span className="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                                    Global Config
+                                </span>
                             </div>
                         )}
                         <div className="md:col-span-2">
@@ -348,6 +442,9 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                         const usageRatio = key.max_uses ? (key.current_uses / key.max_uses) * 100 : 0;
                         const isExpired = key.valid_until && new Date(key.valid_until) < new Date();
                         const isAtRisk = usageRatio > 80;
+                        const isKeyGlobal = key.key_type === 'global' || key.course_id === null;
+                        const displayCourseName = isKeyGlobal ? 'All Courses (Global Key)' : (key.course?.name || courseName);
+                        const displayCourseId = isKeyGlobal ? 'ALL' : (key.course_id || courseId);
 
                         return (
                             <motion.div
@@ -366,10 +463,19 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                                                 <SafeIcon icon={FiKey} className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-3 flex-wrap">
                                                     <code className="text-xl font-mono font-black text-gray-900 dark:text-white tracking-widest">
                                                         {key.key_code}
                                                     </code>
+                                                    {isKeyGlobal ? (
+                                                        <span className="px-2.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-lg uppercase tracking-wider shadow-sm">
+                                                            All Courses Access
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                                                            Single Course Access
+                                                        </span>
+                                                    )}
                                                     <button
                                                         onClick={() => copyToClipboard(key.key_code)}
                                                         className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group"
@@ -389,7 +495,7 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                                                 </div>
                                             </div>
                                         </div>
-
+ 
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                             {/* Course Reference Tooltip-style card */}
                                             <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-100 dark:border-gray-600">
@@ -398,11 +504,11 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                                                     Linked Course
                                                 </div>
                                                 <p className="text-[11px] font-bold text-gray-700 dark:text-gray-200 truncate">
-                                                    {courseName}
+                                                    {displayCourseName}
                                                 </p>
-                                                <p className="text-[9px] font-mono text-gray-400">ID: {courseId}</p>
+                                                <p className="text-[9px] font-mono text-gray-400">ID: {displayCourseId}</p>
                                             </div>
-
+ 
                                             <div className="flex flex-col justify-center">
                                                 <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase mb-1">
                                                     <span>Usage</span>
@@ -415,7 +521,7 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                                                     ></div>
                                                 </div>
                                             </div>
-
+ 
                                             <div className="flex flex-col justify-center">
                                                 <span className="text-[10px] font-bold text-gray-400 uppercase mb-1">Max Students</span>
                                                 <div className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-200">
@@ -423,7 +529,7 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                                                     {key.max_students || 'No Limit'}
                                                 </div>
                                             </div>
-
+ 
                                             <div className="flex flex-col justify-center">
                                                 <span className="text-[10px] font-bold text-gray-400 uppercase mb-1">Validity</span>
                                                 <div className={`flex items-center gap-2 text-sm font-bold ${isExpired ? 'text-red-500' : 'text-gray-700 dark:text-gray-200'}`}>
@@ -460,7 +566,7 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                                             <SafeIcon icon={key.is_active ? FiEye : FiEyeOff} className="w-5 h-5" />
                                         </button>
                                         <button
-                                            onClick={() => deleteKey(key.id)}
+                                            onClick={() => deleteKey(key)}
                                             className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all shadow-sm"
                                             title="Delete permanently"
                                         >
@@ -514,14 +620,31 @@ const EnrollmentKeyManager = ({ courseId, courseName, courses = [], isTutorView 
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-50 dark:border-gray-700">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Course</span>
-                                    <p className="font-bold text-gray-900 dark:text-white truncate">{courseName}</p>
+                                <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-50 dark:border-gray-700 col-span-2">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Access Scope</span>
+                                    <p className="font-bold text-gray-900 dark:text-white">
+                                        {viewingKey.key_type === 'global' || viewingKey.course_id === null ? 'All Courses Access (Global Key)' : 'Single Course Access'}
+                                    </p>
                                 </div>
-                                <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-50 dark:border-gray-700">
-                                    <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Course ID</span>
-                                    <p className="font-bold text-gray-900 dark:text-white font-mono">{courseId}</p>
-                                </div>
+                                {viewingKey.key_type !== 'global' && viewingKey.course_id !== null ? (
+                                    <>
+                                        <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-50 dark:border-gray-700">
+                                            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Course</span>
+                                            <p className="font-bold text-gray-900 dark:text-white truncate">{viewingKey.course?.name || courseName}</p>
+                                        </div>
+                                        <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-50 dark:border-gray-700">
+                                            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Course ID</span>
+                                            <p className="font-bold text-gray-900 dark:text-white font-mono">{viewingKey.course_id || courseId}</p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-50 dark:border-gray-700 col-span-2">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Auto-enroll in future courses</span>
+                                        <p className="font-bold text-gray-900 dark:text-white">
+                                            {viewingKey.auto_enroll_new_courses ? 'Enabled (Automatically enroll in new courses)' : 'Disabled'}
+                                        </p>
+                                    </div>
+                                )}
                                 <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 border-2 border-gray-50 dark:border-gray-700">
                                     <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">Total Usages</span>
                                     <p className="font-bold text-gray-900 dark:text-white">{viewingKey.current_uses}</p>

@@ -46,7 +46,7 @@ const generateEnrollmentKey = (courseName) => {
 const checkAndPurgeOrphanedKey = async (keyCode, ignoreKeyId = null) => {
     let query = supabaseAdmin
         .from('enrollment_keys')
-        .select('id, course_id')
+        .select('id, course_id, key_type')
         .eq('key_code', keyCode);
 
     if (ignoreKeyId) {
@@ -59,6 +59,11 @@ const checkAndPurgeOrphanedKey = async (keyCode, ignoreKeyId = null) => {
     }
 
     for (const key of existingKeys) {
+        // If it's a global key, it's valid to have course_id = null. Protect it from purging.
+        if (key.key_type === 'global') {
+            return key;
+        }
+
         if (!key.course_id) {
             console.log(`🧹 [ENROLLMENT] Purging orphaned key ${key.id} (${keyCode}) with null course_id`);
             await supabaseAdmin.from('enrollment_keys').delete().eq('id', key.id);
@@ -93,7 +98,7 @@ const checkAndPurgeOrphanedKey = async (keyCode, ignoreKeyId = null) => {
 router.post('/create-key', async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { courseId, maxUses, maxStudents, validUntil, description } = req.body;
+        const { courseId, maxUses, maxStudents, validUntil, description, keyType, autoEnrollNewCourses } = req.body;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -110,23 +115,32 @@ router.post('/create-key', async (req, res) => {
             return res.status(403).json({ error: 'Only admins and tutors can create enrollment keys' });
         }
 
-        // Tutors can only create keys for their own courses
-        if (profile.role === 'tutor') {
-            const assigned = (profile.assigned_courses || []).map(Number);
-            if (!assigned.includes(Number(courseId))) {
-                return res.status(403).json({ error: 'You are not assigned to this course.' });
-            }
+        // Restrict global enrollment keys strictly to Admins
+        if (keyType === 'global' && profile.role !== 'admin') {
+            return res.status(403).json({ error: 'Only admins can create global enrollment keys' });
         }
 
-        // Check if course exists
-        const { data: course, error: courseError } = await supabaseAdmin
-            .from('courses')
-            .select('name')
-            .eq('id', courseId)
-            .single();
+        let course = null;
+        if (keyType !== 'global') {
+            // Tutors can only create keys for their own courses
+            if (profile.role === 'tutor') {
+                const assigned = (profile.assigned_courses || []).map(Number);
+                if (!assigned.includes(Number(courseId))) {
+                    return res.status(403).json({ error: 'You are not assigned to this course.' });
+                }
+            }
 
-        if (courseError || !course) {
-            return res.status(404).json({ error: 'Course not found' });
+            // Check if course exists
+            const { data: courseData, error: courseError } = await supabaseAdmin
+                .from('courses')
+                .select('name')
+                .eq('id', courseId)
+                .single();
+
+            if (courseError || !courseData) {
+                return res.status(404).json({ error: 'Course not found' });
+            }
+            course = courseData;
         }
 
         // Generate unique key
@@ -151,9 +165,10 @@ router.post('/create-key', async (req, res) => {
             // Generate random key
             let isUnique = false;
             let attempts = 0;
+            const nameForPrefix = keyType === 'global' ? 'GLOBAL' : course.name;
 
             while (!isUnique && attempts < 10) {
-                keyCode = generateEnrollmentKey(course.name);
+                keyCode = generateEnrollmentKey(nameForPrefix);
 
                 const existing = await checkAndPurgeOrphanedKey(keyCode);
 
@@ -172,7 +187,9 @@ router.post('/create-key', async (req, res) => {
             .from('enrollment_keys')
             .insert({
                 key_code: keyCode,
-                course_id: courseId,
+                course_id: keyType === 'global' ? null : courseId,
+                key_type: keyType || 'single',
+                auto_enroll_new_courses: keyType === 'global' ? (autoEnrollNewCourses || false) : false,
                 created_by: userId,
                 creator_role: profile.role,
                 max_uses: (maxUses === '' || maxUses === null) ? null : parseInt(maxUses),
@@ -193,6 +210,24 @@ router.post('/create-key', async (req, res) => {
                     error: 'Enrollment system not initialized.',
                     hint: 'Admin must run DATABASE_FIX.sql in Supabase SQL Editor.',
                     code: 'MISSING_TABLE'
+                });
+            }
+
+            // Check if key_type / auto_enroll_new_courses is missing, or course_id null violates NOT NULL constraint
+            if (
+                error.code === '42703' || 
+                error.code === '23502' || 
+                error.code === 'PGRST204' || 
+                error.message?.includes('key_type') || 
+                error.message?.includes('auto_enroll_new_courses') || 
+                error.message?.includes('course_id')
+            ) {
+                console.warn('⚠️ [ENROLLMENT] Database migration pending for Global Enrollment Keys.');
+                return res.status(400).json({
+                    error: 'Database Migration Sync Required',
+                    message: 'The Global Enrollment Keys feature requires a database schema sync.',
+                    hint: 'Please copy and run the SQL migration script located at "src/supabase/migrations/1776800000000-global_enrollment_keys.sql" in your Supabase SQL Editor to enable Global Enrollment Keys.',
+                    code: 'MIGRATION_PENDING'
                 });
             }
 
@@ -288,7 +323,7 @@ router.post('/use-key', async (req, res) => {
         // 1. First, validate the key and its course binding
         const { data: keyData, error: keyError } = await supabaseAdmin
             .from('enrollment_keys')
-            .select('id, course_id, is_active')
+            .select('id, course_id, key_type, is_active')
             .eq('key_code', keyCode)
             .maybeSingle();
 
@@ -302,7 +337,8 @@ router.post('/use-key', async (req, res) => {
 
         // 🎯 THE FIX: Verify the key belongs to the PROVIDED course
         // If courseId is provided (standard for CourseView enrollment), enforce strict match
-        if (courseId && Number(keyData.course_id) !== Number(courseId)) {
+        // Only perform this check if it is NOT a global key
+        if (keyData.key_type !== 'global' && keyData.course_id !== null && courseId && Number(keyData.course_id) !== Number(courseId)) {
             return res.status(400).json({ 
                 error: 'This key is for a different course. Please use the correct key for this course.' 
             });
@@ -386,9 +422,9 @@ router.get('/keys', async (req, res) => {
         if (courseId && courseId !== 'undefined' && courseId !== 'null' && courseId !== 'all') {
             const numericId = parseInt(courseId);
             if (!isNaN(numericId)) {
-                query = query.eq('course_id', numericId);
+                query = query.or(`course_id.eq.${numericId},key_type.eq.global,course_id.is.null`);
             } else {
-                query = query.eq('course_id', courseId);
+                query = query.or(`course_id.eq.${courseId},key_type.eq.global,course_id.is.null`);
             }
         }
 
@@ -494,7 +530,7 @@ router.patch('/key/:keyId', async (req, res) => {
 
         const { data: key } = await supabaseAdmin
             .from('enrollment_keys')
-            .select('created_by')
+            .select('created_by, key_type')
             .eq('id', keyId)
             .single();
 
@@ -507,9 +543,20 @@ router.patch('/key/:keyId', async (req, res) => {
         }
 
         // Update key
-        const { isActive, maxUses, maxStudents, validUntil, description, keyCode } = req.body;
+        const { isActive, maxUses, maxStudents, validUntil, description, keyCode, autoEnrollNewCourses, keyType, courseId } = req.body;
         const updates = {};
         if (isActive !== undefined) updates.is_active = isActive;
+        if (autoEnrollNewCourses !== undefined) updates.auto_enroll_new_courses = autoEnrollNewCourses;
+        if (keyType !== undefined) updates.key_type = keyType;
+        
+        if (courseId !== undefined || keyType !== undefined) {
+            const finalKeyType = keyType !== undefined ? keyType : key.key_type;
+            if (finalKeyType === 'global') {
+                updates.course_id = null;
+            } else if (courseId !== undefined) {
+                updates.course_id = (courseId === '' || courseId === null || courseId === 'all') ? null : parseInt(courseId);
+            }
+        }
 
         // Handle numeric fields (treat empty or null as null in DB)
         if (maxUses !== undefined) {
@@ -581,7 +628,7 @@ router.delete('/key/:keyId', async (req, res) => {
 
         const { data: key } = await supabaseAdmin
             .from('enrollment_keys')
-            .select('created_by')
+            .select('created_by, key_type, key_code')
             .eq('id', keyId)
             .single();
 
@@ -593,6 +640,28 @@ router.delete('/key/:keyId', async (req, res) => {
             return res.status(403).json({ error: 'Not authorized' });
         }
 
+        // 1. Count how many enrollments were created using this key
+        const { count: enrollmentCount } = await supabaseAdmin
+            .from('enrollments')
+            .select('*', { count: 'exact', head: true })
+            .eq('enrollment_key_id', keyId);
+
+        // 2. Delete all enrollments linked to this key BEFORE deleting the key
+        //    This is critical because there is no FK cascade constraint in the DB.
+        //    Without this, enrollment records remain orphaned and students keep access.
+        const { error: enrollError } = await supabaseAdmin
+            .from('enrollments')
+            .delete()
+            .eq('enrollment_key_id', keyId);
+
+        if (enrollError) {
+            console.error('Error deleting key enrollments:', enrollError);
+            return res.status(500).json({ error: 'Failed to revoke key enrollments' });
+        }
+
+        console.log(`[Enrollment] Deleted key "${key.key_code}" (${key.key_type}). Revoked ${enrollmentCount || 0} student enrollments.`);
+
+        // 3. Delete the enrollment key itself
         const { error } = await supabaseAdmin
             .from('enrollment_keys')
             .delete()
@@ -603,7 +672,7 @@ router.delete('/key/:keyId', async (req, res) => {
             return res.status(500).json({ error: 'Failed to delete enrollment key' });
         }
 
-        res.json({ deleted: true });
+        res.json({ deleted: true, revokedEnrollments: enrollmentCount || 0 });
 
     } catch (error) {
         console.error('Delete enrollment key error:', error);

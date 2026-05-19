@@ -23,12 +23,13 @@ const AdminNotificationManager = lazy(() => import('./AdminNotificationManager')
 const AdminParentNotificationManager = lazy(() => import('./AdminParentNotificationManager'));
 const AdminPlanManagement = lazy(() => import('./AdminPlanManagement'));
 const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
+const AdminEnrollmentKeys = lazy(() => import('./AdminEnrollmentKeys'));
 
 import { courseService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import DashboardPreviewer from './DashboardPreviewer';
 
-const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut, FiLayers, FiShield } = FiIcons;
+const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut, FiLayers, FiShield, FiKey } = FiIcons;
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({ totalCourses: 0, totalQuestions: 0, totalUploads: 0, activeUsers: 0 });
@@ -80,6 +81,7 @@ const AdminDashboard = () => {
     { name: 'Notifications', path: '/admin/notifications', icon: FiBook },
     { name: 'Parent Notifications', path: '/admin/parent-notifications', icon: FiUsers },
     { name: 'Courses', path: '/admin/courses', icon: FiBook },
+    { name: 'Enrollment Keys', path: '/admin/keys', icon: FiKey },
     { name: 'Student Groups', path: '/admin/groups', icon: FiLayers },
     { name: 'Questions', path: '/admin/questions', icon: FiHelpCircle },
     { name: 'Knowledge Base', path: '/admin/knowledge-base', icon: FiDatabase },
@@ -185,6 +187,7 @@ const AdminDashboard = () => {
             <Route path="/" element={<DashboardHome stats={stats} loading={loading} />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/courses" element={<CourseManagement onStatsUpdate={loadStats} />} />
+            <Route path="/keys" element={<AdminEnrollmentKeys />} />
             <Route path="/full-length-test/:id" element={<FullLengthTestEditPage />} />
             <Route path="/regular-course/:id" element={<RegularCourseEditPage />} />
             <Route path="/course/:id" element={<AdminCourseDetail />} />
@@ -251,6 +254,7 @@ const DashboardHome = ({ stats, loading }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               { to: '/admin/courses', icon: FiBook, color: 'bg-sky-500', title: 'Manage Courses', desc: 'Add or edit courses' },
+              { to: '/admin/keys', icon: FiKey, color: 'bg-blue-600', title: 'Enrollment Keys', desc: 'Manage global & course keys' },
               { to: '/admin/groups', icon: FiLayers, color: 'bg-orange-500', title: 'Student Groups', desc: 'Manage tutor groups' },
               { to: '/admin/upload', icon: FiUpload, color: 'bg-sky-500', title: 'Upload Content', desc: 'Parse documents' },
               { to: '/admin/knowledge-base', icon: FiDatabase, color: 'bg-orange-500', title: 'Knowledge Base', desc: 'Review extracted data' },
