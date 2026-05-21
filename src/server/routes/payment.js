@@ -152,8 +152,12 @@ router.post('/create-checkout-session', async (req, res) => {
         });
       }
 
-      // If no enrollment key is required, allow direct enrollment
-      const { data: enrollment, error: enrollError } = await supabase
+      // If no enrollment key is required, allow direct enrollment using service role client to bypass RLS
+      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
+      const adminSupabase = serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : supabase;
+
+      const { data: enrollment, error: enrollError } = await adminSupabase
         .from('enrollments')
         .insert([{
           user_id: userId,
