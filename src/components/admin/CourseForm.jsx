@@ -65,13 +65,115 @@ const TAXONOMY = {
     'ACT Science': { 'General': ['General ACT Science'] }
   },
   'AP': {
-    'AP Physics': { 'General': ['General AP Physics'] },
-    'AP Chemistry': { 'General': ['General AP Chemistry'] },
-    'AP Biology': { 'General': ['General AP Biology'] },
-    'AP Pre-Calculus': { 'General': ['General AP Pre-Calculus'] },
-    'Algebra 1': { 'General': ['General Algebra 1'] },
-    'Algebra 2': { 'General': ['General Algebra 2'] },
-    'Geometry': { 'General': ['General Geometry'] }
+    'AP Biology': {
+      'Unit 1: Chemistry of Life': ['Unit 1: Chemistry of Life'],
+      'Unit 2: Cells': ['Unit 2: Cells'],
+      'Unit 3: Cellular Energetics': ['Unit 3: Cellular Energetics'],
+      'Unit 4: Cell Communication and Cell Cycle': ['Unit 4: Cell Communication and Cell Cycle'],
+      'Unit 5: Heredity': ['Unit 5: Heredity'],
+      'Unit 6: Gene Expression and Regulation': ['Unit 6: Gene Expression and Regulation'],
+      'Unit 7: Natural Selection': ['Unit 7: Natural Selection'],
+      'Unit 8: Ecology': ['Unit 8: Ecology']
+    },
+    'AP Calculus AB': {
+      'Unit 1: Limits and Continuity': ['Unit 1: Limits and Continuity'],
+      'Unit 2: Differentiation: Definition and Fundamental Properties': ['Unit 2: Differentiation: Definition and Fundamental Properties'],
+      'Unit 3: Differentiation: Composite, Implicit, and Inverse Functions': ['Unit 3: Differentiation: Composite, Implicit, and Inverse Functions'],
+      'Unit 4: Contextual Applications of Differentiation': ['Unit 4: Contextual Applications of Differentiation'],
+      'Unit 5: Analytical Applications of Differentiation': ['Unit 5: Analytical Applications of Differentiation'],
+      'Unit 6: Integration and Accumulation of Change': ['Unit 6: Integration and Accumulation of Change'],
+      'Unit 7: Differential Equations': ['Unit 7: Differential Equations'],
+      'Unit 8: Applications of Integration': ['Unit 8: Applications of Integration']
+    },
+    'AP Calculus BC': {
+      'Unit 1: Limits and Continuity': ['Unit 1: Limits and Continuity'],
+      'Unit 2: Differentiation: Definition and Fundamental Properties': ['Unit 2: Differentiation: Definition and Fundamental Properties'],
+      'Unit 3: Differentiation: Composite, Implicit, and Inverse Functions': ['Unit 3: Differentiation: Composite, Implicit, and Inverse Functions'],
+      'Unit 4: Contextual Applications of Differentiation': ['Unit 4: Contextual Applications of Differentiation'],
+      'Unit 5: Analytical Applications of Differentiation': ['Unit 5: Analytical Applications of Differentiation'],
+      'Unit 6: Integration and Accumulation of Change': ['Unit 6: Integration and Accumulation of Change'],
+      'Unit 7: Differential Equations': ['Unit 7: Differential Equations'],
+      'Unit 8: Applications of Integration': ['Unit 8: Applications of Integration'],
+      'Unit 9: Parametric Equations, Polar Coordinates, and Vector-Valued Functions': ['Unit 9: Parametric Equations, Polar Coordinates, and Vector-Valued Functions'],
+      'Unit 10: Infinite Sequences and Series': ['Unit 10: Infinite Sequences and Series']
+    },
+    'AP Chemistry': {
+      'Unit 1: Atomic Structure and Properties': ['Unit 1: Atomic Structure and Properties'],
+      'Unit 2: Compound Structure and Properties': ['Unit 2: Compound Structure and Properties'],
+      'Unit 3: Properties of Substances and Mixtures': ['Unit 3: Properties of Substances and Mixtures'],
+      'Unit 4: Chemical Reactions': ['Unit 4: Chemical Reactions'],
+      'Unit 5: Kinetics': ['Unit 5: Kinetics'],
+      'Unit 6: Thermochemistry': ['Unit 6: Thermochemistry'],
+      'Unit 7: Equilibrium': ['Unit 7: Equilibrium'],
+      'Unit 8: Acids and Bases': ['Unit 8: Acids and Bases'],
+      'Unit 9: Thermodynamics and Electrochemistry': ['Unit 9: Thermodynamics and Electrochemistry']
+    },
+    'AP English Language and Composition': {
+      'Topic 1: Rhetorical Situation & Defensible Claims': ['Topic 1: Rhetorical Situation & Defensible Claims'],
+      'Topic 2: Audience Appeals & Thesis Crafting': ['Topic 2: Audience Appeals & Thesis Crafting'],
+      'Topic 3: Line of Reasoning & Source Synthesis': ['Topic 3: Line of Reasoning & Source Synthesis'],
+      'Topic 4: Introductions, Conclusions & Thesis Refinement': ['Topic 4: Introductions, Conclusions & Thesis Refinement'],
+      'Topic 5: Coherence, Flow & Stylistic Precision': ['Topic 5: Coherence, Flow & Stylistic Precision'],
+      'Topic 6: Evidence Credibility, Bias & Tone Analysis': ['Topic 6: Evidence Credibility, Bias & Tone Analysis'],
+      'Topic 7: Nuance, Qualification & Mechanics for Precision': ['Topic 7: Nuance, Qualification & Mechanics for Precision'],
+      'Topic 8: Audience-Centered Style & Figurative Persuasion': ['Topic 8: Audience-Centered Style & Figurative Persuasion'],
+      'Topic 9: Concession, Refutation & Synthesis': ['Topic 9: Concession, Refutation & Synthesis']
+    },
+    'AP Environmental Science': {
+      'Topic 1: The Living World: Ecosystems': ['Topic 1: The Living World: Ecosystems'],
+      'Topic 2: The Living World: Biodiversity': ['Topic 2: The Living World: Biodiversity'],
+      'Topic 3: Populations': ['Topic 3: Populations'],
+      'Topic 4: Earth Systems and Resources': ['Topic 4: Earth Systems and Resources'],
+      'Topic 5: Land and Water Use': ['Topic 5: Land and Water Use'],
+      'Topic 6: Energy Resources and Consumption': ['Topic 6: Energy Resources and Consumption'],
+      'Topic 7: Atmospheric Pollution': ['Topic 7: Atmospheric Pollution'],
+      'Topic 8: Aquatic and Terrestrial Pollution': ['Topic 8: Aquatic and Terrestrial Pollution'],
+      'Topic 9: Global Change': ['Topic 9: Global Change']
+    },
+    'AP Physics 1: Algebra-Based': {
+      'Topic 1: Kinematics': ['Topic 1: Kinematics'],
+      'Topic 2: Force and Translational Dynamics': ['Topic 2: Force and Translational Dynamics'],
+      'Topic 3: Work, Energy, and Power': ['Topic 3: Work, Energy, and Power'],
+      'Topic 4: Linear Momentum': ['Topic 4: Linear Momentum'],
+      'Topic 5: Torque and Rotational Dynamics': ['Topic 5: Torque and Rotational Dynamics'],
+      'Topic 6: Energy and Momentum of Rotating Systems': ['Topic 6: Energy and Momentum of Rotating Systems'],
+      'Topic 7: Oscillations': ['Topic 7: Oscillations'],
+      'Topic 8: Fluids': ['Topic 8: Fluids']
+    },
+    'AP Physics C: Mechanics': {
+      'Topic 1: Kinematics': ['Topic 1: Kinematics'],
+      'Topic 2: Force and Translational Dynamics': ['Topic 2: Force and Translational Dynamics'],
+      'Topic 3: Work, Energy, and Power': ['Topic 3: Work, Energy, and Power'],
+      'Topic 4: Linear Momentum': ['Topic 4: Linear Momentum'],
+      'Topic 5: Torque and Rotational Dynamics': ['Topic 5: Torque and Rotational Dynamics'],
+      'Topic 6: Energy and Momentum of Rotating Systems': ['Topic 6: Energy and Momentum of Rotating Systems'],
+      'Topic 7: Oscillations': ['Topic 7: Oscillations']
+    },
+    'AP Psychology': {
+      'Unit 1: Biological Bases of Behavior': ['Unit 1: Biological Bases of Behavior'],
+      'Unit 2: Cognition': ['Unit 2: Cognition'],
+      'Unit 3: Development and Learning': ['Unit 3: Development and Learning'],
+      'Unit 4: Social Psychology and Personality': ['Unit 4: Social Psychology and Personality'],
+      'Unit 5: Mental and Physical Health': ['Unit 5: Mental and Physical Health']
+    },
+    'AP United States Government and Politics': {
+      'Unit 1: Foundations of American Democracy': ['Unit 1: Foundations of American Democracy'],
+      'Unit 2: Interactions Among Branches of Government': ['Unit 2: Interactions Among Branches of Government'],
+      'Unit 3: Civil Liberties and Civil Rights': ['Unit 3: Civil Liberties and Civil Rights'],
+      'Unit 4: American Political Ideologies and Beliefs': ['Unit 4: American Political Ideologies and Beliefs'],
+      'Unit 5: Political Participation': ['Unit 5: Political Participation']
+    },
+    'AP United States History': {
+      'Unit 1: Period 1 (1491-1607)': ['Unit 1: Period 1 (1491-1607)'],
+      'Unit 2: Period 2 (1607-1754)': ['Unit 2: Period 2 (1607-1754)'],
+      'Unit 3: Period 3 (1754-1800)': ['Unit 3: Period 3 (1754-1800)'],
+      'Unit 4: Period 4 (1800-1848)': ['Unit 4: Period 4 (1800-1848)'],
+      'Unit 5: Period 5 (1844-1877)': ['Unit 5: Period 5 (1844-1877)'],
+      'Unit 6: Period 6 (1865-1898)': ['Unit 6: Period 6 (1865-1898)'],
+      'Unit 7: Period 7 (1890-1945)': ['Unit 7: Period 7 (1890-1945)'],
+      'Unit 8: Period 8 (1945-1980)': ['Unit 8: Period 8 (1945-1980)'],
+      'Unit 9: Period 9 (1980-Present)': ['Unit 9: Period 9 (1980-Present)']
+    }
   }
 };
 
@@ -363,7 +465,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
         if (parts.length >= 2) {
           const lvlStr = parts[0]; // "easy"
           const typeStr = parts[1]; // "quiz"
-          level = lvlStr.charAt(0).toUpperCase() + lvlStr.slice(1);
+          level = lvlStr === 'ap' ? 'AP' : lvlStr.charAt(0).toUpperCase() + lvlStr.slice(1);
 
           if (typeStr === 'study') category = 'study_material';
           else if (typeStr === 'video') category = 'video_lecture';
@@ -478,68 +580,121 @@ const CourseForm = ({ course, onClose, onSave }) => {
             {/* 4-Level Hierarchy Selection - EXACT MATCH TO DESIGN */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                {/* Level 1: Main Course */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">1. Main Course</label>
-                  <select
-                    name="main_category"
-                    value={formData.main_category}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
-                  >
-                    {Object.keys(TAXONOMY).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
+                {formData.main_category === 'AP' ? (
+                  <>
+                    {/* Level 1: Main Course */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">1. Main Course</label>
+                      <select
+                        name="main_category"
+                        value={formData.main_category}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                      >
+                        {Object.keys(TAXONOMY).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Level 2: Sub Course */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">2. Sub Course</label>
-                  <select
-                    name="tutor_type"
-                    value={formData.tutor_type}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
-                  >
-                    {Object.keys(TAXONOMY[formData.main_category] || {}).map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
-                    ))}
-                  </select>
-                </div>
+                    {/* Level 2: AP Subject */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">2. AP Subject</label>
+                      <select
+                        name="tutor_type"
+                        value={formData.tutor_type}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                      >
+                        {Object.keys(TAXONOMY['AP'] || {}).map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Level 3: Topic */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">3. Topic</label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
-                  >
-                    {!formData.category && <option value="">Select Topic</option>}
-                    {Object.keys(TAXONOMY[formData.main_category]?.[formData.tutor_type] || {}).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* Level 4: Sub Topic */}
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">4. Sub Topic</label>
-                  <select
-                    name="subtopic"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
-                  >
-                    {!formData.name && <option value="">Select Sub Topic</option>}
-                    {(TAXONOMY[formData.main_category]?.[formData.tutor_type]?.[formData.category] || []).map(sub => (
-                      <option key={sub} value={sub}>{sub}</option>
-                    ))}
-                  </select>
-                </div>
+                    {/* Level 3: Unit / Topic */}
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">3. Unit / Topic</label>
+                      <select
+                        name="category"
+                        value={formData.category}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                      >
+                        {!formData.category && <option value="">Select Unit / Topic</option>}
+                        {Object.keys(TAXONOMY['AP']?.[formData.tutor_type] || {}).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Level 1: Main Course */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">1. Main Course</label>
+                      <select
+                        name="main_category"
+                        value={formData.main_category}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                      >
+                        {Object.keys(TAXONOMY).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Level 2: Sub Course */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">2. Sub Course</label>
+                      <select
+                        name="tutor_type"
+                        value={formData.tutor_type}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                      >
+                        {Object.keys(TAXONOMY[formData.main_category] || {}).map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Level 3: Topic */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">3. Topic</label>
+                      <select
+                        name="category"
+                        value={formData.category}
+                        onChange={handleChange}
+                        required
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                      >
+                        {!formData.category && <option value="">Select Topic</option>}
+                        {Object.keys(TAXONOMY[formData.main_category]?.[formData.tutor_type] || {}).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* Level 4: Sub Topic */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">4. Sub Topic</label>
+                      <select
+                        name="subtopic"
+                        value={formData.name}
+                        onChange={handleChange}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
+                      >
+                        {!formData.name && <option value="">Select Sub Topic</option>}
+                        {(TAXONOMY[formData.main_category]?.[formData.tutor_type]?.[formData.category] || []).map(sub => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 {/* Final Course Name (Sub Topic Display - EDITABLE) */}
                 <div className="md:col-span-2 pt-2">
@@ -555,7 +710,9 @@ const CourseForm = ({ course, onClose, onSave }) => {
                   />
                   <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1.5 italic">
                     <SafeIcon icon={FiIcons.FiZap} className="w-3.5 h-3.5 text-amber-500" />
-                    This name is auto-populated by the selected Sub Topic. You can edit it if needed.
+                    {formData.main_category === 'AP'
+                      ? "This name is auto-populated by the selected Unit / Topic. You can edit it if needed."
+                      : "This name is auto-populated by the selected Sub Topic. You can edit it if needed."}
                   </p>
                 </div>
 
@@ -782,6 +939,13 @@ const CourseForm = ({ course, onClose, onSave }) => {
               <h4 className="font-bold text-gray-900 dark:text-white text-xl">Course Materials</h4>
               {fetchingUploads ? (
                 <div className="text-gray-500">Loading files...</div>
+              ) : formData.main_category === 'AP' ? (
+                <APUploadSection
+                  newFiles={newFiles}
+                  existingFiles={existingFiles}
+                  onFileChange={handleFileChange}
+                  onDeleteExisting={handleDeleteExisting}
+                />
               ) : (
                 <>
                   <LevelUploadSection
@@ -896,6 +1060,56 @@ const LevelUploadSection = ({ level, color, icon, newFiles, existingFiles, onFil
           existingFile={existingFiles[`${levelKey}_quiz`]}
           onChange={f => onFileChange(`${levelKey}_quiz`, f)}
           onDelete={id => onDeleteExisting(`${levelKey}_quiz`, id)}
+        />
+      </div>
+    </div>
+  );
+};
+
+const APUploadSection = ({ newFiles, existingFiles, onFileChange, onDeleteExisting }) => {
+  return (
+    <div className="rounded-xl border p-4 bg-indigo-50 border-indigo-200 text-indigo-900">
+      <h3 className="font-bold mb-4 flex items-center justify-between">
+        AP Course Materials
+        <span className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
+          {[
+            existingFiles['ap_study'],
+            existingFiles['ap_video'],
+            existingFiles['ap_quiz']
+          ].filter(Boolean).length} files
+        </span>
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <FileUploadBox
+          id="ap_study"
+          label="AP Study Guide PDF Upload"
+          icon={FiFile}
+          accept=".pdf,.doc,.docx"
+          newFile={newFiles['ap_study']}
+          existingFile={existingFiles['ap_study']}
+          onChange={f => onFileChange('ap_study', f)}
+          onDelete={id => onDeleteExisting('ap_study', id)}
+        />
+        <FileUploadBox
+          id="ap_video"
+          label="AP Video MP4 Upload"
+          icon={FiVideo}
+          accept=".mp4,.webm"
+          newFile={newFiles['ap_video']}
+          existingFile={existingFiles['ap_video']}
+          onChange={f => onFileChange('ap_video', f)}
+          onDelete={id => onDeleteExisting('ap_video', id)}
+        />
+        <FileUploadBox
+          id="ap_quiz"
+          label="AP Quiz File Upload"
+          icon={FiBook}
+          accept=".txt,.docx"
+          highlight
+          newFile={newFiles['ap_quiz']}
+          existingFile={existingFiles['ap_quiz']}
+          onChange={f => onFileChange('ap_quiz', f)}
+          onDelete={id => onDeleteExisting('ap_quiz', id)}
         />
       </div>
     </div>

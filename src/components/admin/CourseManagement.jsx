@@ -23,7 +23,19 @@ const CourseManagement = ({ onStatsUpdate }) => {
   const COURSE_CATEGORIES = {
     'SAT': ['SAT Math', 'SAT Reading & Writing'],
     'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
-    'AP': ['AP Physics', 'AP Chemistry', 'AP Biology', 'AP Pre-Calculus', 'Algebra 1', 'Algebra 2', 'Geometry'],
+    'AP': [
+      'AP Biology',
+      'AP Calculus AB',
+      'AP Calculus BC',
+      'AP Chemistry',
+      'AP English Language and Composition',
+      'AP Environmental Science',
+      'AP Physics 1: Algebra-Based',
+      'AP Physics C: Mechanics',
+      'AP Psychology',
+      'AP United States Government and Politics',
+      'AP United States History'
+    ],
     'FULL LENGTH TESTs': ['Full-Length SAT']
   };
 
@@ -56,7 +68,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
           c.is_adaptive ? 'FULL LENGTH TESTs' :
           (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
           (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' :
-          ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
+          ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science', 'psychology', 'history', 'government', 'english', 'environmental'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
         );
 
         if (mainCat !== activeCategory) return false;
