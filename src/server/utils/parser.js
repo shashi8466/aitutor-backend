@@ -244,24 +244,126 @@ const extractDocxWithMath = async (buffer, options = {}) => {
   }
 };
 
+const parseTableBlock = (lines) => {
+  const tableLine = lines[0];
+  let tableTopic = "";
+  let tableDifficulty = "";
+  
+  const cells = [...tableLine.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(m => m[1].trim());
+  cells.forEach(cell => {
+    const cleanCell = cell.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    if (cleanCell.match(/^Domain\s+/i)) {
+      tableTopic = cleanCell.replace(/^Domain\s+/i, '').trim();
+    } else if (cleanCell.match(/^Skill\s+/i)) {
+      tableTopic = cleanCell.replace(/^Skill\s+/i, '').trim();
+    } else if (cleanCell.match(/^Difficulty\s*/i)) {
+      const diff = cleanCell.replace(/^Difficulty\s*/i, '').trim();
+      if (diff) tableDifficulty = diff;
+    }
+  });
+
+  let answerLineIdx = -1;
+  let correctAnswer = "";
+  for (let i = 1; i < lines.length; i++) {
+    const match = lines[i].match(/^(Correct Answer|Correct|Answer|Ans)[\s:.-]*\s*(.*)/i);
+    if (match) {
+      answerLineIdx = i;
+      correctAnswer = match[2].trim();
+      break;
+    }
+  }
+
+  if (answerLineIdx === -1) {
+    return null;
+  }
+
+  if (!correctAnswer && answerLineIdx + 1 < lines.length) {
+    correctAnswer = lines[answerLineIdx + 1].trim();
+  }
+
+  const options = [];
+  const questionStemLines = [];
+  
+  let optCount = 0;
+  let optStartIdx = answerLineIdx;
+  while (optCount < 4 && optStartIdx > 1) {
+    optStartIdx--;
+    optCount++;
+  }
+
+  for (let i = optStartIdx; i < answerLineIdx; i++) {
+    options.push(lines[i]);
+  }
+
+  for (let i = 1; i < optStartIdx; i++) {
+    questionStemLines.push(lines[i]);
+  }
+
+  const explanationLines = [];
+  const isAnswerOnSameLine = !!lines[answerLineIdx].match(/^(Correct Answer|Correct|Answer|Ans)[\s:.-]*\s*[A-E]$/i);
+  const startExpIdx = isAnswerOnSameLine ? answerLineIdx + 1 : answerLineIdx + 2;
+  
+  for (let i = startExpIdx; i < lines.length; i++) {
+    explanationLines.push(lines[i]);
+  }
+
+  const questionText = questionStemLines.join('\n');
+  const explanationText = explanationLines.join('\n').replace(/^(Rationale|Explanation)[\s:.-]*/i, '').trim();
+
+  const q = {
+    question: questionText,
+    topic: tableTopic || null,
+    options: options,
+    correctAnswer: /^[A-E]$/i.test(correctAnswer) ? correctAnswer.toUpperCase() : correctAnswer,
+    explanation: explanationText,
+    level: tableDifficulty || null,
+    type: 'mcq',
+    section: 'writing'
+  };
+
+  return finalizeQuestion(q);
+};
+
 const parseTextToQuestions = (text) => {
-  const questions = [];
   try {
     const cleanText = text.replace(/\u2013|\u2014|\u2212/g, '-').replace(/\u00F7/g, '/');
     const lines = cleanText.split(/\r?\n/).map(line => line.trim()).filter(line => line);
+    
+    // Find all indices of lines starting a table
+    const tableIndices = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('<table class="docx-table"')) {
+        tableIndices.push(i);
+      }
+    }
+
+    // A: If there are table-based questions, process them as blocks
+    if (tableIndices.length > 0) {
+      const questions = [];
+      for (let k = 0; k < tableIndices.length; k++) {
+        const start = tableIndices[k];
+        const end = (k + 1 < tableIndices.length) ? tableIndices[k + 1] : lines.length;
+        const blockLines = lines.slice(start, end);
+        const q = parseTableBlock(blockLines);
+        if (q) questions.push(q);
+      }
+      return questions;
+    }
+
+    // B: Fallback to original line-by-line parsing logic if no tables exist
+    const questions = [];
     let currentQuestion = null;
 
     const normalizeForTopic = (str) => {
       if (!str) return '';
-      // Don't normalize if it looks like an image tag - we want to preserve it
       if (str.trim().startsWith('[IMAGE:')) return '___IMAGE_TAG___';
       
       return str
         .toLowerCase()
-        .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Remove LaTeX wrappers
+        .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
         .replace(/&/g, 'and')
-        .replace(/[,\s.:\-_]+/g, ' ') // Replace commas, dots, colons, hyphens, underscores, and spaces with a single space
-        .replace(/[^a-z0-9 ]/g, '') // Remove any remaining special characters
+        .replace(/[,\s.:\-_]+/g, ' ')
+        .replace(/[^a-z0-9 ]/g, '')
         .trim();
     };
 
@@ -283,75 +385,54 @@ const parseTextToQuestions = (text) => {
 
         if (questionMatch) {
           qText = questionMatch[2].trim();
-
-          // First, check if there's a colon-based topic (e.g., "Linear equations in two variable:")
           const colonMatch = qText.match(/^([^:]+):\s*(.*)/);
           if (colonMatch) {
             const potentialTopic = colonMatch[1].trim();
             const remainingText = colonMatch[2].trim();
-
-            // Check if this matches any SAT topic (case-insensitive)
             const matchedTopic = SAT_TOPICS.find(t =>
               normalizeForTopic(potentialTopic) === normalizeForTopic(t) ||
               normalizeForTopic(potentialTopic).startsWith(normalizeForTopic(t))
             );
-
             if (matchedTopic) {
               detectedTopic = matchedTopic;
               qText = remainingText;
             } else {
-              // If no exact match, use the text before colon as topic anyway
               detectedTopic = potentialTopic;
               qText = remainingText;
             }
           }
 
-          // If no colon-based topic found, try to find and remove topic from the beginning
-          // Iterate through all SAT topics (already sorted by length, longest first)
           if (!detectedTopic) {
             for (const satTopic of SAT_TOPICS) {
               const normQText = normalizeForTopic(qText);
               const normTopic = normalizeForTopic(satTopic);
-
               if (normQText.startsWith(normTopic)) {
-                // Find the exact character position where the topic ends
                 let charCount = 0;
                 let normalizedSoFar = '';
-
-                for (let i = 0; i < qText.length; i++) {
-                  normalizedSoFar = normalizeForTopic(qText.substring(0, i + 1));
-
-                  // Check if we've matched the full topic
+                for (let j = 0; j < qText.length; j++) {
+                  normalizedSoFar = normalizeForTopic(qText.substring(0, j + 1));
                   if (normalizedSoFar === normTopic || normalizedSoFar.startsWith(normTopic + ' ')) {
-                    charCount = i + 1;
+                    charCount = j + 1;
                     break;
                   }
                 }
-
                 if (charCount > 0) {
                   detectedTopic = satTopic;
                   qText = qText.substring(charCount).replace(/^[,\s.:-]+/, '').trim();
-
-                  // Check for sub-topic in remaining text
                   for (const subTopic of SAT_TOPICS) {
                     if (subTopic === satTopic) continue;
-
                     const normRemainingText = normalizeForTopic(qText);
                     const normSubTopic = normalizeForTopic(subTopic);
-
                     if (normRemainingText.startsWith(normSubTopic)) {
                       let subCharCount = 0;
                       let subNormalizedSoFar = '';
-
-                      for (let i = 0; i < qText.length; i++) {
-                        subNormalizedSoFar = normalizeForTopic(qText.substring(0, i + 1));
-
+                      for (let j = 0; j < qText.length; j++) {
+                        subNormalizedSoFar = normalizeForTopic(qText.substring(0, j + 1));
                         if (subNormalizedSoFar === normSubTopic || subNormalizedSoFar.startsWith(normSubTopic + ' ')) {
-                          subCharCount = i + 1;
+                          subCharCount = j + 1;
                           break;
                         }
                       }
-
                       if (subCharCount > 0) {
                         detectedTopic = `${satTopic} - ${subTopic}`;
                         qText = qText.substring(subCharCount).replace(/^[,\s.:-]+/, '').trim();
@@ -404,11 +485,9 @@ const parseTextToQuestions = (text) => {
 
       if (explanationMatch || choiceExpMatch) {
         const expText = explanationMatch ? explanationMatch[2].trim() : line.trim();
-
         if (currentQuestion.explanation === null) {
           currentQuestion.explanation = expText;
         } else {
-          // If the explanation already has content, add a newline or space
           const separator = (expText.startsWith('Choice') || expText.startsWith('Question')) ? '\n' : ' ';
           currentQuestion.explanation += separator + expText;
         }
@@ -417,14 +496,10 @@ const parseTextToQuestions = (text) => {
 
       const { remainingText: lineAfterOptionExtraction, options: extractedFromLine } = extractOptionsFromLine(line, currentQuestion.options.length);
       if (extractedFromLine.length > 0) {
-        // SELF-HEALING: If we just found the FIRST option (A), and the question stem ends with images,
-        // those images probably belong to the options (usually Option A).
         if (currentQuestion.options.length === 0 && currentQuestion.question) {
           const imageTagRegex = /\[IMAGE\s*:\s*[^\]]+\]\s*$/i;
           let match;
           const trailingImages = [];
-          
-          // Pull all trailing images from the question stem
           let qText = currentQuestion.question.trim();
           while ((match = qText.match(imageTagRegex))) {
             trailingImages.unshift(match[0].trim());
@@ -447,20 +522,21 @@ const parseTextToQuestions = (text) => {
       if (currentQuestion.explanation !== null) {
         currentQuestion.explanation += (currentQuestion.explanation ? '\n' : '') + line;
       } else if (currentQuestion.options.length === 0 && !currentQuestion.correctAnswer) {
-        // Still in question stem
         const isImage = line.match(/\[IMAGE\s*:\s*[^\]]+\]/i);
         if (currentQuestion.question) {
           const needsNewline = line.includes('$') || line.includes('\\(') || isImage || currentQuestion.question.length > 100;
           currentQuestion.question += (needsNewline ? '\n' : ' ') + line;
         } else currentQuestion.question = line;
       } else if (currentQuestion.options.length > 0) {
-        // Append to the last option found
         currentQuestion.options[currentQuestion.options.length - 1] += '\n' + line;
       }
     }
     if (currentQuestion) questions.push(finalizeQuestion(currentQuestion));
-  } catch (err) { console.error(err); }
-  return questions;
+    return questions;
+  } catch (err) {
+    console.error(err);
+    return [];
+  }
 };
 
 const extractAnswerFromExplanation = (explanation) => {

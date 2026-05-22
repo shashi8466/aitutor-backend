@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { questionService, courseService } from '../../services/api';
+import { questionService, courseService, uploadService } from '../../services/api';
 import QuestionCard from './QuestionCard';
 import QuestionForm from './QuestionForm';
 

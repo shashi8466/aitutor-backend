@@ -2,6 +2,7 @@ import express from 'express';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { getInternalSettings } from '../utils/internalSettings.js';
+import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 
 const router = express.Router();
 
@@ -153,11 +154,7 @@ router.post('/create-checkout-session', async (req, res) => {
       }
 
       // If no enrollment key is required, allow direct enrollment using service role client to bypass RLS
-      const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-      const adminSupabase = serviceRoleKey ? createClient(supabaseUrl, serviceRoleKey) : supabase;
-
-      const { data: enrollment, error: enrollError } = await adminSupabase
+      const { data: enrollment, error: enrollError } = await supabaseAdmin
         .from('enrollments')
         .insert([{
           user_id: userId,
@@ -288,18 +285,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       console.log(`✅ [Payment] Payment successful for user ${userId}, course ${courseId}`);
 
       // Create enrollment using service role key (no auth header needed)
-      const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://wqavuacgbawhgcdxxzom.supabase.co';
-      const serviceRoleKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-
-      if (!serviceRoleKey) {
-        console.error('❌ [Payment] Service role key (SUPABASE_SERVICE_ROLE_KEY) not configured');
-        return res.status(500).send('Service role key missing');
-      }
-
-      const supabase = createClient(supabaseUrl, serviceRoleKey);
-
       // Check if enrollment keys exist for this course - if they do, direct enrollment shouldn't be allowed
-      const { data: keyCheck } = await supabase
+      const { data: keyCheck } = await supabaseAdmin
         .from('enrollment_keys')
         .select('id')
         .eq('course_id', courseId)
@@ -311,7 +298,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         return res.status(400).send('Course requires enrollment key. Direct enrollment not allowed.');
       }
 
-      const { data: enrollment, error: enrollError } = await supabase
+      const { data: enrollment, error: enrollError } = await supabaseAdmin
         .from('enrollments')
         .insert([{
           user_id: userId,
@@ -328,7 +315,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       console.log(`✅ [Payment] User ${userId} enrolled in course ${courseId}`);
 
       // Store payment record for tracking
-      await supabase
+      await supabaseAdmin
         .from('payments')
         .insert([{
           user_id: userId,

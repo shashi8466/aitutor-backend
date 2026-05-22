@@ -485,12 +485,51 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     const studentName = submission.profiles?.name || submission.user?.name || submission.student_name || submission.user_name || 'Student';
     const completedAt = submission.test_date || submission.created_at || new Date();
 
-    const rwResponses = allResponses.filter(r => r.section.includes('rw') || r.section.includes('read') || r.section.includes('verbal') || r.section.includes('english'));
-    const mathResponses = allResponses.filter(r => r.section.includes('math') || r.section.includes('alg') || r.section.includes('geom'));
+    const courseNameVal = submission?.course?.name || 
+                          submission?.courseName || 
+                          submission?.course?.tutor_type || 
+                          '';
+
+    const isApCourse = (
+        submission?.course?.main_category?.toUpperCase() === 'AP' ||
+        String(submission?.course?.tutor_type || '').toUpperCase().startsWith('AP') ||
+        String(courseNameVal).toUpperCase().startsWith('AP') ||
+        String(courseNameVal).toUpperCase().includes('AP ')
+    );
+
+    let rwResponses = allResponses.filter(r => r.section.includes('rw') || r.section.includes('read') || r.section.includes('verbal') || r.section.includes('english'));
+    let mathResponses = allResponses.filter(r => r.section.includes('math') || r.section.includes('alg') || r.section.includes('geom'));
+
+    if (isApCourse) {
+        rwResponses = [...allResponses];
+        mathResponses = [];
+    }
 
     const hasRW = rwResponses.length > 0;
     const hasMath = mathResponses.length > 0;
     const isFullLength = hasRW && hasMath;
+
+    const apCourseTitle = courseNameVal ? 
+        (courseNameVal.toUpperCase().endsWith('REPORT') ? courseNameVal : `${courseNameVal} Report`) : 
+        'AP Course Report';
+
+    let apSectionName = 'AP Section';
+    if (isApCourse && allResponses.length > 0) {
+        const topicCounts = {};
+        allResponses.forEach(r => {
+            const t = r.topic || 'General';
+            topicCounts[t] = (topicCounts[t] || 0) + 1;
+        });
+        let maxTopic = 'General';
+        let maxCount = 0;
+        Object.entries(topicCounts).forEach(([t, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                maxTopic = t;
+            }
+        });
+        apSectionName = maxTopic;
+    }
 
     const getTopicMastery = (responses) => {
         const topics = {};
@@ -576,6 +615,8 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         const reviewCount = topics.filter(t => t.accuracy >= 50 && t.accuracy < 80).length;
         const instructionCount = topics.filter(t => t.accuracy < 50).length;
         const correctCount = topics.reduce((acc, t) => acc + t.correct, 0);
+        
+        const totalAccuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
         return (
             <div className="section-break bg-white print:p-0">
@@ -586,12 +627,25 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                 <div className="bg-gradient-to-br from-[#1a237e] via-[#4527a0] to-[#b71c1c] text-white p-6 sm:p-12 text-center relative overflow-hidden">
                     <div className="mb-10 flex justify-center">
                         <div className="relative">
-                            {renderCircularProgress(score, 800, 192, 12, 'white', 'rgba(255,255,255,0.2)')}
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Section Score</span>
-                                <span className="text-4xl sm:text-6xl font-black">{score}</span>
-                                <span className="text-[10px] font-bold opacity-80">{correctCount} out of {totalQuestions}</span>
-                            </div>
+                            {isApCourse ? (
+                                <>
+                                    {renderCircularProgress(totalAccuracy, 100, 192, 12, 'white', 'rgba(255,255,255,0.2)')}
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Accuracy</span>
+                                        <span className="text-4xl sm:text-6xl font-black">{totalAccuracy}%</span>
+                                        <span className="text-[10px] font-bold opacity-80">Quiz Completion Progress</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {renderCircularProgress(score, 800, 192, 12, 'white', 'rgba(255,255,255,0.2)')}
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Section Score</span>
+                                        <span className="text-4xl sm:text-6xl font-black">{score}</span>
+                                        <span className="text-[10px] font-bold opacity-80">{correctCount} out of {totalQuestions}</span>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="mt-8">
@@ -607,7 +661,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                             </div>
                             <div className="flex flex-col items-center">
                                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-[4px] border-red-500 flex items-center justify-center text-2xl sm:text-3xl font-black mb-3">{instructionCount}</div>
-                                <span className="text-[8px] font-black uppercase leading-tight">Topics for<br/>Instruction</span>
+                                <span className="text-[8px] font-black uppercase leading-tight">{isApCourse ? <>Weak<br/>Topics</> : <>Topics for<br/>Instruction</>}</span>
                             </div>
                         </div>
                         <p className="mt-10 text-[10px] font-black opacity-60">Total topics: {topics.length}</p>
@@ -865,7 +919,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                 {studentName}
                             </h1>
                             <h2 className="text-lg sm:text-2xl font-bold uppercase tracking-[0.4em] text-blue-400 opacity-90">
-                                {isFullLength ? "Full Length Test Report" : (hasMath ? "SAT Math Report" : "SAT Reading & Writing Report")}
+                                {isApCourse ? apCourseTitle : (isFullLength ? "Full Length Test Report" : (hasMath ? "SAT Math Report" : "SAT Reading & Writing Report"))}
                             </h2>
                             
                             {/* Date and Time with Icons */}
@@ -888,11 +942,30 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                             <div className="absolute w-64 h-64 bg-blue-500/20 blur-[60px] rounded-full"></div>
                             
                             <div className="relative group">
-                                {renderCircularProgress(isFullLength ? totalScore : (hasMath ? mathScore : rwScore), isFullLength ? 1600 : 800, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
-                                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">{isFullLength ? "Total Score" : (hasMath ? "Math Score" : "Reading & Writing Score")}</span>
-                                    <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{isFullLength ? totalScore : (hasMath ? mathScore : rwScore)}</span>
-                                </div>
+                                {isApCourse ? (
+                                    (() => {
+                                        const totalQuestions = allResponses.length;
+                                        const correctCount = allResponses.filter(r => r.is_correct).length;
+                                        const totalAccuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+                                        return (
+                                            <>
+                                                {renderCircularProgress(totalAccuracy, 100, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">Correct Answers</span>
+                                                    <span className="text-5xl sm:text-7xl font-black tracking-tighter drop-shadow-lg">{correctCount}/{totalQuestions}</span>
+                                                </div>
+                                            </>
+                                        );
+                                    })()
+                                ) : (
+                                    <>
+                                        {renderCircularProgress(isFullLength ? totalScore : (hasMath ? mathScore : rwScore), isFullLength ? 1600 : 800, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">{isFullLength ? "Total Score" : (hasMath ? "Math Score" : "Reading & Writing Score")}</span>
+                                            <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{isFullLength ? totalScore : (hasMath ? mathScore : rwScore)}</span>
+                                        </div>
+                                    </>
+                                )}
                                 {/* Subtle light flare on the circle */}
                                 <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-blue-400/30 blur-[20px] rounded-[100%]"></div>
                             </div>
@@ -908,44 +981,65 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                     </div>
 
                     <div className="flex flex-col items-center mb-16">
-                        {isFullLength ? (
-                            <>
-                                <div className="relative flex items-center justify-center mb-10">
-                                    {renderCircularProgress(totalScore, 1600, 256, 15, '#1a237e', '#f1f5f9')}
-                                    <div className="absolute flex flex-col items-center justify-center">
-                                        <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Total Score</span>
-                                        <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{totalScore}</span>
-                                        <span className="text-[10px] font-black text-gray-500">400 to 1600</span>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col sm:flex-row gap-12 sm:gap-16">
-                                    <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(mathScore, 800, 176, 10, '#1a237e', '#f1f5f9')}
+                        {isApCourse ? (
+                            (() => {
+                                const totalQuestions = allResponses.length;
+                                const correctCount = allResponses.filter(r => r.is_correct).length;
+                                const wrongCount = totalQuestions - correctCount;
+                                const totalAccuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+                                
+                                return (
+                                    <div className="relative flex items-center justify-center mb-10 mt-6">
+                                        {renderCircularProgress(totalAccuracy, 100, 256, 15, '#1a237e', '#f1f5f9')}
                                         <div className="absolute flex flex-col items-center justify-center">
-                                            <span className="text-[8px] font-black text-gray-600 uppercase">Math</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{mathScore}</span>
-                                            <span className="text-[8px] font-black text-gray-500">200 to 800</span>
+                                            <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Accuracy</span>
+                                            <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{totalAccuracy}%</span>
+                                            <span className="text-[10px] font-black text-gray-500 mt-2">Correct Answers: {correctCount}/{totalQuestions}</span>
+                                            <span className="text-[10px] font-black text-gray-500">Wrong Answers: {wrongCount}/{totalQuestions}</span>
                                         </div>
                                     </div>
-                                    <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(rwScore, 800, 176, 10, '#1a237e', '#f1f5f9')}
-                                        <div className="absolute flex flex-col items-center justify-center text-center">
-                                            <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Reading &<br/>Writing</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{rwScore}</span>
-                                            <span className="text-[8px] font-black text-gray-500">200 to 800</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </>
+                                );
+                            })()
                         ) : (
-                            <div className="relative flex items-center justify-center mb-10">
-                                {renderCircularProgress(hasMath ? mathScore : rwScore, 800, 256, 15, '#1a237e', '#f1f5f9')}
-                                <div className="absolute flex flex-col items-center justify-center">
-                                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{hasMath ? "Math Score" : "Reading & Writing Score"}</span>
-                                    <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{hasMath ? mathScore : rwScore}</span>
-                                    <span className="text-[10px] font-black text-gray-500">200 to 800</span>
+                            isFullLength ? (
+                                <>
+                                    <div className="relative flex items-center justify-center mb-10">
+                                        {renderCircularProgress(totalScore, 1600, 256, 15, '#1a237e', '#f1f5f9')}
+                                        <div className="absolute flex flex-col items-center justify-center">
+                                            <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Total Score</span>
+                                            <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{totalScore}</span>
+                                            <span className="text-[10px] font-black text-gray-500">400 to 1600</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row gap-12 sm:gap-16">
+                                        <div className="relative flex items-center justify-center">
+                                            {renderCircularProgress(mathScore, 800, 176, 10, '#1a237e', '#f1f5f9')}
+                                            <div className="absolute flex flex-col items-center justify-center">
+                                                <span className="text-[8px] font-black text-gray-600 uppercase">Math</span>
+                                                <span className="text-4xl font-black text-[#1a237e]">{mathScore}</span>
+                                                <span className="text-[8px] font-black text-gray-500">200 to 800</span>
+                                            </div>
+                                        </div>
+                                        <div className="relative flex items-center justify-center">
+                                            {renderCircularProgress(rwScore, 800, 176, 10, '#1a237e', '#f1f5f9')}
+                                            <div className="absolute flex flex-col items-center justify-center text-center">
+                                                <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Reading &<br/>Writing</span>
+                                                <span className="text-4xl font-black text-[#1a237e]">{rwScore}</span>
+                                                <span className="text-[8px] font-black text-gray-500">200 to 800</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="relative flex items-center justify-center mb-10">
+                                    {renderCircularProgress(hasMath ? mathScore : rwScore, 800, 256, 15, '#1a237e', '#f1f5f9')}
+                                    <div className="absolute flex flex-col items-center justify-center">
+                                        <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{hasMath ? "Math Score" : "Reading & Writing Score"}</span>
+                                        <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{hasMath ? mathScore : rwScore}</span>
+                                        <span className="text-[10px] font-black text-gray-500">200 to 800</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )
                         )}
                     </div>
 
@@ -953,40 +1047,67 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         <table className="w-full text-left font-bold border-collapse min-w-[600px] sm:min-w-0">
                             <thead className="bg-[#1a237e] text-white !text-white text-[10px] sm:text-[11px] uppercase tracking-widest">
                                 <tr>
-                                    <th className="py-4 sm:py-6 px-4 sm:px-10 border-r-2 border-white/10">Section</th>
-                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">Correct</th>
-                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">Total</th>
-                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">Accuracy</th>
-                                    <th className="py-4 sm:py-6 px-4 sm:px-10 text-right">Score</th>
+                                    <th className="py-4 sm:py-6 px-4 sm:px-10 border-r-2 border-white/10">{isApCourse ? 'Unit Name' : 'Section'}</th>
+                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">{isApCourse ? 'Correct Answers' : 'Correct'}</th>
+                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">{isApCourse ? 'Total Questions' : 'Total'}</th>
+                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">Accuracy {isApCourse ? '%' : ''}</th>
+                                    <th className="py-4 sm:py-6 px-4 sm:px-10 text-right">{isApCourse ? 'Status' : 'Score'}</th>
                                 </tr>
                             </thead>
                             <tbody className="text-[#0a0e2a] bg-white">
-                                {hasRW && (
-                                    <tr className="border-b-2 border-gray-100">
-                                        <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Reading & Writing</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.filter(r=>r.is_correct).length}</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length}</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length > 0 ? Math.round((rwResponses.filter(r=>r.is_correct).length/rwResponses.length)*100) : 0}%</td>
-                                        <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{rwScore}</td>
-                                    </tr>
-                                )}
-                                {hasMath && (
-                                    <tr className="border-b-2 border-gray-100">
-                                        <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Math</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.filter(r=>r.is_correct).length}</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length}</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length > 0 ? Math.round((mathResponses.filter(r=>r.is_correct).length/mathResponses.length)*100) : 0}%</td>
-                                        <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{mathScore}</td>
-                                    </tr>
-                                )}
-                                {isFullLength && (
-                                    <tr className="bg-[#1a237e] text-white">
-                                        <td className="py-4 sm:py-7 px-4 sm:px-10 text-sm sm:text-xl font-black uppercase tracking-tight text-white">Total SAT</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{rwResponses.filter(r=>r.is_correct).length + mathResponses.filter(r=>r.is_correct).length}</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{rwResponses.length + mathResponses.length}</td>
-                                        <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
-                                        <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{totalScore}</td>
-                                    </tr>
+                                {isApCourse ? (
+                                    (() => {
+                                        const topicsData = {};
+                                        allResponses.forEach(r => {
+                                            const t = r.topic || 'General';
+                                            if(!topicsData[t]) topicsData[t] = { correct: 0, total: 0 };
+                                            topicsData[t].total++;
+                                            if(r.is_correct) topicsData[t].correct++;
+                                        });
+                                        return Object.entries(topicsData).map(([topicName, data]) => {
+                                            const accuracy = Math.round((data.correct / data.total) * 100) || 0;
+                                            const status = accuracy >= 50 ? 'Passed' : 'Review Needed';
+                                            return (
+                                                <tr key={topicName} className="border-b-2 border-gray-100">
+                                                    <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">{topicName}</td>
+                                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{data.correct}</td>
+                                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{data.total}</td>
+                                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{accuracy}%</td>
+                                                    <td className={`py-4 sm:py-7 px-4 sm:px-10 text-right text-xs sm:text-lg font-black ${status === 'Passed' ? 'text-green-600' : 'text-red-600'}`}>{status}</td>
+                                                </tr>
+                                            );
+                                        });
+                                    })()
+                                ) : (
+                                    <>
+                                        {hasRW && (
+                                            <tr className="border-b-2 border-gray-100">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Reading & Writing</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length > 0 ? Math.round((rwResponses.filter(r=>r.is_correct).length/rwResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{rwScore}</td>
+                                            </tr>
+                                        )}
+                                        {hasMath && (
+                                            <tr className="border-b-2 border-gray-100">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Math</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length > 0 ? Math.round((mathResponses.filter(r=>r.is_correct).length/mathResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{mathScore}</td>
+                                            </tr>
+                                        )}
+                                        {isFullLength && (
+                                            <tr className="bg-[#1a237e] text-white">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-sm sm:text-xl font-black uppercase tracking-tight text-white">Total SAT</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{rwResponses.filter(r=>r.is_correct).length + mathResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{rwResponses.length + mathResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{totalScore}</td>
+                                            </tr>
+                                        )}
+                                    </>
                                 )}
                             </tbody>
                         </table>
@@ -1013,7 +1134,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         </div>
                         {hasRW && (
                             <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">R&W Section</span>
+                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">{isApCourse ? apSectionName : 'R&W Section'}</span>
                                 <span className="text-3xl sm:text-5xl font-black text-purple-700">{formatTime(rwTime.total)}</span>
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {rwTime.avg}s/q</span>
                             </div>
@@ -1027,13 +1148,13 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         )}
                     </div>
 
-                    {hasRW && renderTimeTable(rwResponses, 'Reading & Writing', rwTime.total, rwTime.avg)}
+                    {hasRW && renderTimeTable(rwResponses, isApCourse ? apSectionName : 'Reading & Writing', rwTime.total, rwTime.avg)}
                     {hasRW && hasMath && <div className="my-20"></div>}
                     {hasMath && renderTimeTable(mathResponses, 'Math', mathTime.total, mathTime.avg)}
                 </div>
 
                 {/* 4. MASTERY RW */}
-                {hasRW && renderMasterySection('Reading & Writing', rwScore, rwResponses.length, rwTopics, 1)}
+                {hasRW && renderMasterySection(isApCourse ? apSectionName : 'Reading & Writing', rwScore, rwResponses.length, rwTopics, 1)}
 
                 {/* 5. MASTERY MATH */}
                 {hasMath && renderMasterySection('Math', mathScore, mathResponses.length, mathTopics, hasRW ? 2 : 1)}

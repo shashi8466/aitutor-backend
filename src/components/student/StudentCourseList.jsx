@@ -212,7 +212,10 @@ const StudentCourseList = () => {
         return;
       }
 
-      if (response.data?.url) {
+      if (response.data?.free || response.data?.redirectTo) {
+        console.log('🆓 Enrolled in free course, redirecting:', response.data.redirectTo);
+        navigate(response.data.redirectTo || `/student/course/${cId}`);
+      } else if (response.data?.url) {
         console.log('🔗 Redirecting to Stripe Checkout:', response.data.url);
         window.location.href = response.data.url;
       } else {

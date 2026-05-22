@@ -48,6 +48,10 @@ const QuizInterface = () => {
   const { courseId, level } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  
+  const searchParams = new URLSearchParams(window.location.search);
+  const isPracticeMode = searchParams.get('mode') === 'practice';
+
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
@@ -73,6 +77,25 @@ const QuizInterface = () => {
   const [moduleHistory, setModuleHistory] = useState(['rw_moderate']);
   const [courseInfo, setCourseInfo] = useState(null);
   const [allUserAnswers, setAllUserAnswers] = useState({}); // Stores answers for ALL modules
+
+  const isAp = courseInfo?.main_category?.toUpperCase() === 'AP';
+
+  let unitId = '';
+  let unitName = '';
+  let unitOrder = 0;
+
+  if (isAp && level) {
+    unitId = level; // e.g. "Unit 1: Chemistry of Life"
+    const match = level.match(/(?:Unit|Topic)\s+(\d+)[:\s]+(.*)/i);
+    if (match) {
+      unitOrder = parseInt(match[1], 10);
+      unitName = match[2].trim();
+    } else {
+      unitName = level;
+      const numMatch = level.match(/\d+/);
+      unitOrder = numMatch ? parseInt(numMatch[0], 10) : 1;
+    }
+  }
 
   useEffect(() => {
     if (user?.plan_type) loadPlanSettings();
@@ -207,7 +230,10 @@ const QuizInterface = () => {
       // STRICT ISOLATION: Only load questions from a specific upload. NEVER fall back to orphaned questions.
       let targetQuestions = [];
       // Guard: level may be undefined when accessed via SAT practice mode fallback (no :level param in URL)
-      const dbLevel = level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Moderate';
+      const isAp = cData?.main_category?.toUpperCase() === 'AP';
+      const dbLevel = isAp
+        ? level
+        : (level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Moderate');
 
       // Step A: Try to find a single upload covering ALL levels (Global Test document)
       const { data: globalUploadData } = await supabase
@@ -503,13 +529,22 @@ const QuizInterface = () => {
       const answers = questions.map((_, idx) => userAnswers[idx] || '');
       const duration = Math.floor((Date.now() - quizStartTime) / 1000);
 
+      const isAp = courseInfo?.main_category?.toUpperCase() === 'AP';
+      const submitLevel = isAp
+        ? level
+        : level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
+
+      const submitMode = isAp
+        ? (isPracticeMode ? 'practice' : 'test')
+        : 'practice';
+
       const response = await gradingService.submitTest({
         courseId: parseInt(courseId),
-        level: level.charAt(0).toUpperCase() + level.slice(1).toLowerCase(),
+        level: submitLevel,
         questionIds,
         answers,
         duration,
-        mode: 'practice'
+        mode: submitMode
       });
 
       const { submissionId, rawScore, rawPercentage, scaledScore, sectionScores } = response.data;
@@ -646,7 +681,9 @@ const QuizInterface = () => {
               <SafeIcon icon={FiInfo} className="w-4 h-4 text-blue-500" /> Scoring Insights
             </h4>
             <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-              {isAdaptive ? (
+              {isAp ? (
+                `Your progress has been recorded for ${unitId}. Complete all unit quizzes with at least 40% accuracy to master the course!`
+              ) : isAdaptive ? (
                 `Your score of ${res?.totalScore} reflects the FULL LENGTH TEST model. Students on the Easy path are capped at 1400 total, while the Hard path allows scores up to 1600.`
               ) : (
                 `Your score is calculated based on the ${level} difficulty. In the SAT, higher level modules unlock higher score ceilings.`
@@ -676,14 +713,24 @@ const QuizInterface = () => {
           <SafeIcon icon={FiInfo} className="w-16 h-16 text-gray-400 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Quiz Questions Found</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            There are no quiz questions available for this course and level.
+            {isAp ? `There are no quiz questions available for this unit.` : `There are no quiz questions available for this course and level.`}
           </p>
 
           <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-xl text-left text-xs font-mono text-gray-500 dark:text-gray-400 mb-6 space-y-1">
             <p><strong>Debug Info:</strong></p>
             <p>• Course ID in URL: {courseId}</p>
-            <p>• Level in URL: {level}</p>
-            <p>• Normalized Search Level: {level.charAt(0).toUpperCase() + level.slice(1).toLowerCase()}</p>
+            {isAp ? (
+              <>
+                <p>• Unit ID: {unitId}</p>
+                <p>• Unit Name: {unitName}</p>
+                <p>• Unit Order: {unitOrder}</p>
+              </>
+            ) : (
+              <>
+                <p>• Level in URL: {level}</p>
+                <p>• Normalized Search Level: {level ? (level.charAt(0).toUpperCase() + level.slice(1).toLowerCase()) : 'None'}</p>
+              </>
+            )}
           </div>
 
           <Link
@@ -705,7 +752,7 @@ const QuizInterface = () => {
       <div className="max-w-4xl mx-auto relative">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
-            <Link to={`/student/course/${courseId}/level/${level}`} className="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-2 font-bold transition-colors">
+            <Link to={isAp ? `/student/course/${courseId}` : `/student/course/${courseId}/level/${level}`} className="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-2 font-bold transition-colors">
               <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Exit
             </Link>
             <button

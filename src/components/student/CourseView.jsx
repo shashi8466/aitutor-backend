@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService, progressService, enrollmentService, planService, gradingService } from '../../services/api';
@@ -9,6 +9,234 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 
 const { FiArrowLeft, FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiTrendingUp, FiInfo, FiKey, FiAlertCircle, FiLoader, FiTarget } = FiIcons;
+
+const AP_TAXONOMY = {
+  'AP Biology': {
+    'Unit 1: Chemistry of Life': [
+      'Structure of Water and Hydrogen Bonding',
+      'Elements of Life',
+      'Introduction to Biological Macromolecules',
+      'Carbohydrates',
+      'Lipids',
+      'Nucleic Acids',
+      'Proteins'
+    ],
+    'Unit 2: Cells': [
+      'Cell Structure',
+      'Cell Size',
+      'Plasma Membranes',
+      'Membrane Transport',
+      'Facilitated Diffusion',
+      'Tonicity and Osmoregulation',
+      'Cell Compartmentalization'
+    ],
+    'Unit 3: Cellular Energetics': [
+      'Enzyme Structure and Catalysis',
+      'Environmental Impacts on Enzyme Function',
+      'Cellular Energy',
+      'Photosynthesis',
+      'Cellular Respiration',
+      'Fitness'
+    ],
+    'Unit 4: Cell Communication and Cell Cycle': [
+      'Cell Communication',
+      'Signal Transduction',
+      'Changes in Signal Transduction Pathways',
+      'Feedback and Homeostasis',
+      'Cell Cycle',
+      'Regulation of Cell Cycle'
+    ],
+    'Unit 5: Heredity': [
+      'Meiosis',
+      'Meiosis and Genetic Diversity',
+      'Mendelian Genetics',
+      'Non-Mendelian Genetics',
+      'Environmental Effects on Phenotype',
+      'Chromosomal Inheritance'
+    ],
+    'Unit 6: Gene Expression and Regulation': [
+      'DNA and RNA Structure',
+      'DNA Replication',
+      'Transcription and RNA Processing',
+      'Translation',
+      'Regulation of Gene Expression',
+      'Gene Expression and Cell Specialization',
+      'Mutations',
+      'Biotechnology'
+    ],
+    'Unit 7: Natural Selection': [
+      'Introduction to Natural Selection',
+      'Artificial Selection',
+      'Population Genetics',
+      'Hardy-Weinberg Equilibrium',
+      'Evidence of Evolution',
+      'Common Ancestry',
+      'Continuing Evolution',
+      'Speciation',
+      'Variations in Populations',
+      'Origins of Life on Earth'
+    ],
+    'Unit 8: Ecology': [
+      'Responses to the Environment',
+      'Energy Flow Through Ecosystems',
+      'Population Ecology',
+      'Effect of Density of Populations',
+      'Community Ecology',
+      'Biodiversity',
+      'Disruptions to Ecosystems'
+    ]
+  },
+  'AP Calculus AB': [
+    'Unit 1: Limits and Continuity',
+    'Unit 2: Differentiation: Definition and Fundamental Properties',
+    'Unit 3: Differentiation: Composite, Implicit, and Inverse Functions',
+    'Unit 4: Contextual Applications of Differentiation',
+    'Unit 5: Analytical Applications of Differentiation',
+    'Unit 6: Integration and Accumulation of Change',
+    'Unit 7: Differential Equations',
+    'Unit 8: Applications of Integration'
+  ],
+  'AP Calculus BC': [
+    'Unit 1: Limits and Continuity',
+    'Unit 2: Differentiation: Definition and Fundamental Properties',
+    'Unit 3: Differentiation: Composite, Implicit, and Inverse Functions',
+    'Unit 4: Contextual Applications of Differentiation',
+    'Unit 5: Analytical Applications of Differentiation',
+    'Unit 6: Integration and Accumulation of Change',
+    'Unit 7: Differential Equations',
+    'Unit 8: Applications of Integration',
+    'Unit 9: Parametric Equations, Polar Coordinates, and Vector-Valued Functions',
+    'Unit 10: Infinite Sequences and Series'
+  ],
+  'AP Chemistry': [
+    'Unit 1: Atomic Structure and Properties',
+    'Unit 2: Compound Structure and Properties',
+    'Unit 3: Properties of Substances and Mixtures',
+    'Unit 4: Chemical Reactions',
+    'Unit 5: Kinetics',
+    'Unit 6: Thermochemistry',
+    'Unit 7: Equilibrium',
+    'Unit 8: Acids and Bases',
+    'Unit 9: Thermodynamics and Electrochemistry'
+  ],
+  'AP English Language and Composition': [
+    'Topic 1: Rhetorical Situation & Defensible Claims',
+    'Topic 2: Audience Appeals & Thesis Crafting',
+    'Topic 3: Line of Reasoning & Source Synthesis',
+    'Topic 4: Introductions, Conclusions & Thesis Refinement',
+    'Topic 5: Coherence, Flow & Stylistic Precision',
+    'Topic 6: Evidence Credibility, Bias & Tone Analysis',
+    'Topic 7: Nuance, Qualification & Mechanics for Precision',
+    'Topic 8: Audience-Centered Style & Figurative Persuasion',
+    'Topic 9: Concession, Refutation & Synthesis'
+  ],
+  'AP Environmental Science': [
+    'Topic 1: The Living World: Ecosystems',
+    'Topic 2: The Living World: Biodiversity',
+    'Topic 3: Populations',
+    'Topic 4: Earth Systems and Resources',
+    'Topic 5: Land and Water Use',
+    'Topic 6: Energy Resources and Consumption',
+    'Topic 7: Atmospheric Pollution',
+    'Topic 8: Aquatic and Terrestrial Pollution',
+    'Topic 9: Global Change'
+  ],
+  'AP Physics 1: Algebra-Based': {
+    'Unit 1: Kinematics': [
+      'Scalars and Vectors in One Dimension',
+      'Displacement, Velocity, and Acceleration',
+      'Representing Motion',
+      'Reference Frames and Relative Motion',
+      'Vectors and Motion in Two Dimensions'
+    ],
+    'Unit 2: Force and Translational Dynamics': [
+      'Systems and Center of Mass',
+      'Forces and Free-Body Diagrams',
+      'Newton’s Third Law',
+      'Newton’s First Law',
+      'Newton’s Second Law',
+      'Gravitational Force',
+      'Kinetic and Static Friction',
+      'Spring Forces',
+      'Circular Motion'
+    ],
+    'Unit 3: Work, Energy, and Power': [
+      'Translational Kinetic Energy',
+      'Work',
+      'Potential Energy',
+      'Conservation of Energy',
+      'Power'
+    ],
+    'Unit 4: Linear Momentum': [
+      'Linear Momentum',
+      'Change in Momentum and Impulse',
+      'Conservation of Linear Momentum',
+      'Elastic and Inelastic Collisions'
+    ],
+    'Unit 5: Torque and Rotational Dynamics': [
+      'Rotational Kinematics',
+      'Connecting Linear and Rotational Motion',
+      'Torque',
+      'Rotational Inertia',
+      'Rotational Equilibrium and Newton’s First Law in Rotational Form',
+      'Newton’s Second Law in Rotational Form'
+    ],
+    'Unit 6: Energy and Momentum of Rotating Systems': [
+      'Rotational Kinetic Energy',
+      'Torque and Work',
+      'Angular Momentum and Angular Impulse',
+      'Conservation of Angular Momentum',
+      'Rolling',
+      'Motion of Orbiting Satellites'
+    ],
+    'Unit 7: Oscillations': [
+      'Defining Simple Harmonic Motion (SHM)',
+      'Frequency and Period of SHM',
+      'Representing and Analyzing SHM',
+      'Energy of Simple Harmonic Oscillators'
+    ],
+    'Unit 8: Fluids': [
+      'Internal Structure and Density',
+      'Pressure',
+      'Fluids and Newton’s Laws',
+      'Fluids and Conservation Laws'
+    ]
+  },
+  'AP Physics C: Mechanics': [
+    'Topic 1: Kinematics',
+    'Topic 2: Force and Translational Dynamics',
+    'Topic 3: Work, Energy, and Power',
+    'Topic 4: Linear Momentum',
+    'Topic 5: Torque and Rotational Dynamics',
+    'Topic 6: Energy and Momentum of Rotating Systems',
+    'Topic 7: Oscillations'
+  ],
+  'AP Psychology': [
+    'Unit 1: Biological Bases of Behavior',
+    'Unit 2: Cognition',
+    'Unit 3: Development and Learning',
+    'Unit 4: Social Psychology and Personality',
+    'Unit 5: Mental and Physical Health'
+  ],
+  'AP United States Government and Politics': [
+    'Unit 1: Foundations of American Democracy',
+    'Unit 2: Interactions Among Branches of Government',
+    'Unit 3: Civil Liberties and Civil Rights',
+    'Unit 4: American Political Ideologies and Beliefs',
+    'Unit 5: Political Participation'
+  ],
+  'AP United States History': [
+    'Unit 1: Period 1 (1491-1607)',
+    'Unit 2: Period 2 (1607-1754)',
+    'Unit 3: Period 3 (1754-1800)',
+    'Unit 4: Period 4 (1800-1848)',
+    'Unit 5: Period 5 (1844-1877)',
+    'Unit 6: Period 6 (1865-1898)',
+    'Unit 7: Period 7 (1890-1945)',
+    'Unit 8: Period 8 (1945-1980)',
+    'Unit 9: Period 9 (1980-Present)'
+  ]
+};
 
 const CourseView = () => {
   const { courseId } = useParams();
@@ -28,6 +256,9 @@ const CourseView = () => {
   const [enrollmentSuccess, setEnrollmentSuccess] = useState(false);
   const [lockMessage, setLockMessage] = useState('');
   const [planAccess, setPlanAccess] = useState([]);
+  const [openPdfUnit, setOpenPdfUnit] = useState(null);
+  const [expandedUnit, setExpandedUnit] = useState(null);
+  const [expandedSubtopic, setExpandedSubtopic] = useState(null);
 
   useEffect(() => {
     if (user?.id && courseId) {
@@ -65,7 +296,7 @@ const CourseView = () => {
           }
           
           // If the backend response indicates success or auto-enrollment for free courses
-          if (response.data?.enrolled || response.data?.success) {
+          if (response.data?.enrolled || response.data?.success || response.data?.free) {
             isEnrolled = true;
           }
         } catch (enrollmentError) {
@@ -219,6 +450,58 @@ const CourseView = () => {
     return { passed: p.passed, score: p.score };
   };
 
+  const getApMaterials = (levelName) => {
+    const study = uploads.find(u => u.level.toLowerCase() === levelName.toLowerCase() && u.category === 'study_material');
+    const video = uploads.find(u => u.level.toLowerCase() === levelName.toLowerCase() && u.category === 'video_lecture');
+    const quiz = uploads.find(u => u.level.toLowerCase() === levelName.toLowerCase() && u.category === 'quiz_document');
+    return { study, video, quiz };
+  };
+
+  const isApUnitPassed = (unitName) => {
+    const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || {};
+    const subtopics = !Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry[unitName] || [] : [];
+    
+    if (subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName)) {
+      return subtopics.every(subtopic => {
+        const p = courseProgress.find(p => p.level.toLowerCase() === subtopic.toLowerCase());
+        return !!(p && p.score >= 40);
+      });
+    }
+
+    const p = courseProgress.find(p => p.level.toLowerCase() === unitName.toLowerCase());
+    return !!(p && p.score >= 40);
+  };
+
+  const getApUnitScore = (unitName) => {
+    const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || {};
+    const subtopics = !Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry[unitName] || [] : [];
+    
+    if (subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName)) {
+      let total = 0;
+      let count = 0;
+      subtopics.forEach(subtopic => {
+        const p = courseProgress.find(p => p.level.toLowerCase() === subtopic.toLowerCase());
+        if (p) {
+          total += p.score;
+          count++;
+        }
+      });
+      return count > 0 ? Math.round(total / count) : null;
+    }
+
+    const p = courseProgress.find(p => p.level.toLowerCase() === unitName.toLowerCase());
+    return p ? p.score : null;
+  };
+
+  const isApUnitUnlocked = (unitName, index) => {
+    if (index === 0) return true;
+    const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || [];
+    const apUnitsList = Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry : Object.keys(apTaxonomyEntry);
+    const prevUnitName = apUnitsList[index - 1];
+    if (!prevUnitName) return false;
+    return isApUnitPassed(prevUnitName);
+  };
+
   // Course-level SAT section score using the weighted Easy/Medium/Hard formula.
   const getScoreDisplay = () => {
     if (!course) return { score: 0, max: 800, label: 'Estimated Score' };
@@ -253,11 +536,163 @@ const CourseView = () => {
   };
 
   const levels = ['Easy', 'Medium', 'Hard'];
+  const isApCourse = course?.main_category?.toUpperCase() === 'AP';
+  const apTaxonomyEntry = isApCourse ? (AP_TAXONOMY[course?.tutor_type] || []) : [];
+  const apUnits = Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry : Object.keys(apTaxonomyEntry);
+  const completedApUnits = isApCourse ? apUnits.filter(u => isApUnitPassed(u)).length : 0;
+  const progressPercent = isApCourse && apUnits.length > 0 ? Math.round((completedApUnits / apUnits.length) * 100) : 0;
+
   const passedLevels = courseProgress.filter(p => levels.includes(p.level) && p.passed);
   const uniquePassed = new Set(passedLevels.map(p => p.level));
-  const isCourseCompleted = uniquePassed.size === 3;
+  const isCourseCompleted = isApCourse ? (completedApUnits === apUnits.length && apUnits.length > 0) : uniquePassed.size === 3;
 
   const scoreData = getScoreDisplay();
+
+  const renderApActionGrid = (levelName, study, video, quiz, passed) => (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+      <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-300 dark:hover:border-indigo-800 transition-colors">
+        <div>
+          <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3">
+            <SafeIcon icon={FiIcons.FiFileText} className="w-4 h-4" />
+          </div>
+          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Study Materials</h4>
+          <p className="text-xs text-slate-500 mt-1">Review official uploaded slides & study PDFs.</p>
+        </div>
+        <button
+          onClick={() => {
+            if (study) {
+              setOpenPdfUnit(openPdfUnit === levelName ? null : levelName);
+            }
+          }}
+          disabled={!study}
+          className={`w-full mt-4 py-2 px-3 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
+            study 
+              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm' 
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
+          }`}
+        >
+          <SafeIcon icon={FiIcons.FiEye} className="w-3.5 h-3.5" />
+          {study ? (openPdfUnit === levelName ? 'Hide PDF' : 'Preview PDF') : 'Not Available'}
+        </button>
+      </div>
+
+      <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-300 dark:hover:border-indigo-800 transition-colors">
+        <div>
+          <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3">
+            <SafeIcon icon={FiIcons.FiVideo} className="w-4 h-4" />
+          </div>
+          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Premade Videos</h4>
+          <p className="text-xs text-slate-500 mt-1">Watch lectures and core concepts video.</p>
+        </div>
+        <button
+          onClick={() => {
+            if (video) {
+              navigate(`/student/course/${courseId}/level/${encodeURIComponent(levelName)}/video`);
+            }
+          }}
+          disabled={!video}
+          className={`w-full mt-4 py-2 px-3 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
+            video 
+              ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm' 
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
+          }`}
+        >
+          <SafeIcon icon={FiIcons.FiPlay} className="w-3.5 h-3.5 fill-current" />
+          {video ? 'Watch Video' : 'Not Available'}
+        </button>
+      </div>
+
+      <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-300 dark:hover:border-indigo-800 transition-colors">
+        <div>
+          <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-3">
+            <SafeIcon icon={FiIcons.FiEdit3} className="w-4 h-4" />
+          </div>
+          <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Practice Quiz</h4>
+          <p className="text-xs text-slate-500 mt-1">Train untimed with unlimited retry mode.</p>
+        </div>
+        <button
+          onClick={() => {
+            if (quiz) {
+              navigate(`/student/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz?mode=practice`);
+            }
+          }}
+          disabled={!quiz}
+          className={`w-full mt-4 py-2 px-3 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
+            quiz 
+              ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm' 
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
+          }`}
+        >
+          <SafeIcon icon={FiIcons.FiLayers} className="w-3.5 h-3.5" />
+          {quiz ? 'Practice Mode' : 'Not Available'}
+        </button>
+      </div>
+
+      <div className="bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-300 transition-colors">
+        <div>
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center mb-3">
+            <SafeIcon icon={FiIcons.FiCheckCircle} className="w-4 h-4" />
+          </div>
+          <h4 className="font-bold text-indigo-900 dark:text-indigo-200 text-sm">Take the Quiz</h4>
+          <p className="text-xs text-indigo-700 dark:text-indigo-400 mt-1">Complete the graded exam.</p>
+        </div>
+        <button
+          onClick={() => {
+            if (quiz) {
+              navigate(`/student/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz`);
+            }
+          }}
+          disabled={!quiz}
+          className={`w-full mt-4 py-2 px-3 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
+            quiz 
+              ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' 
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
+          }`}
+        >
+          <SafeIcon icon={FiIcons.FiAward} className="w-3.5 h-3.5" />
+          {quiz ? (passed ? 'Retake Exam' : 'Start Exam') : 'Not Available'}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderPdfPreview = (levelName, study) => (
+    <AnimatePresence>
+      {openPdfUnit === levelName && study && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mt-4 p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800"
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              iframe, embed, object, [class*="InlineReader"], .no-print {
+                display: none !important;
+              }
+            }
+          `}} />
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <FiIcons.FiFileText className="text-indigo-600" /> Study Guide Inline Reader
+            </span>
+            <button 
+              onClick={() => setOpenPdfUnit(null)}
+              className="text-slate-400 hover:text-slate-600 text-xs font-semibold px-2 py-1 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded shadow-sm"
+            >
+              Close Preview
+            </button>
+          </div>
+          <iframe 
+            src={`${study.file_url}#toolbar=0`} 
+            className="w-full h-[600px] rounded-lg border border-slate-200 dark:border-slate-800 bg-white" 
+            title={`PDF Preview - ${levelName}`}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   if (loading) return <div className="p-12 text-center text-gray-500 font-bold">Refreshing data...</div>;
   if (accessDenied) {
@@ -355,52 +790,96 @@ const CourseView = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-10 text-center px-4 sm:px-0">
           <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">
-            <span className="text-[#E53935]">{course.name}</span>
+            <span className={isApCourse ? "text-indigo-600" : "text-[#E53935]"}>{course.name}</span>
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
-            Complete each level to unlock the next difficulty.
+            {isApCourse 
+              ? "Complete each unit's quiz with ≥40% to unlock the next unit."
+              : "Complete each level to unlock the next difficulty."}
           </p>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-10 bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white p-6 sm:p-12 rounded-3xl shadow-2xl border border-gray-800 text-center relative overflow-hidden mx-4 sm:mx-0"
-        >
-          <div className="relative z-10 flex flex-col items-center">
-            {isCourseCompleted && (
-              <div className="bg-[#E53935] text-white p-2.5 rounded-full mb-6 shadow-lg shadow-red-500/50 animate-bounce">
-                <SafeIcon icon={FiAward} className="w-6 h-6" />
-              </div>
-            )}
-
-            <div className="flex flex-col items-center gap-3 mb-6">
-              <span className="text-gray-400 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">{scoreData.label}</span>
+        {isApCourse ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-10 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white p-6 sm:p-10 rounded-3xl shadow-xl border border-indigo-900/50 text-center relative overflow-hidden mx-4 sm:mx-0"
+          >
+            <div className="relative z-10 flex flex-col items-center">
               {isCourseCompleted && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-green-900/50 text-green-400 border border-green-800 font-black uppercase tracking-widest animate-pulse">
-                  <SafeIcon icon={FiTrendingUp} className="w-3 h-3 mr-2" /> Performance Unlocked
-                </span>
-              )}
-            </div>
-
-            <div className="inline-block bg-white/5 backdrop-blur-xl p-6 sm:p-10 px-8 sm:px-16 rounded-[2rem] border border-white/10 transform hover:scale-105 transition-all cursor-default shadow-inner">
-              {isCourseCompleted ? (
-                <div className="text-4xl sm:text-7xl font-black text-[#E53935] tracking-tighter">
-                  {scoreData.score} <span className="text-base sm:text-2xl text-white/30 font-bold uppercase tracking-widest">/ {scoreData.max}</span>
-                </div>
-              ) : (
-                <div className="text-xs sm:text-lg font-black text-gray-500 tracking-[0.1em] uppercase py-2 sm:py-4">
-                  Complete All Levels to Reveal Score
+                <div className="bg-emerald-500 text-white p-2.5 rounded-full mb-6 shadow-lg shadow-emerald-500/50 animate-bounce">
+                  <SafeIcon icon={FiAward} className="w-6 h-6" />
                 </div>
               )}
-            </div>
-          </div>
 
-          <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none">
-            <div className="absolute top-[-50%] left-[-10%] w-[500px] h-[500px] bg-[#E53935] rounded-full blur-[120px]"></div>
-            <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-blue-600 rounded-full blur-[100px]"></div>
-          </div>
-        </motion.div>
+              <div className="flex flex-col items-center gap-2 mb-4">
+                <span className="text-indigo-300 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">Course Completion Progress</span>
+                <h3 className="text-2xl sm:text-3xl font-black">{completedApUnits} of {apUnits.length} Units Mastered</h3>
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full max-w-md bg-white/10 rounded-full h-3 mb-6 p-0.5 overflow-hidden border border-white/5">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPercent}%` }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full"
+                />
+              </div>
+
+              <div className="inline-block bg-white/5 backdrop-blur-xl p-4 sm:p-6 px-8 sm:px-12 rounded-2xl border border-white/10 cursor-default shadow-inner">
+                <div className="text-3xl sm:text-5xl font-black text-emerald-400 tracking-tighter">
+                  {progressPercent}% <span className="text-xs sm:text-sm text-white/50 font-bold uppercase tracking-widest">Completed</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="absolute top-0 left-0 w-full h-full opacity-30 pointer-events-none">
+              <div className="absolute top-[-50%] left-[-10%] w-[500px] h-[500px] bg-indigo-600 rounded-full blur-[120px]"></div>
+              <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-emerald-600 rounded-full blur-[100px]"></div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-10 bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white p-6 sm:p-12 rounded-3xl shadow-2xl border border-gray-800 text-center relative overflow-hidden mx-4 sm:mx-0"
+          >
+            <div className="relative z-10 flex flex-col items-center">
+              {isCourseCompleted && (
+                <div className="bg-[#E53935] text-white p-2.5 rounded-full mb-6 shadow-lg shadow-red-500/50 animate-bounce">
+                  <SafeIcon icon={FiAward} className="w-6 h-6" />
+                </div>
+              )}
+
+              <div className="flex flex-col items-center gap-3 mb-6">
+                <span className="text-gray-400 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">{scoreData.label}</span>
+                {isCourseCompleted && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-green-900/50 text-green-400 border border-green-800 font-black uppercase tracking-widest animate-pulse">
+                    <SafeIcon icon={FiTrendingUp} className="w-3 h-3 mr-2" /> Performance Unlocked
+                  </span>
+                )}
+              </div>
+
+              <div className="inline-block bg-white/5 backdrop-blur-xl p-6 sm:p-10 px-8 sm:px-16 rounded-[2rem] border border-white/10 transform hover:scale-105 transition-all cursor-default shadow-inner">
+                {isCourseCompleted ? (
+                  <div className="text-4xl sm:text-7xl font-black text-[#E53935] tracking-tighter">
+                    {scoreData.score} <span className="text-base sm:text-2xl text-white/30 font-bold uppercase tracking-widest">/ {scoreData.max}</span>
+                  </div>
+                ) : (
+                  <div className="text-xs sm:text-lg font-black text-gray-500 tracking-[0.1em] uppercase py-2 sm:py-4">
+                    Complete All Levels to Reveal Score
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none">
+              <div className="absolute top-[-50%] left-[-10%] w-[500px] h-[500px] bg-[#E53935] rounded-full blur-[120px]"></div>
+              <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-blue-600 rounded-full blur-[100px]"></div>
+            </div>
+          </motion.div>
+        )}
 
         {course.is_adaptive ? (
           <div className="space-y-10 px-4 sm:px-0">
@@ -450,7 +929,7 @@ const CourseView = () => {
                             <div className="font-bold text-gray-800">{level} Module</div>
                             <div className="flex gap-2">
                               {study ? (
-                                <a href={study.file_url} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
+                                <a href={`${study.file_url}#toolbar=0`} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
                                   <SafeIcon icon={FiIcons.FiFileText || FiInfo} /> PDF
                                 </a>
                               ) : (
@@ -477,6 +956,124 @@ const CourseView = () => {
               </div>
             </div>
           </div>
+        ) : isApCourse ? (
+          <div className="space-y-6">
+            {apUnits.map((unitName, index) => {
+              const unlocked = isApUnitUnlocked(unitName, index);
+              const passed = isApUnitPassed(unitName);
+              const score = getApUnitScore(unitName);
+              const { study, video, quiz } = getApMaterials(unitName);
+
+              const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || {};
+              const subtopics = !Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry[unitName] || [] : [];
+              const hasSubtopics = subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName);
+
+              return (
+                <motion.div
+                  key={unitName}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:shadow-md transition-all relative ${
+                    !unlocked ? 'opacity-65 grayscale cursor-not-allowed' : ''
+                  }`}
+                >
+                  {!unlocked && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10 bg-slate-50/50 dark:bg-slate-950/40 backdrop-blur-[1px] rounded-2xl">
+                      <div className="bg-white dark:bg-slate-800 p-4 rounded-full shadow-lg border border-slate-100 dark:border-slate-700">
+                        <SafeIcon icon={FiLock} className="w-6 h-6 text-slate-400" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div 
+                    className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${hasSubtopics ? (unlocked ? 'cursor-pointer' : '') : ''} ${unlocked && !hasSubtopics ? 'border-b border-slate-50 dark:border-slate-800/60 pb-4 mb-4' : ''}`}
+                    onClick={() => {
+                      if (hasSubtopics && unlocked) {
+                        setExpandedUnit(expandedUnit === unitName ? null : unitName);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-md flex-shrink-0 bg-indigo-600`}>
+                        {index + 1}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          {unitName}
+                          {hasSubtopics && (
+                            <SafeIcon icon={expandedUnit === unitName ? FiIcons.FiChevronUp : FiIcons.FiChevronDown} className="w-5 h-5 text-slate-400" />
+                          )}
+                        </h3>
+                        <p className="text-xs text-slate-500 font-semibold uppercase mt-0.5 tracking-wider">
+                          AP Course Curriculum Unit
+                        </p>
+                      </div>
+                    </div>
+
+                    {passed && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-500">Best Score: {score}%</span>
+                        <div className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 p-1.5 rounded-lg flex items-center gap-1.5 px-3 text-xs font-bold border border-emerald-100 dark:border-emerald-900/30">
+                          <SafeIcon icon={FiCheckCircle} className="w-3.5 h-3.5" /> Passed
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {unlocked && (
+                    <div className="space-y-4">
+                      {hasSubtopics ? (
+                        expandedUnit === unitName && (
+                          <div className="flex flex-col gap-3 mt-4 border-t border-slate-50 dark:border-slate-800/60 pt-4">
+                            {subtopics.map((subtopic, subIdx) => {
+                              const subPassed = isApUnitPassed(subtopic);
+                              const isExpanded = expandedSubtopic === subtopic;
+                              const { study: subStudy, video: subVideo, quiz: subQuiz } = getApMaterials(subtopic);
+                              
+                              return (
+                                <div key={subtopic} className="bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 p-4 transition-all">
+                                  <div 
+                                    className="flex items-center justify-between cursor-pointer"
+                                    onClick={() => setExpandedSubtopic(isExpanded ? null : subtopic)}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-sm font-bold text-slate-500">{index + 1}.{subIdx + 1}</span>
+                                      <h4 className="font-bold text-slate-800 dark:text-slate-200">{subtopic}</h4>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      {subPassed && (
+                                        <div className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 p-1 px-2 rounded-lg text-xs font-bold border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-1">
+                                          <SafeIcon icon={FiCheckCircle} className="w-3 h-3" /> Passed
+                                        </div>
+                                      )}
+                                      <SafeIcon icon={isExpanded ? FiIcons.FiChevronUp : FiIcons.FiChevronDown} className="w-5 h-5 text-slate-400" />
+                                    </div>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                      {renderApActionGrid(subtopic, subStudy, subVideo, subQuiz, subPassed)}
+                                      {renderPdfPreview(subtopic, subStudy)}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )
+                      ) : (
+                        <>
+                          {renderApActionGrid(unitName, study, video, quiz, passed)}
+                          {renderPdfPreview(unitName, study)}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
         ) : (
           <div className="space-y-6">
             {['Easy', 'Medium', 'Hard'].map((level, index) => {
@@ -484,81 +1081,81 @@ const CourseView = () => {
               const unlocked = isLevelUnlocked(level);
               const { passed, score } = getLevelStatus(level);
 
-            const styles = {
-              Easy: { bg: 'bg-white', border: 'border-green-200', numberBg: 'bg-green-600', btn: 'bg-black text-white hover:bg-gray-800' },
-              Medium: { bg: 'bg-white', border: 'border-orange-200', numberBg: 'bg-orange-500', btn: 'bg-black text-white hover:bg-gray-800' },
-              Hard: { bg: 'bg-white', border: 'border-red-200', numberBg: 'bg-[#E53935]', btn: 'bg-black text-white hover:bg-gray-800' }
-            };
-            const theme = styles[level];
-            const lockedClass = !unlocked ? 'opacity-60 grayscale cursor-not-allowed' : '';
+              const styles = {
+                Easy: { bg: 'bg-white', border: 'border-green-200', numberBg: 'bg-green-600', btn: 'bg-black text-white hover:bg-gray-800' },
+                Medium: { bg: 'bg-white', border: 'border-orange-200', numberBg: 'bg-orange-500', btn: 'bg-black text-white hover:bg-gray-800' },
+                Hard: { bg: 'bg-white', border: 'border-red-200', numberBg: 'bg-[#E53935]', btn: 'bg-black text-white hover:bg-gray-800' }
+              };
+              const theme = styles[level];
+              const lockedClass = !unlocked ? 'opacity-60 grayscale cursor-not-allowed' : '';
 
-            return (
-              <motion.div
-                key={level}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={`rounded-2xl border ${theme.bg} ${theme.border} p-4 sm:p-6 md:p-8 shadow-lg transition-shadow relative ${lockedClass}`}
-              >
-                {!unlocked && (
-                  <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50/50 backdrop-blur-[1px] rounded-2xl">
-                    <div className="bg-white p-4 rounded-full shadow-xl border border-gray-100">
-                      <SafeIcon icon={FiLock} className="w-6 h-6 text-gray-400" />
-                    </div>
-                  </div>
-                )}
-
-                {passed && (
-                  <div className="flex flex-wrap items-center gap-2 mb-4 md:absolute md:top-6 md:right-6 md:mb-0 z-10">
-                    <span className="text-sm font-bold text-gray-500">Best: {score}%</span>
-                    <div className="bg-green-100 text-green-800 p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-2 px-2 sm:px-3 text-xs font-bold border border-green-200">
-                      <SafeIcon icon={FiCheckCircle} className="w-3 h-3 sm:w-4 sm:h-4" /> Passed
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-4 md:gap-6">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-bold text-white text-lg sm:text-xl shadow-md flex-shrink-0 ${theme.numberBg}`}>
-                        {index + 1}
+              return (
+                <motion.div
+                  key={level}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className={`rounded-2xl border ${theme.bg} ${theme.border} p-4 sm:p-6 md:p-8 shadow-lg transition-shadow relative ${lockedClass}`}
+                >
+                  {!unlocked && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10 bg-gray-50/50 backdrop-blur-[1px] rounded-2xl">
+                      <div className="bg-white p-4 rounded-full shadow-xl border border-gray-100">
+                        <SafeIcon icon={FiLock} className="w-6 h-6 text-gray-400" />
                       </div>
-                      <h3 className="text-xl sm:text-2xl font-bold text-black">
-                        {level} Level
-                      </h3>
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 sm:gap-x-8 gap-y-1.5 sm:gap-y-2 ml-0 sm:ml-14 md:ml-16">
-                       {topics.map((topic, i) => (
-                        <div key={i} className={`flex items-center gap-2 font-medium text-sm sm:text-base ${topic.locked ? 'text-gray-400' : 'text-gray-700'}`}>
-                          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${topic.locked ? 'bg-gray-300' : theme.numberBg}`} />
-                          <span className="truncate">{topic.name}</span>
-                          {topic.locked && <SafeIcon icon={FiLock} className="w-3 h-3 text-gray-300" />}
+                  {passed && (
+                    <div className="flex flex-wrap items-center gap-2 mb-4 md:absolute md:top-6 md:right-6 md:mb-0 z-10">
+                      <span className="text-sm font-bold text-gray-500">Best: {score}%</span>
+                      <div className="bg-green-100 text-green-800 p-1.5 sm:p-2 rounded-lg flex items-center gap-1 sm:gap-2 px-2 sm:px-3 text-xs font-bold border border-green-200">
+                        <SafeIcon icon={FiCheckCircle} className="w-3 h-3 sm:w-4 sm:h-4" /> Passed
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-4 md:gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center font-bold text-white text-lg sm:text-xl shadow-md flex-shrink-0 ${theme.numberBg}`}>
+                          {index + 1}
                         </div>
-                      ))}
+                        <h3 className="text-xl sm:text-2xl font-bold text-black">
+                          {level} Level
+                        </h3>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 sm:gap-x-8 gap-y-1.5 sm:gap-y-2 ml-0 sm:ml-14 md:ml-16">
+                         {topics.map((topic, i) => (
+                          <div key={i} className={`flex items-center gap-2 font-medium text-sm sm:text-base ${topic.locked ? 'text-gray-400' : 'text-gray-700'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${topic.locked ? 'bg-gray-300' : theme.numberBg}`} />
+                            <span className="truncate">{topic.name}</span>
+                            {topic.locked && <SafeIcon icon={FiLock} className="w-3 h-3 text-gray-300" />}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 w-full md:w-auto md:self-end">
+                      <button
+                        onClick={() => unlocked && navigate(`/student/course/${courseId}/level/${level}`)}
+                        disabled={!unlocked}
+                        className={`w-full md:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm sm:text-base shadow-md transition-all ${theme.btn}`}
+                      >
+                        <SafeIcon icon={FiPlay} className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
+                        {unlocked ? (passed ? `Retake ${level}` : `Start ${level}`) : 'Locked'}
+                      </button>
+                      {passed && (
+                        <span className="text-[10px] sm:text-xs text-gray-400 text-center font-medium">
+                          Retaking only updates score if higher than {score}%
+                        </span>
+                      )}
                     </div>
                   </div>
-
-                  <div className="flex flex-col gap-2 w-full md:w-auto md:self-end">
-                    <button
-                      onClick={() => unlocked && navigate(`/student/course/${courseId}/level/${level}`)}
-                      disabled={!unlocked}
-                      className={`w-full md:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm sm:text-base shadow-md transition-all ${theme.btn}`}
-                    >
-                      <SafeIcon icon={FiPlay} className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
-                      {unlocked ? (passed ? `Retake ${level}` : `Start ${level}`) : 'Locked'}
-                    </button>
-                    {passed && (
-                      <span className="text-[10px] sm:text-xs text-gray-400 text-center font-medium">
-                        Retaking only updates score if higher than {score}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                </motion.div>
+              );
+            })}
+          </div>
         )}
 
         <div className="mt-12 text-center">

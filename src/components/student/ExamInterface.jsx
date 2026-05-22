@@ -20,6 +20,28 @@ const ExamInterface = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [courseInfo, setCourseInfo] = useState(null);
+
+  const isAp = courseInfo?.main_category?.toUpperCase() === 'AP';
+  const maxModuleIndex = isAp ? 0 : 2;
+
+  let unitId = '';
+  let unitName = '';
+  let unitOrder = 0;
+
+  if (isAp && level) {
+    unitId = level; // e.g. "Unit 1: Chemistry of Life"
+    const match = level.match(/(?:Unit|Topic)\s+(\d+)[:\s]+(.*)/i);
+    if (match) {
+      unitOrder = parseInt(match[1], 10);
+      unitName = match[2].trim();
+    } else {
+      unitName = level;
+      const numMatch = level.match(/\d+/);
+      unitOrder = numMatch ? parseInt(numMatch[0], 10) : 1;
+    }
+  }
+
   const [allQuestions, setAllQuestions] = useState([]);
   const [activeModuleIndex, setActiveModuleIndex] = useState(0);
   const [questions, setQuestions] = useState([]);
@@ -34,7 +56,6 @@ const ExamInterface = () => {
   const [totalTime, setTotalTime] = useState(0);
   const [savingResult, setSavingResult] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
-  const [courseInfo, setCourseInfo] = useState(null);
   const [showNavigation, setShowNavigation] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -76,14 +97,15 @@ const ExamInterface = () => {
 
   useEffect(() => {
     if (user?.id && courseId) loadQuestions();
-  }, [courseId, user]);
+  }, [courseId, level, user]);
 
   useEffect(() => {
     // Partition questions by level when allQuestions changes or activeModuleIndex changes
-    const levels = ['Easy', 'Medium', 'Hard'];
+    const isAp = courseInfo?.main_category?.toUpperCase() === 'AP';
+    const levels = isAp ? [level] : ['Easy', 'Medium', 'Hard'];
     const currentLevel = levels[activeModuleIndex];
     if (allQuestions.length > 0) {
-      const filtered = allQuestions.filter(q => q.computedLevel === currentLevel);
+      const filtered = allQuestions.filter(q => (q.computedLevel || '').toLowerCase() === (currentLevel || '').toLowerCase());
       setQuestions(filtered);
       
       // Calculate timer for the CURRENT MODULE ONLY
@@ -93,13 +115,19 @@ const ExamInterface = () => {
                text.includes('$') || text.includes('\\') || 
                (text.includes('=') && !text.includes('?'));
       });
-      const rate = hasMath ? 95 : 71;
-      const moduleDuration = filtered.length * rate;
+      
+      let moduleDuration;
+      if (isAp) {
+        moduleDuration = filtered.length * 60;
+      } else {
+        const rate = hasMath ? 95 : 71;
+        moduleDuration = filtered.length * rate;
+      }
       setTotalTime(moduleDuration);
       setTimeLeft(moduleDuration);
       setQuestionStartTime(Date.now());
     }
-  }, [allQuestions, activeModuleIndex]);
+  }, [allQuestions, activeModuleIndex, courseInfo, level]);
 
   useEffect(() => {
     if (timeLeft > 0 && !showResults && !showCheckWork) {
@@ -114,7 +142,12 @@ const ExamInterface = () => {
     setLoading(true);
     try {
       const cId = parseInt(courseId);
-      const levelsToLoad = ['Easy', 'Medium', 'Hard'];
+      const courseRes = await courseService.getById(cId);
+      const cData = courseRes.data;
+      setCourseInfo(cData);
+
+      const isAp = cData?.main_category?.toUpperCase() === 'AP';
+      const levelsToLoad = isAp ? [level] : ['Easy', 'Medium', 'Hard'];
       let allTargetQuestions = [];
 
       // 1. First, try to find a single upload that covers ALL levels for this course
@@ -240,7 +273,7 @@ const ExamInterface = () => {
   };
 
   const handleNextModule = () => {
-    if (activeModuleIndex < 2) {
+    if (activeModuleIndex < maxModuleIndex) {
       setActiveModuleIndex(prev => prev + 1);
       setShowCheckWork(false);
       setCurrentQuestionIndex(0);
@@ -251,7 +284,7 @@ const ExamInterface = () => {
 
   const handleFinish = async () => {
     recordTime();
-    if (activeModuleIndex < 2) return;
+    if (activeModuleIndex < maxModuleIndex) return;
     // 🔒 Hard submission lock — prevents duplicate API calls from double-clicks
     // or rapid state updates before React re-renders the disabled button state.
     if (isSubmittingRef.current) {
@@ -266,10 +299,10 @@ const ExamInterface = () => {
         const finalDuration = totalTime - timeLeft;
 
         // Calculate individual module scores for the UI and Email
-        const levels = ['Easy', 'Medium', 'Hard'];
+        const levels = isAp ? [level] : ['Easy', 'Medium', 'Hard'];
         const moduleScores = {};
         levels.forEach(lvl => {
-            const moduleQs = allQuestions.filter(q => q.computedLevel === lvl);
+            const moduleQs = allQuestions.filter(q => (q.computedLevel || '').toLowerCase() === (lvl || '').toLowerCase());
             if (moduleQs.length > 0) {
                 const correctCount = moduleQs.filter(q => {
                    const studentAns = (userAnswers[q.id] || '').toString().trim().toLowerCase();
@@ -305,7 +338,7 @@ const ExamInterface = () => {
 
         const response = await gradingService.submitTest({
             courseId: parseInt(courseId),
-            level: 'Hard', 
+            level: isAp ? level : 'Hard', 
             questionIds: finalQuestionIds,
             answers: finalAnswers,
             duration: finalDuration,
@@ -410,9 +443,9 @@ const ExamInterface = () => {
           <header className="bg-[#0f172a] px-10 h-[60px] flex items-center justify-between shadow-sm">
             <div className="flex flex-col">
               <h2 className="text-sm font-bold text-white">
-                Section 1, Module {activeModuleIndex + 1}: {detectSection()}
+                {isAp ? `${unitId} Graded Quiz` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()}`}
               </h2>
-              <span className="text-[11px] text-gray-400 font-semibold">Review Section</span>
+              <span className="text-[11px] text-gray-400 font-semibold">{isAp ? "Review Unit Quiz" : "Review Section"}</span>
             </div>
             <div className="flex flex-col items-center">
                 <div className="text-white font-black text-lg">
@@ -425,8 +458,12 @@ const ExamInterface = () => {
           <main className="flex-1 overflow-y-auto p-12 bg-white">
             <div className="max-w-4xl mx-auto w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden mb-8">
               <div className="p-10 border-b border-slate-100 bg-slate-50/50">
-                <h2 className="text-3xl font-black text-slate-900 mb-2">Section Review</h2>
-                <p className="text-slate-500 font-medium">Review your work before you finish this section. You can click any question number to return to it.</p>
+                <h2 className="text-3xl font-black text-slate-900 mb-2">{isAp ? "Unit Quiz Review" : "Section Review"}</h2>
+                <p className="text-slate-500 font-medium">
+                  {isAp 
+                    ? "Review your work before you finish this unit. You can click any question number to return to it." 
+                    : "Review your work before you finish this section. You can click any question number to return to it."}
+                </p>
               </div>
 
               <div className="p-10">
@@ -466,7 +503,7 @@ const ExamInterface = () => {
                     <button onClick={() => { setShowCheckWork(false); setQuestionStartTime(Date.now()); }} className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[13px] sm:text-[15px] hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
                       <SafeIcon icon={FiChevronLeft} /> Back to Questions
                     </button>
-                    {activeModuleIndex < 2 ? (
+                    {activeModuleIndex < maxModuleIndex ? (
                       <button onClick={handleNextModule} className="w-full sm:w-auto px-8 sm:px-10 py-3 bg-blue-600 text-white rounded-full font-black text-[13px] sm:text-[15px] hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-xl">
                         Next Module <SafeIcon icon={FiChevronRight} />
                       </button>
@@ -536,7 +573,7 @@ const ExamInterface = () => {
       <header>
         <div className="flex flex-col">
           <h2 className="text-[12px] sm:text-[15px] font-bold text-white leading-tight truncate max-w-[120px] sm:max-w-none">
-              Section 1, Module {activeModuleIndex + 1}: {detectSection()}
+              {isAp ? `${unitId} Graded Quiz` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()}`}
           </h2>
           <span className="text-[9px] sm:text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-2.5 h-2.5 sm:w-3 sm:h-3" /></span>
         </div>
@@ -577,7 +614,11 @@ const ExamInterface = () => {
         </div>
       </header>
 
-      <div className="practice-banner">THIS IS A PRACTICE TEST</div>
+      {isAp ? (
+        <div className="practice-banner">AP CURRICULUM UNIT GRADED QUIZ</div>
+      ) : (
+        <div className="practice-banner">THIS IS A PRACTICE TEST</div>
+      )}
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[4px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
@@ -666,7 +707,7 @@ const ExamInterface = () => {
                <div className="hidden sm:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 rotate-45"></div>
                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 w-full relative">
                   <span className="font-bold text-sm text-slate-900 w-full text-center">
-                      Section 1, Module {activeModuleIndex + 1}: {detectSection()} Questions
+                      {isAp ? `${unitId} Questions` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()} Questions`}
                   </span>
                   <SafeIcon icon={FiX} onClick={() => setShowNavigation(false)} className="cursor-pointer text-gray-400 absolute right-0 top-0" />
                </div>

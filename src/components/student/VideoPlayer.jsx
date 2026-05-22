@@ -8,7 +8,7 @@ import { uploadService } from '../../services/api';
 const { FiVideo, FiArrowLeft, FiMessageCircle, FiBook, FiAlertCircle } = FiIcons;
 
 const VideoPlayer = () => {
-  const { courseId, level } = useParams();
+  const { courseId, level, section } = useParams();
   const [videos, setVideos] = useState([]);
   const [activeVideo, setActiveVideo] = useState(null);
   const [loading, setLoading] = useState(true);

@@ -32,6 +32,10 @@ const LevelDashboard = () => {
         uploadService.getAll({ courseId }),
         courseService.getById(courseId)
       ]);
+      if (courseRes.data && courseRes.data.main_category?.toUpperCase() === 'AP') {
+        navigate(`/student/course/${courseId}`);
+        return;
+      }
       setUploads(uploadRes.data.filter(u => u.level === level || u.level === 'All'));
       setCourse(courseRes.data);
     } catch (error) {
@@ -215,7 +219,14 @@ const DocumentViewer = ({ file, onClose }) => {
   const isOffice = ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext);
 
   return (
-    <div id="doc-viewer" className="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden scroll-mt-24 transition-all animate-fade-in">
+    <div id="doc-viewer" className="mt-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden scroll-mt-24 transition-all animate-fade-in" onContextMenu={(e) => e.preventDefault()}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          iframe, embed, object, #doc-viewer, .no-print {
+            display: none !important;
+          }
+        }
+      `}} />
       {/* Viewer Header */}
       <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
         <div className="flex items-center gap-2">
@@ -227,15 +238,6 @@ const DocumentViewer = ({ file, onClose }) => {
           </span>
         </div>
         <div className="flex gap-2">
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 text-gray-500 hover:text-[#E53935] hover:bg-red-50 rounded-lg transition-colors"
-            title="Open in New Tab"
-          >
-            <SafeIcon icon={FiExternalLink} className="w-5 h-5" />
-          </a>
           <button
             onClick={onClose}
             className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -253,7 +255,7 @@ const DocumentViewer = ({ file, onClose }) => {
             <img src={url} alt="Preview" className="max-w-full max-h-full object-contain shadow-sm bg-white" />
           </div>
         ) : isPDF ? (
-          <iframe src={url} className="w-full h-full" title="PDF Preview" />
+          <iframe src={`${url}#toolbar=0`} className="w-full h-full" title="PDF Preview" />
         ) : isOffice ? (
           <iframe
             src={`https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`}

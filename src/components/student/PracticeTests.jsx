@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { enrollmentService, planService } from '../../services/api';
+import { enrollmentService, planService, courseService, uploadService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import EnrollmentKeyInput from './EnrollmentKeyInput';

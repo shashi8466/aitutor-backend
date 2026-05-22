@@ -66,14 +66,79 @@ const TAXONOMY = {
   },
   'AP': {
     'AP Biology': {
-      'Unit 1: Chemistry of Life': ['Unit 1: Chemistry of Life'],
-      'Unit 2: Cells': ['Unit 2: Cells'],
-      'Unit 3: Cellular Energetics': ['Unit 3: Cellular Energetics'],
-      'Unit 4: Cell Communication and Cell Cycle': ['Unit 4: Cell Communication and Cell Cycle'],
-      'Unit 5: Heredity': ['Unit 5: Heredity'],
-      'Unit 6: Gene Expression and Regulation': ['Unit 6: Gene Expression and Regulation'],
-      'Unit 7: Natural Selection': ['Unit 7: Natural Selection'],
-      'Unit 8: Ecology': ['Unit 8: Ecology']
+      'Unit 1: Chemistry of Life': [
+        'Structure of Water and Hydrogen Bonding',
+        'Elements of Life',
+        'Introduction to Biological Macromolecules',
+        'Carbohydrates',
+        'Lipids',
+        'Nucleic Acids',
+        'Proteins'
+      ],
+      'Unit 2: Cells': [
+        'Cell Structure',
+        'Cell Size',
+        'Plasma Membranes',
+        'Membrane Transport',
+        'Facilitated Diffusion',
+        'Tonicity and Osmoregulation',
+        'Cell Compartmentalization'
+      ],
+      'Unit 3: Cellular Energetics': [
+        'Enzyme Structure and Catalysis',
+        'Environmental Impacts on Enzyme Function',
+        'Cellular Energy',
+        'Photosynthesis',
+        'Cellular Respiration',
+        'Fitness'
+      ],
+      'Unit 4: Cell Communication and Cell Cycle': [
+        'Cell Communication',
+        'Signal Transduction',
+        'Changes in Signal Transduction Pathways',
+        'Feedback and Homeostasis',
+        'Cell Cycle',
+        'Regulation of Cell Cycle'
+      ],
+      'Unit 5: Heredity': [
+        'Meiosis',
+        'Meiosis and Genetic Diversity',
+        'Mendelian Genetics',
+        'Non-Mendelian Genetics',
+        'Environmental Effects on Phenotype',
+        'Chromosomal Inheritance'
+      ],
+      'Unit 6: Gene Expression and Regulation': [
+        'DNA and RNA Structure',
+        'DNA Replication',
+        'Transcription and RNA Processing',
+        'Translation',
+        'Regulation of Gene Expression',
+        'Gene Expression and Cell Specialization',
+        'Mutations',
+        'Biotechnology'
+      ],
+      'Unit 7: Natural Selection': [
+        'Introduction to Natural Selection',
+        'Artificial Selection',
+        'Population Genetics',
+        'Hardy-Weinberg Equilibrium',
+        'Evidence of Evolution',
+        'Common Ancestry',
+        'Continuing Evolution',
+        'Speciation',
+        'Variations in Populations',
+        'Origins of Life on Earth'
+      ],
+      'Unit 8: Ecology': [
+        'Responses to the Environment',
+        'Energy Flow Through Ecosystems',
+        'Population Ecology',
+        'Effect of Density of Populations',
+        'Community Ecology',
+        'Biodiversity',
+        'Disruptions to Ecosystems'
+      ]
     },
     'AP Calculus AB': {
       'Unit 1: Limits and Continuity': ['Unit 1: Limits and Continuity'],
@@ -131,14 +196,65 @@ const TAXONOMY = {
       'Topic 9: Global Change': ['Topic 9: Global Change']
     },
     'AP Physics 1: Algebra-Based': {
-      'Topic 1: Kinematics': ['Topic 1: Kinematics'],
-      'Topic 2: Force and Translational Dynamics': ['Topic 2: Force and Translational Dynamics'],
-      'Topic 3: Work, Energy, and Power': ['Topic 3: Work, Energy, and Power'],
-      'Topic 4: Linear Momentum': ['Topic 4: Linear Momentum'],
-      'Topic 5: Torque and Rotational Dynamics': ['Topic 5: Torque and Rotational Dynamics'],
-      'Topic 6: Energy and Momentum of Rotating Systems': ['Topic 6: Energy and Momentum of Rotating Systems'],
-      'Topic 7: Oscillations': ['Topic 7: Oscillations'],
-      'Topic 8: Fluids': ['Topic 8: Fluids']
+      'Unit 1: Kinematics': [
+        'Scalars and Vectors in One Dimension',
+        'Displacement, Velocity, and Acceleration',
+        'Representing Motion',
+        'Reference Frames and Relative Motion',
+        'Vectors and Motion in Two Dimensions'
+      ],
+      'Unit 2: Force and Translational Dynamics': [
+        'Systems and Center of Mass',
+        'Forces and Free-Body Diagrams',
+        'Newton’s Third Law',
+        'Newton’s First Law',
+        'Newton’s Second Law',
+        'Gravitational Force',
+        'Kinetic and Static Friction',
+        'Spring Forces',
+        'Circular Motion'
+      ],
+      'Unit 3: Work, Energy, and Power': [
+        'Translational Kinetic Energy',
+        'Work',
+        'Potential Energy',
+        'Conservation of Energy',
+        'Power'
+      ],
+      'Unit 4: Linear Momentum': [
+        'Linear Momentum',
+        'Change in Momentum and Impulse',
+        'Conservation of Linear Momentum',
+        'Elastic and Inelastic Collisions'
+      ],
+      'Unit 5: Torque and Rotational Dynamics': [
+        'Rotational Kinematics',
+        'Connecting Linear and Rotational Motion',
+        'Torque',
+        'Rotational Inertia',
+        'Rotational Equilibrium and Newton’s First Law in Rotational Form',
+        'Newton’s Second Law in Rotational Form'
+      ],
+      'Unit 6: Energy and Momentum of Rotating Systems': [
+        'Rotational Kinetic Energy',
+        'Torque and Work',
+        'Angular Momentum and Angular Impulse',
+        'Conservation of Angular Momentum',
+        'Rolling',
+        'Motion of Orbiting Satellites'
+      ],
+      'Unit 7: Oscillations': [
+        'Defining Simple Harmonic Motion (SHM)',
+        'Frequency and Period of SHM',
+        'Representing and Analyzing SHM',
+        'Energy of Simple Harmonic Oscillators'
+      ],
+      'Unit 8: Fluids': [
+        'Internal Structure and Density',
+        'Pressure',
+        'Fluids and Newton’s Laws',
+        'Fluids and Conservation Laws'
+      ]
     },
     'AP Physics C: Mechanics': {
       'Topic 1: Kinematics': ['Topic 1: Kinematics'],
@@ -461,11 +577,18 @@ const CourseForm = ({ course, onClose, onSave }) => {
         let level = 'All';
         let parse = 'false';
 
-        const parts = key.split('_'); // e.g. "easy_quiz"
-        if (parts.length >= 2) {
-          const lvlStr = parts[0]; // "easy"
-          const typeStr = parts[1]; // "quiz"
-          level = lvlStr === 'ap' ? 'AP' : lvlStr.charAt(0).toUpperCase() + lvlStr.slice(1);
+        const lastUnderscoreIndex = key.lastIndexOf('_');
+        if (lastUnderscoreIndex !== -1) {
+          const lvlStr = key.substring(0, lastUnderscoreIndex); // e.g. "unit 1: chemistry of life" or "easy"
+          const typeStr = key.substring(lastUnderscoreIndex + 1); // e.g. "study", "video", "quiz"
+          
+          if (formData.main_category === 'AP') {
+            const units = Object.keys(TAXONOMY['AP']?.[formData.tutor_type] || {});
+            const matchedUnit = units.find(u => u.toLowerCase() === lvlStr.toLowerCase());
+            level = matchedUnit || lvlStr;
+          } else {
+            level = lvlStr === 'ap' ? 'AP' : lvlStr.charAt(0).toUpperCase() + lvlStr.slice(1);
+          }
 
           if (typeStr === 'study') category = 'study_material';
           else if (typeStr === 'video') category = 'video_lecture';
@@ -941,6 +1064,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
                 <div className="text-gray-500">Loading files...</div>
               ) : formData.main_category === 'AP' ? (
                 <APUploadSection
+                  tutorType={formData.tutor_type}
                   newFiles={newFiles}
                   existingFiles={existingFiles}
                   onFileChange={handleFileChange}
@@ -1066,55 +1190,172 @@ const LevelUploadSection = ({ level, color, icon, newFiles, existingFiles, onFil
   );
 };
 
-const APUploadSection = ({ newFiles, existingFiles, onFileChange, onDeleteExisting }) => {
+const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onDeleteExisting }) => {
+  const unitsMap = TAXONOMY['AP']?.[tutorType] || {};
+  const units = Object.keys(unitsMap);
+
+  if (!tutorType || units.length === 0) {
+    return (
+      <div className="rounded-xl border p-6 bg-amber-50 border-amber-200 text-amber-900 text-center font-medium">
+        Please select an AP Sub Course (e.g. AP Biology) above to view and upload unit-by-unit materials.
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl border p-4 bg-indigo-50 border-indigo-200 text-indigo-900">
-      <h3 className="font-bold mb-4 flex items-center justify-between">
-        AP Course Materials
-        <span className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
-          {[
-            existingFiles['ap_study'],
-            existingFiles['ap_video'],
-            existingFiles['ap_quiz']
-          ].filter(Boolean).length} files
+    <div className="space-y-6">
+      <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4">
+        <div>
+          <h4 className="font-bold text-indigo-950 text-lg">{tutorType} Content Management</h4>
+          <p className="text-xs text-indigo-700 mt-1">Upload Study Guides, Videos, and Quizzes for each unit or subtopic individually.</p>
+        </div>
+        <span className="text-xs bg-indigo-600 text-white font-semibold px-3 py-1.5 rounded-full shadow-sm">
+          {units.length} Units Total
         </span>
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <FileUploadBox
-          id="ap_study"
-          label="AP Study Guide PDF Upload"
-          icon={FiFile}
-          accept=".pdf,.doc,.docx"
-          newFile={newFiles['ap_study']}
-          existingFile={existingFiles['ap_study']}
-          onChange={f => onFileChange('ap_study', f)}
-          onDelete={id => onDeleteExisting('ap_study', id)}
-        />
-        <FileUploadBox
-          id="ap_video"
-          label="AP Video MP4 Upload"
-          icon={FiVideo}
-          accept=".mp4,.webm"
-          newFile={newFiles['ap_video']}
-          existingFile={existingFiles['ap_video']}
-          onChange={f => onFileChange('ap_video', f)}
-          onDelete={id => onDeleteExisting('ap_video', id)}
-        />
-        <FileUploadBox
-          id="ap_quiz"
-          label="AP Quiz File Upload"
-          icon={FiBook}
-          accept=".txt,.docx"
-          highlight
-          newFile={newFiles['ap_quiz']}
-          existingFile={existingFiles['ap_quiz']}
-          onChange={f => onFileChange('ap_quiz', f)}
-          onDelete={id => onDeleteExisting('ap_quiz', id)}
-        />
+      </div>
+
+      <div className="space-y-6">
+        {units.map((unitName, index) => {
+          const subtopics = unitsMap[unitName] || [];
+          const isSubtopicLevel = !(subtopics.length === 1 && subtopics[0] === unitName);
+
+          return (
+            <div 
+              key={unitName} 
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-50 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-bold text-sm">
+                    {index + 1}
+                  </span>
+                  <h5 className="font-bold text-slate-800 dark:text-slate-100 text-base">
+                    {unitName}
+                  </h5>
+                </div>
+              </div>
+
+              {isSubtopicLevel ? (
+                <div className="space-y-6 pl-4 border-l-2 border-indigo-100 ml-4">
+                  {subtopics.map((subtopic, subIndex) => {
+                    const subKey = subtopic.toLowerCase();
+                    const subStudyKey = `${subKey}_study`;
+                    const subVideoKey = `${subKey}_video`;
+                    const subQuizKey = `${subKey}_quiz`;
+
+                    const uploadedCount = [
+                      existingFiles[subStudyKey] || newFiles[subStudyKey],
+                      existingFiles[subVideoKey] || newFiles[subVideoKey],
+                      existingFiles[subQuizKey] || newFiles[subQuizKey]
+                    ].filter(Boolean).length;
+
+                    return (
+                      <div key={subtopic} className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h6 className="font-semibold text-sm text-slate-700 dark:text-slate-200">
+                            {index + 1}.{subIndex + 1} {subtopic}
+                          </h6>
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-md ${
+                            uploadedCount === 3 
+                              ? 'bg-emerald-100 text-emerald-700' 
+                              : uploadedCount > 0 
+                                ? 'bg-amber-100 text-amber-700' 
+                                : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {uploadedCount} / 3 uploaded
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <FileUploadBox
+                            id={subStudyKey}
+                            label="Study Guide PDF"
+                            icon={FiFile}
+                            accept=".pdf"
+                            newFile={newFiles[subStudyKey]}
+                            existingFile={existingFiles[subStudyKey]}
+                            onChange={f => onFileChange(subStudyKey, f)}
+                            onDelete={id => onDeleteExisting(subStudyKey, id)}
+                          />
+                          <FileUploadBox
+                            id={subVideoKey}
+                            label="Video MP4"
+                            icon={FiVideo}
+                            accept=".mp4,.webm"
+                            newFile={newFiles[subVideoKey]}
+                            existingFile={existingFiles[subVideoKey]}
+                            onChange={f => onFileChange(subVideoKey, f)}
+                            onDelete={id => onDeleteExisting(subVideoKey, id)}
+                          />
+                          <FileUploadBox
+                            id={subQuizKey}
+                            label="Quiz File"
+                            icon={FiBook}
+                            accept=".txt,.docx"
+                            highlight
+                            newFile={newFiles[subQuizKey]}
+                            existingFile={existingFiles[subQuizKey]}
+                            onChange={f => onFileChange(subQuizKey, f)}
+                            onDelete={id => onDeleteExisting(subQuizKey, id)}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {(() => {
+                    const unitKey = unitName.toLowerCase();
+                    const unitStudyKey = `${unitKey}_study`;
+                    const unitVideoKey = `${unitKey}_video`;
+                    const unitQuizKey = `${unitKey}_quiz`;
+
+                    return (
+                      <>
+                        <FileUploadBox
+                          id={unitStudyKey}
+                          label="AP Study Guide PDF Upload"
+                          icon={FiFile}
+                          accept=".pdf"
+                          newFile={newFiles[unitStudyKey]}
+                          existingFile={existingFiles[unitStudyKey]}
+                          onChange={f => onFileChange(unitStudyKey, f)}
+                          onDelete={id => onDeleteExisting(unitStudyKey, id)}
+                        />
+                        <FileUploadBox
+                          id={unitVideoKey}
+                          label="AP Video MP4 Upload"
+                          icon={FiVideo}
+                          accept=".mp4,.webm"
+                          newFile={newFiles[unitVideoKey]}
+                          existingFile={existingFiles[unitVideoKey]}
+                          onChange={f => onFileChange(unitVideoKey, f)}
+                          onDelete={id => onDeleteExisting(unitVideoKey, id)}
+                        />
+                        <FileUploadBox
+                          id={unitQuizKey}
+                          label="AP Quiz File Upload"
+                          icon={FiBook}
+                          accept=".txt,.docx"
+                          highlight
+                          newFile={newFiles[unitQuizKey]}
+                          existingFile={existingFiles[unitQuizKey]}
+                          onChange={f => onFileChange(unitQuizKey, f)}
+                          onDelete={id => onDeleteExisting(unitQuizKey, id)}
+                        />
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 };
+
 
 const FileUploadBox = ({ label, icon, accept, highlight, newFile, existingFile, onChange, onDelete }) => {
   const fileInputRef = useRef(null);

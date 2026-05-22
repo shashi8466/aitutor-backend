@@ -184,7 +184,7 @@ const AdminDashboard = () => {
 
         <Suspense fallback={<LoadingSpinner fullPage={false} />}>
           <Routes>
-            <Route path="/" element={<DashboardHome stats={stats} loading={loading} />} />
+            <Route path="/" element={<DashboardHome stats={stats} loading={loading} setShowPreviewer={setShowPreviewer} />} />
             <Route path="/users" element={<UserManagement />} />
             <Route path="/courses" element={<CourseManagement onStatsUpdate={loadStats} />} />
             <Route path="/keys" element={<AdminEnrollmentKeys />} />
@@ -211,7 +211,7 @@ const AdminDashboard = () => {
   );
 };
 
-const DashboardHome = ({ stats, loading }) => {
+const DashboardHome = ({ stats, loading, setShowPreviewer }) => {
   const statCards = [
     { title: 'Total Courses', value: stats.totalCourses, icon: FiBook, color: 'bg-sky-500' },
     { title: 'Total Questions', value: stats.totalQuestions, icon: FiHelpCircle, color: 'bg-orange-500' },
