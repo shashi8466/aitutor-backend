@@ -2,6 +2,7 @@ import express from 'express';
 import { generateAIResponse, extractJSON } from '../utils/ai.js';
 import { handleTutorRequest } from '../utils/tutorAgent.js';
 import { getUserFromRequest } from '../utils/authHelper.js';
+import { YoutubeTranscript } from 'youtube-transcript';
 
 const router = express.Router();
 
@@ -966,6 +967,18 @@ router.post('/podcast', async (req, res) => {
 router.post('/extract', async (req, res) => {
   try {
     const { url } = req.body;
+
+    if (url && (url.includes('youtube.com') || url.includes('youtu.be'))) {
+      try {
+        const transcript = await YoutubeTranscript.fetchTranscript(url);
+        const text = transcript.map(t => t.text).join(' ');
+        return res.json({ text: `[YouTube Video Transcript]: ${text}` });
+      } catch (ytError) {
+        console.error('Failed to fetch YouTube transcript:', ytError);
+        return res.json({ text: `Failed to extract transcript from YouTube video. Note: Subtitles must be available on the video.` });
+      }
+    }
+
     res.json({ text: `Content from ${url}. (Server-side URL extraction is limited). Please use Reader View instead.` });
   } catch (error) {
     res.status(500).json({ error: error.message });
