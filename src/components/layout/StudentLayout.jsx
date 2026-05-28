@@ -55,6 +55,12 @@ const StudentLayout = () => {
       {/* Main Content Area */}
       <div className="flex-1 lg:ml-72 min-w-0 transition-all duration-200 flex flex-col">
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar">
+          {/* Scrolling Announcement / Marquee Bar */}
+          <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 shadow-sm">
+            <div className="animate-marquee whitespace-nowrap text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold tracking-wide">
+              “Certain instructional materials and practice content used by our tutors may include officially licensed or authorized resources from the College Board. All copyrights and trademarks related to such materials remain the property of their respective owners and are used solely for educational purposes.”
+            </div>
+          </div>
           <Outlet />
         </main>
       </div>
