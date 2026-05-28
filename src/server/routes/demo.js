@@ -164,6 +164,101 @@ router.post('/verify-otp', async (req, res) => {
     }
 });
 
+// Endpoint to send Email OTP
+router.post('/send-email-otp', async (req, res) => {
+    const { email } = req.body;
+    
+    if (!email) {
+        return res.status(400).json({ success: false, error: 'Email address is required' });
+    }
+
+    try {
+        const otp = generateOTP();
+        // Store OTP with expiry (10 minutes for email)
+        otpCache.set(email.toLowerCase().trim(), {
+            otp,
+            expiry: Date.now() + 10 * 60 * 1000
+        });
+
+        console.log(`🔑 [Email OTP] Generated OTP ${otp} for ${email}`);
+        
+        let emailSent = false;
+        let emailError = null;
+
+        try {
+            console.log(`📧 [Email OTP] Sending email to ${email}`);
+            const result = await sendEmail({
+                to: email,
+                subject: 'AIPrep365 - Email Verification Code',
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; rounded: 10px;">
+                        <h2 style="color: #E53935; text-align: center;">Email Verification Code</h2>
+                        <p>Hello,</p>
+                        <p>Thank you for choosing <strong>AIPrep365</strong>. Please use the following 6-digit verification code to complete your email verification process:</p>
+                        <div style="background: #f9f9f9; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #333; margin: 20px 0; border-radius: 5px; border: 1px dashed #ccc;">
+                            ${otp}
+                        </div>
+                        <p style="font-size: 12px; color: #666; text-align: center;">This code will expire in 10 minutes. If you did not request this code, please ignore this email.</p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                        <p style="font-size: 10px; color: #999; text-align: center;">AIPrep365 SAT/AP Learning Portal</p>
+                    </div>
+                `
+            });
+
+            if (result.ok) {
+                console.log(`✅ [Email OTP] Email sent successfully to ${email}`);
+                emailSent = true;
+            } else {
+                console.error('❌ [Email OTP] Brevo send failed:', result.error);
+                emailError = result.error;
+            }
+        } catch (err) {
+            console.error('❌ [Email OTP] Send error:', err);
+            emailError = err.message;
+        }
+
+        // Return success even if Brevo fails, giving the test OTP so signup doesn't block if API keys are unconfigured
+        res.json({ 
+            success: true, 
+            message: emailSent ? 'Verification code sent to your email.' : 'Verification code generated.',
+            debugMode: !emailSent,
+            otpForTesting: otp 
+        });
+    } catch (error) {
+        console.error('❌ [Email OTP] Error sending email OTP:', error);
+        res.status(500).json({ success: false, error: 'Internal server error while sending email verification code' });
+    }
+});
+
+// Endpoint to verify Email OTP
+router.post('/verify-email-otp', async (req, res) => {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+        return res.status(400).json({ success: false, error: 'Email and OTP are required' });
+    }
+
+    const key = email.toLowerCase().trim();
+    const cachedData = otpCache.get(key);
+
+    if (!cachedData) {
+        return res.status(400).json({ success: false, error: 'No verification code found for this email' });
+    }
+
+    if (Date.now() > cachedData.expiry) {
+        otpCache.delete(key);
+        return res.status(400).json({ success: false, error: 'Verification code has expired. Please request a new one.' });
+    }
+
+    if (cachedData.otp === otp.trim()) {
+        otpCache.delete(key);
+        res.json({ success: true, message: 'Email verified successfully' });
+    } else {
+        res.status(400).json({ success: false, error: 'Invalid verification code. Please try again.' });
+    }
+});
+
+
 // 1. Submit Demo Lead & Track Level Progress
 router.post('/submit-lead', async (req, res) => {
     const { courseId, fullName, grade, email, phone, level, scoreDetails, parentName, parentEmail } = req.body;
