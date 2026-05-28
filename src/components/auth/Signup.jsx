@@ -210,6 +210,30 @@ const Signup = () => {
     }
   };
 
+  const handleVerifyOTPInline = async (e) => {
+    if (e) e.preventDefault();
+    if (otp.length !== 6) {
+      setOtpError('Please enter a 6-digit verification code.');
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const fullPhone = `${countryCode}${formData.mobile.replace(/[^\d]/g, '')}`;
+      const response = await axios.post('/api/demo/verify-otp', { phone: fullPhone, otp });
+      if (response.data.success) {
+        setOtpVerified(true);
+        setOtpError('');
+      } else {
+        setOtpError(response.data.error || 'Invalid OTP.');
+      }
+    } catch (err) {
+      setOtpError(err?.response?.data?.error || err?.message || 'Verification failed.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!termsAccepted) {
@@ -222,13 +246,79 @@ const Signup = () => {
       return;
     }
 
-    // Intercept to require OTP verification first
     if (!otpVerified) {
-      setShowOtpModal(true);
-      handleSendOTP();
+      setError("Please verify your mobile number via OTP first.");
       return;
     }
+
+    // Proceed to sign up
+    setLoading(true);
+    setSlowConnection(false);
+    setError('');
+
+    const slowTimer = setTimeout(() => setSlowConnection(true), 2000);
+
+    try {
+      const fullPhone = `${countryCode}${formData.mobile.replace(/[^\d]/g, '')}`;
+      const signupPayload = {
+        ...formData,
+        mobile: fullPhone
+      };
+      console.log('🔄 Starting signup for:', signupPayload.email);
+      const result = await signup(signupPayload);
+      clearTimeout(slowTimer);
+
+      if (result.success) {
+        console.log('✅ Signup successful:', result);
+        const roleRequiresApproval = formData.role === 'tutor' || formData.role === 'admin';
+        if (roleRequiresApproval) {
+          setSuccessMode(true);
+          setLoading(false);
+          return;
+        }
+        if (!result.session) {
+          try {
+            const loginResult = await login({ email: formData.email, password: formData.password });
+            if (loginResult.success) {
+              setRedirecting(true);
+              await finalizeRegistration(formData.role);
+              return;
+            }
+          } catch (e) {}
+        }
+        if (result.session) {
+          setRedirecting(true);
+          await finalizeRegistration(formData.role);
+        } else {
+          setSuccessMode(true);
+        }
+      } else {
+        const errLower = (result.error || '').toLowerCase();
+        if (errLower.includes("user already registered") || errLower.includes("unique constraint")) {
+          try {
+            const loginResult = await login({ email: formData.email, password: formData.password });
+            if (loginResult.success) {
+              setRedirecting(true);
+              await finalizeRegistration(formData.role);
+              return;
+            } else {
+              setError("This email is registered but the password didn't match. Please Log In.");
+            }
+          } catch (loginErr) {
+            setError("Account exists. Please Log In.");
+          }
+        } else {
+          setError(result.error || "An error occurred during signup.");
+        }
+        setLoading(false);
+      }
+    } catch (err) {
+      clearTimeout(slowTimer);
+      setError("An unexpected error occurred. Please try again.");
+      setLoading(false);
+    }
   };
+
 
   const handleResend = async () => {
     setResending(true);
@@ -576,6 +666,7 @@ const Signup = () => {
               </div>
             </div>
 
+
             {/* MOBILE WITH COUNTRY CODE SELECTOR */}
             <div>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Mobile Number</label>
@@ -585,7 +676,8 @@ const Signup = () => {
                     <select
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value)}
-                      className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all font-bold cursor-pointer"
+                      disabled={otpVerified || otpSent}
+                      className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all font-bold cursor-pointer disabled:opacity-60"
                     >
                       <option value="+1">🇺🇸 +1</option>
                       <option value="+91">🇮🇳 +91</option>
@@ -601,14 +693,78 @@ const Signup = () => {
                     name="mobile"
                     type="tel"
                     required
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    disabled={otpVerified || otpSent}
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-60"
                     placeholder="Mobile Number"
                     value={formData.mobile}
                     onChange={handleChange}
                   />
                 </div>
               </div>
+
+              {/* OTP FLOW */}
+              {!otpVerified && (
+                <div className="mt-2 space-y-2">
+                  {!otpSent ? (
+                    <button
+                      type="button"
+                      disabled={otpLoading || !formData.mobile || formData.mobile.trim().length < 8}
+                      onClick={handleSendOTP}
+                      className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
+                    >
+                      {otpLoading ? 'Sending...' : 'Send OTP'}
+                    </button>
+                  ) : (
+                    <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-lg">
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                        Verification code sent to {countryCode} {formData.mobile}
+                      </p>
+                      {debugOtp && (
+                        <p className="text-[10px] text-yellow-700 dark:text-yellow-400 font-extrabold bg-yellow-50 dark:bg-yellow-950/40 p-2 rounded border border-yellow-200/50">
+                          🔑 Testing Code: {debugOtp}
+                        </p>
+                      )}
+                      {otpError && (
+                        <p className="text-[10px] text-red-600 dark:text-red-400 font-extrabold uppercase tracking-wide">{otpError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          placeholder="Enter 6-Digit OTP"
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value.replace(/[^\d]/g, ''))}
+                          className="flex-1 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-bold tracking-widest outline-none focus:ring-1 focus:ring-[#E53935]"
+                        />
+                        <button
+                          type="button"
+                          disabled={otpLoading || otp.length !== 6}
+                          onClick={handleVerifyOTPInline}
+                          className="px-4 py-2 bg-[#E53935] hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
+                        >
+                          {otpLoading ? 'Verifying...' : 'Verify OTP'}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSendOTP}
+                        className="text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-bold underline"
+                      >
+                        Resend Code
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {otpVerified && (
+                <div className="mt-2 p-2 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-lg border border-green-200/50 flex items-center gap-1.5">
+                  <SafeIcon icon={FiCheckCircle} className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  Mobile number verified successfully!
+                </div>
+              )}
             </div>
+
 
             {/* ACCOUNT TYPE */}
             <div>
@@ -703,88 +859,7 @@ const Signup = () => {
         </motion.div>
       </motion.div>
 
-      {/* OTP Verification Modal */}
-      <AnimatePresence>
-        {showOtpModal && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowOtpModal(false)}
-            />
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100 dark:border-gray-700 z-[1001]"
-            >
-              <div className="bg-[#E53935] p-5 text-white relative">
-                <h3 className="text-lg font-black uppercase tracking-tight">Phone Verification</h3>
-                <p className="text-red-100 text-xs font-medium">Please verify your mobile number to complete signup.</p>
-                <button
-                  onClick={() => setShowOtpModal(false)}
-                  className="absolute top-4 right-4 p-1 hover:bg-white/10 rounded-full transition-colors text-white"
-                >
-                  <SafeIcon icon={FiX} className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                {otpError && (
-                  <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100 uppercase tracking-tighter">
-                    {otpError}
-                  </div>
-                )}
 
-                {debugOtp && (
-                  <div className="p-3 bg-yellow-50 text-yellow-800 text-xs font-bold rounded-lg border border-yellow-100 tracking-tight text-center">
-                    🔑 DEBUG CODE (SMS Not Configured): <strong>{debugOtp}</strong>
-                  </div>
-                )}
-
-                <div className="text-center p-2 bg-blue-50 text-blue-800 rounded-xl border border-blue-100 text-xs font-semibold">
-                  Code sent to <strong>{countryCode} {formData.mobile}</strong>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-1 text-center">Enter 6-Digit OTP</label>
-                  <input
-                    required
-                    maxLength={6}
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/[^\d]/g, ''))}
-                    placeholder="123456"
-                    className="w-full text-center py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 dark:text-white font-extrabold text-2xl tracking-widest placeholder-gray-300 hover:bg-gray-50"
-                  />
-                </div>
-
-                <button
-                  disabled={otpLoading || otp.length !== 6}
-                  onClick={handleVerifyOTP}
-                  type="button"
-                  className="w-full py-3 bg-[#E53935] hover:bg-red-700 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
-                >
-                  {otpLoading ? (
-                    <SafeIcon icon={FiLoader} className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>Verify &amp; Create Account</>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSendOTP}
-                  className="w-full text-center text-xs text-gray-500 hover:underline py-1 font-semibold"
-                >
-                  Resend Code
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Terms & Conditions Modal Overlay */}
       {renderTermsModal()}
