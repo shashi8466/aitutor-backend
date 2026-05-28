@@ -27,12 +27,17 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [debugOtp, setDebugOtp] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSendOTP = async () => {
+    if (!termsAccepted) {
+      setError('You must agree to the Terms & Conditions and Privacy Policy.');
+      return;
+    }
     if (!formData.phone || formData.phone.trim().length < 8) {
       setError('Please enter a valid phone number.');
       return;
@@ -287,8 +292,34 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       </div>
                     </div>
 
+                    {/* Privacy Policy & Terms Section */}
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl text-[10px] space-y-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 leading-normal font-medium mt-4">
+                      <p className="font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[9px]">Privacy Policy &amp; Terms Summary</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        <li>User phone numbers will only be used for OTP verification and authentication purposes.</li>
+                        <li>User data such as Name, Email, Parent Name, Parent Email, and Phone Number will be stored securely and will not be shared with third parties.</li>
+                        <li>OTP verification is mandatory before account creation.</li>
+                      </ul>
+                    </div>
+
+                    {/* Mandatory Checkbox */}
+                    <div className="flex items-start gap-2 py-1 mt-2">
+                      <input
+                        id="termsAccepted"
+                        name="termsAccepted"
+                        type="checkbox"
+                        required
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                        className="mt-1 h-3.5 w-3.5 text-[#E53935] border-gray-300 rounded focus:ring-[#E53935] cursor-pointer"
+                      />
+                      <label htmlFor="termsAccepted" className="text-[11px] font-bold text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                        I agree to the Terms &amp; Conditions and Privacy Policy
+                      </label>
+                    </div>
+
                     <button
-                      disabled={otpLoading || !formData.fullName || !formData.email || !formData.phone || !formData.parentName || !formData.parentEmail || !formData.grade}
+                      disabled={otpLoading || !termsAccepted || !formData.fullName || !formData.email || !formData.phone || !formData.parentName || !formData.parentEmail || !formData.grade}
                       onClick={handleSendOTP}
                       type="button"
                       className="w-full mt-4 py-3 bg-black hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
