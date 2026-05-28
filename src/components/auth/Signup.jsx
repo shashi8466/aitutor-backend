@@ -654,15 +654,6 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* Privacy Policy & Terms Section Summary */}
-            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl text-xs space-y-2 border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 leading-relaxed font-medium">
-              <p className="font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[10px]">Privacy Policy &amp; Terms Summary</p>
-              <ul className="list-disc pl-4 space-y-1">
-                <li>User phone numbers will only be used for OTP verification and authentication purposes.</li>
-                <li>User data will be stored securely and will not be shared with third parties.</li>
-                <li>OTP verification is mandatory before account creation.</li>
-              </ul>
-            </div>
 
             {/* Mandatory Checkbox */}
             <div className="flex items-start gap-2 py-1">

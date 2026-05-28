@@ -383,15 +383,6 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       </div>
                     </div>
 
-                    {/* Privacy Policy & Terms Section Summary */}
-                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl text-[10px] space-y-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 leading-normal font-medium mt-4">
-                      <p className="font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[9px]">Privacy Policy &amp; Terms Summary</p>
-                      <ul className="list-disc pl-4 space-y-0.5">
-                        <li>User phone numbers will only be used for OTP verification and authentication purposes.</li>
-                        <li>User data will be stored securely and will not be shared with third parties.</li>
-                        <li>OTP verification is mandatory before account creation.</li>
-                      </ul>
-                    </div>
 
                     {/* Mandatory Checkbox */}
                     <div className="flex items-start gap-2 py-1 mt-2">
