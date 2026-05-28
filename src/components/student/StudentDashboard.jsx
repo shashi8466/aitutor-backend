@@ -298,6 +298,13 @@ const StudentDashboard = () => {
           <p className="text-sm sm:text-base text-slate-500 mt-1">Here is your daily progress overview.</p>
         </div>
 
+        {/* Scrolling Announcement / Marquee Bar */}
+        <div className="mb-6 mx-4 sm:mx-0 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 shadow-sm">
+          <div className="animate-marquee whitespace-nowrap text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold tracking-wide">
+            “Certain instructional materials and practice content used by our tutors may include officially licensed or authorized resources from the College Board. All copyrights and trademarks related to such materials remain the property of their respective owners and are used solely for educational purposes.”
+          </div>
+        </div>
+
         <DashboardNotifications limit={3} />
 
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 mx-4 sm:mx-0">
