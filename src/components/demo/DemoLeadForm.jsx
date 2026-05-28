@@ -28,6 +28,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
   const [otpError, setOtpError] = useState('');
   const [debugOtp, setDebugOtp] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -97,6 +98,96 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
     } finally {
       setOtpLoading(false);
     }
+  };
+
+  const renderTermsModal = () => {
+    if (!showTermsModal) return null;
+    return (
+      <AnimatePresence>
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowTermsModal(false)}
+          />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100 dark:border-gray-700 z-[2001]"
+          >
+            <div className="bg-[#E53935] p-5 text-white relative">
+              <h3 className="text-lg font-black uppercase tracking-tight">Privacy Policy &amp; Terms &amp; Conditions</h3>
+              <p className="text-red-100 text-xs font-medium">Please review our terms of service and data policy below.</p>
+              <button
+                onClick={() => setShowTermsModal(false)}
+                className="absolute top-4 right-4 p-1 hover:bg-white/10 rounded-full transition-colors text-white"
+              >
+                <SafeIcon icon={FiX} className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[55vh] space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300 font-medium text-left">
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">1. Introduction</h4>
+              <p>Welcome to AIPrep365. By creating an account, verifying OTP, or accessing our SAT/AP preparation platform, you agree to the following Privacy Policy and Terms &amp; Conditions.</p>
+              <p>Users must read and accept these terms before signing up, verifying OTP, or starting any demo/full-length test.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">2. Information We Collect</h4>
+              <p>We may collect the following user information during signup or exam registration:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Full Name</li>
+                <li>Email Address</li>
+                <li>Mobile Number</li>
+                <li>Parent/Guardian Name</li>
+                <li>Parent/Guardian Email</li>
+                <li>Account Type</li>
+                <li>OTP Verification Status</li>
+              </ul>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">3. OTP Verification Policy</h4>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Mobile numbers are collected only for OTP verification and account authentication purposes.</li>
+                <li>The platform supports OTP verification for both India (+91) and USA (+1) phone numbers.</li>
+                <li>Users must successfully verify OTP before: creating an account, submitting signup forms, or starting demo SAT/AP exams.</li>
+              </ul>
+              <p>Without OTP verification, users cannot proceed further.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">4. How We Use User Data</h4>
+              <p>User information is used only for account creation and authentication, OTP verification, exam access and progress tracking, parent communication (if required), and important platform notifications and updates.</p>
+              <p>We do not sell or share user personal information with unauthorized third parties.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">5. Data Security</h4>
+              <p>We take reasonable security measures to protect user information and OTP data from unauthorized access, misuse, or disclosure. However, users are responsible for maintaining the confidentiality of their login credentials.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">6. Parent Information</h4>
+              <p>If parent/guardian details are collected, they will only be used for communication related to student performance, updates, or account verification. Parent information will not be publicly displayed or shared externally.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">7. User Responsibilities</h4>
+              <p>Users agree to provide accurate information, not to misuse OTP systems, not to create fake accounts, not to share exam content illegally, and not to attempt unauthorized access to the platform. Violation of these terms may result in account suspension or removal.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">8. Demo Test &amp; Exam Rules</h4>
+              <p>Users may be required to complete registration before starting demo/full-length tests. OTP verification and acceptance of Terms &amp; Conditions are mandatory before exam access. The platform reserves the right to restrict access if suspicious activity is detected.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">9. Mandatory Acceptance</h4>
+              <p>Before signup or exam access, users must check the checkbox: <strong>&ldquo;I agree to the Terms &amp; Conditions and Privacy Policy&rdquo;</strong>. If unchecked, signup, OTP verification, and SAT exam access must remain blocked.</p>
+
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">10. Contact</h4>
+              <p>For any privacy or account-related concerns, users may contact the platform administrator or support team.</p>
+            </div>
+            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-150 dark:border-gray-600 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="px-6 py-2 bg-black text-white dark:bg-white dark:text-black rounded-xl font-bold hover:opacity-90 transition-all text-xs"
+              >
+                Close &amp; Return
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </AnimatePresence>
+    );
   };
 
   if (!isOpen) return null;
@@ -292,12 +383,12 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       </div>
                     </div>
 
-                    {/* Privacy Policy & Terms Section */}
+                    {/* Privacy Policy & Terms Section Summary */}
                     <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl text-[10px] space-y-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 leading-normal font-medium mt-4">
                       <p className="font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[9px]">Privacy Policy &amp; Terms Summary</p>
                       <ul className="list-disc pl-4 space-y-0.5">
                         <li>User phone numbers will only be used for OTP verification and authentication purposes.</li>
-                        <li>User data such as Name, Email, Parent Name, Parent Email, and Phone Number will be stored securely and will not be shared with third parties.</li>
+                        <li>User data will be stored securely and will not be shared with third parties.</li>
                         <li>OTP verification is mandatory before account creation.</li>
                       </ul>
                     </div>
@@ -311,10 +402,10 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                         required
                         checked={termsAccepted}
                         onChange={(e) => setTermsAccepted(e.target.checked)}
-                        className="mt-1 h-3.5 w-3.5 text-[#E53935] border-gray-300 rounded focus:ring-[#E53935] cursor-pointer"
+                        className="mt-1 h-3.5 w-3.5 text-[#E53935] border-gray-300 rounded focus:ring-[#E53935] cursor-pointer shrink-0"
                       />
-                      <label htmlFor="termsAccepted" className="text-[11px] font-bold text-gray-600 dark:text-gray-300 cursor-pointer select-none">
-                        I agree to the Terms &amp; Conditions and Privacy Policy
+                      <label htmlFor="termsAccepted" className="text-[11px] font-bold text-gray-600 dark:text-gray-300 cursor-pointer select-none leading-normal">
+                        I agree to the <button type="button" onClick={() => setShowTermsModal(true)} className="text-[#E53935] underline hover:text-red-700 font-black inline">Privacy Policy &amp; Terms &amp; Conditions</button>
                       </label>
                     </div>
 
@@ -350,7 +441,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                     )}
 
                     <div>
-                      <label className="block text-[10px] font-black text-gray-600 uppercase tracking-widest mb-1 ml-1 text-center">Enter 6-Digit OTP</label>
+                      <label className="block text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-1 text-center">Enter 6-Digit OTP</label>
                       <input
                         required
                         maxLength={6}
@@ -358,7 +449,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                         value={otp}
                         onChange={(e) => setOtp(e.target.value.replace(/[^\d]/g, ''))}
                         placeholder="123456"
-                        className="w-full text-center py-4 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 font-extrabold text-2xl tracking-widest placeholder-gray-300 hover:bg-gray-50"
+                        className="w-full text-center py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 dark:text-white font-extrabold text-2xl tracking-widest placeholder-gray-300 hover:bg-gray-50"
                       />
                     </div>
 
@@ -370,7 +461,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                       {otpLoading ? (
                         <SafeIcon icon={FiLoader} className="w-5 h-5 animate-spin" />
                       ) : (
-                        <>Verify &amp; Start Test</>
+                        <>Start Exam</>
                       )}
                     </button>
 
@@ -388,6 +479,9 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
           )}
         </motion.div>
       </div>
+
+      {/* Terms & Conditions Modal Overlay */}
+      {renderTermsModal()}
     </AnimatePresence>
   );
 };
