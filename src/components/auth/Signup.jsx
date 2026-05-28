@@ -408,35 +408,69 @@ const Signup = () => {
                 <li>OTP Verification Status</li>
               </ul>
 
-              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">3. OTP Verification Policy</h4>
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">3. OTP Verification &amp; Messaging Policy</h4>
               <ul className="list-disc pl-5 space-y-1">
-                <li>Mobile numbers are collected only for OTP verification and account authentication purposes.</li>
+                <li>Mobile numbers are collected for OTP verification, authentication, account security, and important platform communication purposes.</li>
+                <li>By providing your phone number, you consent to receive OTP codes, verification messages, account-related notifications, and important updates from AIPrep365.</li>
                 <li>The platform supports OTP verification for both India (+91) and USA (+1) phone numbers.</li>
                 <li>Users must successfully verify OTP before: creating an account, submitting signup forms, or starting demo SAT/AP exams.</li>
               </ul>
               <p>Without OTP verification, users cannot proceed further.</p>
 
               <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">4. How We Use User Data</h4>
-              <p>User information is used only for account creation and authentication, OTP verification, exam access and progress tracking, parent communication (if required), and important platform notifications and updates.</p>
+              <p>User information is used only for:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Account creation and authentication</li>
+                <li>OTP verification</li>
+                <li>Exam access and progress tracking</li>
+                <li>Parent communication (if required)</li>
+                <li>Important platform notifications and updates</li>
+                <li>Sending OTP and service-related messages to registered phone numbers</li>
+              </ul>
               <p>We do not sell or share user personal information with unauthorized third parties.</p>
 
-              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">5. Data Security</h4>
-              <p>We take reasonable security measures to protect user information and OTP data from unauthorized access, misuse, or disclosure. However, users are responsible for maintaining the confidentiality of their login credentials.</p>
+              <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">5. Data Protection &amp; Security</h4>
+              <p>We take reasonable security measures to protect user information, OTP data, and personal details from unauthorized access, misuse, or disclosure.</p>
+              <p>User data is stored securely and used only for platform-related operations.</p>
+              <p>However, users are responsible for maintaining the confidentiality of their login credentials.</p>
 
               <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">6. Parent Information</h4>
-              <p>If parent/guardian details are collected, they will only be used for communication related to student performance, updates, or account verification. Parent information will not be publicly displayed or shared externally.</p>
+              <p>If parent/guardian details are collected:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>They will only be used for communication related to student performance, updates, account verification, or important notifications.</li>
+                <li>Parent information will not be publicly displayed or shared externally.</li>
+              </ul>
 
               <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">7. User Responsibilities</h4>
-              <p>Users agree to provide accurate information, not to misuse OTP systems, not to create fake accounts, not to share exam content illegally, and not to attempt unauthorized access to the platform. Violation of these terms may result in account suspension or removal.</p>
+              <p>Users agree:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>To provide accurate information</li>
+                <li>Not to misuse OTP systems</li>
+                <li>Not to create fake accounts</li>
+                <li>Not to share exam content illegally</li>
+                <li>Not to attempt unauthorized access to the platform</li>
+              </ul>
+              <p>Violation of these terms may result in account suspension or removal.</p>
 
               <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">8. Demo Test &amp; Exam Rules</h4>
-              <p>Users may be required to complete registration before starting demo/full-length tests. OTP verification and acceptance of Terms &amp; Conditions are mandatory before exam access. The platform reserves the right to restrict access if suspicious activity is detected.</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Users may be required to complete registration before starting demo/full-length tests.</li>
+                <li>OTP verification and acceptance of Terms &amp; Conditions are mandatory before exam access.</li>
+                <li>The platform reserves the right to restrict access if suspicious activity is detected.</li>
+              </ul>
 
               <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">9. Mandatory Acceptance</h4>
-              <p>Before signup or exam access, users must check the checkbox: <strong>&ldquo;I agree to the Terms &amp; Conditions and Privacy Policy&rdquo;</strong>. If unchecked, signup, OTP verification, and SAT exam access must remain blocked.</p>
+              <p>Before signup or exam access, users must check the checkbox below:</p>
+              <p><strong>&ldquo;I agree to the Terms &amp; Conditions and Privacy Policy&rdquo;</strong></p>
+              <p>If unchecked:</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Signup must remain blocked</li>
+                <li>OTP verification submission must remain blocked</li>
+                <li>Demo/SAT exam access must remain blocked</li>
+              </ul>
 
               <h4 className="font-bold text-gray-900 dark:text-white border-b pb-1 uppercase tracking-wider text-xs">10. Contact</h4>
-              <p>For any privacy or account-related concerns, users may contact the platform administrator or support team.</p>
+              <p>For any privacy, OTP, or account-related concerns, users may contact the platform administrator or support team.</p>
             </div>
             <div className="p-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-150 dark:border-gray-600 flex justify-end">
               <button
