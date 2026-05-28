@@ -166,7 +166,7 @@ router.post('/verify-otp', async (req, res) => {
 
 // 1. Submit Demo Lead & Track Level Progress
 router.post('/submit-lead', async (req, res) => {
-    const { courseId, fullName, grade, email, phone, level, scoreDetails } = req.body;
+    const { courseId, fullName, grade, email, phone, level, scoreDetails, parentName, parentEmail } = req.body;
 
     console.log(`📩 [DEMO] Lead Submission: ${fullName} (${email}) for Course ${courseId}, Level: ${level}`);
 
@@ -189,7 +189,10 @@ router.post('/submit-lead', async (req, res) => {
         }
 
         let leadRecord;
-        const newScoreDetails = scoreDetails || {};
+        const existingDetails = existingLead?.score_details || {};
+        const newScoreDetails = { ...existingDetails, ...(scoreDetails || {}) };
+        if (parentName) newScoreDetails.parentName = parentName;
+        if (parentEmail) newScoreDetails.parentEmail = parentEmail;
         const allLevels = newScoreDetails.allLevels || {};
 
         const levelStr = String(level || '').toLowerCase().trim();
@@ -290,6 +293,8 @@ router.post('/submit-lead', async (req, res) => {
                     grade,
                     email,
                     phone,
+                    parentName: newScoreDetails.parentName || parentName,
+                    parentEmail: newScoreDetails.parentEmail || parentEmail,
                     courseName: course?.name || 'Demo Course',
                     level,
                     scoreDetails: emailScoreDetails,

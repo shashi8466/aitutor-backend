@@ -595,7 +595,7 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
     </div></div></body></html>`;
 }
 
-export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName, level, scoreDetails, submittedAt, courseId }) {
+export function buildDemoAdminEmail({ fullName, grade, email, phone, parentName, parentEmail, courseName, level, scoreDetails, submittedAt, courseId }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const frontendUrl = process.env.FRONTEND_URL || 'https://aiprep365.com';
     const reportUrl = `${frontendUrl}/demo/${courseId}/report`;
@@ -710,6 +710,8 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, courseName,
                 <tr><td style="padding: 8px 0; font-weight: 700;">Grade:</td><td>${grade || 'N/A'}</td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Email:</td><td><a href="mailto:${email}" style="color: #667eea; text-decoration: none;">${email || 'N/A'}</a></td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Phone:</td><td>${phone || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Parent Name:</td><td>${parentName || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px 0; font-weight: 700;">Parent Email:</td><td><a href="mailto:${parentEmail}" style="color: #667eea; text-decoration: none;">${parentEmail || 'N/A'}</a></td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Course:</td><td>${courseName || 'N/A'}</td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Test Type:</td><td>${isAdaptiveSAT ? 'FULL LENGTH TEST' : (level || 'N/A')}</td></tr>
                 <tr><td style="padding: 8px 0; font-weight: 700;">Submitted:</td><td>${new Date(submittedAt || Date.now()).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>

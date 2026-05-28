@@ -32,6 +32,18 @@ const SAT_TOPICS = [
 SAT_TOPICS.sort((a, b) => b.length - a.length);
 
 /**
+ * Checks if a table HTML string is designed as a question template containing metadata cells.
+ */
+const isQuestionTable = (tableLine) => {
+  if (!tableLine) return false;
+  const cells = [...tableLine.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(m => m[1].trim());
+  return cells.some(cell => {
+    const cleanCell = cell.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    return cleanCell.match(/^Domain\s+/i) || cleanCell.match(/^Skill\s+/i) || cleanCell.match(/^Difficulty\s*/i);
+  });
+};
+
+/**
  * Robustly extracts options from a line of text, handling both single and multiple options.
  * Now takes currentOptionsCount to ensure sequential detection (A, B, C...)
  */
@@ -50,12 +62,31 @@ const extractOptionsFromLine = (text, currentOptionsCount = 0) => {
     let nextExpectedIndex = currentOptionsCount;
     let firstValidMatchIdx = -1;
 
+    // Count sequential matches starting from nextExpectedIndex
+    let sequentialCount = 0;
+    let tempExpectedIndex = nextExpectedIndex;
+    for (let i = 0; i < matches.length; i++) {
+      const letter = matches[i][1].toUpperCase();
+      const letterIndex = letter.charCodeAt(0) - 65;
+      if (letterIndex === tempExpectedIndex) {
+        sequentialCount++;
+        tempExpectedIndex++;
+      }
+    }
+
     for (let i = 0; i < matches.length; i++) {
       const letter = matches[i][1].toUpperCase();
       const letterIndex = letter.charCodeAt(0) - 65;
 
       // Check if this matches our sequence (A if first, then B, C, D...)
       if (letterIndex === nextExpectedIndex) {
+        // SAFETY CHECK: If the first match is NOT at the start of the line (index > 0 after trimming leading spaces),
+        // require at least 2 sequential options on this line to prevent false positives (like "point A. lies on circle O.").
+        const isAtStart = matches[i].index === 0 || text.substring(0, matches[i].index).trim() === '';
+        if (!isAtStart && sequentialCount < 2) {
+          break;
+        }
+
         if (firstValidMatchIdx === -1) {
           firstValidMatchIdx = i;
           remainingText = text.substring(0, matches[i].index).trim();
@@ -329,10 +360,10 @@ const parseTextToQuestions = (text) => {
     const cleanText = text.replace(/\u2013|\u2014|\u2212/g, '-').replace(/\u00F7/g, '/');
     const lines = cleanText.split(/\r?\n/).map(line => line.trim()).filter(line => line);
     
-    // Find all indices of lines starting a table
+    // Find all indices of lines starting a table that are ACTUALLY question tables containing metadata
     const tableIndices = [];
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('<table class="docx-table"')) {
+      if (lines[i].includes('<table class="docx-table"') && isQuestionTable(lines[i])) {
         tableIndices.push(i);
       }
     }

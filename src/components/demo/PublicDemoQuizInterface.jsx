@@ -60,7 +60,8 @@ const PublicDemoQuizInterface = () => {
   const [showNavigation, setShowNavigation] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showTimer, setShowTimer] = useState(true);
-  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [showLeadForm, setShowLeadForm] = useState(true);
+  const [leadDetails, setLeadDetails] = useState(null);
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
   
   // Break & Security State
@@ -112,13 +113,13 @@ const PublicDemoQuizInterface = () => {
       } else {
         handleEndBreak();
       }
-    } else if (timeLeft > 0 && !showResults && !showCheckWork) {
+    } else if (timeLeft > 0 && !showResults && !showCheckWork && !showLeadForm) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
     } else if (timeLeft === 0 && questions.length > 0 && !showResults && !showCheckWork) {
       setShowCheckWork(true);
     }
-  }, [timeLeft, showResults, showCheckWork, questions.length, isBreakActive, breakTimeLeft]);
+  }, [timeLeft, showResults, showCheckWork, questions.length, isBreakActive, breakTimeLeft, showLeadForm]);
 
   // 2.1 Security/Proctoring Effect
   useEffect(() => {
@@ -407,9 +408,15 @@ const PublicDemoQuizInterface = () => {
       setQuestionStartTime(Date.now());
       window.scrollTo(0, 0);
     } else {
-      // Test complete - show lead form instead of results
+      // Test complete - automatically submit score report using already verified lead details!
       console.log(`🎯 [DEMO] FULL LENGTH TEST completed. Module history:`, moduleHistory);
-      setShowLeadForm(true);
+      const savedLead = leadDetails || JSON.parse(localStorage.getItem(`demo_lead_${courseId}`) || '{}');
+      if (savedLead && savedLead.email) {
+        handleFinalScoreSubmit(savedLead);
+      } else {
+        // Fallback: If for some reason we don't have lead details, open the form
+        setShowLeadForm(true);
+      }
     }
   };
 
@@ -431,6 +438,34 @@ const PublicDemoQuizInterface = () => {
   };
 
   const handleLeadSubmit = async (formData) => {
+    setIsSubmittingLead(true);
+    try {
+      console.log('🚀 [DEMO] Initial lead submission with details:', formData);
+      const response = await axios.post('/api/demo/submit-lead', {
+        courseId,
+        level: 'Lead Captured',
+        ...formData
+      });
+      console.log('✅ [DEMO] Initial lead submission successful:', response.data);
+      
+      setLeadDetails(formData);
+      localStorage.setItem(`demo_lead_${courseId}`, JSON.stringify(formData));
+      
+      // Close the lead form modal and start/resume the actual test timer!
+      setShowLeadForm(false);
+      
+      // Reset module & question start times to give the student the full duration
+      setModuleStartTime(Date.now());
+      setQuestionStartTime(Date.now());
+    } catch (err) {
+      console.error("❌ [DEMO] Failed to submit initial lead:", err);
+      throw new Error(err?.response?.data?.error || err?.message || 'Failed to submit. Please try again.');
+    } finally {
+      setIsSubmittingLead(false);
+    }
+  };
+
+  const handleFinalScoreSubmit = async (formData) => {
     setIsSubmittingLead(true);
     
     console.log(`🎯 [DEMO] Calculating final FULL LENGTH TEST scores...`);
@@ -499,7 +534,6 @@ const PublicDemoQuizInterface = () => {
 
     // Determine the routing path and calculate maximum achievable scores
     const hasHardModules = moduleHistory.some(mKey => mKey.includes('hard'));
-    const hasEasyModules = moduleHistory.some(mKey => mKey.includes('easy'));
     
     // 2. Adaptive Flow Bounds (Min 200)
     // Hard path: 200 - 800 (Scale: 600)
@@ -571,7 +605,7 @@ const PublicDemoQuizInterface = () => {
     };
 
     try {
-      console.log('🚀 [DEMO] Submitting lead with data:', {
+      console.log('🚀 [DEMO] Submitting final scores with data:', {
         courseId,
         level: 'FULL LENGTH TEST',
         formData: { ...formData, phone: formData.phone ? formData.phone.substring(0, 10) + '...' : 'missing' },
@@ -591,13 +625,13 @@ const PublicDemoQuizInterface = () => {
         securityViolations // Track violations in lead too
       });
 
-      console.log('✅ [DEMO] Lead submission successful:', response.data);
+      console.log('✅ [DEMO] Final score submission successful:', response.data);
 
       // Update local progress to mark test as completed
       try {
         const savedProgress = JSON.parse(localStorage.getItem(`demo_progress_${courseId}`) || '{}');
         savedProgress.testCompleted = true;
-        savedProgress.studentName = formData.name || 'Demo Student';
+        savedProgress.studentName = formData.fullName || 'Demo Student';
         savedProgress.finalScores = {
           totalScore,
           rwScore,
@@ -633,11 +667,9 @@ const PublicDemoQuizInterface = () => {
       // Navigate to full report page
       navigate(`/demo/${courseId}/report`);
     } catch (err) {
-      console.error("❌ [DEMO] Failed to submit lead:", err);
+      console.error("❌ [DEMO] Failed to submit final scores:", err);
       console.error("❌ [DEMO] Error response:", err?.response?.data);
-      console.error("❌ [DEMO] Error status:", err?.response?.status);
       
-      // Create a more descriptive error message
       const errorMessage = err?.response?.data?.error || 
                           err?.message || 
                           'Failed to submit. Please check your connection and try again.';
@@ -660,7 +692,7 @@ const PublicDemoQuizInterface = () => {
     return (
       <DemoLeadForm 
         isOpen={showLeadForm} 
-        onClose={() => setShowLeadForm(false)} 
+        onClose={() => navigate(`/demo/${courseId}`)} 
         onSubmit={handleLeadSubmit}
         courseName={courseInfo?.name}
         level="FULL LENGTH TEST"

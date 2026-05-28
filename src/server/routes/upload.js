@@ -284,7 +284,10 @@ router.post('/', upload.single('file'), async (req, res) => {
             });
 
             const { error: qError } = await supabaseAdmin.from('questions').insert(questionsToInsert);
-            if (qError) console.error('❌ [PARSER] DB Error:', qError);
+            if (qError) {
+              console.error('❌ [PARSER] DB Error:', qError);
+              throw new Error(`Database insert failed: ${qError.message || JSON.stringify(qError)}`);
+            }
             
             await supabaseAdmin.from('uploads')
               .update({ status: 'completed', questions_count: questionsToInsert.length })
