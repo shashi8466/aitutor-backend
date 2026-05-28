@@ -54,7 +54,7 @@ export const authService = {
       return { success: false, error: error.message };
     }
   },
-  signup: async ({ email, password, name, role, mobile, fatherName, fatherMobile }) => {
+  signup: async ({ email, password, name, role, mobile, fatherName, fatherMobile, parentEmail }) => {
     try {
       console.log('🔄 [SIGNUP] Starting signup for:', email);
       
@@ -68,7 +68,8 @@ export const authService = {
             role,
             mobile,
             father_name: fatherName,
-            father_mobile: fatherMobile
+            father_mobile: fatherMobile,
+            parent_email: parentEmail
           }
         }
       });
@@ -84,7 +85,7 @@ export const authService = {
       // Background tasks run separately without blocking signup
       if (data.user) {
         // Run background tasks asynchronously without awaiting
-        authService._runSignupBackgroundTasks(data.user, { email, name, role, mobile, fatherName, fatherMobile });
+        authService._runSignupBackgroundTasks(data.user, { email, name, role, mobile, fatherName, fatherMobile, parentEmail });
       }
 
       return { success: true, session: data.session, user: data.user };

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
+import axios from 'axios';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { authService, enrollmentService } from '../../services/api';
 
-const { FiUser, FiLock, FiMail, FiBook, FiEye, FiEyeOff, FiArrowRight, FiAlertCircle, FiLoader, FiRefreshCw, FiCheckCircle, FiPhone, FiUsers, FiArrowLeft, FiLink } = FiIcons;
+const { FiUser, FiLock, FiMail, FiBook, FiEye, FiEyeOff, FiArrowRight, FiAlertCircle, FiLoader, FiRefreshCw, FiCheckCircle, FiPhone, FiUsers, FiArrowLeft, FiLink, FiX } = FiIcons;
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -17,7 +18,8 @@ const Signup = () => {
     role: 'student',
     mobile: '',
     fatherName: '',
-    fatherMobile: ''
+    fatherMobile: '',
+    parentEmail: ''
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -30,6 +32,17 @@ const Signup = () => {
   const [redirecting, setRedirecting] = useState(false);
   const [checkingVerification, setCheckingVerification] = useState(false);
 
+  // New states for country code, terms checkbox, and OTP
+  const [countryCode, setCountryCode] = useState('+1');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [debugOtp, setDebugOtp] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+
   const { signup, login } = useAuth();
   const { settings } = useSettings();
   const navigate = useNavigate();
@@ -38,7 +51,6 @@ const Signup = () => {
 
   useEffect(() => {
     authService.wakeUp();
-    // Check for enrollment key in URL
     const query = new URLSearchParams(window.location.search);
     const key = query.get('key');
     if (key) {
@@ -64,10 +76,7 @@ const Signup = () => {
 
   const finalizeRegistration = async (role) => {
     try {
-      // Small delay to ensure auth state is properly set
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Redirect based on role
       if (role === 'admin') {
         navigate('/admin');
       } else if (role === 'tutor') {
@@ -79,91 +88,144 @@ const Signup = () => {
       }
     } catch (error) {
       console.error('Redirection error:', error);
-      // Fallback to student dashboard
       navigate('/student');
+    }
+  };
+
+  const handleSendOTP = async () => {
+    if (!formData.mobile || formData.mobile.trim().length < 8) {
+      setError('Please enter a valid mobile number.');
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError('');
+    setError('');
+    setDebugOtp('');
+    try {
+      const fullPhone = `${countryCode}${formData.mobile.replace(/[^\d]/g, '')}`;
+      const response = await axios.post('/api/demo/send-otp', { phone: fullPhone });
+      if (response.data.success) {
+        setOtpSent(true);
+        if (response.data.otpForTesting) {
+          setDebugOtp(response.data.otpForTesting);
+        }
+      } else {
+        setOtpError(response.data.error || 'Failed to send OTP.');
+      }
+    } catch (err) {
+      setOtpError(err?.response?.data?.error || err?.message || 'Failed to send OTP.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      setOtpError('Please enter a 6-digit verification code.');
+      return;
+    }
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const fullPhone = `${countryCode}${formData.mobile.replace(/[^\d]/g, '')}`;
+      const response = await axios.post('/api/demo/verify-otp', { phone: fullPhone, otp });
+      if (response.data.success) {
+        setOtpVerified(true);
+        setShowOtpModal(false);
+        
+        // OTP Verified, proceed to actual Supabase signup!
+        setLoading(true);
+        setSlowConnection(false);
+        setError('');
+
+        const slowTimer = setTimeout(() => setSlowConnection(true), 2000);
+
+        try {
+          const signupPayload = {
+            ...formData,
+            mobile: fullPhone
+          };
+          console.log('🔄 Starting signup for:', signupPayload.email);
+          const result = await signup(signupPayload);
+          clearTimeout(slowTimer);
+
+          if (result.success) {
+            console.log('✅ Signup successful:', result);
+            const roleRequiresApproval = formData.role === 'tutor' || formData.role === 'admin';
+            if (roleRequiresApproval) {
+              setSuccessMode(true);
+              setLoading(false);
+              return;
+            }
+            if (!result.session) {
+              try {
+                const loginResult = await login({ email: formData.email, password: formData.password });
+                if (loginResult.success) {
+                  setRedirecting(true);
+                  await finalizeRegistration(formData.role);
+                  return;
+                }
+              } catch (e) {}
+            }
+            if (result.session) {
+              setRedirecting(true);
+              await finalizeRegistration(formData.role);
+            } else {
+              setSuccessMode(true);
+            }
+          } else {
+            const errLower = (result.error || '').toLowerCase();
+            if (errLower.includes("user already registered") || errLower.includes("unique constraint")) {
+              try {
+                const loginResult = await login({ email: formData.email, password: formData.password });
+                if (loginResult.success) {
+                  setRedirecting(true);
+                  await finalizeRegistration(formData.role);
+                  return;
+                } else {
+                  setError("This email is registered but the password didn't match. Please Log In.");
+                }
+              } catch (loginErr) {
+                setError("Account exists. Please Log In.");
+              }
+            } else {
+              setError(result.error || "An error occurred during signup.");
+            }
+            setLoading(false);
+          }
+        } catch (err) {
+          clearTimeout(slowTimer);
+          setError("An unexpected error occurred. Please try again.");
+          setLoading(false);
+        }
+      } else {
+        setOtpError(response.data.error || 'Invalid OTP.');
+      }
+    } catch (err) {
+      setOtpError(err?.response?.data?.error || err?.message || 'Verification failed.');
+    } finally {
+      setOtpLoading(false);
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setSlowConnection(false);
-    setError('');
-
+    if (!termsAccepted) {
+      setError("You must agree to the Terms & Conditions and Privacy Policy.");
+      return;
+    }
+    
     if (formData.password.length < 6) {
       setError("Password must be at least 6 characters long.");
-      setLoading(false);
       return;
     }
 
-    const slowTimer = setTimeout(() => setSlowConnection(true), 2000);
-
-    try {
-      console.log('🔄 Starting signup for:', formData.email);
-      const result = await signup(formData);
-      clearTimeout(slowTimer);
-
-      if (result.success) {
-        console.log('✅ Signup successful:', result);
-        
-        // CHECK FOR APPROVAL REQUIREMENT
-        const roleRequiresApproval = formData.role === 'tutor' || formData.role === 'admin';
-        
-        if (roleRequiresApproval) {
-          console.log('⏳ Role requires approval, showing pending message');
-          setSuccessMode(true);
-          setLoading(false);
-          return; // Stop auto-redirection
-        }
-
-        // Standard student/parent flow (auto-login/redirect)
-        if (!result.session) {
-          try {
-            const loginResult = await login({ email: formData.email, password: formData.password });
-            if (loginResult.success) {
-              setRedirecting(true);
-              await finalizeRegistration(formData.role);
-              return;
-            }
-          } catch (e) {
-            // ignore; fall back to success mode
-          }
-        }
-
-        if (result.session) {
-          setRedirecting(true);
-          await finalizeRegistration(formData.role);
-        } else {
-          setSuccessMode(true);
-        }
-      } else {
-        const errLower = (result.error || '').toLowerCase();
-        if (errLower.includes("user already registered") || errLower.includes("unique constraint")) {
-          console.log("User exists, attempting auto-login...");
-          try {
-            const loginResult = await login({ email: formData.email, password: formData.password });
-            if (loginResult.success) {
-              setRedirecting(true);
-              await finalizeRegistration(formData.role);
-              return;
-            } else {
-              setError("This email is registered but the password didn't match. Please Log In.");
-            }
-          } catch (loginErr) {
-            console.error('Auto-login failed:', loginErr);
-            setError("Account exists. Please Log In.");
-          }
-        } else {
-          console.error('Signup error:', result.error);
-          setError(result.error || "An error occurred during signup.");
-        }
-        setLoading(false);
-      }
-    } catch (err) {
-      clearTimeout(slowTimer);
-      console.error('Signup exception:', err);
-      setError("An unexpected error occurred. Please try again.");
-      setLoading(false);
+    // Intercept to require OTP verification first
+    if (!otpVerified) {
+      setShowOtpModal(true);
+      handleSendOTP();
+      return;
     }
   };
 
@@ -191,7 +253,6 @@ const Signup = () => {
   const checkVerification = async () => {
     setCheckingVerification(true);
     setResendStatus('');
-    // Attempt to login to check if email is verified
     const result = await login({ email: formData.email, password: formData.password });
     if (result.success) {
       setRedirecting(true);
@@ -330,7 +391,7 @@ const Signup = () => {
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-5" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm flex flex-col gap-2 animate-pulse">
                 <span className="font-bold flex items-center gap-2">
@@ -384,32 +445,12 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* MOBILE (New) */}
+            {/* PARENT NAME */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Mobile Number</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Name</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="mobile"
-                  name="mobile"
-                  type="tel"
-                  required
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="Mobile Number"
-                  value={formData.mobile}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            {/* FATHER'S NAME */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Father's Name</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <SafeIcon icon={FiUsers} className="h-5 w-5 text-gray-400" />
+                  <SafeIcon icon={FiUser} className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   id="fatherName"
@@ -417,10 +458,64 @@ const Signup = () => {
                   type="text"
                   required
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="Father/Guardian Name"
+                  placeholder="Parent Name"
                   value={formData.fatherName}
                   onChange={handleChange}
                 />
+              </div>
+            </div>
+
+            {/* PARENT EMAIL */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Email Address</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <SafeIcon icon={FiMail} className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="parentEmail"
+                  name="parentEmail"
+                  type="email"
+                  required
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="parent@example.com"
+                  value={formData.parentEmail}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            {/* MOBILE WITH COUNTRY CODE SELECTOR */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Mobile Number</label>
+              <div className="flex gap-2">
+                <div className="w-28 shrink-0">
+                  <div className="relative">
+                    <select
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value)}
+                      className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all font-bold cursor-pointer"
+                    >
+                      <option value="+1">🇺🇸 +1</option>
+                      <option value="+91">🇮🇳 +91</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex-1 relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="mobile"
+                    name="mobile"
+                    type="tel"
+                    required
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Mobile Number"
+                    value={formData.mobile}
+                    onChange={handleChange}
+                  />
+                </div>
               </div>
             </div>
 
@@ -468,6 +563,32 @@ const Signup = () => {
               </div>
             </div>
 
+            {/* Privacy Policy & Terms Section */}
+            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl text-xs space-y-2 border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 leading-relaxed font-medium">
+              <p className="font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[10px]">Privacy Policy &amp; Terms Summary</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>User phone numbers will only be used for OTP verification and authentication purposes.</li>
+                <li>User data such as Name, Email, Parent Name, Parent Email, and Phone Number will be stored securely and will not be shared with third parties.</li>
+                <li>OTP verification is mandatory before account creation.</li>
+              </ul>
+            </div>
+
+            {/* Mandatory Checkbox */}
+            <div className="flex items-start gap-2 py-1">
+              <input
+                id="termsAccepted"
+                name="termsAccepted"
+                type="checkbox"
+                required
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-1 h-4 w-4 text-[#E53935] border-gray-300 rounded focus:ring-[#E53935] cursor-pointer"
+              />
+              <label htmlFor="termsAccepted" className="text-xs font-bold text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                I agree to the Terms &amp; Conditions and Privacy Policy
+              </label>
+            </div>
+
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -499,6 +620,89 @@ const Signup = () => {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* OTP Verification Modal */}
+      <AnimatePresence>
+        {showOtpModal && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowOtpModal(false)}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-100 dark:border-gray-700 z-[1001]"
+            >
+              <div className="bg-[#E53935] p-5 text-white relative">
+                <h3 className="text-lg font-black uppercase tracking-tight">Phone Verification</h3>
+                <p className="text-red-100 text-xs font-medium">Please verify your mobile number to complete signup.</p>
+                <button
+                  onClick={() => setShowOtpModal(false)}
+                  className="absolute top-4 right-4 p-1 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <SafeIcon icon={FiX} className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {otpError && (
+                  <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100 uppercase tracking-tighter">
+                    {otpError}
+                  </div>
+                )}
+
+                {debugOtp && (
+                  <div className="p-3 bg-yellow-50 text-yellow-800 text-xs font-bold rounded-lg border border-yellow-100 tracking-tight text-center">
+                    🔑 DEBUG CODE (SMS Not Configured): <strong>{debugOtp}</strong>
+                  </div>
+                )}
+
+                <div className="text-center p-2 bg-blue-50 text-blue-800 rounded-xl border border-blue-100 text-xs font-semibold">
+                  Code sent to <strong>{countryCode} {formData.mobile}</strong>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-1 text-center">Enter 6-Digit OTP</label>
+                  <input
+                    required
+                    maxLength={6}
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/[^\d]/g, ''))}
+                    placeholder="123456"
+                    className="w-full text-center py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 dark:text-white font-extrabold text-2xl tracking-widest placeholder-gray-300 hover:bg-gray-50"
+                  />
+                </div>
+
+                <button
+                  disabled={otpLoading || otp.length !== 6}
+                  onClick={handleVerifyOTP}
+                  type="button"
+                  className="w-full py-3 bg-[#E53935] hover:bg-red-700 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
+                >
+                  {otpLoading ? (
+                    <SafeIcon icon={FiLoader} className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>Verify &amp; Create Account</>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendOTP}
+                  className="w-full text-center text-xs text-gray-500 hover:underline py-1 font-semibold"
+                >
+                  Resend Code
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
