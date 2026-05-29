@@ -19,7 +19,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
     manual_enrollment_count: course?.manual_enrollment_count || '',
     status: course?.status || 'active',
     is_demo: course?.is_demo || false,
-    is_practice: course?.is_practice ?? true
+    is_practice: course?.is_practice ?? false
   });
 
   // Enrollment Key State
@@ -175,7 +175,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
         price: Number(formData.price_full) || 0,
         currency: 'INR',
         is_free: Number(formData.price_full) === 0,
-        is_practice: true,
+        is_practice: formData.is_practice,
         is_demo: formData.is_demo,
         status: formData.status || 'active',
         manual_enrollment_count: Number(formData.manual_enrollment_count) || 0,
@@ -454,6 +454,42 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                 {/* Left: Marketing & Display */}
                 <div className="space-y-6">
                   <h5 className="text-sm font-bold text-gray-900">Marketing & Display</h5>
+                  
+                  <div className="pb-2">
+                    <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Publishing Type</label>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <label className={`flex-1 border p-4 rounded-xl cursor-pointer transition-all ${!formData.is_practice ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            name="is_practice_type"
+                            checked={!formData.is_practice}
+                            onChange={() => setFormData({ ...formData, is_practice: false })}
+                            className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <div>
+                            <p className="font-bold text-gray-900">Publish as Course</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">Appears in My Courses</p>
+                          </div>
+                        </div>
+                      </label>
+                      <label className={`flex-1 border p-4 rounded-xl cursor-pointer transition-all ${formData.is_practice ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            name="is_practice_type"
+                            checked={formData.is_practice}
+                            onChange={() => setFormData({ ...formData, is_practice: true })}
+                            className="w-4 h-4 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                          />
+                          <div>
+                            <p className="font-bold text-gray-900">Publish as Practice Test</p>
+                            <p className="text-[10px] text-gray-500 mt-0.5">Appears in Practice Tests</p>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 mb-2 flex items-center gap-2">

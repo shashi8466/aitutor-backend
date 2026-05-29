@@ -17,6 +17,8 @@ const Signup = lazy(() => import('./components/auth/Signup'));
 const ContactPage = lazy(() => import('./components/layout/ContactPage'));
 const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword'));
+const PrivacyPolicy = lazy(() => import('./components/layout/PrivacyPolicy'));
+const TermsConditions = lazy(() => import('./components/layout/TermsConditions'));
 
 // Student Pages
 const StudentDashboard = lazy(() => import('./components/student/StudentDashboard'));
@@ -328,6 +330,8 @@ const App = () => {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/terms-conditions" element={<TermsConditions />} />
 
             {/* Public Demo Routes */}
             <Route path="/demo/:courseId" element={<PublicDemoCourseView />} />

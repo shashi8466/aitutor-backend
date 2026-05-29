@@ -53,19 +53,19 @@ const PracticeTests = () => {
 
             setAvailableCourses(notEnrolledPractice);
 
-            // 4. Fetch uploads for enrolled courses (including manual is_practice uploads)
-            if (enrolledIds.length > 0) {
+            // 4. Fetch uploads for enrolled practice courses
+            const practiceCourseIds = enrolledPractice.map(c => c.id);
+            if (practiceCourseIds.length > 0) {
                 const { data: uploads } = await uploadService.getAll({ 
-                    courseIds: enrolledIds // The backend service should be updated to handle this if needed, or we fetch all and filter
+                    courseIds: practiceCourseIds
                 });
-                
                 const filteredUploads = (uploads || []).filter(u => 
-                    enrolledIds.includes(Number(u.course_id)) && 
+                    practiceCourseIds.includes(Number(u.course_id)) && 
                     (u.status === 'completed' || u.status === 'warning')
                 );
                 
                 // 5. Apply Plan Gating to the uploads
-                const filteredTests = (uploads || []).map(test => {
+                const filteredTests = filteredUploads.map(test => {
                     // Check direct test access OR course-level access
                     const hasDirectAccess = currentAccess.some(a => a.content_type === 'test' && a.content_id === test.id && a.plan_type === userPlan);
                     const hasCourseAccess = currentAccess.some(a => a.content_type === 'course' && a.content_id === test.course_id && a.plan_type === userPlan);

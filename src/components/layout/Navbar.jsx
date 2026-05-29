@@ -29,7 +29,7 @@ const Navbar = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-[100] p-2 sm:p-4 lg:p-5 transition-all duration-300 mobile-safe">
-      <nav className="mx-auto flex max-w-[1500px] items-center justify-between rounded-2xl sm:rounded-[24px] border border-white/5 bg-slate-900/40 px-3 sm:px-6 lg:px-10 py-3 sm:py-4 backdrop-blur-2xl shadow-2xl w-full">
+      <nav className="mx-auto flex max-w-[1500px] items-center justify-between rounded-2xl sm:rounded-[24px] border border-white/5 bg-slate-900 px-3 sm:px-6 lg:px-10 py-3 sm:py-4 shadow-2xl w-full">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <Link to="/" className="flex items-center gap-2 sm:gap-4 group min-w-0" onClick={closeMenu}>
             {(settings.logo_url || settings.logoUrl) ? (

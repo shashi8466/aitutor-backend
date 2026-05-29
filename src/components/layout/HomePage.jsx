@@ -470,12 +470,16 @@ const AIPrep365LandingPage = () => {
 
       {/* FOOTER */}
       <footer className="border-t border-white/5 bg-[#020617] py-8 md:py-12">
-        <div className="mx-auto max-w-[1500px] px-6 md:px-10 text-center">
+        <div className="mx-auto max-w-[1500px] px-6 md:px-10 text-center flex flex-col items-center gap-4">
+          <div className="flex items-center gap-4 text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest">
+            <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <span className="text-white/20">|</span>
+            <Link to="/terms-conditions" className="hover:text-white transition-colors">Terms & Conditions</Link>
+          </div>
           <p className="text-slate-500 text-xs md:text-sm font-medium leading-relaxed">
             © 2026 <BrandName className="text-xs" /> Powered by TestPrep Pundit. All rights reserved.
           </p>
         </div>
-
       </footer>
 
     </div>

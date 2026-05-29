@@ -857,6 +857,43 @@ const CourseForm = ({ course, onClose, onSave }) => {
             {/* Display Settings (Price & Enrollment) */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
               <h4 className="font-bold text-gray-900 text-lg border-b pb-2 mb-4">Marketing & Display</h4>
+              
+              <div className="md:col-span-2 pb-2">
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Publishing Type</label>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <label className={`flex-1 border p-4 rounded-xl cursor-pointer transition-all ${!formData.is_practice ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="is_practice_type"
+                          checked={!formData.is_practice}
+                          onChange={() => setFormData({ ...formData, is_practice: false })}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <div>
+                          <p className="font-bold text-gray-900">Publish as Course Only</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Appears only in My Courses</p>
+                        </div>
+                      </div>
+                    </label>
+                    <label className={`flex-1 border p-4 rounded-xl cursor-pointer transition-all ${formData.is_practice ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="is_practice_type"
+                          checked={formData.is_practice}
+                          onChange={() => setFormData({ ...formData, is_practice: true })}
+                          className="w-4 h-4 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                        />
+                        <div>
+                          <p className="font-bold text-gray-900">Publish as Practice Test</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Appears in Practice Tests</p>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
