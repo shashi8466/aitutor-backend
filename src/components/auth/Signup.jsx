@@ -359,11 +359,6 @@ const Signup = () => {
       return;
     }
 
-    if (!studentEmailOtpVerified) {
-      setError("Please verify the student email address.");
-      return;
-    }
-
     if (!parentEmailOtpVerified) {
       setError("Please verify the parent email address.");
       return;
@@ -374,10 +369,33 @@ const Signup = () => {
       return;
     }
 
+    if (formData.email.trim().toLowerCase() === formData.parentEmail.trim().toLowerCase()) {
+      setError("Student Email and Parent Email cannot be the same.");
+      return;
+    }
+
     // Proceed to sign up
     setLoading(true);
     setSlowConnection(false);
     setError('');
+
+    try {
+      const studentEmailCheck = await authService.checkEmail(formData.email);
+      if (studentEmailCheck?.exists) {
+        setError("This email address is already registered. Please use a different email.");
+        setLoading(false);
+        return;
+      }
+      
+      const parentEmailCheck = await authService.checkEmail(formData.parentEmail);
+      if (parentEmailCheck?.exists) {
+        setError("This email address is already registered. Please use a different email.");
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("Could not verify email uniqueness before signup:", err);
+    }
 
     const slowTimer = setTimeout(() => setSlowConnection(true), 2000);
 
@@ -774,76 +792,13 @@ const Signup = () => {
                   name="email"
                   type="email"
                   required
-                  disabled={studentEmailOtpVerified || studentEmailOtpSent}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-60"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="student@example.com"
                   value={formData.email}
                   onChange={handleChange}
                   onFocus={handleInteraction}
                 />
               </div>
-
-              {/* STUDENT EMAIL OTP FLOW */}
-              {!studentEmailOtpVerified && (
-                <div className="mt-2 space-y-2">
-                  {!studentEmailOtpSent ? (
-                    <button
-                      type="button"
-                      disabled={studentEmailOtpLoading || !formData.email || !/^\S+@\S+\.\S+$/.test(formData.email)}
-                      onClick={handleSendStudentEmailOTP}
-                      className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
-                    >
-                      {studentEmailOtpLoading ? 'Sending...' : 'Send OTP'}
-                    </button>
-                  ) : (
-                    <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-lg">
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                        Verification code sent to {formData.email}
-                      </p>
-                      {studentEmailDebugOtp && (
-                        <p className="text-[10px] text-yellow-700 dark:text-yellow-400 font-extrabold bg-yellow-50 dark:bg-yellow-950/40 p-2 rounded border border-yellow-200/50">
-                          🔑 Testing Code: {studentEmailDebugOtp}
-                        </p>
-                      )}
-                      {studentEmailOtpError && (
-                        <p className="text-[10px] text-red-600 dark:text-red-400 font-extrabold uppercase tracking-wide">{studentEmailOtpError}</p>
-                      )}
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          maxLength={6}
-                          placeholder="Enter 6-Digit OTP"
-                          value={studentEmailOtp}
-                          onChange={(e) => setStudentEmailOtp(e.target.value.replace(/[^\d]/g, ''))}
-                          className="flex-1 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-bold tracking-widest outline-none focus:ring-1 focus:ring-[#E53935]"
-                        />
-                        <button
-                          type="button"
-                          disabled={studentEmailOtpLoading || studentEmailOtp.length !== 6}
-                          onClick={handleVerifyStudentEmailOTP}
-                          className="px-4 py-2 bg-[#E53935] hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
-                        >
-                          {studentEmailOtpLoading ? 'Verifying...' : 'Verify OTP'}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleSendStudentEmailOTP}
-                        className="text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-bold underline"
-                      >
-                        Resend Code
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {studentEmailOtpVerified && (
-                <div className="mt-2 p-2 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-lg border border-green-200/50 flex items-center gap-1.5">
-                  <SafeIcon icon={FiCheckCircle} className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  Email verified successfully!
-                </div>
-              )}
             </div>
 
             {/* PARENT NAME */}
@@ -903,11 +858,6 @@ const Signup = () => {
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
                         Verification code sent to {formData.parentEmail}
                       </p>
-                      {parentEmailDebugOtp && (
-                        <p className="text-[10px] text-yellow-700 dark:text-yellow-400 font-extrabold bg-yellow-50 dark:bg-yellow-950/40 p-2 rounded border border-yellow-200/50">
-                          🔑 Testing Code: {parentEmailDebugOtp}
-                        </p>
-                      )}
                       {parentEmailOtpError && (
                         <p className="text-[10px] text-red-600 dark:text-red-400 font-extrabold uppercase tracking-wide">{parentEmailOtpError}</p>
                       )}
@@ -1002,11 +952,6 @@ const Signup = () => {
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
                         Verification code sent to {countryCode} {formData.mobile}
                       </p>
-                      {debugOtp && (
-                        <p className="text-[10px] text-yellow-700 dark:text-yellow-400 font-extrabold bg-yellow-50 dark:bg-yellow-950/40 p-2 rounded border border-yellow-200/50">
-                          🔑 Testing Code: {debugOtp}
-                        </p>
-                      )}
                       {otpError && (
                         <p className="text-[10px] text-red-600 dark:text-red-400 font-extrabold uppercase tracking-wide">{otpError}</p>
                       )}
@@ -1061,7 +1006,7 @@ const Signup = () => {
               >
                 <option value="student">Student</option>
                 <option value="tutor">Tutor (Requires Approval)</option>
-                <option value="admin">Admin (Demo Purpose)</option>
+                <option value="admin">Admin (Requires Approval)</option>
               </select>
             </div>
 

@@ -156,6 +156,31 @@ router.post('/welcome-email', async (req, res) => {
 });
 
 /**
+ * GET /api/auth/check-email
+ * Check if an email is already registered
+ */
+router.get('/check-email', async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('email', email.toLowerCase().trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({ success: true, exists: !!data });
+  } catch (error) {
+    console.error('❌ Check email error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/auth/test-welcome-email
  * Test welcome email endpoint (for development)
  */

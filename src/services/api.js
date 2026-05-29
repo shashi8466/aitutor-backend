@@ -46,6 +46,11 @@ export const authService = {
         role: profileRole === 'authenticated' ? 'student' : profileRole
       };
 
+      if ((profileRole === 'tutor' || profileRole === 'admin') && profile?.status === 'pending') {
+        await supabase.auth.signOut();
+        return { success: false, error: 'Your account is pending administrator approval. Please wait until your account is approved before logging in.' };
+      }
+
       console.log('Login successful for:', email, 'Role:', userWithProfile.role);
 
       return { success: true, user: userWithProfile };
@@ -389,6 +394,15 @@ export const authService = {
     }
     const response = await axios.delete(`/api/auth/user/${userId}`, { headers });
     return response.data;
+  },
+  checkEmail: async (email) => {
+    try {
+      const response = await axios.get(`/api/auth/check-email?email=${encodeURIComponent(email)}`);
+      return response.data;
+    } catch (error) {
+      console.error('Check email error:', error);
+      return { success: false, error: getError(error) };
+    }
   }
 };
 
