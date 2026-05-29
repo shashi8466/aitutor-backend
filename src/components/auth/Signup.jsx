@@ -1059,8 +1059,8 @@ const Signup = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
-              disabled={loading || redirecting}
-              className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white transition-all shadow-red-200 dark:shadow-none ${redirecting ? 'bg-green-600' : 'bg-[#E53935] hover:bg-[#d32f2f]'}`}
+              disabled={loading || redirecting || !termsAccepted || !otpVerified || !parentEmailOtpVerified || formData.name.trim() === '' || formData.email.trim() === '' || formData.fatherName.trim() === '' || formData.password.length < 6}
+              className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white transition-all shadow-red-200 dark:shadow-none ${redirecting ? 'bg-green-600' : 'bg-[#E53935] hover:bg-[#d32f2f]'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {redirecting ? (
                 <div className="flex items-center gap-2">
