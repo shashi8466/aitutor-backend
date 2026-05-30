@@ -381,11 +381,12 @@ const StudentCourseList = () => {
             {['SAT', 'ACT', 'AP'].map((category) => (
               <button
                 key={category}
+                disabled={category !== 'SAT'}
                 onClick={() => {
                   setActiveCategory(category);
                   setActiveSubcategory('All');
                 }}
-                className={`relative px-5 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all z-10 flex-shrink-0 ${
+                className={`relative px-5 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all z-10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                   activeCategory === category 
                     ? 'text-white' 
                     : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
