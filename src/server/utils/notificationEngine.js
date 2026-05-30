@@ -427,6 +427,20 @@ export function buildTestCompletionEmail({ studentName, testName, courseName, sc
         }
     }
 
+    // Detect AP Course
+    const nameToVerify = courseName || testName || '';
+    const isAPCourse = nameToVerify && (
+        String(nameToVerify).trim().toUpperCase().startsWith('AP ') ||
+        String(nameToVerify).trim().toUpperCase().startsWith('AP:') ||
+        String(nameToVerify).trim().toUpperCase().includes(' AP ') ||
+        String(nameToVerify).trim().toUpperCase() === 'AP'
+    );
+
+    if (isAPCourse) {
+        const formattedDate = new Date(testDate || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+        return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>🎉 Course Completed Successfully!</h1><p>${appName} — ${formattedDate}</p></div><div class="body"><p class="intro-heading">Hello ${studentName || 'Student'},</p><p class="intro-text">Congratulations! You have successfully completed the ${courseName || nameToVerify} course.</p><p class="section-title">📊 Course Details</p><div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 24px;"><p style="margin-bottom: 12px; font-size: 15px;"><strong style="color: #94a3b8;">Course Name:</strong> <span style="color: #ffffff; font-weight: 600;">${courseName || nameToVerify}</span></p><p style="margin-bottom: 12px; font-size: 15px;"><strong style="color: #94a3b8;">Completion Date:</strong> <span style="color: #ffffff; font-weight: 600;">${formattedDate}</span></p><p style="margin-bottom: 12px; font-size: 15px;"><strong style="color: #94a3b8;">Completion Status:</strong> <span style="color: #4ade80; font-weight: 600;">Completed ✅</span></p><p style="margin-bottom: 12px; font-size: 15px;"><strong style="color: #94a3b8;">Accuracy:</strong> <span style="color: #818cf8; font-weight: 600;">${pct}%</span></p><p style="margin-bottom: 0; font-size: 15px;"><strong style="color: #94a3b8;">Correct Answers:</strong> <span style="color: #818cf8; font-weight: 600;">${correctAnswers}/${totalQuestions}</span></p></div>${modularHtml}<div class="tip-box">💡 Review your incorrect answers to improve your next score. Every mistake is a learning opportunity!</div><a class="cta" href="${finalReportUrl}">View Full Report →</a></div><div class="footer">${appName} • Results are calculated based on all modules completed.</div></div></div></body></html>`;
+    }
+
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>📝 Test Completed!</h1><p>${appName} — ${new Date(testDate || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div><div class="body"><p class="intro-heading">Hello ${studentName || 'Student'},</p><p class="intro-text">Your test results are ready. Here is your performance summary:</p><p class="section-title">📊 Overall Performance</p><div class="score-row"><div class="score-box"><div class="val">${scaledScore || '--'}</div><div class="lbl">TOTAL SCORE</div></div><div class="score-box"><div class="val">${pct}%</div><div class="lbl">ACCURACY</div></div><div class="score-box"><div class="val">${correctAnswers}/${totalQuestions}</div><div class="lbl">CORRECT ANSWERS</div></div><div class="score-box" style="width: 100%; margin-top: 15px; background: rgba(255,255,255,0.05);"><div class="val"><span class="badge ${badge}">${grade}</span></div><div class="lbl">GRADE</div></div></div>${modularHtml}<div class="tip-box">💡 Review your incorrect answers to improve your next score. Every mistake is a learning opportunity!</div><a class="cta" href="${finalReportUrl}">View Full Report →</a></div><div class="footer">${appName} • Results are calculated based on all modules completed.</div></div></div></body></html>`;
 }
 
