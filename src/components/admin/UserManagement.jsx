@@ -389,6 +389,44 @@ const UserManagement = () => {
                   </div>
                 </div>
 
+                {selectedUser.role === 'student' && (
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Parent Details</h4>
+                    <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
+                      <div>
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Name</label>
+                        <input 
+                          type="text"
+                          placeholder="Parent Name"
+                          defaultValue={selectedUser.father_name || ''}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { father_name: e.target.value })}
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Email</label>
+                        <input 
+                          type="email"
+                          placeholder="parent@example.com"
+                          defaultValue={selectedUser.parent_email || ''}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { parent_email: e.target.value })}
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Mobile</label>
+                        <input 
+                          type="text"
+                          placeholder="+1234567890"
+                          defaultValue={selectedUser.father_mobile || ''}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { father_mobile: e.target.value })}
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {selectedUser.role === 'tutor' && (
                   <div className="space-y-4">
                     <div className="flex justify-between items-center bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30">

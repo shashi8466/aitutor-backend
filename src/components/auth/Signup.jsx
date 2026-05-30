@@ -247,7 +247,7 @@ const Signup = () => {
       if (response.data.success) {
         setOtpVerified(true);
         setShowOtpModal(false);
-        
+
         // OTP Verified, proceed to actual Supabase signup!
         setLoading(true);
         setSlowConnection(false);
@@ -280,7 +280,7 @@ const Signup = () => {
                   await finalizeRegistration(formData.role);
                   return;
                 }
-              } catch (e) {}
+              } catch (e) { }
             }
             if (result.session) {
               setRedirecting(true);
@@ -353,7 +353,7 @@ const Signup = () => {
       setError("You must agree to the Terms & Conditions and Privacy Policy.");
       return;
     }
-    
+
     if (formData.password.length < 6) {
       setError("Password must be at least 6 characters long.");
       return;
@@ -386,7 +386,7 @@ const Signup = () => {
         setLoading(false);
         return;
       }
-      
+
       const parentEmailCheck = await authService.checkEmail(formData.parentEmail);
       if (parentEmailCheck?.exists) {
         setError("This email address is already registered. Please use a different email.");
@@ -425,7 +425,7 @@ const Signup = () => {
               await finalizeRegistration(formData.role);
               return;
             }
-          } catch (e) {}
+          } catch (e) { }
         }
         if (result.session) {
           setRedirecting(true);
@@ -652,7 +652,7 @@ const Signup = () => {
             {formData.role === 'student' ? 'Check your email' : 'Waiting for Approval'}
           </h2>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            {formData.role === 'student' 
+            {formData.role === 'student'
               ? <>We've sent a confirmation link to <strong className="text-black dark:text-white">{formData.email}</strong>.</>
               : <>Your account request for <strong>{formData.role === 'admin' ? 'Administrator' : 'Tutor'}</strong> access has been submitted. An administrator will review and approve your account shortly.</>
             }
@@ -900,9 +900,9 @@ const Signup = () => {
             </div>
 
 
-            {/* MOBILE WITH COUNTRY CODE SELECTOR */}
+            {/* STUDENT MOBILE WITH COUNTRY CODE SELECTOR */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Mobile Number</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Student Mobile Number</label>
               <div className="flex gap-2">
                 <div className="w-28 shrink-0">
                   <div className="relative">
@@ -988,11 +988,29 @@ const Signup = () => {
               {otpVerified && (
                 <div className="mt-2 p-2 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-lg border border-green-200/50 flex items-center gap-1.5">
                   <SafeIcon icon={FiCheckCircle} className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  Mobile number verified successfully!
+                  Student mobile number verified successfully!
                 </div>
               )}
             </div>
 
+            {/* PARENT MOBILE NUMBER (No OTP required for parent) */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Mobile Number</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="fatherMobile"
+                  name="fatherMobile"
+                  type="tel"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="+1234567890"
+                  value={formData.fatherMobile}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
 
             {/* ACCOUNT TYPE */}
             <div>

@@ -127,6 +127,7 @@ export const authService = {
             mobile: userData.mobile || null,
             father_name: userData.fatherName || null,
             father_mobile: userData.fatherMobile || null,
+            parent_email: userData.parentEmail || null,
             status: initialStatus,
             plan_type: 'free',
             plan_status: 'active',
@@ -298,7 +299,7 @@ export const authService = {
     try {
       let query = supabase
         .from('profiles')
-        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status')
+        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email')
         .order('created_at', { ascending: false });
 
       if (role) {
