@@ -41,11 +41,6 @@ const Navbar = () => {
                 <span className="text-xl">🤖</span>
               </div>
             )}
-            {!(settings.logo_url || settings.logoUrl) && (
-              <div className="text-base sm:text-xl lg:text-2xl font-black tracking-tight text-white flex items-center truncate">
-                {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName /> : settings.appName}
-              </div>
-            )}
           </Link>
         </div>
 
@@ -113,11 +108,6 @@ const Navbar = () => {
                         <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center border border-white/20">
                           <span className="text-sm">🤖</span>
                         </div>
-                      )}
-                      {!(settings.logo_url || settings.logoUrl) && (
-                        <span className="text-lg font-black text-white">
-                          {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName className="text-lg" /> : settings.appName}
-                        </span>
                       )}
                     </div>
                     <button onClick={closeMenu} className="p-2 text-slate-400 hover:text-white">
