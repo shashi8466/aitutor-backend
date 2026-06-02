@@ -128,7 +128,7 @@ const ChildrenOverview = () => {
     }, [user]);
 
     return (
-        <div className="px-6 pb-6 pt-32 md:pt-36 max-w-5xl mx-auto min-h-screen bg-[#FAFAFA] dark:bg-gray-900">
+        <div className="px-6 pb-6 pt-6 max-w-5xl mx-auto min-h-screen bg-[#FAFAFA] dark:bg-gray-900">
             <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-6">Parent Dashboard</h2>
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
@@ -345,7 +345,7 @@ const ChildCoursesReport = () => {
 
     return (
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 pb-12">
-            <div className="px-6 pb-6 pt-32 md:pt-36 max-w-7xl mx-auto space-y-8">
+            <div className="p-6 max-w-7xl mx-auto space-y-8">
                 <Link to="/parent" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 transition-colors font-medium">
                     <SafeIcon icon={FiArrowLeft} /> Back to Dashboard
                 </Link>
@@ -510,7 +510,7 @@ const ChildDifficultyReport = () => {
 
     return (
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 pb-12 font-sans text-gray-900 dark:text-gray-100">
-            <div className="px-6 pb-6 pt-32 md:pt-36 max-w-5xl mx-auto">
+            <div className="p-6 max-w-5xl mx-auto">
                 <Link to={`/parent/child/${studentId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 mb-6 transition-colors font-bold uppercase tracking-wider">
                     <SafeIcon icon={FiArrowLeft} /> Back to Report
                 </Link>
@@ -565,7 +565,7 @@ const ChildPerformanceReport = () => {
 
     return (
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 pb-12 font-sans text-gray-900 dark:text-gray-100">
-            <div className="px-6 pb-6 pt-32 md:pt-36 max-w-5xl mx-auto">
+            <div className="p-6 max-w-5xl mx-auto">
                 <Link to={`/parent/child/${studentId}/course/${courseId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 mb-6 transition-colors">
                     <SafeIcon icon={FiArrowLeft} /> Back to Difficulty
                 </Link>
@@ -666,7 +666,7 @@ const DetailedTestReport = () => {
 
     return (
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 pb-12">
-            <div className="px-6 pb-6 pt-32 md:pt-36 max-w-7xl mx-auto space-y-8">
+            <div className="p-6 max-w-7xl mx-auto space-y-8">
                 <div className="flex justify-between items-center">
                     <Link to={`/parent/child/${studentId}/course/${courseId}/difficulty/${difficultyId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 transition-colors font-bold uppercase tracking-wider">
                         <SafeIcon icon={FiArrowLeft} /> Back to List
@@ -795,7 +795,7 @@ const ChildTestHistory = () => {
 
     return (
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 pb-12">
-            <div className="px-8 pb-8 pt-32 md:pt-36 max-w-6xl mx-auto space-y-10">
+            <div className="p-8 max-w-6xl mx-auto space-y-10">
                 <Link to={`/parent/child/${studentId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 transition-colors font-bold uppercase tracking-wider">
                     <SafeIcon icon={FiArrowLeft} /> Return to Report
                 </Link>
@@ -879,7 +879,13 @@ const ParentDashboard = () => {
                     </button>
                 </div>
             </header>
-            <main className="flex-1 overflow-auto bg-[#FAFAFA] dark:bg-gray-900">
+            <main className="flex-1 overflow-auto bg-[#FAFAFA] dark:bg-gray-900 flex flex-col relative">
+                {/* Scrolling Announcement / Marquee Bar */}
+                <div className="mx-auto mt-4 mb-2 max-w-5xl w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 shadow-sm px-4">
+                    <div className="animate-marquee whitespace-nowrap text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold tracking-wide">
+                        “Certain instructional materials and practice content used by our tutors may include officially licensed or authorized resources from the College Board. All copyrights and trademarks related to such materials remain the property of their respective owners and are used solely for educational purposes.”
+                    </div>
+                </div>
                 <AnimatePresence mode="wait">
                     <Routes>
                         <Route path="/" element={<ChildrenOverview />} />

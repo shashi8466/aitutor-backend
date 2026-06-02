@@ -190,7 +190,10 @@ const NotificationCard = ({ n, handleAction, userRole, isModal = false }) => {
                 <div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-0.5">
                         <h4 className="font-bold text-slate-900 dark:text-white text-sm">
-                            {n.payload?.courseName ? `Test Completed: ${n.payload.courseName}` : 'Test Completed'}
+                            {userRole === 'parent' 
+                                ? `${n.payload?.studentName || 'Student'} Completed: ${n.payload?.courseName || 'Test'}` 
+                                : (n.payload?.courseName ? `Test Completed: ${n.payload.courseName}` : 'Test Completed')
+                            }
                         </h4>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter">
                             <SafeIcon icon={FiClock} className="w-3 h-3" />

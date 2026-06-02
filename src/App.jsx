@@ -305,7 +305,8 @@ const App = () => {
                       location.pathname.startsWith('/forgot-password') || 
                       location.pathname.startsWith('/reset-password');
   const isHomeRoute = location.pathname === '/';
-  const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isAuthRoute && !isHomeRoute && !isDemoRoute;
+  const isParentRoute = location.pathname.startsWith('/parent');
+  const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isParentRoute && !isAuthRoute && !isHomeRoute && !isDemoRoute;
 
   return (
     <div className="app-container">
