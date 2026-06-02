@@ -71,9 +71,6 @@ const AIPrep365LandingPage = () => {
                   <span className="text-white font-black italic text-[10px] md:text-xs tracking-tighter">AI</span>
                 </div>
               )}
-              <div className="text-xl md:text-2xl font-black tracking-tight text-white flex items-center">
-                {settings.appName === 'Aiprep365' || settings.appName === 'AIPrep365' || !settings.appName ? <BrandName /> : settings.appName}
-              </div>
             </Link>
           </div>
 
