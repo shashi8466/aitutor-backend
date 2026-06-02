@@ -17,8 +17,8 @@ const Signup = () => {
     password: '',
     role: 'student',
     mobile: '',
-    fatherName: '',
-    fatherMobile: '',
+    parentName: '',
+    parentMobile: '',
     parentEmail: ''
   });
 
@@ -867,13 +867,13 @@ const Signup = () => {
                   <SafeIcon icon={FiUser} className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="fatherName"
-                  name="fatherName"
+                  id="parentName"
+                  name="parentName"
                   type="text"
                   required
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="Parent Name"
-                  value={formData.fatherName}
+                  value={formData.parentName}
                   onChange={handleChange}
                 />
               </div>
@@ -1000,12 +1000,12 @@ const Signup = () => {
                   <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="fatherMobile"
-                  name="fatherMobile"
+                  id="parentMobile"
+                  name="parentMobile"
                   type="tel"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="+1234567890"
-                  value={formData.fatherMobile}
+                  value={formData.parentMobile}
                   onChange={handleChange}
                 />
               </div>
@@ -1076,7 +1076,7 @@ const Signup = () => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
-              disabled={loading || redirecting || !termsAccepted || !studentEmailOtpVerified || !parentEmailOtpVerified || formData.name.trim() === '' || formData.email.trim() === '' || formData.fatherName.trim() === '' || formData.password.length < 6}
+              disabled={loading || redirecting || !termsAccepted || !studentEmailOtpVerified || !parentEmailOtpVerified || formData.name.trim() === '' || formData.email.trim() === '' || formData.parentName.trim() === '' || formData.password.length < 6}
               className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white transition-all shadow-red-200 dark:shadow-none ${redirecting ? 'bg-green-600' : 'bg-[#E53935] hover:bg-[#d32f2f]'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {redirecting ? (

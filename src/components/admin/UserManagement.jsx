@@ -17,6 +17,7 @@ const UserManagement = () => {
   const [error, setError] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showManageModal, setShowManageModal] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
   const [planFilter, setPlanFilter] = useState('All');
@@ -85,6 +86,20 @@ const UserManagement = () => {
     }
   };
 
+  // Open modal: always fetch fresh full profile to guarantee parent data is present
+  const openManageModal = async (user) => {
+    setSelectedUser(user); // show modal immediately with cached data
+    setShowManageModal(true);
+    setModalLoading(true);
+    try {
+      const freshProfile = await authService.getFullProfile(user.id);
+      if (freshProfile) setSelectedUser(freshProfile);
+    } catch (err) {
+      console.warn('⚠️ Could not fetch fresh profile, using cached data:', err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   const toggleCourseAssignment = async (courseId) => {
     if (!selectedUser) return;
@@ -326,7 +341,7 @@ const UserManagement = () => {
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-right">
                     <button
-                      onClick={() => { setSelectedUser(user); setShowManageModal(true); }}
+                      onClick={() => openManageModal(user)}
                       className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
                     >
                       <SafeIcon icon={FiSettings} className="w-5 h-5" />
@@ -362,7 +377,10 @@ const UserManagement = () => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tighter leading-none">{selectedUser.name}</h3>
-                    <p className="text-sm font-bold text-gray-500 mt-1 uppercase tracking-widest">{selectedUser.role} Configuration</p>
+                    <p className="text-sm font-bold text-gray-500 mt-1 uppercase tracking-widest flex items-center gap-2">
+                      {selectedUser.role} Configuration
+                      {modalLoading && <span className="text-[10px] font-bold text-blue-400 normal-case tracking-normal animate-pulse">Loading details…</span>}
+                    </p>
                   </div>
                 </div>
                 <button onClick={() => setShowManageModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
@@ -375,16 +393,17 @@ const UserManagement = () => {
                 <div className="space-y-4">
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Contact Information</h4>
                   <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800">
-                    <div className="space-y-1">
-                      <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Phone Number (SMS/WhatsApp)</label>
+                  <div className="space-y-1">
+                      <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Student Mobile Number (SMS/WhatsApp)</label>
                       <input 
                         type="text"
                         placeholder="+1234567890"
-                        defaultValue={selectedUser.mobile || ''}
+                        value={selectedUser.mobile || ''}
+                        onChange={(e) => setSelectedUser(prev => ({ ...prev, mobile: e.target.value }))}
                         onBlur={(e) => handleUpdateUser(selectedUser.id, { mobile: e.target.value })}
                         className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300"
                       />
-                      <p className="text-[10px] text-gray-400 font-medium mt-1 italic">Use international format starting with + (e.g. +919000000000)</p>
+                      <p className="text-[10px] text-gray-400 font-medium mt-1 italic">This number is entered by the student during signup and is displayed here for admin reference.</p>
                     </div>
                   </div>
                 </div>
@@ -398,8 +417,9 @@ const UserManagement = () => {
                         <input 
                           type="text"
                           placeholder="Parent Name"
-                          defaultValue={selectedUser.father_name || ''}
-                          onBlur={(e) => handleUpdateUser(selectedUser.id, { father_name: e.target.value })}
+                          value={selectedUser.parentName || ''}
+                          onChange={(e) => setSelectedUser(prev => ({ ...prev, parentName: e.target.value }))}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { parentName: e.target.value })}
                           className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
                         />
                       </div>
@@ -408,18 +428,20 @@ const UserManagement = () => {
                         <input 
                           type="email"
                           placeholder="parent@example.com"
-                          defaultValue={selectedUser.parent_email || ''}
-                          onBlur={(e) => handleUpdateUser(selectedUser.id, { parent_email: e.target.value })}
+                          value={selectedUser.parentEmail || ''}
+                          onChange={(e) => setSelectedUser(prev => ({ ...prev, parentEmail: e.target.value }))}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { parentEmail: e.target.value })}
                           className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Mobile</label>
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Mobile Number</label>
                         <input 
                           type="text"
                           placeholder="+1234567890"
-                          defaultValue={selectedUser.father_mobile || ''}
-                          onBlur={(e) => handleUpdateUser(selectedUser.id, { father_mobile: e.target.value })}
+                          value={selectedUser.parentMobile || ''}
+                          onChange={(e) => setSelectedUser(prev => ({ ...prev, parentMobile: e.target.value }))}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { parentMobile: e.target.value })}
                           className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
                         />
                       </div>

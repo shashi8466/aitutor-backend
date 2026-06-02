@@ -264,4 +264,88 @@ router.delete('/user/:userId', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/auth/profile/:userId
+ * Fetch a user's full profile (admin client bypasses RLS) — used by the Admin user detail modal.
+ */
+router.get('/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const callerUser = await getUserFromRequest(req);
+    if (!callerUser) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    // Only allow admin to fetch any profile, or the user themselves
+    const { data: callerProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', callerUser.id).single();
+    const isAdmin = callerProfile?.role === 'admin';
+    if (!isAdmin && callerUser.id !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email,assigned_courses')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, profile: data });
+  } catch (error) {
+    console.error('❌ [profile/:userId] Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/auth/save-profile
+ * Called during signup to save profile (including parent data) using admin client to bypass RLS.
+ * Accepts the user's own JWT to verify identity.
+ */
+router.post('/save-profile', async (req, res) => {
+  try {
+    const { userId, name, role, mobile, parentName, parentMobile, parentEmail } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId is required' });
+    }
+
+    // Verify the caller is who they claim to be
+    const callerUser = await getUserFromRequest(req);
+    if (!callerUser || callerUser.id !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const normalizedRole = (role || 'student').toString().trim().toLowerCase();
+    const initialStatus = (normalizedRole === 'admin' || normalizedRole === 'tutor') ? 'pending' : 'active';
+
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .upsert({
+        id: userId,
+        email: callerUser.email,
+        name: name || 'Student',
+        role: normalizedRole,
+        mobile: mobile || null,
+        father_name: parentName || null,
+        father_mobile: parentMobile || null,
+        parent_email: parentEmail || null,
+        status: initialStatus,
+        plan_type: 'free',
+        plan_status: 'active',
+        payment_status: 'unpaid'
+      }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('❌ [save-profile] Upsert error:', error.message);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    console.log('✅ [save-profile] Profile saved for:', callerUser.email, '| parent:', parentName);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ [save-profile] Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
+

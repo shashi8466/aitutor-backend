@@ -59,7 +59,7 @@ export const authService = {
       return { success: false, error: error.message };
     }
   },
-  signup: async ({ email, password, name, role, mobile, fatherName, fatherMobile, parentEmail }) => {
+  signup: async ({ email, password, name, role, mobile, parentName, parentMobile, parentEmail }) => {
     try {
       console.log('🔄 [SIGNUP] Starting signup for:', email);
       
@@ -72,8 +72,12 @@ export const authService = {
             name,
             role,
             mobile,
-            father_name: fatherName,
-            father_mobile: fatherMobile,
+            parentName,
+            parentMobile,
+            parentEmail,
+            // Backwards compatibility for the Postgres trigger
+            father_name: parentName,
+            father_mobile: parentMobile,
             parent_email: parentEmail
           }
         }
@@ -90,7 +94,7 @@ export const authService = {
       // Background tasks run separately without blocking signup
       if (data.user) {
         // Run background tasks asynchronously without awaiting
-        authService._runSignupBackgroundTasks(data.user, { email, name, role, mobile, fatherName, fatherMobile, parentEmail });
+        authService._runSignupBackgroundTasks(data.user, { email, name, role, mobile, parentName, parentMobile, parentEmail });
       }
 
       return { success: true, session: data.session, user: data.user };
@@ -109,34 +113,33 @@ export const authService = {
     console.log('🎯 [BACKGROUND] Starting background tasks for:', userName, '<', userData.email, '>');
 
     try {
-      // Task 1: Profile upsert - CRITICAL for dashboard name display
+      // Task 1: Profile save via backend (bypasses RLS which blocks client-side upserts)
       try {
-        console.log('📝 [BACKGROUND] Upserting profile...');
-        
-        // Determine initial status based on role
-        // Admin and Tutor roles require manual approval
-        const initialStatus = (normalizedRole === 'admin' || normalizedRole === 'tutor') ? 'pending' : 'active';
-        
-        await supabase
-          .from('profiles')
-          .upsert({
-            id: userId,
-            email: userData.email,
+        console.log('📝 [BACKGROUND] Saving profile via backend endpoint...');
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+
+        if (accessToken) {
+          await axios.post('/api/auth/save-profile', {
+            userId,
             name: userName,
             role: normalizedRole,
             mobile: userData.mobile || null,
-            father_name: userData.fatherName || null,
-            father_mobile: userData.fatherMobile || null,
-            parent_email: userData.parentEmail || null,
-            status: initialStatus,
-            plan_type: 'free',
-            plan_status: 'active',
-            payment_status: 'unpaid'
-          }, { onConflict: 'id' });
-        console.log('✅ [BACKGROUND] Profile upserted successfully with status:', initialStatus);
+            parentName: userData.parentName || null,
+            parentMobile: userData.parentMobile || null,
+            parentEmail: userData.parentEmail || null,
+          }, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            timeout: 8000
+          });
+          console.log('✅ [BACKGROUND] Profile saved via backend endpoint');
+        } else {
+          console.warn('⚠️ [BACKGROUND] No access token available for save-profile call');
+        }
       } catch (profileError) {
-        console.error('⚠️ [BACKGROUND] Profile upsert failed:', profileError?.message);
+        console.error('⚠️ [BACKGROUND] Profile save via backend failed:', profileError?.response?.data || profileError?.message);
       }
+
 
       // Task 2: Welcome email queue (best-effort)
       try {
@@ -309,11 +312,52 @@ export const authService = {
       const { data, error } = await query.range(offset, offset + limit - 1);
 
       if (error) throw error;
-      return { data };
+      
+      const mappedData = (data || []).map(p => ({
+        ...p,
+        parentName: p.father_name || p.parentName,
+        parentMobile: p.father_mobile || p.parentMobile,
+        parentEmail: p.parent_email || p.parentEmail,
+      }));
+      return { data: mappedData };
     } catch (error) {
       console.error('💥 [api] getAllProfiles error:', error.message);
       throw error;
     }
+  },
+
+  // Fetch a SINGLE user's full profile via the admin backend (bypasses RLS, always fresh)
+  getFullProfile: async (userId) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+      const response = await axios.get(`/api/auth/profile/${userId}`, { headers, timeout: 8000 });
+      if (response.data?.success) {
+        const p = response.data.profile;
+        return {
+          ...p,
+          parentName: p.father_name || p.parentName,
+          parentMobile: p.father_mobile || p.parentMobile,
+          parentEmail: p.parent_email || p.parentEmail,
+        };
+      }
+    } catch (err) {
+      console.warn('⚠️ [getFullProfile] Falling back to client query:', err?.message);
+    }
+    // Fallback: direct client query
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email,assigned_courses')
+      .eq('id', userId)
+      .single();
+    if (error) throw error;
+    return {
+      ...data,
+      parentName: data.father_name || null,
+      parentMobile: data.father_mobile || null,
+      parentEmail: data.parent_email || null,
+    };
   },
 
   // EFFICIENT: Fetch only specific role (Student/Parent/Tutor)
@@ -330,13 +374,33 @@ export const authService = {
     }
   },
   updateProfile: async (userId, updates) => {
+    const dbUpdates = { ...updates };
+    if ('parentName' in dbUpdates) {
+      dbUpdates.father_name = dbUpdates.parentName;
+      delete dbUpdates.parentName;
+    }
+    if ('parentMobile' in dbUpdates) {
+      dbUpdates.father_mobile = dbUpdates.parentMobile;
+      delete dbUpdates.parentMobile;
+    }
+    if ('parentEmail' in dbUpdates) {
+      dbUpdates.parent_email = dbUpdates.parentEmail;
+      delete dbUpdates.parentEmail;
+    }
+
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', userId)
       .select('*')
       .maybeSingle();
     if (error) throw error;
+    
+    if (data) {
+      data.parentName = data.father_name;
+      data.parentMobile = data.father_mobile;
+      data.parentEmail = data.parent_email;
+    }
     return { data };
   },
   updateEmail: async (userId, newEmail) => {
