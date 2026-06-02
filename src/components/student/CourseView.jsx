@@ -10,7 +10,7 @@ import { getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 
 const { FiArrowLeft, FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiTrendingUp, FiInfo, FiKey, FiAlertCircle, FiLoader, FiTarget } = FiIcons;
 
-const AP_TAXONOMY = {
+const SEQUENTIAL_TAXONOMY = {
   'AP Biology': {
     'Unit 1: Chemistry of Life': [
       'Structure of Water and Hydrogen Bonding',
@@ -235,7 +235,37 @@ const AP_TAXONOMY = {
     'Unit 7: Period 7 (1890-1945)',
     'Unit 8: Period 8 (1945-1980)',
     'Unit 9: Period 9 (1980-Present)'
-  ]
+  ],
+  'ACT Math': {
+    'Unit 1 - Tips, Techniques, and Strategies': ['Pick Your Own Numbers', 'Solving Backwards'],
+    'Unit 2 - Pre-Algebra': ['Integers', 'Digits', 'Even & Odd', 'Positives, Negatives, and Zero', 'Fractions', 'Divisibility, Factors & Multiples', 'Prime Numbers', 'Combinations', 'Permutations & Probabilities', 'Percents'],
+    'Unit 3 - Elementary Algebra': ['Translation', 'Roots & Exponents', 'Solve for the Whole Expression', 'Ratios & Proportions', 'Rates', 'Mean, Median, and Mode'],
+    'Unit 4 - Plane Geometry': ['Related Angles', 'Triangles', 'Circles', 'Polygons'],
+    'Unit 5 - Intermediate Algebra': ['F.O.I.L. & Factor', 'Absolute Value', 'Inequalities', 'Matrices', 'Sequences'],
+    'Unit 6 - Functions': ['Functions', 'Linear Equations', 'Function Tables', 'Funky Function Symbols', 'Real Life Functions', 'Quadratic Functions', 'Squiggly Functions'],
+    'Unit 7 - Coordinate Geometry': ['Distances & Midpoints', 'Shapes on a Coordinate Plane', 'Circles & Ellipses'],
+    'Unit 8 - Trigonometry & Logarithms': ['Trigonometry', 'Logarithms', 'Complex Numbers']
+  },
+  'ACT English': {
+    'Unit 1 - Grammar & Punctuation': ['Parts of Speech', 'Adjectives vs. Adverbs', 'Possessive, Plural, and Contraction'],
+    'Unit 2 - Sentence Structure': ['Sentences & Fragments', 'Run-On Sentences', 'Colons, Dashes, and Semicolons'],
+    'Unit 3 - Usage & Mechanics (Part 1)': ['Subject Verb Agreement', 'Verb Tense', 'Pronoun Errors', 'Comparative vs. Superlative'],
+    'Unit 4 - Rhetorical Skills (Part 1)': ['Redundancy & Wordiness', 'Transitions & Conclusions', 'Relevance: Adding & Removing Info'],
+    'Unit 5 - Usage & Mechanics (Part 2)': ['Parallelism', 'Misplaced Modifier'],
+    'Unit 6 - Rhetorical Skills (Part 2)': ['Move a Sentence or Paragraph', 'Writer\'s Goal']
+  },
+  'ACT Science': {
+    'Unit 1': ['Intro to ACT Science', 'Strategy & Tips for ACT Science', 'Assigned', 'Graphs & Tables'],
+    'Unit 2': ['Data Representation'],
+    'Unit 3': ['Research Summary'],
+    'Unit 4': ['Conflicting Viewpoints']
+  },
+  'ACT Reading': {
+    'Unit 1': ['Reading Introduction', 'Active Reading', 'General Strategy'],
+    'Unit 2': ['Local vs. Global', 'Common Trap Answers'],
+    'Unit 3': ['Direct & Indirect Questions', 'Advanced Strategies'],
+    'Unit 4': ['Paired Reading Passages', 'Advanced Strategy for Paired Passages']
+  }
 };
 
 const CourseView = () => {
@@ -450,16 +480,16 @@ const CourseView = () => {
     return { passed: p.passed, score: p.score };
   };
 
-  const getApMaterials = (levelName) => {
+  const getSeqMaterials = (levelName) => {
     const study = uploads.find(u => u.level.toLowerCase() === levelName.toLowerCase() && u.category === 'study_material');
     const video = uploads.find(u => u.level.toLowerCase() === levelName.toLowerCase() && u.category === 'video_lecture');
     const quiz = uploads.find(u => u.level.toLowerCase() === levelName.toLowerCase() && u.category === 'quiz_document');
     return { study, video, quiz };
   };
 
-  const isApUnitPassed = (unitName) => {
-    const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || {};
-    const subtopics = !Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry[unitName] || [] : [];
+  const isSeqUnitPassed = (unitName) => {
+    const seqTaxonomyEntry = SEQUENTIAL_TAXONOMY[course?.tutor_type] || {};
+    const subtopics = !Array.isArray(seqTaxonomyEntry) ? seqTaxonomyEntry[unitName] || [] : [];
     
     if (subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName)) {
       return subtopics.every(subtopic => {
@@ -472,9 +502,9 @@ const CourseView = () => {
     return !!(p && p.score >= 40);
   };
 
-  const getApUnitScore = (unitName) => {
-    const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || {};
-    const subtopics = !Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry[unitName] || [] : [];
+  const getSeqUnitScore = (unitName) => {
+    const seqTaxonomyEntry = SEQUENTIAL_TAXONOMY[course?.tutor_type] || {};
+    const subtopics = !Array.isArray(seqTaxonomyEntry) ? seqTaxonomyEntry[unitName] || [] : [];
     
     if (subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName)) {
       let total = 0;
@@ -493,13 +523,13 @@ const CourseView = () => {
     return p ? p.score : null;
   };
 
-  const isApUnitUnlocked = (unitName, index) => {
+  const isSeqUnitUnlocked = (unitName, index) => {
     if (index === 0) return true;
-    const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || [];
-    const apUnitsList = Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry : Object.keys(apTaxonomyEntry);
-    const prevUnitName = apUnitsList[index - 1];
+    const seqTaxonomyEntry = SEQUENTIAL_TAXONOMY[course?.tutor_type] || [];
+    const seqUnitsList = Array.isArray(seqTaxonomyEntry) ? seqTaxonomyEntry : Object.keys(seqTaxonomyEntry);
+    const prevUnitName = seqUnitsList[index - 1];
     if (!prevUnitName) return false;
-    return isApUnitPassed(prevUnitName);
+    return isSeqUnitPassed(prevUnitName);
   };
 
   // Course-level SAT section score using the weighted Easy/Medium/Hard formula.
@@ -536,15 +566,15 @@ const CourseView = () => {
   };
 
   const levels = ['Easy', 'Medium', 'Hard'];
-  const isApCourse = course?.main_category?.toUpperCase() === 'AP';
-  const apTaxonomyEntry = isApCourse ? (AP_TAXONOMY[course?.tutor_type] || []) : [];
-  const apUnits = Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry : Object.keys(apTaxonomyEntry);
-  const completedApUnits = isApCourse ? apUnits.filter(u => isApUnitPassed(u)).length : 0;
-  const progressPercent = isApCourse && apUnits.length > 0 ? Math.round((completedApUnits / apUnits.length) * 100) : 0;
+  const isSequentialCourse = ['AP', 'ACT'].includes(course?.main_category?.toUpperCase());
+  const seqTaxonomyEntry = isSequentialCourse ? (SEQUENTIAL_TAXONOMY[course?.tutor_type] || []) : [];
+  const seqUnits = Array.isArray(seqTaxonomyEntry) ? seqTaxonomyEntry : Object.keys(seqTaxonomyEntry);
+  const completedSeqUnits = isSequentialCourse ? seqUnits.filter(u => isSeqUnitPassed(u)).length : 0;
+  const progressPercent = isSequentialCourse && seqUnits.length > 0 ? Math.round((completedSeqUnits / seqUnits.length) * 100) : 0;
 
   const passedLevels = courseProgress.filter(p => levels.includes(p.level) && p.passed);
   const uniquePassed = new Set(passedLevels.map(p => p.level));
-  const isCourseCompleted = isApCourse ? (completedApUnits === apUnits.length && apUnits.length > 0) : uniquePassed.size === 3;
+  const isCourseCompleted = isSequentialCourse ? (completedSeqUnits === seqUnits.length && seqUnits.length > 0) : uniquePassed.size === 3;
 
   const scoreData = getScoreDisplay();
 
@@ -790,16 +820,16 @@ const CourseView = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-10 text-center px-4 sm:px-0">
           <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">
-            <span className={isApCourse ? "text-indigo-600" : "text-[#E53935]"}>{course.name}</span>
+            <span className={isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>{course.name}</span>
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
-            {isApCourse 
+            {isSequentialCourse 
               ? "Complete each unit's quiz with ≥40% to unlock the next unit."
               : "Complete each level to unlock the next difficulty."}
           </p>
         </div>
 
-        {isApCourse ? (
+        {isSequentialCourse ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -812,9 +842,13 @@ const CourseView = () => {
                 </div>
               )}
 
-              <div className="flex flex-col items-center gap-2 mb-4">
-                <span className="text-indigo-300 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">Course Completion Progress</span>
-                <h3 className="text-2xl sm:text-3xl font-black">{completedApUnits} of {apUnits.length} Units Mastered</h3>
+              <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                  <h3 className="text-2xl sm:text-3xl font-black">{completedSeqUnits} of {seqUnits.length} Units Mastered</h3>
+                  <p className="text-indigo-100 font-medium mt-1">
+                    Your overall progress for {course.tutor_type}
+                  </p>
+                </div>
               </div>
 
               {/* Progress bar */}
@@ -956,17 +990,19 @@ const CourseView = () => {
               </div>
             </div>
           </div>
-        ) : isApCourse ? (
+        ) : isSequentialCourse ? (
           <div className="space-y-6">
-            {apUnits.map((unitName, index) => {
-              const unlocked = isApUnitUnlocked(unitName, index);
-              const passed = isApUnitPassed(unitName);
-              const score = getApUnitScore(unitName);
-              const { study, video, quiz } = getApMaterials(unitName);
+            {seqUnits.map((unitName, index) => {
+              const unlocked = isSeqUnitUnlocked(unitName, index);
+              const passed = isSeqUnitPassed(unitName);
+              const score = getSeqUnitScore(unitName);
+              const { study, video, quiz } = getSeqMaterials(unitName);
 
-              const apTaxonomyEntry = AP_TAXONOMY[course?.tutor_type] || {};
-              const subtopics = !Array.isArray(apTaxonomyEntry) ? apTaxonomyEntry[unitName] || [] : [];
-              const hasSubtopics = subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName);
+              const seqTaxonomyEntry = SEQUENTIAL_TAXONOMY[course?.tutor_type] || {};
+              const subtopics = !Array.isArray(seqTaxonomyEntry) ? seqTaxonomyEntry[unitName] || [] : [];
+              const isSubtopicLevel = subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName);
+              
+              const isExpanded = expandedUnit === unitName;
 
               return (
                 <motion.div
@@ -987,10 +1023,10 @@ const CourseView = () => {
                   )}
 
                   <div 
-                    className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${hasSubtopics ? (unlocked ? 'cursor-pointer' : '') : ''} ${unlocked && !hasSubtopics ? 'border-b border-slate-50 dark:border-slate-800/60 pb-4 mb-4' : ''}`}
+                    className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${isSubtopicLevel ? (unlocked ? 'cursor-pointer' : '') : ''} ${unlocked && !isSubtopicLevel ? 'border-b border-slate-50 dark:border-slate-800/60 pb-4 mb-4' : ''}`}
                     onClick={() => {
-                      if (hasSubtopics && unlocked) {
-                        setExpandedUnit(expandedUnit === unitName ? null : unitName);
+                      if (isSubtopicLevel && unlocked) {
+                        setExpandedUnit(isExpanded ? null : unitName);
                       }
                     }}
                   >
@@ -1001,12 +1037,12 @@ const CourseView = () => {
                       <div>
                         <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                           {unitName}
-                          {hasSubtopics && (
-                            <SafeIcon icon={expandedUnit === unitName ? FiIcons.FiChevronUp : FiIcons.FiChevronDown} className="w-5 h-5 text-slate-400" />
+                          {isSubtopicLevel && (
+                            <SafeIcon icon={isExpanded ? FiIcons.FiChevronUp : FiIcons.FiChevronDown} className="w-5 h-5 text-slate-400" />
                           )}
                         </h3>
                         <p className="text-xs text-slate-500 font-semibold uppercase mt-0.5 tracking-wider">
-                          AP Course Curriculum Unit
+                          Course Curriculum Unit
                         </p>
                       </div>
                     </div>
@@ -1023,19 +1059,20 @@ const CourseView = () => {
 
                   {unlocked && (
                     <div className="space-y-4">
-                      {hasSubtopics ? (
-                        expandedUnit === unitName && (
+                      {isSubtopicLevel ? (
+                        isExpanded && (
                           <div className="flex flex-col gap-3 mt-4 border-t border-slate-50 dark:border-slate-800/60 pt-4">
                             {subtopics.map((subtopic, subIdx) => {
-                              const subPassed = isApUnitPassed(subtopic);
-                              const isExpanded = expandedSubtopic === subtopic;
-                              const { study: subStudy, video: subVideo, quiz: subQuiz } = getApMaterials(subtopic);
+                              const subPassed = isSeqUnitPassed(subtopic);
+                              const subScore = getSeqUnitScore(subtopic);
+                              const isSubExpanded = expandedSubtopic === subtopic;
+                              const { study: subStudy, video: subVideo, quiz: subQuiz } = getSeqMaterials(subtopic);
                               
                               return (
                                 <div key={subtopic} className="bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800 p-4 transition-all">
                                   <div 
                                     className="flex items-center justify-between cursor-pointer"
-                                    onClick={() => setExpandedSubtopic(isExpanded ? null : subtopic)}
+                                    onClick={() => setExpandedSubtopic(isSubExpanded ? null : subtopic)}
                                   >
                                     <div className="flex items-center gap-3">
                                       <span className="text-sm font-bold text-slate-500">{index + 1}.{subIdx + 1}</span>

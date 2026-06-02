@@ -26,7 +26,7 @@ const StudentCourseList = () => {
 
   const COURSE_CATEGORIES = {
     'SAT': ['SAT Math', 'SAT Reading & Writing', 'FULL LENGTH TEST'],
-    'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
+    'ACT': ['ACT Math', 'ACT English', 'ACT Science', 'ACT Reading'],
     'AP': [
       'AP Biology',
       'AP Calculus AB',
@@ -91,6 +91,36 @@ const StudentCourseList = () => {
         'Transitions',
         'Rhetorical Synthesis'
       ]
+    },
+    'ACT Math': {
+      'Unit 1 - Tips, Techniques, and Strategies': ['Pick Your Own Numbers', 'Solving Backwards'],
+      'Unit 2 - Pre-Algebra': ['Integers', 'Digits', 'Even & Odd', 'Positives, Negatives, and Zero', 'Fractions', 'Divisibility, Factors & Multiples', 'Prime Numbers', 'Combinations', 'Permutations & Probabilities', 'Percents'],
+      'Unit 3 - Elementary Algebra': ['Translation', 'Roots & Exponents', 'Solve for the Whole Expression', 'Ratios & Proportions', 'Rates', 'Mean, Median, and Mode'],
+      'Unit 4 - Plane Geometry': ['Related Angles', 'Triangles', 'Circles', 'Polygons'],
+      'Unit 5 - Intermediate Algebra': ['F.O.I.L. & Factor', 'Absolute Value', 'Inequalities', 'Matrices', 'Sequences'],
+      'Unit 6 - Functions': ['Functions', 'Linear Equations', 'Function Tables', 'Funky Function Symbols', 'Real Life Functions', 'Quadratic Functions', 'Squiggly Functions'],
+      'Unit 7 - Coordinate Geometry': ['Distances & Midpoints', 'Shapes on a Coordinate Plane', 'Circles & Ellipses'],
+      'Unit 8 - Trigonometry & Logarithms': ['Trigonometry', 'Logarithms', 'Complex Numbers']
+    },
+    'ACT English': {
+      'Unit 1 - Grammar & Punctuation': ['Parts of Speech', 'Adjectives vs. Adverbs', 'Possessive, Plural, and Contraction'],
+      'Unit 2 - Sentence Structure': ['Sentences & Fragments', 'Run-On Sentences', 'Colons, Dashes, and Semicolons'],
+      'Unit 3 - Usage & Mechanics (Part 1)': ['Subject Verb Agreement', 'Verb Tense', 'Pronoun Errors', 'Comparative vs. Superlative'],
+      'Unit 4 - Rhetorical Skills (Part 1)': ['Redundancy & Wordiness', 'Transitions & Conclusions', 'Relevance: Adding & Removing Info'],
+      'Unit 5 - Usage & Mechanics (Part 2)': ['Parallelism', 'Misplaced Modifier'],
+      'Unit 6 - Rhetorical Skills (Part 2)': ['Move a Sentence or Paragraph', 'Writer\'s Goal']
+    },
+    'ACT Science': {
+      'Unit 1': ['Intro to ACT Science', 'Strategy & Tips for ACT Science', 'Assigned', 'Graphs & Tables'],
+      'Unit 2': ['Data Representation'],
+      'Unit 3': ['Research Summary'],
+      'Unit 4': ['Conflicting Viewpoints']
+    },
+    'ACT Reading': {
+      'Unit 1': ['Reading Introduction', 'Active Reading', 'General Strategy'],
+      'Unit 2': ['Local vs. Global', 'Common Trap Answers'],
+      'Unit 3': ['Direct & Indirect Questions', 'Advanced Strategies'],
+      'Unit 4': ['Paired Reading Passages', 'Advanced Strategy for Paired Passages']
     }
   };
 

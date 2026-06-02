@@ -60,9 +60,131 @@ const TAXONOMY = {
     }
   },
   'ACT': {
-    'ACT Math': { 'General': ['General ACT Math'] },
-    'ACT English': { 'General': ['General ACT English'] },
-    'ACT Science': { 'General': ['General ACT Science'] }
+    'ACT Math': {
+      'Unit 1 - Tips, Techniques, and Strategies': [
+        'Pick Your Own Numbers',
+        'Solving Backwards'
+      ],
+      'Unit 2 - Pre-Algebra': [
+        'Integers',
+        'Digits',
+        'Even & Odd',
+        'Positives, Negatives, and Zero',
+        'Fractions',
+        'Divisibility, Factors & Multiples',
+        'Prime Numbers',
+        'Combinations',
+        'Permutations & Probabilities',
+        'Percents'
+      ],
+      'Unit 3 - Elementary Algebra': [
+        'Translation',
+        'Roots & Exponents',
+        'Solve for the Whole Expression',
+        'Ratios & Proportions',
+        'Rates',
+        'Mean, Median, and Mode'
+      ],
+      'Unit 4 - Plane Geometry': [
+        'Related Angles',
+        'Triangles',
+        'Circles',
+        'Polygons'
+      ],
+      'Unit 5 - Intermediate Algebra': [
+        'F.O.I.L. & Factor',
+        'Absolute Value',
+        'Inequalities',
+        'Matrices',
+        'Sequences'
+      ],
+      'Unit 6 - Functions': [
+        'Functions',
+        'Linear Equations',
+        'Function Tables',
+        'Funky Function Symbols',
+        'Real Life Functions',
+        'Quadratic Functions',
+        'Squiggly Functions'
+      ],
+      'Unit 7 - Coordinate Geometry': [
+        'Distances & Midpoints',
+        'Shapes on a Coordinate Plane',
+        'Circles & Ellipses'
+      ],
+      'Unit 8 - Trigonometry & Logarithms': [
+        'Trigonometry',
+        'Logarithms',
+        'Complex Numbers'
+      ]
+    },
+    'ACT English': {
+      'Unit 1 - Grammar & Punctuation': [
+        'Parts of Speech',
+        'Adjectives vs. Adverbs',
+        'Possessive, Plural, and Contraction'
+      ],
+      'Unit 2 - Sentence Structure': [
+        'Sentences & Fragments',
+        'Run-On Sentences',
+        'Colons, Dashes, and Semicolons'
+      ],
+      'Unit 3 - Usage & Mechanics (Part 1)': [
+        'Subject Verb Agreement',
+        'Verb Tense',
+        'Pronoun Errors',
+        'Comparative vs. Superlative'
+      ],
+      'Unit 4 - Rhetorical Skills (Part 1)': [
+        'Redundancy & Wordiness',
+        'Transitions & Conclusions',
+        'Relevance: Adding & Removing Info'
+      ],
+      'Unit 5 - Usage & Mechanics (Part 2)': [
+        'Parallelism',
+        'Misplaced Modifier'
+      ],
+      'Unit 6 - Rhetorical Skills (Part 2)': [
+        'Move a Sentence or Paragraph',
+        'Writer\'s Goal'
+      ]
+    },
+    'ACT Science': {
+      'Unit 1': [
+        'Intro to ACT Science',
+        'Strategy & Tips for ACT Science',
+        'Assigned',
+        'Graphs & Tables'
+      ],
+      'Unit 2': [
+        'Data Representation'
+      ],
+      'Unit 3': [
+        'Research Summary'
+      ],
+      'Unit 4': [
+        'Conflicting Viewpoints'
+      ]
+    },
+    'ACT Reading': {
+      'Unit 1': [
+        'Reading Introduction',
+        'Active Reading',
+        'General Strategy'
+      ],
+      'Unit 2': [
+        'Local vs. Global',
+        'Common Trap Answers'
+      ],
+      'Unit 3': [
+        'Direct & Indirect Questions',
+        'Advanced Strategies'
+      ],
+      'Unit 4': [
+        'Paired Reading Passages',
+        'Advanced Strategy for Paired Passages'
+      ]
+    }
   },
   'AP': {
     'AP Biology': {
@@ -582,8 +704,8 @@ const CourseForm = ({ course, onClose, onSave }) => {
           const lvlStr = key.substring(0, lastUnderscoreIndex); // e.g. "unit 1: chemistry of life" or "easy"
           const typeStr = key.substring(lastUnderscoreIndex + 1); // e.g. "study", "video", "quiz"
           
-          if (formData.main_category === 'AP') {
-            const units = Object.keys(TAXONOMY['AP']?.[formData.tutor_type] || {});
+          if (['AP', 'ACT'].includes(formData.main_category)) {
+            const units = Object.keys(TAXONOMY[formData.main_category]?.[formData.tutor_type] || {});
             const matchedUnit = units.find(u => u.toLowerCase() === lvlStr.toLowerCase());
             level = matchedUnit || lvlStr;
           } else {
@@ -703,7 +825,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
             {/* 4-Level Hierarchy Selection - EXACT MATCH TO DESIGN */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                {formData.main_category === 'AP' ? (
+                {['AP', 'ACT'].includes(formData.main_category) ? (
                   <>
                     {/* Level 1: Main Course */}
                     <div>
@@ -720,16 +842,16 @@ const CourseForm = ({ course, onClose, onSave }) => {
                       </select>
                     </div>
 
-                    {/* Level 2: AP Subject */}
+                    {/* Level 2: Subject */}
                     <div>
-                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">2. AP Subject</label>
+                      <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">2. Subject</label>
                       <select
                         name="tutor_type"
                         value={formData.tutor_type}
                         onChange={handleChange}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
                       >
-                        {Object.keys(TAXONOMY['AP'] || {}).map(sub => (
+                        {Object.keys(TAXONOMY[formData.main_category] || {}).map(sub => (
                           <option key={sub} value={sub}>{sub}</option>
                         ))}
                       </select>
@@ -746,7 +868,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white font-semibold transition-all"
                       >
                         {!formData.category && <option value="">Select Unit / Topic</option>}
-                        {Object.keys(TAXONOMY['AP']?.[formData.tutor_type] || {}).map(cat => (
+                        {Object.keys(TAXONOMY[formData.main_category]?.[formData.tutor_type] || {}).map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                       </select>
@@ -833,7 +955,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
                   />
                   <p className="text-[11px] text-gray-400 mt-2 flex items-center gap-1.5 italic">
                     <SafeIcon icon={FiIcons.FiZap} className="w-3.5 h-3.5 text-amber-500" />
-                    {formData.main_category === 'AP'
+                    {['AP', 'ACT'].includes(formData.main_category)
                       ? "This name is auto-populated by the selected Unit / Topic. You can edit it if needed."
                       : "This name is auto-populated by the selected Sub Topic. You can edit it if needed."}
                   </p>
@@ -1099,8 +1221,9 @@ const CourseForm = ({ course, onClose, onSave }) => {
               <h4 className="font-bold text-gray-900 dark:text-white text-xl">Course Materials</h4>
               {fetchingUploads ? (
                 <div className="text-gray-500">Loading files...</div>
-              ) : formData.main_category === 'AP' ? (
-                <APUploadSection
+              ) : ['AP', 'ACT'].includes(formData.main_category) ? (
+                <SequentialUploadSection
+                  mainCategory={formData.main_category}
                   tutorType={formData.tutor_type}
                   newFiles={newFiles}
                   existingFiles={existingFiles}
@@ -1227,14 +1350,14 @@ const LevelUploadSection = ({ level, color, icon, newFiles, existingFiles, onFil
   );
 };
 
-const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onDeleteExisting }) => {
-  const unitsMap = TAXONOMY['AP']?.[tutorType] || {};
+const SequentialUploadSection = ({ mainCategory, tutorType, newFiles, existingFiles, onFileChange, onDeleteExisting }) => {
+  const unitsMap = TAXONOMY[mainCategory]?.[tutorType] || {};
   const units = Object.keys(unitsMap);
 
   if (!tutorType || units.length === 0) {
     return (
       <div className="rounded-xl border p-6 bg-amber-50 border-amber-200 text-amber-900 text-center font-medium">
-        Please select an AP Sub Course (e.g. AP Biology) above to view and upload unit-by-unit materials.
+        Please select a Subject (e.g. {mainCategory === 'AP' ? 'AP Biology' : 'ACT Math'}) above to view and upload unit-by-unit materials.
       </div>
     );
   }
@@ -1305,7 +1428,7 @@ const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onD
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <FileUploadBox
                             id={subStudyKey}
-                            label="Study Guide PDF"
+                            label={`${mainCategory} Study Guide PDF`}
                             icon={FiFile}
                             accept=".pdf"
                             newFile={newFiles[subStudyKey]}
@@ -1315,7 +1438,7 @@ const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onD
                           />
                           <FileUploadBox
                             id={subVideoKey}
-                            label="Video MP4"
+                            label={`${mainCategory} Video MP4`}
                             icon={FiVideo}
                             accept=".mp4,.webm"
                             newFile={newFiles[subVideoKey]}
@@ -1325,7 +1448,7 @@ const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onD
                           />
                           <FileUploadBox
                             id={subQuizKey}
-                            label="Quiz File"
+                            label={`${mainCategory} Quiz File`}
                             icon={FiBook}
                             accept=".txt,.docx"
                             highlight
@@ -1351,7 +1474,7 @@ const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onD
                       <>
                         <FileUploadBox
                           id={unitStudyKey}
-                          label="AP Study Guide PDF Upload"
+                          label={`${mainCategory} Study Guide PDF`}
                           icon={FiFile}
                           accept=".pdf"
                           newFile={newFiles[unitStudyKey]}
@@ -1361,7 +1484,7 @@ const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onD
                         />
                         <FileUploadBox
                           id={unitVideoKey}
-                          label="AP Video MP4 Upload"
+                          label={`${mainCategory} Video MP4`}
                           icon={FiVideo}
                           accept=".mp4,.webm"
                           newFile={newFiles[unitVideoKey]}
@@ -1371,7 +1494,7 @@ const APUploadSection = ({ tutorType, newFiles, existingFiles, onFileChange, onD
                         />
                         <FileUploadBox
                           id={unitQuizKey}
-                          label="AP Quiz File Upload"
+                          label={`${mainCategory} Quiz File`}
                           icon={FiBook}
                           accept=".txt,.docx"
                           highlight

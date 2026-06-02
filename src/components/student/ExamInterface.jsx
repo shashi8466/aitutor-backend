@@ -22,14 +22,14 @@ const ExamInterface = () => {
 
   const [courseInfo, setCourseInfo] = useState(null);
 
-  const isAp = courseInfo?.main_category?.toUpperCase() === 'AP';
-  const maxModuleIndex = isAp ? 0 : 2;
+  const isSequential = ['AP', 'ACT'].includes(courseInfo?.main_category?.toUpperCase());
+  const maxModuleIndex = isSequential ? 0 : 2;
 
   let unitId = '';
   let unitName = '';
   let unitOrder = 0;
 
-  if (isAp && level) {
+  if (isSequential && level) {
     unitId = level; // e.g. "Unit 1: Chemistry of Life"
     const match = level.match(/(?:Unit|Topic)\s+(\d+)[:\s]+(.*)/i);
     if (match) {
@@ -101,8 +101,8 @@ const ExamInterface = () => {
 
   useEffect(() => {
     // Partition questions by level when allQuestions changes or activeModuleIndex changes
-    const isAp = courseInfo?.main_category?.toUpperCase() === 'AP';
-    const levels = isAp ? [level] : ['Easy', 'Medium', 'Hard'];
+    const isSequential = ['AP', 'ACT'].includes(courseInfo?.main_category?.toUpperCase());
+    const levels = isSequential ? [level] : ['Easy', 'Medium', 'Hard'];
     const currentLevel = levels[activeModuleIndex];
     if (allQuestions.length > 0) {
       const filtered = allQuestions.filter(q => (q.computedLevel || '').toLowerCase() === (currentLevel || '').toLowerCase());
@@ -117,7 +117,7 @@ const ExamInterface = () => {
       });
       
       let moduleDuration;
-      if (isAp) {
+      if (isSequential) {
         moduleDuration = filtered.length * 60;
       } else {
         const rate = hasMath ? 95 : 71;
@@ -146,8 +146,8 @@ const ExamInterface = () => {
       const cData = courseRes.data;
       setCourseInfo(cData);
 
-      const isAp = cData?.main_category?.toUpperCase() === 'AP';
-      const levelsToLoad = isAp ? [level] : ['Easy', 'Medium', 'Hard'];
+      const isSequential = ['AP', 'ACT'].includes(cData?.main_category?.toUpperCase());
+      const levelsToLoad = isSequential ? [level] : ['Easy', 'Medium', 'Hard'];
       let allTargetQuestions = [];
 
       // 1. First, try to find a single upload that covers ALL levels for this course
@@ -299,7 +299,7 @@ const ExamInterface = () => {
         const finalDuration = totalTime - timeLeft;
 
         // Calculate individual module scores for the UI and Email
-        const levels = isAp ? [level] : ['Easy', 'Medium', 'Hard'];
+        const levels = isSequential ? [level] : ['Easy', 'Medium', 'Hard'];
         const moduleScores = {};
         levels.forEach(lvl => {
             const moduleQs = allQuestions.filter(q => (q.computedLevel || '').toLowerCase() === (lvl || '').toLowerCase());
@@ -336,15 +336,8 @@ const ExamInterface = () => {
             }
         });
 
-        const response = await gradingService.submitTest({
-            courseId: parseInt(courseId),
-            level: isAp ? level : 'Hard', 
-            questionIds: finalQuestionIds,
-            answers: finalAnswers,
-            duration: finalDuration,
-            mode: 'test'
-        });
-
+        const isACTTest = (courseInfo?.tutor_type || '').toUpperCase().includes('ACT') || (courseInfo?.name || '').toUpperCase().includes('ACT');
+        
         const sectionName = detectSection(); // Returns 'Reading & Writing' or 'Math'
         const isRW = sectionName === 'Reading & Writing';
         
@@ -365,22 +358,105 @@ const ExamInterface = () => {
         const totalCorrect = fullResponses.filter(r => r.is_correct).length;
         const accuracyVal = Math.round((totalCorrect / allQuestions.length) * 100);
         
-        // Use backend score if present, else estimate
-        const finalTotalScore = response.data?.scaled_score || response.data?.score || Math.round(200 + (totalCorrect / allQuestions.length) * 600);
+        let finalResult = {};
+        let response;
 
-        const finalResult = {
-            ...response.data,
-            moduleScores,
-            course: courseInfo,
-            student_name: user?.name || user?.full_name || "Student",
-            responses: fullResponses,
-            rwScore: isRW ? finalTotalScore : 0,
-            mathScore: !isRW ? finalTotalScore : 0,
-            totalScore: finalTotalScore,
-            scaled_score: finalTotalScore,
-            accuracy: accuracyVal,
-            test_date: new Date().toISOString()
-        };
+        if (isACTTest && allQuestions.length >= 100) { // Full ACT Test is 171 questions
+            // Partition by ACT sections using topic/category/subject/text keywords
+            let englishQs = [], mathQs = [], readingQs = [], scienceQs = [];
+            
+            fullResponses.forEach(r => {
+                const textStr = ((r.topic || '') + ' ' + (r.category || '') + ' ' + (r.subject || '')).toLowerCase();
+                const qText = (r.question_text || '').toLowerCase();
+                
+                if (textStr.includes('math') || qText.includes('$') || qText.includes('\\')) {
+                    mathQs.push(r);
+                } else if (textStr.includes('science')) {
+                    scienceQs.push(r);
+                } else if (textStr.includes('read')) {
+                    readingQs.push(r);
+                } else {
+                    // Default to English if it's verbal but not explicitly Reading
+                    englishQs.push(r);
+                }
+            });
+
+            const englishCorrect = englishQs.filter(r => r.is_correct).length;
+            const mathCorrect = mathQs.filter(r => r.is_correct).length;
+            const readingCorrect = readingQs.filter(r => r.is_correct).length;
+            const scienceCorrect = scienceQs.filter(r => r.is_correct).length;
+
+            // Simple exact linear mapping (can be replaced by client tables)
+            const getActScaled = (correct, max) => Math.min(36, Math.max(1, Math.round((correct / max) * 35) + 1));
+            
+            const englishScaled = getActScaled(englishCorrect, 50);
+            const mathScaled = getActScaled(mathCorrect, 45);
+            const readingScaled = getActScaled(readingCorrect, 36);
+            const scienceScaled = getActScaled(scienceCorrect, 40);
+            
+            const composite = Math.round((englishScaled + mathScaled + readingScaled + scienceScaled) / 4);
+
+            const actScores = {
+                english: { raw: englishCorrect, max: englishQs.length || 50, scaled: englishScaled },
+                math: { raw: mathCorrect, max: mathQs.length || 45, scaled: mathScaled },
+                reading: { raw: readingCorrect, max: readingQs.length || 36, scaled: readingScaled },
+                science: { raw: scienceCorrect, max: scienceQs.length || 40, scaled: scienceScaled },
+                composite: composite
+            };
+
+            response = await gradingService.submitAdaptiveTest({
+                courseId: parseInt(courseId),
+                questionIds: finalQuestionIds,
+                answers: finalAnswers,
+                duration: finalDuration,
+                scores: {
+                    totalCorrect,
+                    accuracy: accuracyVal,
+                    actScores,
+                    totalScore: composite
+                }
+            });
+
+            finalResult = {
+                ...response.data,
+                moduleScores,
+                course: courseInfo,
+                student_name: user?.name || user?.full_name || "Student",
+                responses: fullResponses,
+                isACT: true,
+                actScores,
+                totalScore: composite,
+                scaled_score: composite,
+                accuracy: accuracyVal,
+                test_date: new Date().toISOString()
+            };
+        } else {
+            response = await gradingService.submitTest({
+                courseId: parseInt(courseId),
+                level: isSequential ? level : 'Hard', 
+                questionIds: finalQuestionIds,
+                answers: finalAnswers,
+                duration: finalDuration,
+                mode: 'test'
+            });
+
+            // Standard SAT Logic
+            const finalTotalScore = response.data?.scaled_score || response.data?.score || Math.round(200 + (totalCorrect / allQuestions.length) * 600);
+            
+            finalResult = {
+                ...response.data,
+                moduleScores,
+                course: courseInfo,
+                student_name: user?.name || user?.full_name || "Student",
+                responses: fullResponses,
+                rwScore: isRW ? finalTotalScore : 0,
+                mathScore: !isRW ? finalTotalScore : 0,
+                totalScore: finalTotalScore,
+                scaled_score: finalTotalScore,
+                accuracy: accuracyVal,
+                test_date: new Date().toISOString()
+            };
+        }
 
         setSubmissionResult(finalResult);
         setShowResults(true);
@@ -443,9 +519,9 @@ const ExamInterface = () => {
           <header className="bg-[#0f172a] px-10 h-[60px] flex items-center justify-between shadow-sm">
             <div className="flex flex-col">
               <h2 className="text-sm font-bold text-white">
-                {isAp ? `${unitId} Graded Quiz` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()}`}
+                {isSequential ? `${unitId} Graded Quiz` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()}`}
               </h2>
-              <span className="text-[11px] text-gray-400 font-semibold">{isAp ? "Review Unit Quiz" : "Review Section"}</span>
+              <span className="text-[11px] text-gray-400 font-semibold">{isSequential ? "Review Unit Quiz" : "Review Section"}</span>
             </div>
             <div className="flex flex-col items-center">
                 <div className="text-white font-black text-lg">
@@ -458,9 +534,9 @@ const ExamInterface = () => {
           <main className="flex-1 overflow-y-auto p-12 bg-white">
             <div className="max-w-4xl mx-auto w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden mb-8">
               <div className="p-10 border-b border-slate-100 bg-slate-50/50">
-                <h2 className="text-3xl font-black text-slate-900 mb-2">{isAp ? "Unit Quiz Review" : "Section Review"}</h2>
-                <p className="text-slate-500 font-medium">
-                  {isAp 
+                <h2 className="text-3xl font-black text-slate-900 mb-2">{isSequential ? "Unit Quiz Review" : "Section Review"}</h2>
+                <p className="text-slate-600 font-medium">
+                  {isSequential 
                     ? "Review your work before you finish this unit. You can click any question number to return to it." 
                     : "Review your work before you finish this section. You can click any question number to return to it."}
                 </p>
@@ -573,7 +649,7 @@ const ExamInterface = () => {
       <header>
         <div className="flex flex-col">
           <h2 className="text-[12px] sm:text-[15px] font-bold text-white leading-tight truncate max-w-[120px] sm:max-w-none">
-              {isAp ? `${unitId} Graded Quiz` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()}`}
+              {isSequential ? `${unitId} Graded Quiz` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()}`}
           </h2>
           <span className="text-[9px] sm:text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-2.5 h-2.5 sm:w-3 sm:h-3" /></span>
         </div>
@@ -614,7 +690,7 @@ const ExamInterface = () => {
         </div>
       </header>
 
-      {isAp ? (
+      {isSequential ? (
         <div className="practice-banner">AP CURRICULUM UNIT GRADED QUIZ</div>
       ) : (
         <div className="practice-banner">THIS IS A PRACTICE TEST</div>
@@ -707,7 +783,7 @@ const ExamInterface = () => {
                <div className="hidden sm:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 rotate-45"></div>
                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 w-full relative">
                   <span className="font-bold text-sm text-slate-900 w-full text-center">
-                      {isAp ? `${unitId} Questions` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()} Questions`}
+                      {isSequential ? `${unitId} Questions` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()} Questions`}
                   </span>
                   <SafeIcon icon={FiX} onClick={() => setShowNavigation(false)} className="cursor-pointer text-gray-400 absolute right-0 top-0" />
                </div>

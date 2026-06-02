@@ -83,6 +83,30 @@ export const calculateSatScore = (easy, medium, hard) => {
   return Math.round(finalScore);
 };
 
+// --- ACT SCORING ---
+
+// Note: Using linear proportional mapping for exact max scores (English: 50, Math: 45, Reading: 36, Science: 40).
+// Client: Swap these linear calculations with your exact conversion array tables if available.
+export const convertACTScore = (section, rawScore) => {
+  const MAX_RAW = {
+    english: 50,
+    math: 45,
+    reading: 36,
+    science: 40
+  };
+  
+  const max = MAX_RAW[section.toLowerCase()] || 36;
+  if (rawScore <= 0) return 1; // Minimum ACT score is 1
+  if (rawScore >= max) return 36;
+  
+  // Linear scaling from 1 to 36
+  return Math.round((rawScore / max) * 35) + 1;
+};
+
+export const calculateACTComposite = (english, math, reading, science) => {
+  return Math.round((english + math + reading + science) / 4);
+};
+
 export const calculateStudentScore = (progressData, diagnosticData, submissionsData = []) => {
   // 1. Establish Goals
   let target = 1500;

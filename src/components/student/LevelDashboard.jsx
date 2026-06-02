@@ -32,7 +32,7 @@ const LevelDashboard = () => {
         uploadService.getAll({ courseId }),
         courseService.getById(courseId)
       ]);
-      if (courseRes.data && courseRes.data.main_category?.toUpperCase() === 'AP') {
+      if (courseRes.data && ['AP', 'ACT'].includes(courseRes.data.main_category?.toUpperCase())) {
         navigate(`/student/course/${courseId}`);
         return;
       }
