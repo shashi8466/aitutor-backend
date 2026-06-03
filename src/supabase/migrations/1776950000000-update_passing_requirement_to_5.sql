@@ -62,26 +62,24 @@ BEGIN
     WHERE id = p_question_ids[v_index];
     
     v_answer := p_answers[v_index];
-    -- Support multiple accepted answers (JSON array, comma-separated, or pipe-separated)
+    -- Support multiple accepted answers (comma-separated or pipe-separated)
     v_is_correct := EXISTS (
-      SELECT 1 FROM (
-        SELECT LOWER(TRIM(a)) as accepted
-        FROM unnest(regexp_split_to_array(COALESCE(v_question.correct_answer, ''), '[,|]')) a
-        UNION
-        -- Parse safely by ensuring we only cast valid JSON arrays, otherwise returning empty jsonb array
-        SELECT LOWER(TRIM(val))
-        FROM (
-          SELECT jsonb_array_elements_text(
-            CASE 
-              WHEN COALESCE(v_question.correct_answer, '') ~ '^\\s*\\[.*\\]\\s*$' 
-              THEN v_question.correct_answer::jsonb 
-              ELSE '[]'::jsonb 
-            END
-          ) as val
-        ) j
-      ) all_accepted
-      WHERE accepted = LOWER(TRIM(COALESCE(v_answer, '')))
+      SELECT 1 FROM unnest(regexp_split_to_array(COALESCE(v_question.correct_answer, ''), '[,|]')) a
+      WHERE LOWER(TRIM(a)) = LOWER(TRIM(COALESCE(v_answer, '')))
     );
+    
+    -- If it looks like a JSON array, try parsing it as JSON safely inside a nested block
+    IF NOT v_is_correct AND COALESCE(v_question.correct_answer, '') ~ '^\s*\[.*\]\s*$' THEN
+      BEGIN
+        v_is_correct := EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(v_question.correct_answer::jsonb) val
+          WHERE LOWER(TRIM(val)) = LOWER(TRIM(COALESCE(v_answer, '')))
+        );
+      EXCEPTION WHEN OTHERS THEN
+        -- Safely ignore malformed JSON strings like "[IMAGE: ...]"
+        NULL;
+      END;
+    END IF;
     
     -- Record internal response
     INSERT INTO test_responses (submission_id, question_id, selected_answer, is_correct)
