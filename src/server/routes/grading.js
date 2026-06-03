@@ -290,7 +290,7 @@ router.post('/submit-test', async (req, res) => {
                     course_id: courseId,
                     level: level,
                     score: result.raw_percentage,
-                    passed: (result.raw_percentage >= 40),
+                    passed: (result.raw_percentage >= 5),
                     created_at: new Date().toISOString()
                 }, {
                     onConflict: 'user_id,course_id,level'

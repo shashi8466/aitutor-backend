@@ -575,7 +575,7 @@ const QuizInterface = () => {
     const scaledScore = res?.scaledScore && res.scaledScore > 0 
       ? res.scaledScore 
       : Math.round(200 + (percentage / 100) * 600);
-    const isPassed = percentage >= 15;
+    const isPassed = percentage >= 5;
     const isRWCourse = (courseInfo?.category || '').toLowerCase().includes('reading') || (courseInfo?.name || '').toLowerCase().includes('rhetorical') || (courseInfo?.name || '').toLowerCase().includes('reading');
     const isMathCourse = (courseInfo?.category || '').toLowerCase().includes('math') || (courseInfo?.name || '').toLowerCase().includes('math');
 
@@ -681,7 +681,7 @@ const QuizInterface = () => {
             </h4>
             <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
               {isSequential ? (
-                `Your progress has been recorded for ${unitId}. Complete all unit quizzes with at least 40% accuracy to master the course!`
+                `Your progress has been recorded for ${unitId}. Complete all unit quizzes with at least 5% accuracy to master the course!`
               ) : isAdaptive ? (
                 `Your score of ${res?.totalScore} reflects the FULL LENGTH TEST model. Students on the Easy path are capped at 1400 total, while the Hard path allows scores up to 1600.`
               ) : (

@@ -494,12 +494,12 @@ const CourseView = () => {
     if (subtopics.length > 0 && !(subtopics.length === 1 && subtopics[0] === unitName)) {
       return subtopics.every(subtopic => {
         const p = courseProgress.find(p => p.level.toLowerCase() === subtopic.toLowerCase());
-        return !!(p && p.score >= 40);
+        return !!(p && p.score >= 5);
       });
     }
 
     const p = courseProgress.find(p => p.level.toLowerCase() === unitName.toLowerCase());
-    return !!(p && p.score >= 40);
+    return !!(p && p.score >= 5);
   };
 
   const getSeqUnitScore = (unitName) => {
@@ -824,7 +824,7 @@ const CourseView = () => {
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
             {isSequentialCourse 
-              ? "Complete each unit's quiz with ≥40% to unlock the next unit."
+              ? "Complete each unit's quiz with ≥5% to unlock the next unit."
               : "Complete each level to unlock the next difficulty."}
           </p>
         </div>
