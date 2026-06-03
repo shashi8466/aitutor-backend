@@ -10,7 +10,7 @@ import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 const {
-  FiArrowLeft, FiCheck, FiX, FiMessageCircle, FiClock, FiTarget,
+  FiArrowLeft, FiArrowRight, FiCheck, FiX, FiMessageCircle, FiClock, FiTarget,
   FiSkipForward, FiInfo, FiImage, FiAward, FiRefreshCw, FiShield,
   FiTrendingUp, FiChevronLeft, FiChevronRight, FiGrid, FiZap
 } = FiIcons;
@@ -691,12 +691,46 @@ const QuizInterface = () => {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Link to={`/student/score-predictor?courseId=${courseId}`} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
-              <SafeIcon icon={FiZap} className="w-5 h-5" /> View Score Prediction
-            </Link>
-            <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
-              <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
-            </Link>
+            {(() => {
+              const currentLevelName = level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Easy';
+              if (isPassed) {
+                if (currentLevelName === 'Easy') {
+                  return (
+                    <>
+                      <Link to={`/student/course/${courseId}/level/medium`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
+                        <SafeIcon icon={FiArrowRight} className="w-5 h-5" /> Continue to Medium Level
+                      </Link>
+                      <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-slate-500 text-white rounded-xl font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-100">
+                        <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
+                      </Link>
+                    </>
+                  );
+                } else if (currentLevelName === 'Medium') {
+                  return (
+                    <>
+                      <Link to={`/student/course/${courseId}/level/hard`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
+                        <SafeIcon icon={FiArrowRight} className="w-5 h-5" /> Continue to Hard Level
+                      </Link>
+                      <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-slate-500 text-white rounded-xl font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-100">
+                        <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
+                      </Link>
+                    </>
+                  );
+                } else {
+                  return (
+                    <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
+                      <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
+                    </Link>
+                  );
+                }
+              } else {
+                return (
+                  <Link to={`/student/course/${courseId}/level/${currentLevelName.toLowerCase()}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
+                    <SafeIcon icon={FiRefreshCw} className="w-5 h-5" /> Retry {currentLevelName} Level
+                  </Link>
+                );
+              }
+            })()}
           </div>
         </motion.div>
       </div>
