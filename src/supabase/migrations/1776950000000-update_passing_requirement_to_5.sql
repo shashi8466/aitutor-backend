@@ -68,16 +68,17 @@ BEGIN
         SELECT LOWER(TRIM(a)) as accepted
         FROM unnest(regexp_split_to_array(COALESCE(v_question.correct_answer, ''), '[,|]')) a
         UNION
-        -- If it looks like a JSON array, try parsing it
+        -- Parse safely by ensuring we only cast valid JSON arrays, otherwise returning empty jsonb array
         SELECT LOWER(TRIM(val))
         FROM (
-          SELECT CASE 
-            WHEN COALESCE(v_question.correct_answer, '') ~ '^\s*\[.*\]\s*$' 
-            THEN jsonb_array_elements_text(v_question.correct_answer::jsonb)
-            ELSE NULL
-          END as val
+          SELECT jsonb_array_elements_text(
+            CASE 
+              WHEN COALESCE(v_question.correct_answer, '') ~ '^\\s*\\[.*\\]\\s*$' 
+              THEN v_question.correct_answer::jsonb 
+              ELSE '[]'::jsonb 
+            END
+          ) as val
         ) j
-        WHERE val IS NOT NULL
       ) all_accepted
       WHERE accepted = LOWER(TRIM(COALESCE(v_answer, '')))
     );
