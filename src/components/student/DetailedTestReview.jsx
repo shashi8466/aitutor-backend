@@ -12,6 +12,19 @@ const {
     FiXCircle, FiAlertCircle, FiTrendingUp, FiAward, FiInfo
 } = FiIcons;
 
+const formatSectionName = (sec, isACT) => {
+    if (!sec) return 'General';
+    const s = String(sec).trim().toLowerCase();
+    if (isACT) {
+        if (s.includes('english')) return 'English';
+        if (s.includes('math')) return 'Math';
+        if (s.includes('reading')) return 'Reading';
+        if (s.includes('science')) return 'Science';
+    }
+    if (s === 'rw') return 'Reading & Writing';
+    return sec.charAt(0).toUpperCase() + sec.slice(1);
+};
+
 const DetailedTestReview = () => {
     const { submissionId } = useParams();
     const navigate = useNavigate();
@@ -110,6 +123,11 @@ const DetailedTestReview = () => {
                           submission.is_adaptive || 
                           (submission.level && submission.level.toUpperCase() === 'ADAPTIVE');
 
+    const courseNameVal = submission.course?.name || '';
+    const isACTTest = submission.isACT || 
+                      String(courseNameVal).toUpperCase().includes('ACT') || 
+                      (submission.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT'));
+
     // Combine all responses
     const allResponses = [
         ...(submission.responses || []),
@@ -193,7 +211,7 @@ const DetailedTestReview = () => {
                         <div className="flex items-center gap-2 mb-2">
                             <SafeIcon icon={FiAward} className="w-5 h-5 opacity-80" />
                             <p className="text-blue-100 text-sm font-bold">
-                                {scaledScore ? 'SAT Score' : 'Total Score'}
+                                {isACTTest ? 'ACT Composite Score' : scaledScore ? 'SAT Score' : 'Total Score'}
                             </p>
                         </div>
                         <p className="text-2xl sm:text-3xl font-black">
@@ -309,7 +327,7 @@ const DetailedTestReview = () => {
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                                             <p className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-gray-400 truncate max-w-[120px] sm:max-w-none">
-                                                {response.section || response.question?.section || 'General'}
+                                                {formatSectionName(response.section || response.question?.section || 'General', isACTTest)}
                                             </p>
                                             <span className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></span>
                                             <p className="text-[9px] sm:text-xs font-bold text-blue-600 truncate flex-1">
@@ -428,7 +446,7 @@ const DetailedTestReview = () => {
                                     {submission.scaled_score || submission.totalScore || submission.score || 'N/A'}
                                 </div>
                                 <div className="text-sm opacity-80">
-                                    {submission.course?.tutor_type === 'Full-Length SAT Test' ? 'SAT Score' : 'Test Score'}
+                                    {isACTTest ? 'ACT Composite Score' : submission.course?.tutor_type === 'Full-Length SAT Test' ? 'SAT Score' : 'Test Score'}
                                 </div>
                             </div>
                             

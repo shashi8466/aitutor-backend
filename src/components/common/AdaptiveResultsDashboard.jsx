@@ -59,10 +59,13 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         }
         
         // 2. Normalize response format
-        if (!Array.isArray(res)) {
-            console.warn("res is not an array:", res);
-            res = [];
-        }
+        const courseNameVal = submission?.course?.name || 
+                              submission?.courseName || 
+                              submission?.course?.tutor_type || 
+                              '';
+        const isACT = submission?.isACT || 
+                      String(courseNameVal).toUpperCase().includes('ACT') ||
+                      (submission?.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT'));
 
         return res.map(r => {
             if (!r) return null;
@@ -70,9 +73,26 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
             const topic = r.topic || q.topic || r.subject || q.subject || 'General';
             const section = r.section || q.section || '';
             
+            let normalizedSection = '';
+            if (isACT) {
+                const textStr = ((topic || '') + ' ' + (r.category || q.category || '') + ' ' + (r.subject || q.subject || '') + ' ' + (section || '')).toLowerCase();
+                const qText = (r.question_text || q.question || q.question_text || '').toLowerCase();
+                if (textStr.includes('math') || qText.includes('$') || qText.includes('\\')) {
+                    normalizedSection = 'math';
+                } else if (textStr.includes('science')) {
+                    normalizedSection = 'science';
+                } else if (textStr.includes('read') || textStr.includes('reading')) {
+                    normalizedSection = 'reading';
+                } else {
+                    normalizedSection = 'english';
+                }
+            } else {
+                normalizedSection = String(section || (String(topic).toLowerCase().includes('math') ? 'Math' : 'Reading & Writing')).toLowerCase();
+            }
+
             return {
                 ...r,
-                section: String(section || (String(topic).toLowerCase().includes('math') ? 'Math' : 'Reading & Writing')).toLowerCase(),
+                section: normalizedSection,
                 topic: String(topic),
                 is_correct: r.is_correct ?? (r.selected_answer === (r.correct_answer || q.correct_answer)),
                 correct_answer: r.correct_answer || q.correct_answer,
@@ -497,8 +517,50 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         String(courseNameVal).toUpperCase().includes('AP ')
     );
 
-    const isACTTest = submission?.isACT || String(courseNameVal).toUpperCase().includes('ACT');
-    const actScores = submission?.actScores || scoresData?.actScores;
+    const isACTTest = submission?.isACT || 
+                      String(courseNameVal).toUpperCase().includes('ACT') || 
+                      (submission?.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT')) ||
+                      (submission?.course?.name && String(submission.course.name).toUpperCase().includes('ACT'));
+                      
+    let actScores = submission?.actScores || scoresData?.actScores;
+    
+    if (isACTTest && !actScores) {
+        const englishQs = allResponses.filter(r => r.section === 'english');
+        const mathQs = allResponses.filter(r => r.section === 'math');
+        const readingQs = allResponses.filter(r => r.section === 'reading');
+        const scienceQs = allResponses.filter(r => r.section === 'science');
+
+        const englishCorrect = englishQs.filter(r => r.is_correct).length;
+        const mathCorrect = mathQs.filter(r => r.is_correct).length;
+        const readingCorrect = readingQs.filter(r => r.is_correct).length;
+        const scienceCorrect = scienceQs.filter(r => r.is_correct).length;
+
+        const getActScaled = (correct, max) => Math.min(36, Math.max(1, Math.round((correct / (max || 1)) * 35) + 1));
+        
+        const englishScaled = getActScaled(englishCorrect, englishQs.length || 50);
+        const mathScaled = getActScaled(mathCorrect, mathQs.length || 45);
+        const readingScaled = getActScaled(readingCorrect, readingQs.length || 36);
+        const scienceScaled = getActScaled(scienceCorrect, scienceQs.length || 40);
+        
+        const activeSections = [
+            englishQs.length > 0 ? englishScaled : null,
+            mathQs.length > 0 ? mathScaled : null,
+            readingQs.length > 0 ? readingScaled : null,
+            scienceQs.length > 0 ? scienceScaled : null
+        ].filter(v => v !== null);
+
+        const composite = activeSections.length > 0 
+            ? Math.round(activeSections.reduce((a, b) => a + b, 0) / activeSections.length)
+            : 1;
+
+        actScores = {
+            english: { raw: englishCorrect, max: englishQs.length || 50, scaled: englishScaled },
+            math: { raw: mathCorrect, max: mathQs.length || 45, scaled: mathScaled },
+            reading: { raw: readingCorrect, max: readingQs.length || 36, scaled: readingScaled },
+            science: { raw: scienceCorrect, max: scienceQs.length || 40, scaled: scienceScaled },
+            composite: composite
+        };
+    }
 
     let rwResponses = allResponses.filter(r => r.section.includes('rw') || r.section.includes('read') || r.section.includes('verbal') || r.section.includes('english'));
     let mathResponses = allResponses.filter(r => r.section.includes('math') || r.section.includes('alg') || r.section.includes('geom'));
@@ -562,6 +624,14 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     const rwTime = getTimeStats(rwResponses);
     const mathTime = getTimeStats(mathResponses);
 
+    const englishResponses = allResponses.filter(r => r.section === 'english');
+    const readingResponses = allResponses.filter(r => r.section === 'reading');
+    const scienceResponses = allResponses.filter(r => r.section === 'science');
+    
+    const englishTime = getTimeStats(englishResponses);
+    const readingTime = getTimeStats(readingResponses);
+    const scienceTime = getTimeStats(scienceResponses);
+
     const formatTime = (seconds) => {
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
@@ -621,11 +691,12 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         
         const totalAccuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
+        const maxScore = isACTTest ? 36 : (isApCourse ? 100 : 800);
         return (
             <div className="section-break bg-white print:p-0">
                 <div className="bg-[#1a237e] text-white p-4 flex justify-between items-center font-black">
                     <h2 className="text-xl">{title}</h2>
-                    <span className="text-xs uppercase tracking-widest opacity-80 font-medium">{isFullLength ? `Section ${sectionNum}/2` : 'Section Analysis'}</span>
+                    <span className="text-xs uppercase tracking-widest opacity-80 font-medium">{isACTTest ? `Section ${sectionNum}/4` : isFullLength ? `Section ${sectionNum}/2` : 'Section Analysis'}</span>
                 </div>
                 <div className="bg-gradient-to-br from-[#1a237e] via-[#4527a0] to-[#b71c1c] text-white p-6 sm:p-12 text-center relative overflow-hidden">
                     <div className="mb-10 flex justify-center">
@@ -641,7 +712,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                 </>
                             ) : (
                                 <>
-                                    {renderCircularProgress(score, 800, 192, 12, 'white', 'rgba(255,255,255,0.2)')}
+                                    {renderCircularProgress(score, maxScore, 192, 12, 'white', 'rgba(255,255,255,0.2)')}
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                                         <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">Section Score</span>
                                         <span className="text-4xl sm:text-6xl font-black">{score}</span>
@@ -922,7 +993,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                 {studentName}
                             </h1>
                             <h2 className="text-lg sm:text-2xl font-bold uppercase tracking-[0.4em] text-blue-400 opacity-90">
-                                {isACTTest && actScores ? "ACT Final Test Report" : isApCourse ? apCourseTitle : (isFullLength ? "Full Length Test Report" : (hasMath ? "SAT Math Report" : "SAT Reading & Writing Report"))}
+                                {isACTTest && actScores ? "ACT Performance Report" : isApCourse ? apCourseTitle : (isFullLength ? "Full Length Test Report" : (hasMath ? "SAT Math Report" : "SAT Reading & Writing Report"))}
                             </h2>
                             
                             {/* Date and Time with Icons */}
@@ -1134,6 +1205,52 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                             );
                                         });
                                     })()
+                                ) : isACTTest ? (
+                                    <>
+                                        {allResponses.filter(r => r.section === 'english').length > 0 && (
+                                            <tr className="border-b-2 border-gray-100">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">English</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length > 0 ? Math.round((allResponses.filter(r => r.section === 'english' && r.is_correct).length / allResponses.filter(r => r.section === 'english').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.english.scaled}</td>
+                                            </tr>
+                                        )}
+                                        {allResponses.filter(r => r.section === 'math').length > 0 && (
+                                            <tr className="border-b-2 border-gray-100">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Math</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length > 0 ? Math.round((allResponses.filter(r => r.section === 'math' && r.is_correct).length / allResponses.filter(r => r.section === 'math').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.math.scaled}</td>
+                                            </tr>
+                                        )}
+                                        {allResponses.filter(r => r.section === 'reading').length > 0 && (
+                                            <tr className="border-b-2 border-gray-100">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Reading</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length > 0 ? Math.round((allResponses.filter(r => r.section === 'reading' && r.is_correct).length / allResponses.filter(r => r.section === 'reading').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.reading.scaled}</td>
+                                            </tr>
+                                        )}
+                                        {allResponses.filter(r => r.section === 'science').length > 0 && (
+                                            <tr className="border-b-2 border-gray-100">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Science</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length > 0 ? Math.round((allResponses.filter(r => r.section === 'science' && r.is_correct).length / allResponses.filter(r => r.section === 'science').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.science.scaled}</td>
+                                            </tr>
+                                        )}
+                                        <tr className="bg-[#1a237e] text-white">
+                                            <td className="py-4 sm:py-7 px-4 sm:px-10 text-sm sm:text-xl font-black uppercase tracking-tight text-white">Composite ACT</td>
+                                            <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.filter(r=>r.is_correct).length}</td>
+                                            <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length}</td>
+                                            <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
+                                            <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{actScores.composite}</td>
+                                        </tr>
+                                    </>
                                 ) : (
                                     <>
                                         {hasRW && (
@@ -1177,43 +1294,103 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         <span className="text-xs uppercase tracking-widest font-medium opacity-80">Pacing & Performance Insights</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-16">
-                        <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Total Time</span>
-                            <span className="text-3xl sm:text-5xl font-black text-[#1a237e]">{formatTime(totalTime.total)}</span>
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">entire test</span>
-                        </div>
-                        <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Avg / Question</span>
-                            <span className="text-3xl sm:text-5xl font-black text-[#1a237e]">{totalTime.avg}s</span>
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">across all sections</span>
-                        </div>
-                        {hasRW && (
-                            <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">{isApCourse ? apSectionName : 'R&W Section'}</span>
-                                <span className="text-3xl sm:text-5xl font-black text-purple-700">{formatTime(rwTime.total)}</span>
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {rwTime.avg}s/q</span>
-                            </div>
-                        )}
-                        {hasMath && (
-                            <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Math Section</span>
-                                <span className="text-3xl sm:text-5xl font-black text-orange-600">{formatTime(mathTime.total)}</span>
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {mathTime.avg}s/q</span>
-                            </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 mb-16">
+                        {isACTTest ? (
+                            <>
+                                {englishResponses.length > 0 && (
+                                    <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">English Section</span>
+                                        <span className="text-3xl sm:text-5xl font-black text-blue-700">{formatTime(englishTime.total)}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {englishTime.avg}s/q</span>
+                                    </div>
+                                )}
+                                {mathResponses.length > 0 && (
+                                    <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Math Section</span>
+                                        <span className="text-3xl sm:text-5xl font-black text-orange-600">{formatTime(mathTime.total)}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {mathTime.avg}s/q</span>
+                                    </div>
+                                )}
+                                {readingResponses.length > 0 && (
+                                    <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Reading Section</span>
+                                        <span className="text-3xl sm:text-5xl font-black text-purple-700">{formatTime(readingTime.total)}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {readingTime.avg}s/q</span>
+                                    </div>
+                                )}
+                                {scienceResponses.length > 0 && (
+                                    <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Science Section</span>
+                                        <span className="text-3xl sm:text-5xl font-black text-green-700">{formatTime(scienceTime.total)}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {scienceTime.avg}s/q</span>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Total Time</span>
+                                    <span className="text-3xl sm:text-5xl font-black text-[#1a237e]">{formatTime(totalTime.total)}</span>
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">entire test</span>
+                                </div>
+                                <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Avg / Question</span>
+                                    <span className="text-3xl sm:text-5xl font-black text-[#1a237e]">{totalTime.avg}s</span>
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">across all sections</span>
+                                </div>
+                                {hasRW && (
+                                    <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">{isApCourse ? apSectionName : 'R&W Section'}</span>
+                                        <span className="text-3xl sm:text-5xl font-black text-purple-700">{formatTime(rwTime.total)}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {rwTime.avg}s/q</span>
+                                    </div>
+                                )}
+                                {hasMath && (
+                                    <div className="bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] border-2 border-gray-100 shadow-xl flex flex-col items-center justify-center text-center">
+                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2">Math Section</span>
+                                        <span className="text-3xl sm:text-5xl font-black text-orange-600">{formatTime(mathTime.total)}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">avg {mathTime.avg}s/q</span>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
 
-                    {hasRW && renderTimeTable(rwResponses, isApCourse ? apSectionName : 'Reading & Writing', rwTime.total, rwTime.avg)}
-                    {hasRW && hasMath && <div className="my-20"></div>}
-                    {hasMath && renderTimeTable(mathResponses, 'Math', mathTime.total, mathTime.avg)}
+                    {isACTTest ? (
+                        <>
+                            {englishResponses.length > 0 && renderTimeTable(englishResponses, 'English', englishTime.total, englishTime.avg)}
+                            {mathResponses.length > 0 && <div className="my-20"></div>}
+                            {mathResponses.length > 0 && renderTimeTable(mathResponses, 'Math', mathTime.total, mathTime.avg)}
+                            {readingResponses.length > 0 && <div className="my-20"></div>}
+                            {readingResponses.length > 0 && renderTimeTable(readingResponses, 'Reading', readingTime.total, readingTime.avg)}
+                            {scienceResponses.length > 0 && <div className="my-20"></div>}
+                            {scienceResponses.length > 0 && renderTimeTable(scienceResponses, 'Science', scienceTime.total, scienceTime.avg)}
+                        </>
+                    ) : (
+                        <>
+                            {hasRW && renderTimeTable(rwResponses, isApCourse ? apSectionName : 'Reading & Writing', rwTime.total, rwTime.avg)}
+                            {hasRW && hasMath && <div className="my-20"></div>}
+                            {hasMath && renderTimeTable(mathResponses, 'Math', mathTime.total, mathTime.avg)}
+                        </>
+                    )}
                 </div>
 
-                {/* 4. MASTERY RW */}
-                {hasRW && renderMasterySection(isApCourse ? apSectionName : 'Reading & Writing', rwScore, rwResponses.length, rwTopics, 1)}
+                {isACTTest ? (
+                    <>
+                        {englishResponses.length > 0 && renderMasterySection('English', actScores.english.scaled, englishResponses.length, getTopicMastery(englishResponses), 1)}
+                        {mathResponses.length > 0 && renderMasterySection('Math', actScores.math.scaled, mathResponses.length, getTopicMastery(mathResponses), 2)}
+                        {readingResponses.length > 0 && renderMasterySection('Reading', actScores.reading.scaled, readingResponses.length, getTopicMastery(readingResponses), 3)}
+                        {scienceResponses.length > 0 && renderMasterySection('Science', actScores.science.scaled, scienceResponses.length, getTopicMastery(scienceResponses), 4)}
+                    </>
+                ) : (
+                    <>
+                        {/* 4. MASTERY RW */}
+                        {hasRW && renderMasterySection(isApCourse ? apSectionName : 'Reading & Writing', rwScore, rwResponses.length, rwTopics, 1)}
 
-                {/* 5. MASTERY MATH */}
-                {hasMath && renderMasterySection('Math', mathScore, mathResponses.length, mathTopics, hasRW ? 2 : 1)}
+                        {/* 5. MASTERY MATH */}
+                        {hasMath && renderMasterySection('Math', mathScore, mathResponses.length, mathTopics, hasRW ? 2 : 1)}
+                    </>
+                )}
 
             </div>
         </div>
