@@ -807,20 +807,33 @@ const QuizInterface = () => {
             <div className="bg-[#E53935] h-1.5 transition-all" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }} />
           </div>
           <div className="p-5 sm:p-8 md:p-10">
-            {/* Topic Name - Premium Header */}
-            <div className="mb-10">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#E53935]" />
-                    <span className="text-[10px] font-black text-[#E53935] uppercase tracking-[0.2em]">{currentQuestion.topic || 'General'}</span>
+            <div className={currentQuestion.passage ? "flex flex-col lg:flex-row gap-8 lg:gap-12 items-start" : ""}>
+              
+              {/* Linked Passage - Left Panel */}
+              {currentQuestion.passage && (
+                <div className="w-full lg:w-1/2 lg:sticky lg:top-6">
+                  <div className="p-6 lg:p-8 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl prose prose-slate max-w-none text-[15px] sm:text-[17px] text-slate-800 dark:text-slate-200 whitespace-pre-wrap shadow-sm overflow-y-auto max-h-[75vh] custom-scrollbar">
+                     <MathRenderer text={currentQuestion.passage} courseId={courseId} />
                   </div>
-                  <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
-                    Question {currentQuestionIndex + 1}
-                  </h1>
                 </div>
-              </div>
-            </div>
+              )}
+
+              {/* Right Panel / Full Width Question */}
+              <div className={`w-full ${currentQuestion.passage ? "lg:w-1/2" : ""}`}>
+                {/* Topic Name - Premium Header */}
+                <div className="mb-10">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#E53935]" />
+                        <span className="text-[10px] font-black text-[#E53935] uppercase tracking-[0.2em]">{currentQuestion.topic || 'General'}</span>
+                      </div>
+                      <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
+                        Question {currentQuestionIndex + 1}
+                      </h1>
+                    </div>
+                  </div>
+                </div>
 
             {/* Question Text */}
             <div className="mb-10 max-w-3xl">
@@ -974,6 +987,8 @@ const QuizInterface = () => {
                 </div>
               </motion.div>
             )}
+              </div>
+            </div>
           </div>
 
           <div className="bg-gray-50 dark:bg-gray-800/50 p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-3 sm:gap-4">

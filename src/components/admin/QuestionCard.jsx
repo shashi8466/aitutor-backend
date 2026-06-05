@@ -72,6 +72,16 @@ const QuestionCard = ({ question, courses, index, onEdit, onDelete }) => {
             </div>
           )}
 
+          {/* Linked Passage Display */}
+          {question.passage && (
+            <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Linked Passage</span>
+              <div className="text-sm text-slate-800 whitespace-pre-wrap">
+                <MathRenderer text={question.passage} />
+              </div>
+            </div>
+          )}
+
           <h3 className="font-medium text-gray-900 mb-2">
             <MathRenderer text={question.question} />
           </h3>

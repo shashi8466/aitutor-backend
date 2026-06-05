@@ -344,20 +344,25 @@ const DetailedTestReview = () => {
                                 </div>
                             </div>
 
-                            {/* Question Text */}
-                            <div className="mb-6 space-y-4">
+                            <div className={response.question?.passage ? "flex flex-col lg:flex-row gap-8 items-start" : ""}>
+                                {/* Left Panel: Passage */}
                                 {response.question?.passage && (
-                                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm text-gray-700 leading-relaxed italic">
+                                    <div className="w-full lg:w-1/2 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm overflow-y-auto max-h-[70vh] custom-scrollbar lg:sticky lg:top-4">
                                         <MathRenderer text={response.question.passage} />
                                     </div>
                                 )}
-                                <div>
-                                    <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Question:</p>
-                                    <div className="text-gray-900 font-medium text-lg leading-relaxed">
-                                        <MathRenderer text={response.question_text || response.question?.question || response.question?.question_text || 'Text not available'} />
+
+                                {/* Right Panel: Rest of the question block */}
+                                <div className={`w-full flex-col ${response.question?.passage ? "lg:w-1/2" : ""}`}>
+                                    {/* Question Text */}
+                                    <div className="mb-6 space-y-4">
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Question:</p>
+                                            <div className="text-gray-900 font-medium text-lg leading-relaxed">
+                                                <MathRenderer text={response.question_text || response.question?.question || response.question?.question_text || 'Text not available'} />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
 
                             {/* Answers */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -397,6 +402,8 @@ const DetailedTestReview = () => {
                                     </div>
                                 </div>
                             )}
+                                </div>
+                            </div>
                         </motion.div>
                     ))
                 ) : (

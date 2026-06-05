@@ -246,6 +246,7 @@ router.post('/', upload.single('file'), async (req, res) => {
               // 6b. Replace image placeholders with actual <img> tags or URLs
               let finalQuestionText = q.question || '';
               let finalExplanationText = q.explanation || '';
+              let finalPassageText = q.passage || null;
 
               Object.entries(imageUrlMap).forEach(([placeholder, url]) => {
                 const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -256,6 +257,9 @@ router.post('/', upload.single('file'), async (req, res) => {
                 
                 finalQuestionText = finalQuestionText.replace(tagRegex, imgTag);
                 finalExplanationText = finalExplanationText.replace(tagRegex, imgTag);
+                if (finalPassageText) {
+                  finalPassageText = finalPassageText.replace(tagRegex, imgTag);
+                }
                 
                 // ALSO replace in options if it's an MCQ
                 if (q.options && Array.isArray(q.options)) {
@@ -279,7 +283,8 @@ router.post('/', upload.single('file'), async (req, res) => {
                 explanation: finalExplanationText,
                 upload_id: uploadId,
                 topic: q.topic || null,
-                difficulty_weight: 1.0
+                difficulty_weight: 1.0,
+                passage: finalPassageText
               };
             });
 

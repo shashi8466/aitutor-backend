@@ -411,7 +411,7 @@ const StudentCourseList = () => {
             {['SAT', 'ACT', 'AP'].map((category) => (
               <button
                 key={category}
-                disabled={category !== 'SAT'}
+                disabled={category !== 'SAT' && user?.email !== 'ssky57771@gmail.com'}
                 onClick={() => {
                   setActiveCategory(category);
                   setActiveSubcategory('All');

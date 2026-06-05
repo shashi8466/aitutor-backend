@@ -697,13 +697,17 @@ const ExamInterface = () => {
       )}
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[4px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[4px] md:border-b-0 md:border-r-[10px] border-[#0f172a] max-h-[calc(100vh-140px)] custom-scrollbar">
           <div className="prose prose-slate max-w-none leading-relaxed text-[15px] sm:text-[17px] text-black">
-                <MathRenderer text={currentQuestion?.question_html || currentQuestion?.text || ''} />
+                {currentQuestion?.passage ? (
+                    <MathRenderer text={currentQuestion.passage} />
+                ) : (
+                    <MathRenderer text={currentQuestion?.question || currentQuestion?.question_html || currentQuestion?.text || ''} />
+                )}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white relative z-20">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white relative z-20 max-h-[calc(100vh-140px)] custom-scrollbar">
           <div className="flex items-center justify-between mb-8">
              <div className="flex items-center gap-4">
                <div className="bg-black text-white w-8 h-8 flex items-center justify-center font-bold rounded-lg">{currentQuestionIndex + 1}</div>
@@ -714,9 +718,10 @@ const ExamInterface = () => {
           </div>
 
           <div className="space-y-4 relative z-30">
-              {currentQuestion?.question_text && (
+              {/* Only show question text here if passage is present (split mode), or if explicit question_text exists */}
+              {(currentQuestion?.passage || currentQuestion?.question_text) && (
                  <div className="text-[17px] font-bold text-black mb-8 leading-relaxed">
-                   <MathRenderer text={currentQuestion.question_text} />
+                   <MathRenderer text={currentQuestion?.passage ? (currentQuestion?.question || currentQuestion?.text || '') : (currentQuestion?.question_text || '')} />
                  </div>
               )}
 

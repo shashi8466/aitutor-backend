@@ -384,6 +384,7 @@ const parseTextToQuestions = (text) => {
     // B: Fallback to original line-by-line parsing logic if no tables exist
     const questions = [];
     let currentQuestion = null;
+    let currentPassage = null;
 
     const normalizeForTopic = (str) => {
       if (!str) return '';
@@ -401,7 +402,24 @@ const parseTextToQuestions = (text) => {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
+      const passageRegex = /^(?:(?:Reading|Science)\s+)?Passage\s*(?:\d+|[IVX]+)?[:.-]?\s*(.*)|^(?:Table|Figure|Chart|Graph|Diagram)\s*\d+[:.-]?\s*(.*)|^Section\s*(?:\d+|[IVX]+|Header)[:.-]?\s*(.*)/i;
+      const passageMatch = line.match(passageRegex);
       const questionMatch = line.match(/^(\d+[.)\s]|Q\.?\d+[:.)]?|Question\s*\d+[:.)]?)\s*(.*)/i);
+      
+      if (passageMatch && !questionMatch) {
+         if (currentQuestion) {
+           questions.push(finalizeQuestion(currentQuestion));
+           currentQuestion = null;
+         }
+         currentPassage = line;
+         continue;
+      }
+
+      if (currentPassage !== null && !currentQuestion && !questionMatch && !line.match(/^Topic:\s*(.*)/i)) {
+         currentPassage += '\n' + line;
+         continue;
+      }
+
       const explicitTopicMatch = line.match(/^Topic:\s*(.*)/i);
       let foundTopicStart = null;
       if (!questionMatch && !explicitTopicMatch) {
@@ -490,7 +508,7 @@ const parseTextToQuestions = (text) => {
           qText = topicEndIndex !== -1 ? line.substring(topicEndIndex).replace(/^[,\s.:-]+/, '').trim() : line.substring(foundTopicStart.length).replace(/^[,\s.:-]+/, '').trim();
         }
 
-        currentQuestion = { question: qText, topic: detectedTopic || null, options: [], correctAnswer: '', explanation: null, level: null };
+        currentQuestion = { question: qText, topic: detectedTopic || null, options: [], correctAnswer: '', explanation: null, level: null, passage: currentPassage ? currentPassage.trim() : null };
         if (line.toLowerCase().includes('[easy]')) currentQuestion.level = 'Easy';
         if (line.toLowerCase().includes('[hard]')) currentQuestion.level = 'Hard';
         continue;
