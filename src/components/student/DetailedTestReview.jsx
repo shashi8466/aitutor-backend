@@ -128,6 +128,30 @@ const DetailedTestReview = () => {
                       String(courseNameVal).toUpperCase().includes('ACT') || 
                       (submission.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT'));
 
+    // Compute dynamic report title and scorecard labels
+    let reviewTitle = 'Test Review';
+    let scoreLabel = 'Total Score';
+    if (isACTTest) {
+        if (String(courseNameVal).toUpperCase().includes('SCIENCE')) {
+            reviewTitle = 'ACT Science Report';
+            scoreLabel = 'Science Score';
+        } else if (String(courseNameVal).toUpperCase().includes('ENGLISH')) {
+            reviewTitle = 'ACT English Report';
+            scoreLabel = 'English Score';
+        } else if (String(courseNameVal).toUpperCase().includes('READING')) {
+            reviewTitle = 'ACT Reading Report';
+            scoreLabel = 'Reading Score';
+        } else if (String(courseNameVal).toUpperCase().includes('MATH')) {
+            reviewTitle = 'ACT Math Report';
+            scoreLabel = 'Math Score';
+        } else {
+            reviewTitle = 'ACT Performance Report';
+            scoreLabel = 'ACT Composite Score';
+        }
+    } else if (submission.scaled_score || (typeof submission.metadata === 'string' ? JSON.parse(submission.metadata) : submission.metadata)?.totalScore) {
+        scoreLabel = 'SAT Score';
+    }
+
     // Combine all responses
     const allResponses = [
         ...(submission.responses || []),
@@ -170,7 +194,7 @@ const DetailedTestReview = () => {
                         <SafeIcon icon={FiArrowLeft} className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight">Test Review</h1>
+                        <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight">{reviewTitle}</h1>
                         <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Detailed question-wise analysis</p>
                     </div>
                 </div>
@@ -211,7 +235,7 @@ const DetailedTestReview = () => {
                         <div className="flex items-center gap-2 mb-2">
                             <SafeIcon icon={FiAward} className="w-5 h-5 opacity-80" />
                             <p className="text-blue-100 text-sm font-bold">
-                                {isACTTest ? 'ACT Composite Score' : scaledScore ? 'SAT Score' : 'Total Score'}
+                                {scoreLabel}
                             </p>
                         </div>
                         <p className="text-2xl sm:text-3xl font-black">
@@ -446,7 +470,7 @@ const DetailedTestReview = () => {
                                     {submission.scaled_score || submission.totalScore || submission.score || 'N/A'}
                                 </div>
                                 <div className="text-sm opacity-80">
-                                    {isACTTest ? 'ACT Composite Score' : submission.course?.tutor_type === 'Full-Length SAT Test' ? 'SAT Score' : 'Test Score'}
+                                    {isACTTest ? scoreLabel : submission.course?.tutor_type === 'Full-Length SAT Test' ? 'SAT Score' : 'Test Score'}
                                 </div>
                             </div>
                             

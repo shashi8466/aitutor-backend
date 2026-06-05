@@ -562,6 +562,22 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         };
     }
 
+    const actEnglishQs = allResponses.filter(r => r.section === 'english');
+    const actMathQs = allResponses.filter(r => r.section === 'math');
+    const actReadingQs = allResponses.filter(r => r.section === 'reading');
+    const actScienceQs = allResponses.filter(r => r.section === 'science');
+
+    const hasACTEnglish = actEnglishQs.length > 0;
+    const hasACTMath = actMathQs.length > 0;
+    const hasACTReading = actReadingQs.length > 0;
+    const hasACTScience = actScienceQs.length > 0;
+
+    const isACTScience = isACTTest && hasACTScience && !hasACTEnglish && !hasACTMath && !hasACTReading;
+    const isACTEnglish = isACTTest && hasACTEnglish && !hasACTScience && !hasACTMath && !hasACTReading;
+    const isACTReading = isACTTest && hasACTReading && !hasACTScience && !hasACTMath && !hasACTEnglish;
+    const isACTMath = isACTTest && hasACTMath && !hasACTScience && !hasACTEnglish && !hasACTReading;
+    const isACTSingleSubject = isACTScience || isACTEnglish || isACTReading || isACTMath;
+
     let rwResponses = allResponses.filter(r => r.section.includes('rw') || r.section.includes('read') || r.section.includes('verbal') || r.section.includes('english'));
     let mathResponses = allResponses.filter(r => r.section.includes('math') || r.section.includes('alg') || r.section.includes('geom'));
 
@@ -577,6 +593,50 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     const apCourseTitle = courseNameVal ? 
         (courseNameVal.toUpperCase().endsWith('REPORT') ? courseNameVal : `${courseNameVal} Report`) : 
         'AP Course Report';
+
+    let coverTitle = "Full Length Test Report";
+    let coverScoreLabel = "Total Score";
+    let coverScoreValue = totalScore;
+    let coverMaxScore = 1600;
+
+    if (isACTTest) {
+        if (isACTScience) {
+            coverTitle = "ACT Science Report";
+            coverScoreLabel = "Science Score";
+            coverMaxScore = totalScore > 36 ? 800 : 36;
+        } else if (isACTEnglish) {
+            coverTitle = "ACT English Report";
+            coverScoreLabel = "English Score";
+            coverMaxScore = totalScore > 36 ? 800 : 36;
+        } else if (isACTReading) {
+            coverTitle = "ACT Reading Report";
+            coverScoreLabel = "Reading Score";
+            coverMaxScore = totalScore > 36 ? 800 : 36;
+        } else if (isACTMath) {
+            coverTitle = "ACT Math Report";
+            coverScoreLabel = "Math Score";
+            coverMaxScore = totalScore > 36 ? 800 : 36;
+        } else {
+            coverTitle = "ACT Performance Report";
+            coverScoreLabel = "Composite Score";
+            coverScoreValue = actScores?.composite || totalScore;
+            coverMaxScore = 36;
+        }
+    } else if (isApCourse) {
+        coverTitle = apCourseTitle;
+        coverScoreLabel = "Accuracy";
+    } else {
+        if (isFullLength) {
+            coverTitle = "Full Length Test Report";
+            coverScoreLabel = "Total Score";
+            coverMaxScore = 1600;
+        } else {
+            coverTitle = hasMath ? "SAT Math Report" : "SAT Reading & Writing Report";
+            coverScoreLabel = hasMath ? "Math Score" : "Reading & Writing Score";
+            coverScoreValue = hasMath ? mathScore : rwScore;
+            coverMaxScore = 800;
+        }
+    }
 
     let apSectionName = 'AP Section';
     if (isApCourse && allResponses.length > 0) {
@@ -993,7 +1053,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                 {studentName}
                             </h1>
                             <h2 className="text-lg sm:text-2xl font-bold uppercase tracking-[0.4em] text-blue-400 opacity-90">
-                                {isACTTest && actScores ? "ACT Performance Report" : isApCourse ? apCourseTitle : (isFullLength ? "Full Length Test Report" : (hasMath ? "SAT Math Report" : "SAT Reading & Writing Report"))}
+                                {coverTitle}
                             </h2>
                             
                             {/* Date and Time with Icons */}
@@ -1016,38 +1076,13 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                             <div className="absolute w-64 h-64 bg-blue-500/20 blur-[60px] rounded-full"></div>
                             
                             <div className="relative group">
-                                {isACTTest && actScores ? (
                                     <>
-                                        {renderCircularProgress(actScores.composite, 36, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
+                                        {renderCircularProgress(coverScoreValue, coverMaxScore, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
                                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">Composite Score</span>
-                                            <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{actScores.composite}</span>
+                                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">{coverScoreLabel}</span>
+                                            <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{coverScoreValue}</span>
                                         </div>
                                     </>
-                                ) : isApCourse ? (
-                                    (() => {
-                                        const totalQuestions = allResponses.length;
-                                        const correctCount = allResponses.filter(r => r.is_correct).length;
-                                        const totalAccuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
-                                        return (
-                                            <>
-                                                {renderCircularProgress(totalAccuracy, 100, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
-                                                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">Correct Answers</span>
-                                                    <span className="text-5xl sm:text-7xl font-black tracking-tighter drop-shadow-lg">{correctCount}/{totalQuestions}</span>
-                                                </div>
-                                            </>
-                                        );
-                                    })()
-                                ) : (
-                                    <>
-                                        {renderCircularProgress(isFullLength ? totalScore : (hasMath ? mathScore : rwScore), isFullLength ? 1600 : 800, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                            <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">{isFullLength ? "Total Score" : (hasMath ? "Math Score" : "Reading & Writing Score")}</span>
-                                            <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{isFullLength ? totalScore : (hasMath ? mathScore : rwScore)}</span>
-                                        </div>
-                                    </>
-                                )}
                                 {/* Subtle light flare on the circle */}
                                 <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-blue-400/30 blur-[20px] rounded-[100%]"></div>
                             </div>
@@ -1063,7 +1098,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                     </div>
 
                     <div className="flex flex-col items-center mb-16">
-                        {isACTTest && actScores ? (
+                        {isACTTest && actScores && !isACTSingleSubject ? (
                             <div className="w-full flex flex-col items-center">
                                 <div className="relative flex items-center justify-center mb-12">
                                     {renderCircularProgress(actScores.composite, 36, 256, 15, '#1a237e', '#f1f5f9')}
@@ -1106,6 +1141,15 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                             <span className="text-[8px] font-black text-gray-500">1 to 36</span>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                        ) : isACTSingleSubject ? (
+                            <div className="relative flex items-center justify-center mb-10">
+                                {renderCircularProgress(totalScore, coverMaxScore, 256, 15, '#1a237e', '#f1f5f9')}
+                                <div className="absolute flex flex-col items-center justify-center">
+                                    <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{coverScoreLabel}</span>
+                                    <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{totalScore}</span>
+                                    <span className="text-[10px] font-black text-gray-500">{coverMaxScore === 36 ? '1 to 36' : '200 to 800'}</span>
                                 </div>
                             </div>
                         ) : isApCourse ? (
