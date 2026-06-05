@@ -128,20 +128,27 @@ const DetailedTestReview = () => {
                       String(courseNameVal).toUpperCase().includes('ACT') || 
                       (submission.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT'));
 
+    const courseNameLower = String(courseNameVal).toLowerCase();
+    const isACTScience = isACTTest && courseNameLower.includes('science');
+    const isACTEnglish = isACTTest && courseNameLower.includes('english');
+    const isACTReading = isACTTest && courseNameLower.includes('reading');
+    const isACTMath = isACTTest && courseNameLower.includes('math');
+    const isACTSingleSubject = isACTScience || isACTEnglish || isACTReading || isACTMath;
+
     // Compute dynamic report title and scorecard labels
     let reviewTitle = 'Test Review';
     let scoreLabel = 'Total Score';
     if (isACTTest) {
-        if (String(courseNameVal).toUpperCase().includes('SCIENCE')) {
+        if (isACTScience) {
             reviewTitle = 'ACT Science Report';
             scoreLabel = 'Science Score';
-        } else if (String(courseNameVal).toUpperCase().includes('ENGLISH')) {
+        } else if (isACTEnglish) {
             reviewTitle = 'ACT English Report';
             scoreLabel = 'English Score';
-        } else if (String(courseNameVal).toUpperCase().includes('READING')) {
+        } else if (isACTReading) {
             reviewTitle = 'ACT Reading Report';
             scoreLabel = 'Reading Score';
-        } else if (String(courseNameVal).toUpperCase().includes('MATH')) {
+        } else if (isACTMath) {
             reviewTitle = 'ACT Math Report';
             scoreLabel = 'Math Score';
         } else {
@@ -151,6 +158,27 @@ const DetailedTestReview = () => {
     } else if (submission.scaled_score || (typeof submission.metadata === 'string' ? JSON.parse(submission.metadata) : submission.metadata)?.totalScore) {
         scoreLabel = 'SAT Score';
     }
+
+    const performanceLabel = isACTSingleSubject ? (
+        isACTScience ? 'Science Performance' :
+        isACTEnglish ? 'English Performance' :
+        isACTReading ? 'Reading Performance' :
+        'Math Performance'
+    ) : 'Performance Level';
+
+    const questionAnalysisLabel = isACTSingleSubject ? (
+        isACTScience ? 'Science Question Analysis' :
+        isACTEnglish ? 'English Question Analysis' :
+        isACTReading ? 'Reading Question Analysis' :
+        'Math Question Analysis'
+    ) : 'Question-wise Breakdown';
+
+    const forceACTSection = isACTSingleSubject ? (
+        isACTScience ? 'science' :
+        isACTEnglish ? 'english' :
+        isACTReading ? 'reading' :
+        'math'
+    ) : null;
 
     // Combine all responses
     const allResponses = [
@@ -325,7 +353,7 @@ const DetailedTestReview = () => {
 
             {/* Question-wise Breakdown */}
             <div className="space-y-4 mx-4 sm:mx-0">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white px-1">Question-wise Breakdown</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white px-1">{questionAnalysisLabel}</h2>
 
                 {filteredResponses.length > 0 ? (
                     filteredResponses.map((response, index) => (
@@ -351,7 +379,7 @@ const DetailedTestReview = () => {
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                                             <p className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-gray-400 truncate max-w-[120px] sm:max-w-none">
-                                                {formatSectionName(response.section || response.question?.section || 'General', isACTTest)}
+                                                {formatSectionName(forceACTSection || response.section || response.question?.section || 'General', isACTTest)}
                                             </p>
                                             <span className="w-1 h-1 bg-gray-300 rounded-full hidden sm:block"></span>
                                             <p className="text-[9px] sm:text-xs font-bold text-blue-600 truncate flex-1">
@@ -477,7 +505,7 @@ const DetailedTestReview = () => {
                             {/* Performance Insights */}
                             <div className="grid md:grid-cols-2 gap-4 mb-6">
                                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                                    <h4 className="font-bold text-blue-900 dark:text-blue-300 mb-2">Performance Level</h4>
+                                    <h4 className="font-bold text-blue-900 dark:text-blue-300 mb-2">{performanceLabel}</h4>
                                     <p className="text-blue-800 dark:text-blue-400 text-sm">
                                         {(() => {
                                             const score = parseInt(submission.scaled_score || submission.totalScore || submission.score || 0);

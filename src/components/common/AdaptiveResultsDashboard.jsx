@@ -65,7 +65,14 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                               '';
         const isACT = submission?.isACT || 
                       String(courseNameVal).toUpperCase().includes('ACT') ||
-                      (submission?.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT'));
+                      (submission?.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT')) ||
+                      (submission?.course?.name && String(submission.course.name).toUpperCase().includes('ACT'));
+
+        const courseNameLower = String(courseNameVal).toLowerCase();
+        const forceScience = isACT && courseNameLower.includes('science');
+        const forceMath = isACT && courseNameLower.includes('math');
+        const forceReading = isACT && courseNameLower.includes('reading');
+        const forceEnglish = isACT && courseNameLower.includes('english');
 
         return res.map(r => {
             if (!r) return null;
@@ -75,16 +82,41 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
             
             let normalizedSection = '';
             if (isACT) {
-                const textStr = ((topic || '') + ' ' + (r.category || q.category || '') + ' ' + (r.subject || q.subject || '') + ' ' + (section || '')).toLowerCase();
-                const qText = (r.question_text || q.question || q.question_text || '').toLowerCase();
-                if (textStr.includes('math') || qText.includes('$') || qText.includes('\\')) {
-                    normalizedSection = 'math';
-                } else if (textStr.includes('science')) {
+                if (forceScience) {
                     normalizedSection = 'science';
-                } else if (textStr.includes('read') || textStr.includes('reading')) {
+                } else if (forceMath) {
+                    normalizedSection = 'math';
+                } else if (forceReading) {
                     normalizedSection = 'reading';
-                } else {
+                } else if (forceEnglish) {
                     normalizedSection = 'english';
+                } else {
+                    const topicStr = String(topic || '').toLowerCase();
+                    const subjectStr = String(r.subject || q.subject || '').toLowerCase();
+                    const categoryStr = String(r.category || q.category || '').toLowerCase();
+                    const sectionStr = String(section || '').toLowerCase();
+
+                    if (topicStr.includes('science') || subjectStr.includes('science') || categoryStr.includes('science') || sectionStr.includes('science')) {
+                        normalizedSection = 'science';
+                    } else if (topicStr.includes('math') || subjectStr.includes('math') || categoryStr.includes('math') || sectionStr.includes('math')) {
+                        normalizedSection = 'math';
+                    } else if (topicStr.includes('read') || subjectStr.includes('read') || categoryStr.includes('read') || sectionStr.includes('reading')) {
+                        normalizedSection = 'reading';
+                    } else if (topicStr.includes('english') || topicStr.includes('grammar') || subjectStr.includes('english') || categoryStr.includes('english') || sectionStr.includes('english')) {
+                        normalizedSection = 'english';
+                    } else {
+                        const textStr = ((topic || '') + ' ' + (r.category || q.category || '') + ' ' + (r.subject || q.subject || '') + ' ' + (section || '')).toLowerCase();
+                        const qText = (r.question_text || q.question || q.question_text || '').toLowerCase();
+                        if (textStr.includes('math') || qText.includes('$') || qText.includes('\\')) {
+                            normalizedSection = 'math';
+                        } else if (textStr.includes('read') || textStr.includes('reading')) {
+                            normalizedSection = 'reading';
+                        } else if (textStr.includes('science')) {
+                            normalizedSection = 'science';
+                        } else {
+                            normalizedSection = 'english';
+                        }
+                    }
                 }
             } else {
                 normalizedSection = String(section || (String(topic).toLowerCase().includes('math') ? 'Math' : 'Reading & Writing')).toLowerCase();
@@ -144,12 +176,21 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         const hasScoreData = submission?.scaled_score || submission?.totalScore || submission?.score;
         
         if (hasScoreData) {
-            // Show comprehensive detailed test review when we have a score but no detailed responses
             const score = parseInt(submission?.scaled_score || submission?.totalScore || submission?.score || 0);
             const testDate = new Date(submission?.test_date || submission?.created_at);
             const courseName = submission?.course?.name || 'Test';
             const isSAT = courseName.toLowerCase().includes('sat') || courseName.toLowerCase().includes('full length');
             
+            const courseNameLower = courseName.toLowerCase();
+            const isACT = courseNameLower.includes('act') ||
+                          (submission?.course?.tutor_type && String(submission.course.tutor_type).toLowerCase().includes('act')) ||
+                          submission?.isACT;
+            const isACTScience = isACT && courseNameLower.includes('science');
+            const isACTEnglish = isACT && courseNameLower.includes('english');
+            const isACTReading = isACT && courseNameLower.includes('reading');
+            const isACTMath = isACT && courseNameLower.includes('math');
+            const isACTSingleSubject = isACTScience || isACTEnglish || isACTReading || isACTMath;
+
             // Calculate performance level and insights
             const getPerformanceLevel = (score) => {
                 if (isSAT) {
@@ -189,14 +230,28 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                             
                             {/* Score Overview */}
                             <div className="text-center mb-8">
-                                <h1 className="text-3xl font-black text-gray-900 mb-2">Detailed Test Review</h1>
+                                <h1 className="text-3xl font-black text-gray-900 mb-2">
+                                    {isACTSingleSubject ? (
+                                        isACTScience ? 'ACT Science Report' :
+                                        isACTEnglish ? 'ACT English Report' :
+                                        isACTReading ? 'ACT Reading Report' :
+                                        'ACT Math Report'
+                                    ) : 'Detailed Test Review'}
+                                </h1>
                                 <p className="text-gray-600">{courseName} • {testDate.toLocaleDateString()}</p>
                             </div>
                             
                             {/* Score Display */}
                             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-8 text-white text-center mb-8">
                                 <div className="mb-4">
-                                    <span className="text-sm font-bold uppercase tracking-wider opacity-80">Your Score</span>
+                                    <span className="text-sm font-bold uppercase tracking-wider opacity-80">
+                                        {isACTSingleSubject ? (
+                                            isACTScience ? 'Science Score' :
+                                            isACTEnglish ? 'English Score' :
+                                            isACTReading ? 'Reading Score' :
+                                            'Math Score'
+                                        ) : 'Your Score'}
+                                    </span>
                                 </div>
                                 <div className="text-6xl font-black mb-4">{score}</div>
                                 <div className="flex justify-center items-center gap-2 mb-6">
@@ -230,7 +285,14 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         
                         {/* Performance Analysis */}
                         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-                            <h2 className="text-2xl font-black text-gray-900 mb-6">Performance Analysis</h2>
+                            <h2 className="text-2xl font-black text-gray-900 mb-6">
+                                {isACTSingleSubject ? (
+                                    isACTScience ? 'Science Performance' :
+                                    isACTEnglish ? 'English Performance' :
+                                    isACTReading ? 'Reading Performance' :
+                                    'Math Performance'
+                                ) : 'Performance Analysis'}
+                            </h2>
                             
                             <div className="grid md:grid-cols-2 gap-6 mb-8">
                                 {/* Performance Level */}
@@ -572,10 +634,22 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     const hasACTReading = actReadingQs.length > 0;
     const hasACTScience = actScienceQs.length > 0;
 
-    const isACTScience = isACTTest && hasACTScience && !hasACTEnglish && !hasACTMath && !hasACTReading;
-    const isACTEnglish = isACTTest && hasACTEnglish && !hasACTScience && !hasACTMath && !hasACTReading;
-    const isACTReading = isACTTest && hasACTReading && !hasACTScience && !hasACTMath && !hasACTEnglish;
-    const isACTMath = isACTTest && hasACTMath && !hasACTScience && !hasACTEnglish && !hasACTReading;
+    const isACTScience = isACTTest && (
+        String(courseNameVal).toLowerCase().includes('science') ||
+        (hasACTScience && !hasACTEnglish && !hasACTMath && !hasACTReading)
+    );
+    const isACTEnglish = isACTTest && (
+        String(courseNameVal).toLowerCase().includes('english') ||
+        (hasACTEnglish && !hasACTScience && !hasACTMath && !hasACTReading)
+    );
+    const isACTReading = isACTTest && (
+        String(courseNameVal).toLowerCase().includes('reading') ||
+        (hasACTReading && !hasACTScience && !hasACTMath && !hasACTEnglish)
+    );
+    const isACTMath = isACTTest && (
+        String(courseNameVal).toLowerCase().includes('math') ||
+        (hasACTMath && !hasACTScience && !hasACTEnglish && !hasACTReading)
+    );
     const isACTSingleSubject = isACTScience || isACTEnglish || isACTReading || isACTMath;
 
     let rwResponses = allResponses.filter(r => r.section.includes('rw') || r.section.includes('read') || r.section.includes('verbal') || r.section.includes('english'));
@@ -584,6 +658,9 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     if (isApCourse) {
         rwResponses = [...allResponses];
         mathResponses = [];
+    } else if (isACTTest) {
+        rwResponses = [];
+        mathResponses = allResponses.filter(r => r.section === 'math');
     }
 
     const hasRW = rwResponses.length > 0;
@@ -756,7 +833,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
             <div className="section-break bg-white print:p-0">
                 <div className="bg-[#1a237e] text-white p-4 flex justify-between items-center font-black">
                     <h2 className="text-xl">{title}</h2>
-                    <span className="text-xs uppercase tracking-widest opacity-80 font-medium">{isACTTest ? `Section ${sectionNum}/4` : isFullLength ? `Section ${sectionNum}/2` : 'Section Analysis'}</span>
+                    <span className="text-xs uppercase tracking-widest opacity-80 font-medium">{isACTSingleSubject ? `${title} Section Analysis` : isACTTest ? `Section ${sectionNum}/4` : isFullLength ? `Section ${sectionNum}/2` : 'Section Analysis'}</span>
                 </div>
                 <div className="bg-gradient-to-br from-[#1a237e] via-[#4527a0] to-[#b71c1c] text-white p-6 sm:p-12 text-center relative overflow-hidden">
                     <div className="mb-10 flex justify-center">
@@ -1094,7 +1171,9 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                 <div className="bg-white p-8 print:p-10 print:block">
                     <div className="bg-[#1a237e] text-white p-5 px-8 flex justify-between items-center mb-12 font-black shadow-lg">
                         <h2 className="text-xl">Scores and History</h2>
-                        <span className="text-xs uppercase tracking-widest font-medium opacity-80">Full Performance Summary</span>
+                        <span className="text-xs uppercase tracking-widest font-medium opacity-80">
+                            {isACTSingleSubject ? `${isACTScience ? 'Science' : isACTEnglish ? 'English' : isACTReading ? 'Reading' : 'Math'} Performance` : 'Full Performance Summary'}
+                        </span>
                     </div>
 
                     <div className="flex flex-col items-center mb-16">
@@ -1287,13 +1366,15 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                                 <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.science.scaled}</td>
                                             </tr>
                                         )}
-                                        <tr className="bg-[#1a237e] text-white">
-                                            <td className="py-4 sm:py-7 px-4 sm:px-10 text-sm sm:text-xl font-black uppercase tracking-tight text-white">Composite ACT</td>
-                                            <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.filter(r=>r.is_correct).length}</td>
-                                            <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length}</td>
-                                            <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
-                                            <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{actScores.composite}</td>
-                                        </tr>
+                                        {!isACTSingleSubject && (
+                                            <tr className="bg-[#1a237e] text-white">
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-sm sm:text-xl font-black uppercase tracking-tight text-white">Composite ACT</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{actScores.composite}</td>
+                                            </tr>
+                                        )}
                                     </>
                                 ) : (
                                     <>
