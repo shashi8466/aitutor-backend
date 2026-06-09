@@ -48,8 +48,12 @@ const PracticeTests = () => {
             const enrolledIds = enrollments.map(e => e.course_id);
 
             // 3. Filter into Enrolled and Available
-            const enrolledPractice = (allPracticeCourses || []).filter(c => enrolledIds.includes(c.id));
-            const notEnrolledPractice = (allPracticeCourses || []).filter(c => !enrolledIds.includes(c.id));
+            const allowedPracticeCourses = (allPracticeCourses || []).filter(c => 
+                currentAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan)
+            );
+
+            const enrolledPractice = allowedPracticeCourses.filter(c => enrolledIds.includes(c.id));
+            const notEnrolledPractice = allowedPracticeCourses.filter(c => !enrolledIds.includes(c.id));
 
             setAvailableCourses(notEnrolledPractice);
 
@@ -65,14 +69,15 @@ const PracticeTests = () => {
                 );
                 
                 // 5. Apply Plan Gating to the uploads
-                const filteredTests = filteredUploads.map(test => {
-                    // Check direct test access OR course-level access
-                    const hasDirectAccess = currentAccess.some(a => a.content_type === 'test' && a.content_id === test.id && a.plan_type === userPlan);
-                    const hasCourseAccess = currentAccess.some(a => a.content_type === 'course' && a.content_id === test.course_id && a.plan_type === userPlan);
-                    
-                    const hasAccess = isPremium || hasDirectAccess || hasCourseAccess;
-                    return { ...test, locked: !hasAccess };
-                });
+                const filteredTests = filteredUploads
+                    .filter(test => {
+                        const hasDirectAccess = currentAccess.some(a => a.content_type === 'test' && String(a.content_id) === String(test.id) && a.plan_type === userPlan);
+                        const hasCourseAccess = currentAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(test.course_id) && a.plan_type === userPlan);
+                        return hasDirectAccess || hasCourseAccess;
+                    })
+                    .map(test => {
+                        return { ...test, locked: false };
+                    });
 
                 setTests(filteredTests);
             } else {

@@ -265,13 +265,10 @@ const StudentCourseList = () => {
     const isUserPremium = userPlan === 'premium';
     
     // 0. Access Filter: 
-    // - Premium students see all active courses by default.
-    // - Non-premium students see only what is explicitly assigned to their plan.
-    if (!isUserPremium) {
-      const hasDirectAccess = planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan);
-      const hasTopicAccess = topicCourseIds.has(c.id);
-      if (!hasDirectAccess && !hasTopicAccess) return false;
-    }
+    // - Students see only what is explicitly assigned to their plan.
+    const hasDirectAccess = planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan);
+    const hasTopicAccess = topicCourseIds.has(c.id);
+    if (!hasDirectAccess && !hasTopicAccess) return false;
 
     // 1. Must NOT be an official practice course (unless it is adaptive)
     if (c.is_practice && !c.is_adaptive) return false;
