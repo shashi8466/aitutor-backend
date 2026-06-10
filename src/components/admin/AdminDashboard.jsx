@@ -24,6 +24,7 @@ const AdminParentNotificationManager = lazy(() => import('./AdminParentNotificat
 const AdminPlanManagement = lazy(() => import('./AdminPlanManagement'));
 const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
 const AdminEnrollmentKeys = lazy(() => import('./AdminEnrollmentKeys'));
+const AdminDemoLeads = lazy(() => import('./AdminDemoLeads'));
 
 import { courseService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -87,6 +88,7 @@ const AdminDashboard = () => {
     { name: 'Knowledge Base', path: '/admin/knowledge-base', icon: FiDatabase },
     { name: 'Upload New', path: '/admin/upload', icon: FiUpload },
     { name: 'Files', path: '/admin/uploads', icon: FiFolder },
+    { name: 'Demo Leads', path: '/admin/demo-leads', icon: FiUsers },
     { name: 'Plan Management', path: '/admin/plans', icon: FiShield },
     { name: 'Settings', path: '/admin/settings', icon: FiSettings },
   ];
@@ -200,6 +202,7 @@ const AdminDashboard = () => {
             <Route path="/knowledge-base" element={<KnowledgeBase />} />
             <Route path="/upload" element={<FileUpload />} />
             <Route path="/uploads" element={<UploadManagement />} />
+            <Route path="/demo-leads" element={<AdminDemoLeads />} />
             <Route path="/plans" element={<AdminPlanManagement />} />
             <Route path="/settings" element={<AdminSettings />} />
           </Routes>
@@ -259,6 +262,7 @@ const DashboardHome = ({ stats, loading, setShowPreviewer }) => {
               { to: '/admin/upload', icon: FiUpload, color: 'bg-sky-500', title: 'Upload Content', desc: 'Parse documents' },
               { to: '/admin/knowledge-base', icon: FiDatabase, color: 'bg-orange-500', title: 'Knowledge Base', desc: 'Review extracted data' },
               { to: '/admin/users', icon: FiUsers, color: 'bg-orange-500', title: 'Manage Users', desc: 'View all users' },
+              { to: '/admin/demo-leads', icon: FiUsers, color: 'bg-green-600', title: 'Demo Leads', desc: 'View test submissions' },
               { to: '/admin/parents', icon: FiUsers, color: 'bg-amber-500', title: 'Parents', desc: 'Create & link parents' },
               { to: '/admin/notifications', icon: FiBook, color: 'bg-teal-500', title: 'Notifications', desc: 'Manage student notifications' },
               { to: '/admin/plans', icon: FiShield, color: 'bg-red-600', title: 'Plan Management', desc: 'Control content distribution' },

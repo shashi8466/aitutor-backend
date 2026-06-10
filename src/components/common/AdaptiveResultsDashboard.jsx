@@ -671,6 +671,10 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         (courseNameVal.toUpperCase().endsWith('REPORT') ? courseNameVal : `${courseNameVal} Report`) : 
         'AP Course Report';
 
+    const actTotalQuestions = allResponses.length;
+    const actCorrectCount = allResponses.filter(r => r.is_correct).length;
+    const actPercentage = actTotalQuestions > 0 ? ((actCorrectCount / actTotalQuestions) * 100).toFixed(1) : "0.0";
+
     let coverTitle = "Full Length Test Report";
     let coverScoreLabel = "Total Score";
     let coverScoreValue = totalScore;
@@ -1154,10 +1158,17 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                             
                             <div className="relative group">
                                     <>
-                                        {renderCircularProgress(coverScoreValue, coverMaxScore, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
+                                        {renderCircularProgress(isACTTest ? actCorrectCount : coverScoreValue, isACTTest ? actTotalQuestions : coverMaxScore, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
                                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                                             <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">{coverScoreLabel}</span>
-                                            <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{coverScoreValue}</span>
+                                            {isACTTest ? (
+                                                <>
+                                                    <span className="text-5xl sm:text-7xl font-black tracking-tighter drop-shadow-lg">{actCorrectCount} / {actTotalQuestions}</span>
+                                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mt-2">Percentage: {actPercentage}%</span>
+                                                </>
+                                            ) : (
+                                                <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{coverScoreValue}</span>
+                                            )}
                                         </div>
                                     </>
                                 {/* Subtle light flare on the circle */}
@@ -1224,11 +1235,20 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                             </div>
                         ) : isACTSingleSubject ? (
                             <div className="relative flex items-center justify-center mb-10">
-                                {renderCircularProgress(totalScore, coverMaxScore, 256, 15, '#1a237e', '#f1f5f9')}
+                                {renderCircularProgress(isACTTest ? actCorrectCount : totalScore, isACTTest ? actTotalQuestions : coverMaxScore, 256, 15, '#1a237e', '#f1f5f9')}
                                 <div className="absolute flex flex-col items-center justify-center">
                                     <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{coverScoreLabel}</span>
-                                    <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{totalScore}</span>
-                                    <span className="text-[10px] font-black text-gray-500">{coverMaxScore === 36 ? '1 to 36' : '200 to 800'}</span>
+                                    {isACTTest ? (
+                                        <>
+                                            <span className="text-5xl sm:text-7xl font-black text-[#1a237e]">{actCorrectCount} / {actTotalQuestions}</span>
+                                            <span className="text-[10px] font-black text-gray-500 mt-2">Percentage: {actPercentage}%</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{totalScore}</span>
+                                            <span className="text-[10px] font-black text-gray-500">{coverMaxScore === 36 ? '1 to 36' : '200 to 800'}</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         ) : isApCourse ? (
