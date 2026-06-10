@@ -4,6 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import supabase from '../../supabase/supabase';
 import * as XLSX from 'xlsx';
+import axios from 'axios';
 
 const { FiDownload, FiRefreshCw, FiAlertCircle, FiLoader, FiCheckCircle, FiXCircle, FiTrash2 } = FiIcons;
 
@@ -52,17 +53,28 @@ const AdminDemoLeads = () => {
     }
     
     try {
-      const { error } = await supabase
-        .from('demo_leads')
-        .delete()
-        .eq('id', id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('Not authenticated or session expired');
+      }
+
+      const response = await axios.delete(`/api/demo/lead/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
         
-      if (error) throw error;
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Unknown error occurred');
+      }
       
       setLeads(leads.filter(lead => lead.id !== id));
     } catch (err) {
       console.error('Error deleting lead:', err);
-      setError('Failed to delete lead: ' + err.message);
+      const errMsg = err.response?.data?.error || err.message;
+      setError('Failed to delete lead: ' + errMsg);
     }
   };
 

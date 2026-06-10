@@ -496,4 +496,48 @@ router.post('/submit-lead', async (req, res) => {
     }
 });
 
+// Securely delete a demo lead (Admin Only)
+router.delete('/lead/:id', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, error: 'Unauthorized' });
+        }
+        
+        const token = authHeader.substring(7);
+        const { data: authData, error: userError } = await supabaseAdmin.auth.getUser(token);
+        
+        if (userError || !authData?.user) {
+            return res.status(401).json({ success: false, error: 'Invalid token' });
+        }
+        
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('role')
+            .eq('id', authData.user.id)
+            .maybeSingle();
+            
+        if (!profile || profile.role !== 'admin') {
+            return res.status(403).json({ success: false, error: 'Forbidden: Admin access required' });
+        }
+
+        const { id } = req.params;
+        const { error: deleteError } = await supabaseAdmin
+            .from('demo_leads')
+            .delete()
+            .eq('id', id);
+
+        if (deleteError) {
+            console.error('❌ [DEMO] Delete Error:', deleteError);
+            throw deleteError;
+        }
+        
+        console.log(`✅ [DEMO] Lead ${id} deleted successfully by admin ${authData.user.email}`);
+        res.json({ success: true, message: 'Lead deleted successfully' });
+    } catch (error) {
+        console.error('❌ [DEMO] Delete processing failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 export { router as demoRouter };
