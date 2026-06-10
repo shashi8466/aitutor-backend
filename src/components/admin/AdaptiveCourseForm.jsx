@@ -11,6 +11,7 @@ const { FiX, FiSave, FiAlertTriangle, FiBook, FiLoader, FiUsers, FiDollarSign, F
 
 const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
   const isEditMode = !!course;
+  const [testType, setTestType] = useState(course?.category || 'Full-Length SAT');
   const [formData, setFormData] = useState({
     name: course?.name || 'FULL LENGTH TEST',
     description: course?.description || 'An FULL LENGTH TEST that adjusts difficulty based on performance in the first module.',
@@ -59,9 +60,13 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
       if (uploads) {
         const mapped = {};
         uploads.forEach(u => {
-          const sectionKey = u.section === 'math' ? 'math' : 
-                            (u.section === 'reading_writing' ? 'rw' : 
-                            ((u.file_name?.toLowerCase().includes('math')) ? 'math' : 'rw'));
+          let sectionKey = '';
+          if (u.section === 'english') sectionKey = 'english';
+          else if (u.section === 'reading') sectionKey = 'reading';
+          else if (u.section === 'science') sectionKey = 'science';
+          else if (u.section === 'math') sectionKey = 'math';
+          else if (u.section === 'reading_writing') sectionKey = 'rw';
+          else sectionKey = u.file_name?.toLowerCase().includes('math') ? 'math' : 'rw';
           const levelKey = u.level?.toLowerCase();
           const typeKey = u.category === 'study_material' ? 'study' : 
                           u.category === 'video_lecture' ? 'video' : 'quiz';
@@ -146,7 +151,12 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
     if (e && e.preventDefault) e.preventDefault();
     console.log("Submit triggered", { isEditMode, formData, newFiles });
     
-    const requiredModules = ['rw_moderate', 'rw_easy', 'rw_hard', 'math_moderate', 'math_easy', 'math_hard'];
+    let requiredModules = [];
+    if (testType === 'Full-Length SAT') {
+      requiredModules = ['rw_moderate', 'rw_easy', 'rw_hard', 'math_moderate', 'math_easy', 'math_hard'];
+    } else {
+      requiredModules = ['english_all', 'math_all', 'reading_all', 'science_all'];
+    }
     const missing = [];
     
     // Only require files on initial creation
@@ -171,7 +181,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
       const cleanData = {
         name: formData.name,
         description: formData.description,
-        tutor_type: 'Full-Length SAT',
+        tutor_type: testType,
         price: Number(formData.price_full) || 0,
         currency: 'INR',
         is_free: Number(formData.price_full) === 0,
@@ -180,8 +190,8 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
         status: formData.status || 'active',
         manual_enrollment_count: Number(formData.manual_enrollment_count) || 0,
         main_category: 'FULL LENGTH TESTs',
-        category: 'Full-Length SAT',
-        is_adaptive: true,
+        category: testType,
+        is_adaptive: testType === 'Full-Length SAT',
         threshold_percentage: Number(formData.threshold_percentage) || 60
       };
 
@@ -208,14 +218,27 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
 
       setUploadStatus({ message: 'Course created. Uploading module content...', type: 'info' });
 
-      // 3. Upload ALL Files (18 potential files: 6 modules * 3 types)
+      // 3. Upload ALL Files
       const errors = [];
-      const sections = ['reading_writing', 'math'];
-      const levels = ['Moderate', 'Easy', 'Hard'];
+      let sections = [];
+      let levels = [];
+      
+      if (testType === 'Full-Length SAT') {
+        sections = ['reading_writing', 'math'];
+        levels = ['Moderate', 'Easy', 'Hard'];
+      } else {
+        sections = ['english', 'math', 'reading', 'science'];
+        levels = ['All'];
+      }
       
       for (const section of sections) {
         for (const level of levels) {
-          const sectionKey = section === 'reading_writing' ? 'rw' : 'math';
+          let sectionKey;
+          if (testType === 'Full-Length SAT') {
+            sectionKey = section === 'reading_writing' ? 'rw' : 'math';
+          } else {
+            sectionKey = section;
+          }
           const levelKey = level.toLowerCase();
           const baseKey = `${sectionKey}_${levelKey}`;
 
@@ -288,8 +311,12 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
       >
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <div>
-            <h3 className="text-2xl font-bold text-purple-700">Create Full-Length SAT Test (Adaptive)</h3>
-            <p className="text-sm text-gray-500">Configure strict 6-module adaptive flow</p>
+            <h3 className="text-2xl font-bold text-purple-700">
+              Create {testType === 'Full-Length SAT' ? 'Full-Length SAT Test (Adaptive)' : 'ACT Full-Length Test'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {testType === 'Full-Length SAT' ? 'Configure strict 6-module adaptive flow' : 'Configure 4-section full-length ACT flow'}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
             <SafeIcon icon={FiX} className="w-6 h-6" />
@@ -315,12 +342,28 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                    <SafeIcon icon={FiActivity} className="text-purple-600 w-6 h-6" />
                 </div>
                 <div>
-                   <h4 className="font-bold text-gray-900 text-lg">SAT Test Configuration</h4>
-                   <p className="text-xs text-gray-500">Define the adaptive logic layer and upload core modules</p>
+                   <h4 className="font-bold text-gray-900 text-lg">
+                     {testType === 'Full-Length SAT' ? 'SAT Test Configuration' : 'ACT Test Configuration'}
+                   </h4>
+                   <p className="text-xs text-gray-500">
+                     {testType === 'Full-Length SAT' ? 'Define the adaptive logic layer and upload core modules' : 'Define test name and upload core modules'}
+                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Test Type</label>
+                  <select
+                    value={testType}
+                    onChange={(e) => setTestType(e.target.value)}
+                    disabled={isEditMode}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                  >
+                    <option value="Full-Length SAT">SAT Full-Length Test</option>
+                    <option value="Full-Length ACT">ACT Full-Length Test</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Test Name</label>
                   <input
@@ -349,81 +392,152 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
               </div>
 
               <div className="space-y-10">
-                {/* Reading & Writing Modules */}
-                <div className="space-y-6">
-                  <h5 className="font-black text-blue-900 text-sm uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-2 h-6 bg-blue-500 rounded-full"></div>
-                    Reading & Writing Section
-                  </h5>
-                  
-                  <ModuleContentBlock 
-                    title="1. Moderate (Starting)"
-                    baseKey="rw_moderate"
-                    newFiles={newFiles}
-                    existingUploads={existingUploads}
-                    onDeleteExisting={handleDeleteExisting}
-                    handleFileChange={handleFileChange}
-                    colorClass="blue"
-                  />
-                  
-                  <ModuleContentBlock 
-                    title="2. Easy (Score < Threshold)"
-                    baseKey="rw_easy"
-                    newFiles={newFiles}
-                    existingUploads={existingUploads}
-                    onDeleteExisting={handleDeleteExisting}
-                    handleFileChange={handleFileChange}
-                    colorClass="blue"
-                  />
-                  
-                  <ModuleContentBlock 
-                    title="3. Hard (Score &ge; Threshold)"
-                    baseKey="rw_hard"
-                    newFiles={newFiles}
-                    existingUploads={existingUploads}
-                    onDeleteExisting={handleDeleteExisting}
-                    handleFileChange={handleFileChange}
-                    colorClass="blue"
-                  />
-                </div>
+                {testType === 'Full-Length SAT' ? (
+                  <>
+                    {/* Reading & Writing Modules */}
+                    <div className="space-y-6">
+                      <h5 className="font-black text-blue-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        <div className="w-2 h-6 bg-blue-500 rounded-full"></div>
+                        Reading & Writing Section
+                      </h5>
+                      
+                      <ModuleContentBlock 
+                        title="1. Moderate (Starting)"
+                        baseKey="rw_moderate"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="blue"
+                      />
+                      
+                      <ModuleContentBlock 
+                        title="2. Easy (Score < Threshold)"
+                        baseKey="rw_easy"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="blue"
+                      />
+                      
+                      <ModuleContentBlock 
+                        title="3. Hard (Score &ge; Threshold)"
+                        baseKey="rw_hard"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="blue"
+                      />
+                    </div>
 
-                {/* Math Modules */}
-                <div className="space-y-6">
-                  <h5 className="font-black text-emerald-900 text-sm uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-2 h-6 bg-emerald-500 rounded-full"></div>
-                    Math Section
-                  </h5>
-                  
-                  <ModuleContentBlock 
-                    title="1. Moderate (Starting)"
-                    baseKey="math_moderate"
-                    newFiles={newFiles}
-                    existingUploads={existingUploads}
-                    onDeleteExisting={handleDeleteExisting}
-                    handleFileChange={handleFileChange}
-                    colorClass="emerald"
-                  />
-                  
-                  <ModuleContentBlock 
-                    title="2. Easy (Score < Threshold)"
-                    baseKey="math_easy"
-                    newFiles={newFiles}
-                    existingUploads={existingUploads}
-                    onDeleteExisting={handleDeleteExisting}
-                    handleFileChange={handleFileChange}
-                    colorClass="emerald"
-                  />
-                  
-                  <ModuleContentBlock 
-                    title="3. Hard (Score &ge; Threshold)"
-                    baseKey="math_hard"
-                    newFiles={newFiles}
-                    existingUploads={existingUploads}
-                    onDeleteExisting={handleDeleteExisting}
-                    handleFileChange={handleFileChange}
-                    colorClass="emerald"
-                  />
-                </div>
+                    {/* Math Modules */}
+                    <div className="space-y-6">
+                      <h5 className="font-black text-emerald-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        <div className="w-2 h-6 bg-emerald-500 rounded-full"></div>
+                        Math Section
+                      </h5>
+                      
+                      <ModuleContentBlock 
+                        title="1. Moderate (Starting)"
+                        baseKey="math_moderate"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="emerald"
+                      />
+                      
+                      <ModuleContentBlock 
+                        title="2. Easy (Score < Threshold)"
+                        baseKey="math_easy"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="emerald"
+                      />
+                      
+                      <ModuleContentBlock 
+                        title="3. Hard (Score &ge; Threshold)"
+                        baseKey="math_hard"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="emerald"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* ACT English */}
+                    <div className="space-y-6">
+                      <h5 className="font-black text-blue-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        <div className="w-2 h-6 bg-blue-500 rounded-full"></div>
+                        ACT English
+                      </h5>
+                      <ModuleContentBlock 
+                        title="English Content"
+                        baseKey="english_all"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="blue"
+                      />
+                    </div>
+                    {/* ACT Math */}
+                    <div className="space-y-6">
+                      <h5 className="font-black text-emerald-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        <div className="w-2 h-6 bg-emerald-500 rounded-full"></div>
+                        ACT Math
+                      </h5>
+                      <ModuleContentBlock 
+                        title="Math Content"
+                        baseKey="math_all"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="emerald"
+                      />
+                    </div>
+                    {/* ACT Reading */}
+                    <div className="space-y-6">
+                      <h5 className="font-black text-purple-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        <div className="w-2 h-6 bg-purple-500 rounded-full"></div>
+                        ACT Reading
+                      </h5>
+                      <ModuleContentBlock 
+                        title="Reading Content"
+                        baseKey="reading_all"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="blue"
+                      />
+                    </div>
+                    {/* ACT Science */}
+                    <div className="space-y-6">
+                      <h5 className="font-black text-amber-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        <div className="w-2 h-6 bg-amber-500 rounded-full"></div>
+                        ACT Science
+                      </h5>
+                      <ModuleContentBlock 
+                        title="Science Content"
+                        baseKey="science_all"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="blue"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
