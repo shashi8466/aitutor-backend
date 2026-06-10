@@ -22,7 +22,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
 
   const COURSE_CATEGORIES = {
     'SAT': ['SAT Math', 'SAT Reading & Writing'],
-    'ACT': ['ACT Math', 'ACT English', 'ACT Science'],
+    'ACT': ['ACT Math', 'ACT English', 'ACT Science', 'ACT Reading'],
     'AP': [
       'AP Biology',
       'AP Calculus AB',

@@ -150,40 +150,27 @@ const TAXONOMY = {
       ]
     },
     'ACT Science': {
-      'Unit 1': [
-        'Intro to ACT Science',
-        'Strategy & Tips for ACT Science',
-        'Assigned',
-        'Graphs & Tables'
-      ],
-      'Unit 2': [
+      'Unit 1: Data Representation': [
         'Data Representation'
       ],
-      'Unit 3': [
+      'Unit 2: Research Summary': [
         'Research Summary'
       ],
-      'Unit 4': [
+      'Unit 3: Conflicting Viewpoints': [
         'Conflicting Viewpoints'
       ]
     },
     'ACT Reading': {
-      'Unit 1': [
-        'Reading Introduction',
-        'Active Reading',
-        'General Strategy'
-      ],
-      'Unit 2': [
-        'Local vs. Global',
-        'Common Trap Answers'
-      ],
-      'Unit 3': [
-        'Direct & Indirect Questions',
-        'Advanced Strategies'
-      ],
-      'Unit 4': [
-        'Paired Reading Passages',
-        'Advanced Strategy for Paired Passages'
-      ]
+      'Vocabulary-in-Context Questions': ['Vocabulary-in-Context Questions'],
+      'Inference Questions': ['Inference Questions'],
+      'Paraphrase Questions': ['Paraphrase Questions'],
+      'Point-of-View Questions': ['Point-of-View Questions'],
+      'Author\'s Intention Questions': ['Author\'s Intention Questions'],
+      'Assumption Questions': ['Assumption Questions'],
+      'Main Idea Questions': ['Main Idea Questions'],
+      'Strengthen / Weaken the Argument Questions': ['Strengthen / Weaken the Argument Questions'],
+      'Analogous Situation Questions': ['Analogous Situation Questions'],
+      'Tone / Attitude Questions': ['Tone / Attitude Questions']
     }
   },
   'AP': {
