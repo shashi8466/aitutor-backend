@@ -111,17 +111,22 @@ const StudentCourseList = () => {
       'Unit 6 - Rhetorical Skills (Part 2)': ['Move a Sentence or Paragraph', 'Writer\'s Goal']
     },
     'ACT Science': {
-      'Unit 1': ['Intro to ACT Science', 'Strategy & Tips for ACT Science', 'Assigned', 'Graphs & Tables'],
-      'Unit 2': ['Data Representation'],
-      'Unit 3': ['Research Summary'],
-      'Unit 4': ['Conflicting Viewpoints']
+      'Unit 1: Data Representation': ['Data Representation'],
+      'Unit 2: Research Summary': ['Research Summary'],
+      'Unit 3: Conflicting Viewpoints': ['Conflicting Viewpoints']
     },
-    'ACT Reading': {
-      'Unit 1': ['Reading Introduction', 'Active Reading', 'General Strategy'],
-      'Unit 2': ['Local vs. Global', 'Common Trap Answers'],
-      'Unit 3': ['Direct & Indirect Questions', 'Advanced Strategies'],
-      'Unit 4': ['Paired Reading Passages', 'Advanced Strategy for Paired Passages']
-    }
+    'ACT Reading': [
+      'Vocabulary-in-Context Questions',
+      'Inference Questions',
+      'Paraphrase Questions',
+      'Point-of-View Questions',
+      "Author's Intention Questions",
+      'Assumption Questions',
+      'Main Idea Questions',
+      'Strengthen / Weaken the Argument Questions',
+      'Analogous Situation Questions',
+      'Tone / Attitude Questions'
+    ]
   };
 
   const getCourseTaxonomy = (course) => {
