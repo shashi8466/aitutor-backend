@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
+import axios from 'axios';
 import BrandName from '../../common/BrandName';
 import SafeIcon from '../../common/SafeIcon';
 import { contactService } from '../../services/api';
@@ -9,19 +10,38 @@ const { FiMessageSquare, FiX, FiSend, FiUser, FiCpu, FiRefreshCw, FiCheckCircle 
 
 const SalesBot = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState(0); // 0: Greeting, 1: Name, 2: Email, 3: Phone, 4: Role, 5: Requirement, 6: Confirmed
+  // steps:
+  // 0: Greeting (Role Selection)
+  // 1: Student Name
+  // 2: Grade/Class
+  // 3: Student Email
+  // 4: Student Email OTP
+  // 5: Student Phone
+  // 6: Parent Name
+  // 7: Parent Email
+  // 8: Parent Email OTP
+  // 9: Parent Phone
+  // 10: Course
+  // 11: Notes
+  // 12: Success
+  const [step, setStep] = useState(0); 
   const [leadData, setLeadData] = useState({
-    name: '',
-    email: '',
-    phone: '',
     role: '',
-    requirement: ''
+    studentName: '',
+    grade: '',
+    studentEmail: '',
+    studentPhone: '',
+    parentName: '',
+    parentEmail: '',
+    parentPhone: '',
+    course: '',
+    notes: ''
   });
   const [messages, setMessages] = useState([
     {
       id: 1,
       sender: 'bot',
-      text: "Hi! I’m your AIPrep365 AI Tutor 🤖. I can help you with SAT study plans, practice tests, and score improvement strategies. Are you preparing for the Digital SAT?"
+      text: "Hi! I’m your AIPrep365 AI Tutor 🤖. I can help you with SAT study plans, practice tests, and score improvement strategies. Are you preparing for the Digital SAT?\n\nBefore we begin, who is chatting with us today?"
     }
   ]);
   const [input, setInput] = useState('');
@@ -31,13 +51,6 @@ const SalesBot = () => {
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(scrollToBottom, [messages, isOpen]);
 
-  // Handle flow transitions
-  useEffect(() => {
-    if (step === 0 && messages.length === 1) {
-        // Initial greeting already set
-    }
-  }, [step, messages.length]);
-
   const addBotMessage = (text) => {
     setIsTyping(true);
     setTimeout(() => {
@@ -46,73 +59,193 @@ const SalesBot = () => {
     }, 800);
   };
 
+  const sendOtp = async (email) => {
+    try {
+      await axios.post('/api/demo/send-email-otp', { email });
+      return true;
+    } catch (e) {
+      console.error("Failed to send OTP:", e);
+      return false;
+    }
+  };
+
+  const verifyOtp = async (email, otp) => {
+    try {
+      const res = await axios.post('/api/demo/verify-email-otp', { email, otp });
+      return res.data?.success;
+    } catch (e) {
+      console.error("Failed to verify OTP:", e);
+      return false;
+    }
+  };
+
   const handleSend = async (customText = null) => {
     const text = (customText || input || '').trim();
-    if (!text && step !== 4 && step !== 5) return; // Allow empty only if buttons used
+    
+    // Quick action buttons can send predefined text. If no text is provided, enforce entry unless optional
+    if (!text && step !== 0 && step !== 9 && step !== 10) return; 
 
-    // 1. Add User Message
-    const userMsg = { id: Date.now(), sender: 'user', text };
+    // Add user message
+    const userMsg = { id: Date.now(), sender: 'user', text: text || 'Skipped' };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setIsTyping(true); // Manually set typing to block input during async ops
 
-    // 2. Process based on current step
     let nextStep = step;
     let nextBotMsg = "";
 
-    if (step === 0) {
-        nextStep = 1;
-        nextBotMsg = "What’s your name?";
-    } else if (step === 1) {
-        setLeadData(prev => ({ ...prev, name: text }));
-        nextStep = 2;
-        nextBotMsg = "Please enter your email address.";
-    } else if (step === 2) {
-        setLeadData(prev => ({ ...prev, email: text }));
-        nextStep = 3;
-        nextBotMsg = "Please enter your phone number.";
-    } else if (step === 3) {
-        setLeadData(prev => ({ ...prev, phone: text }));
-        nextStep = 4;
-        nextBotMsg = "Who are you?";
-    } else if (step === 4) {
+    try {
+      if (step === 0) {
         setLeadData(prev => ({ ...prev, role: text }));
-        nextStep = 5;
-        nextBotMsg = "What are you looking for? (e.g., SAT Courses, Practice Tests, Study Plan, Guidance, Doubt Solving, etc.)";
-    } else if (step === 5) {
-        const finalData = { ...leadData, requirement: text };
-        setLeadData(finalData);
+        nextStep = 1;
+        nextBotMsg = "What is the student's name?";
+      } 
+      else if (step === 1) {
+        setLeadData(prev => ({ ...prev, studentName: text }));
+        nextStep = 2;
+        nextBotMsg = "What grade or class are they in?";
+      } 
+      else if (step === 2) {
+        setLeadData(prev => ({ ...prev, grade: text }));
+        nextStep = 3;
+        nextBotMsg = "Please enter the student's email address.";
+      } 
+      else if (step === 3) {
+        setLeadData(prev => ({ ...prev, studentEmail: text }));
+        const sent = await sendOtp(text);
+        nextStep = 4;
+        if (sent) {
+          nextBotMsg = "We've sent a 6-digit verification code to that email. Please enter it here.";
+        } else {
+          nextBotMsg = "We encountered an issue sending the OTP. Please enter the email address again.";
+          nextStep = 3;
+        }
+      } 
+      else if (step === 4) {
+        if (text.toLowerCase() === 'resend') {
+          await sendOtp(leadData.studentEmail);
+          nextBotMsg = "A new verification code has been sent. Please enter it here.";
+          nextStep = 4;
+        } else {
+          const isValid = await verifyOtp(leadData.studentEmail, text);
+          if (isValid) {
+            nextStep = 5;
+            nextBotMsg = "Email verified successfully! Please enter the student's phone number.";
+          } else {
+            nextStep = 4;
+            nextBotMsg = "Invalid verification code. Please try again or type 'resend' to send a new code.";
+          }
+        }
+      } 
+      else if (step === 5) {
+        setLeadData(prev => ({ ...prev, studentPhone: text }));
         nextStep = 6;
+        nextBotMsg = "What is the parent's name?";
+      } 
+      else if (step === 6) {
+        setLeadData(prev => ({ ...prev, parentName: text }));
+        nextStep = 7;
+        nextBotMsg = "Please enter the parent's email address.";
+      } 
+      else if (step === 7) {
+        setLeadData(prev => ({ ...prev, parentEmail: text }));
+        const sent = await sendOtp(text);
+        nextStep = 8;
+        if (sent) {
+          nextBotMsg = "We've sent a 6-digit verification code to the parent's email. Please enter it here.";
+        } else {
+          nextBotMsg = "We encountered an issue sending the OTP. Please enter the email address again.";
+          nextStep = 7;
+        }
+      } 
+      else if (step === 8) {
+        if (text.toLowerCase() === 'resend') {
+          await sendOtp(leadData.parentEmail);
+          nextBotMsg = "A new verification code has been sent. Please enter it here.";
+          nextStep = 8;
+        } else {
+          const isValid = await verifyOtp(leadData.parentEmail, text);
+          if (isValid) {
+            nextStep = 9;
+            nextBotMsg = "Email verified successfully! Please enter the parent's phone number.";
+          } else {
+            nextStep = 8;
+            nextBotMsg = "Invalid verification code. Please try again or type 'resend' to send a new code.";
+          }
+        }
+      } 
+      else if (step === 9) {
+        setLeadData(prev => ({ ...prev, parentPhone: text === 'Skipped' ? '' : text }));
+        nextStep = 10;
+        nextBotMsg = "What course are you interested in? (e.g. SAT, ACT, AP, Practice Tests, Tutoring)";
+      } 
+      else if (step === 10) {
+        setLeadData(prev => ({ ...prev, course: text }));
+        nextStep = 11;
+        nextBotMsg = "Do you have any additional notes or specific requirements?";
+      } 
+      else if (step === 11) {
+        const finalData = { ...leadData, notes: text };
+        setLeadData(finalData);
+        nextStep = 12;
         nextBotMsg = "Thank you! Your details have been submitted successfully. Our team will contact you soon.";
         
+        // Format message for backend
+        const formattedMessage = [
+          `Role: ${finalData.role}`,
+          `Grade: ${finalData.grade}`,
+          `Student Name: ${finalData.studentName}`,
+          `Student Email: ${finalData.studentEmail}`,
+          `Student Phone: ${finalData.studentPhone}`,
+          `Parent Name: ${finalData.parentName}`,
+          `Parent Email: ${finalData.parentEmail}`,
+          `Parent Phone: ${finalData.parentPhone || 'N/A'}`,
+          `Interested Course: ${finalData.course}`,
+          `Additional Notes: ${finalData.notes}`
+        ].join('\n');
+
         // AUTO-SUBMIT TO BACKEND
         try {
             await contactService.submit({
-                fullName: finalData.name,
-                email: finalData.email,
-                mobile: finalData.phone,
+                fullName: finalData.studentName || finalData.parentName,
+                email: finalData.studentEmail || finalData.parentEmail,
+                mobile: finalData.studentPhone || finalData.parentPhone,
                 subject: `Chatbot Lead: ${finalData.role}`,
-                message: `Requirement: ${finalData.requirement}\nCaptured via AI Tutor Chatbot flow.`,
+                message: formattedMessage + '\n\nCaptured via AI Tutor Chatbot flow.',
                 type: 'Lead'
             });
         } catch (e) {
             console.error("Chatbot lead submission failed", e);
         }
-    }
-
-    setStep(nextStep);
-    if (nextBotMsg) {
+      }
+    } finally {
+      setIsTyping(false);
+      setStep(nextStep);
+      if (nextBotMsg) {
         addBotMessage(nextBotMsg);
+      }
     }
   };
 
   const handleRefresh = () => {
     setStep(0);
-    setLeadData({ name: '', email: '', phone: '', role: '', requirement: '' });
+    setLeadData({
+      role: '',
+      studentName: '',
+      grade: '',
+      studentEmail: '',
+      studentPhone: '',
+      parentName: '',
+      parentEmail: '',
+      parentPhone: '',
+      course: '',
+      notes: ''
+    });
     setMessages([
       {
         id: 1,
         sender: 'bot',
-        text: "Hi! I’m your AIPrep365 AI Tutor 🤖. I can help you with SAT study plans, practice tests, and score improvement strategies. Are you preparing for the Digital SAT?"
+        text: "Hi! I’m your AIPrep365 AI Tutor 🤖. I can help you with SAT study plans, practice tests, and score improvement strategies. Are you preparing for the Digital SAT?\n\nBefore we begin, who is chatting with us today?"
       }
     ]);
     setInput('');
@@ -123,30 +256,21 @@ const SalesBot = () => {
 
     if (step === 0) {
         return (
-            <div className="flex flex-wrap gap-2 mt-2">
-                <button onClick={() => handleSend("Yes, I am!")} className="chat-btn">Yes, I am!</button>
-                <button onClick={() => handleSend("Just browsing")} className="chat-btn">Just browsing</button>
+            <div className="flex flex-col gap-2 mt-2 w-full">
+                <button onClick={() => handleSend("👨‍🎓 I am a Student")} className="chat-btn text-left">👨‍🎓 I am a Student</button>
+                <button onClick={() => handleSend("👨‍👩‍👧 I am a Parent")} className="chat-btn text-left">👨‍👩‍👧 I am a Parent</button>
             </div>
         );
     }
 
-    if (step === 4) {
+    if (step === 10) {
         return (
             <div className="flex flex-wrap gap-2 mt-2">
-                <button onClick={() => handleSend("Student")} className="chat-btn">Student</button>
-                <button onClick={() => handleSend("Parent")} className="chat-btn">Parent</button>
-                <button onClick={() => handleSend("Teacher")} className="chat-btn">Teacher</button>
-            </div>
-        );
-    }
-
-    if (step === 5) {
-        return (
-            <div className="flex flex-wrap gap-2 mt-2">
-                <button onClick={() => handleSend("SAT Courses")} className="chat-btn">SAT Courses</button>
+                <button onClick={() => handleSend("SAT")} className="chat-btn">SAT</button>
+                <button onClick={() => handleSend("ACT")} className="chat-btn">ACT</button>
+                <button onClick={() => handleSend("AP")} className="chat-btn">AP</button>
                 <button onClick={() => handleSend("Practice Tests")} className="chat-btn">Practice Tests</button>
-                <button onClick={() => handleSend("Study Plan")} className="chat-btn">Study Plan</button>
-                <button onClick={() => handleSend("Guidance")} className="chat-btn">Guidance</button>
+                <button onClick={() => handleSend("Tutoring")} className="chat-btn">Tutoring</button>
             </div>
         );
     }
@@ -158,13 +282,13 @@ const SalesBot = () => {
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end print:hidden">
       <style>{`
         .chat-btn {
-            font-size: 11px;
+            font-size: 12px;
             font-weight: bold;
             background: white;
             border: 1px solid #e2e8f0;
             color: #4f46e5;
-            padding: 6px 12px;
-            border-radius: 9999px;
+            padding: 8px 12px;
+            border-radius: 8px;
             transition: all 0.2s;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
@@ -214,7 +338,7 @@ const SalesBot = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900 custom-scrollbar h-[350px]">
               {messages.map((msg, idx) => (
                 <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`max-w-[88%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words overflow-hidden ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-800 rounded-tl-none'}`} style={{ overflowWrap: 'anywhere' }}>
+                  <div className={`max-w-[88%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words overflow-hidden whitespace-pre-wrap ${msg.sender === 'user' ? 'bg-indigo-600 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-800 rounded-tl-none'}`} style={{ overflowWrap: 'anywhere' }}>
                     {msg.text}
                   </div>
                   {idx === messages.length - 1 && <QuickActions />}
@@ -233,7 +357,7 @@ const SalesBot = () => {
             </div>
 
             {/* Input - Hidden on confirmation step */}
-            {step < 6 && (
+            {step < 12 && (
               <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-800">
                 <div className="flex gap-2 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-700 focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
                   <input
@@ -241,10 +365,16 @@ const SalesBot = () => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder={step === 2 ? "Enter your email..." : step === 3 ? "Enter phone number..." : "Type your message..."}
+                    placeholder={
+                      step === 3 ? "Enter student's email..." : 
+                      step === 4 ? "Enter 6-digit code..." :
+                      step === 7 ? "Enter parent's email..." :
+                      step === 8 ? "Enter 6-digit code..." :
+                      "Type your message..."
+                    }
                     className="flex-1 p-2 bg-transparent text-sm outline-none dark:text-white"
                   />
-                  <button onClick={() => handleSend()} disabled={!input.trim() || isTyping} className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
+                  <button onClick={() => handleSend()} disabled={(!input.trim() && step !== 9) || isTyping} className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
                     <SafeIcon icon={FiSend} className="w-4 h-4" />
                   </button>
                 </div>
