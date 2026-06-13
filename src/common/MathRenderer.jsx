@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
   const nodeRef = useRef(null);
+  const [zoomedImage, setZoomedImage] = useState(null);
 
   useEffect(() => {
     if (!nodeRef.current) return;
@@ -115,7 +116,7 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
         ? `${supabaseUrl}/${effectiveCourseId}/images/${cleanFilename}`
         : `${supabaseUrl}/images/${cleanFilename}`;
 
-      return `<div class="docx-image-wrapper my-4 flex justify-center"><img src="${fullImageUrl}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-sm border border-slate-200" onerror="this.parentElement.style.display='none'; console.warn('🖼️ [MathRenderer] Failed to load image:', '${fullImageUrl}')" /></div>`;
+      return `<div class="docx-image-wrapper my-4 flex justify-center"><img src="${fullImageUrl}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-md border border-slate-200 bg-white p-2 cursor-zoom-in hover:scale-[1.01] transition-transform duration-200" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" onerror="this.parentElement.style.display='none'; console.warn('🖼️ [MathRenderer] Failed to load image:', '${fullImageUrl}')" /></div>`;
     };
 
     // 1. Replace standard tags
@@ -203,21 +204,67 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
       nodeRef.current.innerHTML = processedText;
     }
 
+    // Attach click handlers to images inside this MathRenderer
+    const images = nodeRef.current.querySelectorAll('img');
+    const handlers = [];
+    images.forEach(img => {
+      const handler = () => {
+        setZoomedImage(img.src);
+      };
+      img.addEventListener('click', handler);
+      handlers.push({ img, handler });
+    });
 
+    return () => {
+      handlers.forEach(({ img, handler }) => {
+        if (img) img.removeEventListener('click', handler);
+      });
+    };
   }, [text]);
 
   return (
-    <div
-      ref={nodeRef}
-      className={`math-content overflow-x-auto max-w-full ${className}`}
-      style={{
-        display: 'inline-block',
-        verticalAlign: 'baseline',
-        overflowWrap: 'anywhere',
-        wordBreak: 'break-word',
-        whiteSpace: 'normal'
-      }}
-    />
+    <>
+      <div
+        ref={nodeRef}
+        className={`math-content overflow-x-auto max-w-full ${className}`}
+        style={{
+          display: 'inline-block',
+          verticalAlign: 'baseline',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
+          whiteSpace: 'normal'
+        }}
+      />
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 z-[9999999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+            <button 
+              className="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white rounded-full p-2.5 transition-all"
+              onClick={() => setZoomedImage(null)}
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img 
+              src={zoomedImage} 
+              alt="Zoomed diagram" 
+              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl bg-white p-4 border border-white/20"
+              style={{
+                imageRendering: 'crisp-edges'
+              }}
+              onClick={(e) => e.stopPropagation()} 
+            />
+            <p className="text-white/60 text-xs font-semibold mt-4 tracking-wider uppercase select-none">
+              Click anywhere outside or button to close
+            </p>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

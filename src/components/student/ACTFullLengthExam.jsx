@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import AITutorModal from './AITutorModal';
 import MathRenderer from '../../common/MathRenderer';
 import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
 import { courseService, gradingService } from '../../services/api';
@@ -12,7 +13,8 @@ import { useAuth } from '../../contexts/AuthContext';
 const {
   FiChevronLeft, FiChevronRight, FiClock, FiFlag, FiLogOut, FiAlertCircle,
   FiCheckCircle, FiRefreshCw, FiChevronDown, FiX, FiPlay, FiAward, FiZap,
-  FiAlertTriangle, FiBarChart2, FiBook, FiTarget, FiActivity, FiStar
+  FiAlertTriangle, FiBarChart2, FiBook, FiTarget, FiActivity, FiStar,
+  FiArrowLeft, FiGrid, FiMessageCircle, FiShield, FiCheck
 } = FiIcons;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,10 +54,14 @@ const rawToScale = (table, raw) => {
   return table[clamped] ?? 1;
 };
 
-// Composite: avg of English + Math + Reading, halves round up
-const calcComposite = (eng, math, read) => {
+// Composite: avg of English + Math + Reading (+ Science if attempted), halves round up
+const calcComposite = (eng, math, read, sci = null) => {
+  if (sci !== null) {
+    const avg = (eng + math + read + sci) / 4;
+    return Math.round(avg + Number.EPSILON);
+  }
   const avg = (eng + math + read) / 3;
-  return Math.round(avg + Number.EPSILON); // halves round up via EPSILON
+  return Math.round(avg + Number.EPSILON);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,8 +125,9 @@ const ACTFullLengthExam = () => {
   const { courseId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const searchParams = new URLSearchParams(window.location.search);
+  const searchParams = new URLSearchParams(location.search);
   const isPracticeMode = searchParams.get('mode') === 'practice';
 
   // ── Flow State ──────────────────────────────────────────────────────────────
@@ -141,6 +148,8 @@ const ACTFullLengthExam = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState({}); // { qId: answer }
   const [flaggedQuestions, setFlaggedQuestions] = useState({});
+  const [showAITutor, setShowAITutor] = useState(false);
+  const [submittedAnswers, setSubmittedAnswers] = useState({}); // track submitted per question
 
   // ── Timer State ──────────────────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = useState(0);
@@ -411,9 +420,31 @@ const ACTFullLengthExam = () => {
   // 5. NAVIGATION & ANSWER HANDLING
   // ─────────────────────────────────────────────────────────────────────────────
   const handleAnswerSelect = (answer) => {
-    if (currentQuestion) {
+    if (currentQuestion && !submittedAnswers[currentQuestion.id]) {
       setUserAnswers(prev => ({ ...prev, [currentQuestion.id]: answer }));
     }
+  };
+
+  const handleCheckAnswer = () => {
+    if (currentQuestion && userAnswers[currentQuestion.id]) {
+      setSubmittedAnswers(prev => ({ ...prev, [currentQuestion.id]: true }));
+    }
+  };
+
+  const isCorrectAnswer = () => {
+    if (!currentQuestion || !userAnswers[currentQuestion.id]) return null;
+    const ans = userAnswers[currentQuestion.id].toString().trim().toLowerCase();
+    const correct = currentQuestion.correctAnswer.toString().trim().toLowerCase();
+    return ans === correct;
+  };
+  
+  const getDisplayAnswer = (q) => {
+    if (!q || !q.correctAnswer) return '';
+    const correctOptIndex = q.correctAnswer.charCodeAt(0) - 65;
+    if (q.options && q.options[correctOptIndex]) {
+      return `${q.correctAnswer}) ${q.options[correctOptIndex]}`;
+    }
+    return q.correctAnswer;
   };
 
   const toggleFlag = () => {
@@ -514,7 +545,7 @@ const ACTFullLengthExam = () => {
       const readScaled = rawToScale(READING_TABLE, readRaw);
       const sciScaled = withScience ? rawToScale(SCIENCE_TABLE, sciRaw) : null;
 
-      const composite = calcComposite(engScaled, mathScaled, readScaled);
+      const composite = calcComposite(engScaled, mathScaled, readScaled, withScience ? sciScaled : null);
 
       const actScores = {
         mathematics: { raw: mathRaw, max: 45, scaled: mathScaled },
@@ -557,7 +588,7 @@ const ACTFullLengthExam = () => {
         duration: sectionsAttempted.reduce((acc, sec) => {
           const s = SECTIONS.find(s => s.key === sec);
           return acc + (s ? s.durationSeconds : 0);
-        }, 0),
+        }, 0) + (sectionsAttempted.length >= 2 ? BREAK_DURATION : 0),
         scores: {
           totalCorrect,
           accuracy,
@@ -952,11 +983,8 @@ const ACTFullLengthExam = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // 13. RENDER: ACTIVE EXAM SECTION
   // ─────────────────────────────────────────────────────────────────────────────
-  const isLowTime = timeLeft <= 300; // 5 min warning
-  const isCriticalTime = timeLeft <= 60;
-
   return (
-    <div className="fixed inset-0 z-[999999] bg-white flex flex-col font-sans select-none text-black overflow-hidden take-quiz-force-white px-0">
+    <div className={`fixed inset-0 z-[999999] flex flex-col font-sans select-none overflow-hidden px-0 ${isPracticeMode ? 'bg-[#0a0e2a] text-white dark' : 'bg-[#F1F5F9] text-black take-quiz-force-white'}`}>
       {/* Security Alert */}
       <AnimatePresence>
         {showSecurityAlert && (
@@ -971,203 +999,283 @@ const ACTFullLengthExam = () => {
         )}
       </AnimatePresence>
 
-      {/* CSS Overrides */}
-      <style>{`
-        .take-quiz-force-white header { background: #0f172a !important; color: white !important; min-height: 60px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 12px !important; position: relative !important; z-index: 10000 !important; }
-        @media (min-width: 640px) { .take-quiz-force-white header { padding: 0 40px !important; } }
-        .take-quiz-force-white footer { background: #ffffff !important; border-top: 1px solid #e2e8f0 !important; min-height: 75px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 0 12px !important; position: relative !important; z-index: 10000 !important; }
-        @media (min-width: 640px) { .take-quiz-force-white footer { padding: 0 40px !important; min-height: 60px !important; } }
-        .timer-text { color: #ffffff !important; font-weight: 800 !important; font-size: 15px !important; }
-        @media (min-width: 640px) { .timer-text { font-size: 18px !important; } }
-        .practice-banner { background: #1e1b4b !important; color: white !important; text-align: center !important; padding: 6px 0 !important; font-size: 9px !important; font-weight: 800 !important; letter-spacing: 0.1em !important; position: relative !important; z-index: 9000 !important; }
-      `}</style>
-
-      {/* Header */}
-      <header>
-        <div className="flex flex-col">
-          <h2 className="text-[15px] font-bold text-white">
-            Section {currentSection.sectionNumber} – {currentSection.label}
-          </h2>
-          <span className="text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-3 h-3" /></span>
-        </div>
-        <div className="flex flex-col items-center mt-1">
-            <div className="timer-text">{formatTime(timeLeft)}</div>
-            <span className="text-[9px] font-bold text-gray-400 tracking-widest cursor-pointer hover:text-white">HIDE</span>
-        </div>
-        <div className="flex items-center gap-6 relative">
-           <button 
-             onClick={() => setShowMoreMenu(!showMoreMenu)} 
-             className="flex flex-col items-center cursor-pointer text-gray-300 hover:text-white bg-transparent border-none p-0 outline-none relative z-[10001]"
-           >
-               <span className="text-xl font-black leading-none">⋮</span>
-               <span className="text-[8px] font-bold uppercase tracking-widest">More</span>
-           </button>
-
-           <AnimatePresence>
-             {showMoreMenu && (
-               <>
-                 <div className="fixed inset-0 z-[10000]" onClick={() => setShowMoreMenu(false)}></div>
-                 <motion.div 
-                   initial={{ opacity: 0, y: 10 }} 
-                   animate={{ opacity: 1, y: 0 }} 
-                   exit={{ opacity: 0, y: 10 }}
-                   className="absolute top-[100%] right-0 bg-[#1e293b] border border-slate-700/50 rounded-xl py-2 w-[200px] shadow-2xl z-[10002] mt-2 overflow-hidden"
-                 >
-                    <div 
-                       onClick={() => { setShowMoreMenu(false); navigate(`/student/course/${courseId}`); }} 
-                       className="flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 cursor-pointer text-slate-200 hover:text-white text-sm font-medium transition-colors"
-                    >
-                       <SafeIcon icon={FiLogOut} className="w-4 h-4 opacity-70" />
-                       Save and Exit
-                    </div>
-                 </motion.div>
-               </>
-             )}
-           </AnimatePresence>
-        </div>
-      </header>
-
-      {/* Section Banner */}
-      <div className="practice-banner">
-        ACT FULL-LENGTH TEST · SECTION {currentSection.sectionNumber}: {currentSection.label.toUpperCase()} · {currentSection.questionCount} QUESTIONS · {currentSection.durationSeconds / 60} MINUTES
-      </div>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-2 sm:pt-4 bg-white relative z-10">
-        {/* Passage / Question Left Panel */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
-          <div className="prose prose-slate max-w-none leading-[1.6] text-[16px] sm:text-[18px] text-slate-900 font-medium tracking-tight antialiased">
-            {currentQuestion?.passage ? (
-              <MathRenderer text={currentQuestion.passage} courseId={courseId} />
-            ) : (
-              <MathRenderer text={currentQuestion?.question || currentQuestion?.question_html || currentQuestion?.text || ''} courseId={courseId} />
-            )}
-          </div>
-        </div>
-
-        {/* Answer Panel */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white relative z-20">
-          <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-black text-white w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-bold rounded-lg text-sm sm:text-base">
-                {currentQuestionIndex + 1}
-              </div>
-              <button
-                onClick={toggleFlag}
-                className={`flex items-center gap-2 text-xs sm:text-sm font-bold border-b-2 border-dashed ${
-                  flaggedQuestions[`${currentSection.key}-${currentQuestionIndex}`] ? 'text-black border-black' : 'text-gray-800 border-gray-400'
-                }`}
-              >
-                <SafeIcon icon={FiStar} className={flaggedQuestions[`${currentSection.key}-${currentQuestionIndex}`] ? 'fill-current' : ''} />
-                <span className="whitespace-nowrap">Mark for Review</span>
+      <main className={`flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 ${isPracticeMode ? 'bg-[#0a0e2a]' : 'bg-[#F1F5F9]'}`}>
+        <div className="max-w-7xl mx-auto w-full flex flex-col h-full">
+          {/* Header matching LegacyQuizInterface exactly */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <button onClick={() => navigate(`/student/course/${courseId}`)} className={`flex items-center gap-2 font-bold text-sm transition-colors ${isPracticeMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}`}>
+                <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Exit
               </button>
+              <button onClick={() => setScreen('review')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-bold shadow-sm ${isPracticeMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
+                <SafeIcon icon={FiGrid} className="w-4 h-4" /> Questions
+              </button>
+            </div>
+            <div className="flex items-center gap-6 font-bold text-sm">
+              <span className="flex items-center gap-1"><SafeIcon icon={FiClock} className="text-[#E53935]" /> {formatTime(timeLeft)}</span>
+              <span className="flex items-center gap-1"><SafeIcon icon={FiTarget} className="text-[#E53935]" /> {currentQuestionIndex + 1}/{currentQuestions.length}</span>
             </div>
           </div>
 
-          <div className="space-y-4 relative z-30">
-            {/* Question text (if split mode with passage) */}
-            {(currentQuestion?.passage || currentQuestion?.question_text) && (
-              <div className="text-[17px] font-bold text-black mb-8 leading-relaxed">
-                <MathRenderer text={
-                  currentQuestion?.passage
-                    ? (currentQuestion?.question || currentQuestion?.text || '')
-                    : (currentQuestion?.question_text || '')
-                } courseId={courseId} />
-              </div>
-            )}
+          <motion.div key={currentQuestionIndex + (currentQuestion.id || 'temp')} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className={`rounded-2xl shadow-xl border ${isPracticeMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} flex-1`}>
+            {/* Red Progress Bar */}
+            <div className={`w-full h-1.5 ${isPracticeMode ? 'bg-gray-800' : 'bg-gray-100'} rounded-t-2xl overflow-hidden`}>
+              <div className="bg-[#E53935] h-1.5 transition-all" style={{ width: `${((currentQuestionIndex + 1) / currentQuestions.length) * 100}%` }} />
+            </div>
 
-            {/* Answer options or SPR */}
-            {(!currentQuestion?.options || currentQuestion.options.filter(o => o?.toString().trim()).length === 0 ||
-              currentQuestion?.type === 'short_answer' || currentQuestion?.type === 'spr') ? (
-              <div className="w-full flex flex-col mt-4">
-                <p className="text-[15px] font-bold text-slate-500 mb-4 uppercase tracking-wider">Student-Produced Response</p>
-                <div className="relative w-full max-w-[180px] transition-all mb-12">
-                  <input
-                    type="text"
-                    className="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-4 py-3 font-bold text-lg text-left focus:outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-50 text-slate-900 placeholder:text-slate-400 transition-all shadow-sm"
-                    value={selectedAnswer}
-                    placeholder="Type response"
-                    onChange={e => handleAnswerSelect(e.target.value)}
-                  />
-                </div>
-              </div>
-            ) : (
-              currentQuestion.options.map((optContent, idx) => {
-                const letter = String.fromCharCode(65 + idx);
-                const isSelected = selectedAnswer === letter;
-                return (
-                  <div key={letter} className="flex flex-col sm:flex-row gap-2 sm:gap-4 group relative z-40">
-                    <button
-                      type="button"
-                      onClick={() => handleAnswerSelect(letter)}
-                      className={`w-[44px] h-[44px] rounded-full flex items-center justify-center font-bold shrink-0 transition-colors cursor-pointer pointer-events-auto relative z-50 ${
-                        isSelected
-                          ? 'border-2 border-blue-600 text-blue-600 bg-white ring-4 ring-blue-50 shadow-sm'
-                          : 'border border-slate-200 text-slate-400 bg-white group-hover:border-slate-300'
-                      }`}
-                    >
-                      {letter}
-                    </button>
-                    <div
-                      role="button"
-                      onClick={() => handleAnswerSelect(letter)}
-                      className={`flex-1 rounded-2xl p-4 sm:p-5 min-h-[50px] sm:min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${
-                        isSelected
-                          ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm'
-                          : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'
-                      }`}
-                    >
-                      <div className="pointer-events-none w-full">
-                        <MathRenderer text={optContent} courseId={courseId} className="text-[15px] sm:text-[17px] text-slate-800 font-normal leading-normal antialiased" />
-                      </div>
+            <div className="p-5 sm:p-8 md:p-10">
+              <div className={currentQuestion?.passage ? "flex flex-col lg:flex-row gap-8 lg:gap-12 items-start" : ""}>
+                
+                {/* Linked Passage - Left Panel */}
+                {currentQuestion?.passage && (
+                  <div className="w-full lg:w-1/2 lg:sticky lg:top-6">
+                    <div className={`p-6 lg:p-8 rounded-2xl prose max-w-none text-[15px] sm:text-[17px] whitespace-pre-wrap shadow-sm overflow-y-auto max-h-[75vh] custom-scrollbar ${isPracticeMode ? 'bg-slate-800/50 border border-slate-700 prose-invert text-slate-200' : 'bg-slate-50 border border-slate-200 prose-slate text-slate-800'}`}>
+                       <MathRenderer text={currentQuestion.passage} courseId={courseId} />
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
+                )}
+
+                {/* Right Panel / Full Width Question */}
+                <div className={`w-full ${currentQuestion?.passage ? "lg:w-1/2" : ""}`}>
+                  {/* Topic Name */}
+                  <div className="mb-10 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#E53935]" />
+                        <span className="text-[10px] font-black text-[#E53935] uppercase tracking-[0.2em]">{currentSection.label.toUpperCase()}_ACT</span>
+                      </div>
+                      <h1 className={`text-2xl md:text-3xl font-black ${isPracticeMode ? 'text-white' : 'text-gray-900'}`}>
+                        Question {currentQuestionIndex + 1}
+                      </h1>
+                    </div>
+                    <button
+                      onClick={toggleFlag}
+                      className={`flex flex-col items-center gap-1 text-xs font-bold transition-all ${
+                        flaggedQuestions[`${currentSection.key}-${currentQuestionIndex}`] 
+                          ? 'text-red-500' 
+                          : isPracticeMode ? 'text-gray-500 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'
+                      }`}
+                    >
+                      <SafeIcon icon={FiStar} className={flaggedQuestions[`${currentSection.key}-${currentQuestionIndex}`] ? 'fill-current w-5 h-5' : 'w-5 h-5'} />
+                      <span>{flaggedQuestions[`${currentSection.key}-${currentQuestionIndex}`] ? 'Flagged' : 'Flag'}</span>
+                    </button>
+                  </div>
+
+                  {/* Question Text */}
+                  <div className="mb-10 max-w-3xl">
+                    <h2 className={`text-xl md:text-[22px] font-medium leading-[1.6] tracking-normal antialiased ${isPracticeMode ? 'text-slate-100' : 'text-slate-800'}`}>
+                      <MathRenderer text={currentQuestion?.question || currentQuestion?.question_html || currentQuestion?.text || ''} courseId={courseId} />
+                    </h2>
+                  </div>
+
+                  {/* Answer options */}
+                  {(!currentQuestion?.options || currentQuestion.options.filter(o => o?.toString().trim()).length === 0) ? (
+                    <div className="w-full flex flex-col mt-4">
+                      <p className={`text-[15px] font-bold mb-4 uppercase tracking-wider ${isPracticeMode ? 'text-slate-400' : 'text-slate-500'}`}>Student-Produced Response</p>
+                      <input
+                        type="text"
+                        className={`w-full max-w-[180px] border-2 rounded-lg px-4 py-3 font-bold text-lg text-left focus:outline-none focus:ring-4 transition-all shadow-sm ${isPracticeMode ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500 focus:ring-blue-900 placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 focus:border-blue-600 focus:ring-blue-50 focus:bg-white placeholder-slate-400'}`}
+                        value={selectedAnswer}
+                        placeholder="Type response"
+                        disabled={isPracticeMode && submittedAnswers[currentQuestion?.id]}
+                        onChange={e => handleAnswerSelect(e.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-4 max-w-2xl">
+                      {currentQuestion.options.map((optContent, idx) => {
+                        const letter = String.fromCharCode(65 + idx);
+                        const isSelected = selectedAnswer === letter;
+                        const isSubmitted = isPracticeMode && submittedAnswers[currentQuestion?.id];
+                        const isCorrectOpt = currentQuestion.correctAnswer && currentQuestion.correctAnswer.toString().trim().toUpperCase() === letter;
+                        
+                        let containerClass = isPracticeMode 
+                          ? "border-gray-800 hover:border-blue-500 hover:bg-blue-900/10" 
+                          : "border-gray-200 hover:border-blue-400 hover:bg-blue-50";
+                        let circleClass = isPracticeMode
+                          ? "bg-gray-800 border-gray-600 text-gray-400"
+                          : "bg-white border-gray-300 text-gray-500";
+                          
+                        if (isSubmitted) {
+                          if (isCorrectOpt) {
+                            containerClass = "border-green-500 bg-green-50 dark:bg-green-900/20 text-slate-900 dark:text-white ring-1 ring-green-500";
+                            circleClass = "bg-green-500 text-white border-green-500 shadow-md";
+                          } else if (isSelected && !isCorrectOpt) {
+                            containerClass = "border-[#E53935] bg-red-50 dark:bg-red-900/20 text-slate-900 dark:text-white ring-1 ring-[#E53935]";
+                            circleClass = "bg-[#E53935] text-white border-[#E53935] shadow-md";
+                          } else {
+                            containerClass = isPracticeMode ? "border-gray-800 opacity-40" : "border-gray-100 opacity-40";
+                          }
+                        } else if (isSelected) {
+                          containerClass = isPracticeMode
+                            ? "border-blue-600 bg-blue-900/20 text-blue-300 ring-1 ring-blue-600 shadow-sm"
+                            : "border-blue-600 bg-blue-50/50 text-blue-700 ring-1 ring-blue-600 shadow-sm";
+                          circleClass = "bg-blue-600 text-white border-blue-600 shadow-md";
+                        }
+
+                        return (
+                          <button 
+                            key={letter} 
+                            onClick={() => handleAnswerSelect(letter)}
+                            disabled={isSubmitted}
+                            className={`w-full p-4 text-left rounded-xl border transition-all flex flex-col sm:flex-row items-start gap-3 sm:gap-4 group ${containerClass}`}
+                          >
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                              <span className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-black transition-colors shadow-sm shrink-0 border ${circleClass}`}>
+                                {letter}
+                              </span>
+                            </div>
+                            <div className={`font-normal text-[16px] md:text-[17px] flex-1 leading-relaxed w-full ${isSelected || (isSubmitted && isCorrectOpt) ? 'font-semibold' : ''} ${isPracticeMode ? (isSelected && !isSubmitted ? 'text-blue-300' : 'text-slate-200') : (isSelected && !isSubmitted ? 'text-blue-700' : 'text-slate-800')}`}>
+                              <MathRenderer text={optContent} courseId={courseId} />
+                            </div>
+                            {isSubmitted && isCorrectOpt && <SafeIcon icon={FiCheck} className="ml-auto w-5 h-5 text-green-500 shrink-0" />}
+                            {isSubmitted && isSelected && !isCorrectOpt && <SafeIcon icon={FiX} className="ml-auto w-5 h-5 text-[#E53935] shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Immediate Grading Panel (Practice Mode Only) */}
+                  {isPracticeMode && submittedAnswers[currentQuestion?.id] && (
+                    <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="mt-10">
+                      <div className={`p-6 md:p-8 rounded-2xl border-2 transition-all shadow-sm ${isCorrectAnswer() ? 'bg-green-900/20 border-green-500/30 text-green-100' : 'bg-red-900/20 border-red-500/30 text-red-100'}`}>
+                        
+                        <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm ${isCorrectAnswer() ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            <SafeIcon icon={isCorrectAnswer() ? FiCheck : FiX} className="w-5 h-5 sm:w-6 sm:h-6" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-0.5">Quiz Status</span>
+                            <span className="font-black text-lg md:text-xl uppercase tracking-wider">{isCorrectAnswer() ? "Correct Answer" : "Incorrect Answer"}</span>
+                          </div>
+                        </div>
+
+                        {!isCorrectAnswer() && (
+                          <div className="mb-8 p-4 bg-gray-900/50 rounded-xl border border-red-500/20">
+                            <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Verified Correct Answer</span>
+                            <div className="text-xl font-bold text-white">
+                              <MathRenderer text={getDisplayAnswer(currentQuestion)} courseId={courseId} />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 mb-2">
+                             <span className="text-xs font-black text-[#E53935] uppercase tracking-widest">Detailed Solution & Explanation</span>
+                          </div>
+                          
+                          <div className="text-gray-200 font-medium leading-relaxed max-w-full overflow-x-auto whitespace-pre-line break-words clear-both">
+                            {currentQuestion.explanation && currentQuestion.explanation.trim() !== '' ? (
+                              <MathRenderer text={currentQuestion.explanation} courseId={courseId} />
+                            ) : (
+                              <p className="text-sm italic text-gray-400 font-bold bg-gray-800 p-4 rounded-lg border border-dashed border-gray-700">
+                                No solution provided for this problem. You can ask our AI tutor for a step-by-step breakdown.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-10 pt-6 border-t border-gray-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-tighter">
+                            <SafeIcon icon={FiShield} className="w-3.5 h-3.5" />
+                            <span>Analysis Verified by AI Scoring Engine</span>
+                          </div>
+                          {!isCorrectAnswer() && (
+                            <button 
+                              onClick={() => setShowAITutor(true)}
+                              className="flex items-center gap-2 px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-[#E53935] hover:text-[#E53935] transition-all shadow-sm"
+                            >
+                              <SafeIcon icon={FiMessageCircle} className="w-4 h-4" />
+                              Chat with AI
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </main>
 
       {/* Footer Navigation */}
-      <footer>
-        <div className="text-[10px] sm:text-sm font-bold flex-1 text-slate-900 truncate max-w-[60px] sm:max-w-none px-1">
+      <footer className={isPracticeMode ? "flex items-center justify-between w-full relative z-[10000] border-t border-slate-800 bg-[#0a0e2a] min-h-[60px] px-4 sm:px-10" : "flex items-center justify-between px-6 sm:px-12 py-4 bg-white border-t border-slate-200"}>
+        <div className={`text-[10px] sm:text-sm font-bold flex-1 truncate max-w-[60px] sm:max-w-none px-1 ${isPracticeMode ? 'text-slate-400' : 'text-slate-900'}`}>
           {user?.name || 'Student'}
         </div>
         <div className="relative flex justify-center shrink-0 mx-1">
-          <button onClick={() => setShowNavigation(!showNavigation)} className="bg-black text-white px-2 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-1.5 sm:gap-3">
+          <button onClick={() => setShowNavigation(!showNavigation)} className={`px-2 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-1.5 sm:gap-3 ${isPracticeMode ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-black text-white'}`}>
               <span className="hidden sm:inline">Question </span>{currentQuestionIndex + 1}<span className="sm:hidden"> / </span><span className="hidden sm:inline"> of </span>{currentQuestions.length}
               <SafeIcon icon={showNavigation ? FiX : FiChevronDown} className="w-2.5 h-2.5 sm:w-4 sm:h-4 text-gray-400" />
           </button>
           <AnimatePresence>
           {showNavigation && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-[85px] sm:bottom-[130px] bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-[0_0_40px_-10px_rgba(0,0,0,0.2)] z-[1000] w-[94vw] sm:w-[420px] left-1/2 -translate-x-1/2 flex flex-col items-center max-h-[75vh] overflow-y-auto">
-               <div className="hidden sm:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 rotate-45"></div>
-               <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 w-full relative">
-                  <span className="font-black text-[10px] sm:text-sm text-slate-900 w-full text-center uppercase tracking-widest px-8">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className={`fixed bottom-[85px] sm:bottom-[130px] border rounded-xl p-4 sm:p-5 shadow-[0_0_40px_-10px_rgba(0,0,0,0.2)] z-[1000] w-[94vw] sm:w-[420px] left-1/2 -translate-x-1/2 flex flex-col items-center max-h-[75vh] overflow-y-auto ${isPracticeMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+               <div className={`hidden sm:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 border-b border-r rotate-45 ${isPracticeMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}></div>
+               <div className={`flex items-center justify-between mb-4 pb-3 border-b w-full relative ${isPracticeMode ? 'border-slate-800' : 'border-slate-100'}`}>
+                  <span className={`font-black text-[10px] sm:text-sm w-full text-center uppercase tracking-widest px-8 ${isPracticeMode ? 'text-white' : 'text-slate-900'}`}>
                       Section {currentSection.sectionNumber}: {currentSection.label}
                   </span>
                   <SafeIcon icon={FiX} onClick={() => setShowNavigation(false)} className="cursor-pointer text-gray-400 absolute right-0 top-0 w-4 h-4" />
                </div>
                <div className="flex flex-wrap gap-2 mb-8 justify-center">
-                   {currentQuestions.map((q, idx) => (
-                       <div key={idx} onClick={() => { setCurrentQuestionIndex(idx); setShowNavigation(false); }} className={`w-[32px] h-[32px] sm:w-[34px] sm:h-[34px] flex items-center justify-center font-black rounded-sm cursor-pointer transition-all text-xs sm:text-sm border ${userAnswers[q.id] ? 'text-blue-600 border-blue-600 bg-blue-50' : 'text-blue-600 border-blue-600 border-dashed bg-white'}`}>
-                           {idx + 1}
-                       </div>
-                   ))}
+                   {currentQuestions.map((q, idx) => {
+                       const isAnswered = !!userAnswers[q.id];
+                       const isFlagged = flaggedQuestions[`${currentSection.key}-${idx}`];
+                       
+                       let btnClass = isPracticeMode 
+                         ? 'border-slate-700 bg-slate-800 text-slate-400 border-dashed'
+                         : 'text-blue-600 border-blue-600 border-dashed bg-white';
+                         
+                       if (isAnswered) {
+                         btnClass = isPracticeMode
+                           ? 'border-blue-600 bg-blue-900/30 text-blue-400 border-solid shadow-sm'
+                           : 'text-blue-600 border-blue-600 bg-blue-50 border-solid';
+                       }
+                       if (isFlagged) {
+                         btnClass += ' ring-2 ring-red-500 ring-offset-2 ring-offset-current';
+                       }
+                       
+                       return (
+                         <div key={idx} onClick={() => { setCurrentQuestionIndex(idx); setShowNavigation(false); }} className={`w-[32px] h-[32px] sm:w-[34px] sm:h-[34px] flex items-center justify-center font-black rounded-sm cursor-pointer transition-all text-xs sm:text-sm border ${btnClass}`}>
+                             {idx + 1}
+                         </div>
+                       );
+                   })}
                </div>
-               <button onClick={() => { setShowNavigation(false); setScreen('review'); }} className="w-full sm:w-auto px-5 py-2.5 rounded-full border-2 border-blue-600 text-blue-600 font-black text-xs sm:text-sm hover:bg-blue-50 transition-all uppercase tracking-widest">Go to Review Page</button>
+               <button onClick={() => { setShowNavigation(false); setScreen('review'); }} className={`w-full sm:w-auto px-5 py-2.5 rounded-full border-2 font-black text-xs sm:text-sm transition-all uppercase tracking-widest ${isPracticeMode ? 'border-blue-500 text-blue-400 hover:bg-blue-900/20' : 'border-blue-600 text-blue-600 hover:bg-blue-50'}`}>Go to Review Page</button>
             </motion.div>
           )}
           </AnimatePresence>
         </div>
         <div className="flex items-center gap-4 sm:gap-8 flex-1 justify-end px-1">
-          <button onClick={handleBack} disabled={currentQuestionIndex === 0} className="font-bold text-[10px] sm:text-sm text-blue-600 disabled:opacity-30 hover:underline uppercase tracking-widest">Back</button>
+          {isPracticeMode && !submittedAnswers[currentQuestion?.id] && selectedAnswer && (
+            <button onClick={handleCheckAnswer} className="bg-blue-600 text-white px-5 sm:px-8 py-2 sm:py-2.5 rounded-full font-black text-[10px] sm:text-sm hover:bg-blue-700 transition-colors shadow-lg uppercase tracking-widest hidden sm:block">
+              Check Answer
+            </button>
+          )}
+          {isPracticeMode && submittedAnswers[currentQuestion?.id] && !isCorrectAnswer() && (
+            <button onClick={() => setShowAITutor(true)} className="bg-gray-800 text-white px-4 py-2 sm:py-2.5 rounded-full font-black text-[10px] sm:text-sm hover:bg-gray-700 transition-colors shadow-sm hidden sm:flex items-center gap-2">
+              <SafeIcon icon={FiMessageCircle} className="w-4 h-4" /> Chat with AI
+            </button>
+          )}
+          <button onClick={handleBack} disabled={currentQuestionIndex === 0} className={`font-bold text-[10px] sm:text-sm disabled:opacity-30 hover:underline uppercase tracking-widest ${isPracticeMode ? 'text-blue-400' : 'text-blue-600'}`}>Back</button>
           <button onClick={handleNext} className="px-4 sm:px-8 py-2 sm:py-2.5 bg-blue-600 text-white rounded-full font-black text-[10px] sm:text-sm hover:bg-blue-700 transition-colors shadow-lg uppercase tracking-widest">
             {currentQuestionIndex === currentQuestions.length - 1 ? 'Review' : 'Next'}
           </button>
         </div>
       </footer>
+      {showAITutor && currentQuestion && (
+        <AITutorModal 
+          question={currentQuestion} 
+          userAnswer={selectedAnswer} 
+          correctAnswer={currentQuestion.correctAnswer} 
+          onClose={() => setShowAITutor(false)} 
+        />
+      )}
     </div>
   );
 };
