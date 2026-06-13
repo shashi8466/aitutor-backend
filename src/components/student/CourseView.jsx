@@ -887,9 +887,9 @@ const CourseView = () => {
     <div className="min-h-screen bg-[#FAFAFA] pb-12">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-10 text-center px-4 sm:px-0">
-          <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">
-            <span className={isACTFullLengthCourse(course) ? "text-slate-900 dark:text-white" : isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>
-              {isACTFullLengthCourse(course) ? "FULL-LENGTH TEST" : course.name}
+          <h1 className="text-2xl sm:text-4xl font-black text-slate-900 mb-3 tracking-tight">
+            <span className={isACTFullLengthCourse(course) ? "text-slate-900" : isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>
+              {isACTFullLengthCourse(course) ? "ACT FULL-LENGTH TEST" : course.name}
             </span>
           </h1>
           {!isACTFullLengthCourse(course) && (
