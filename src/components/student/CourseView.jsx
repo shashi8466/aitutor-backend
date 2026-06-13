@@ -888,15 +888,17 @@ const CourseView = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-10 text-center px-4 sm:px-0">
           <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">
-            <span className={isACTFullLengthCourse(course) ? "text-red-650" : isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>{course.name}</span>
+            <span className={isACTFullLengthCourse(course) ? "text-slate-900 dark:text-white" : isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>
+              {isACTFullLengthCourse(course) ? "FULL-LENGTH TEST" : course.name}
+            </span>
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
-            {isACTFullLengthCourse(course)
-              ? "Take the official full-length test or practice individual subjects."
-              : isSequentialCourse 
-                ? "Complete each unit's quiz with ≥5% to unlock the next unit."
-                : "Complete each level to unlock the next difficulty."}
-          </p>
+          {!isACTFullLengthCourse(course) && (
+            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
+              {isSequentialCourse 
+                  ? "Complete each unit's quiz with ≥5% to unlock the next unit."
+                  : "Complete each level to unlock the next difficulty."}
+            </p>
+          )}
         </div>
 
         {isACTFullLengthCourse(course) ? (
@@ -1027,16 +1029,16 @@ const CourseView = () => {
 
         {isACTFullLengthCourse(course) ? (
           <div className="space-y-10 px-4 sm:px-0">
-            <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 text-center relative overflow-hidden">
+            <div className="bg-[#1e2330] p-8 sm:p-12 rounded-3xl shadow-2xl border border-white/5 text-center relative overflow-hidden">
                <div className="relative z-10">
-                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
-                   <SafeIcon icon={FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-red-600 dark:text-red-400" />
+                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
+                   <SafeIcon icon={FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-red-500" />
                  </div>
-                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 font-black uppercase tracking-widest mb-4">
+                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-red-900/30 text-red-400 border border-red-800 font-black uppercase tracking-widest mb-4">
                    Official ACT Format
                  </span>
-                 <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 uppercase tracking-tight">ACT FULL-LENGTH TEST</h2>
-                 <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
+                 <h2 className="text-2xl sm:text-3xl font-black text-white mb-4 uppercase tracking-tight">ACT FULL-LENGTH TEST</h2>
+                 <p className="text-slate-300 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
                    This is a complete full-length ACT Practice Test containing Mathematics (45 Qs, 50m), English (50 Qs, 35m), a 15-minute break, Reading (36 Qs, 40m), and an optional Science section (40 Qs, 40m).
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -1044,7 +1046,7 @@ const CourseView = () => {
                       onClick={() => navigate(`/student/act-full-length-test/${courseId}`)}
                       className="w-full sm:w-auto px-10 py-4 bg-red-600 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-red-700 transition-all shadow-lg hover:shadow-red-500/20 hover:-translate-y-1"
                     >
-                      START FULL-LENGTH ACT TEST
+                      Take the Quiz
                     </button>
                  </div>
                </div>
@@ -1053,16 +1055,16 @@ const CourseView = () => {
                  <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-orange-600 rounded-full blur-[100px]"></div>
                </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 text-center relative overflow-hidden">
+            <div className="bg-[#1e2330] p-8 sm:p-12 rounded-3xl shadow-2xl border border-white/5 text-center relative overflow-hidden">
                <div className="relative z-10">
-                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-amber-100 dark:bg-amber-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
-                   <SafeIcon icon={FiIcons.FiZap || FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-amber-600 dark:text-amber-400" />
+                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-amber-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
+                   <SafeIcon icon={FiIcons.FiZap || FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-amber-500" />
                  </div>
-                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-black uppercase tracking-widest mb-4">
+                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-amber-900/30 text-amber-400 border border-amber-800 font-black uppercase tracking-widest mb-4">
                    Practice Exam Mode
                  </span>
-                 <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 uppercase tracking-tight">ACT PRACTICE TEST</h2>
-                 <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
+                 <h2 className="text-2xl sm:text-3xl font-black text-white mb-4 uppercase tracking-tight">ACT PRACTICE TEST</h2>
+                 <p className="text-slate-300 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
                    Practice the full exam sequentially with fixed timers, sections, and score conversion. The practice test mimics the official exam format containing Mathematics, English, Reading, and Science.
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -1070,7 +1072,7 @@ const CourseView = () => {
                       onClick={() => navigate(`/student/act-full-length-test/${courseId}?mode=practice`)}
                       className="w-full sm:w-auto px-10 py-4 bg-amber-500 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-amber-600 transition-all shadow-lg hover:shadow-amber-500/20 hover:-translate-y-1"
                     >
-                      START PRACTICE TEST
+                      Practice Quiz
                     </button>
                  </div>
                </div>
