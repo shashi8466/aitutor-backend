@@ -36,7 +36,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
       'AP United States Government and Politics',
       'AP United States History'
     ],
-    'FULL LENGTH TESTs': ['Full-Length SAT']
+    'FULL LENGTH TESTs': ['Full-Length SAT', 'Full-Length ACT']
   };
 
   useEffect(() => {

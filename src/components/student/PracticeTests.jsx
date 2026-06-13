@@ -10,6 +10,20 @@ import EnrollmentKeyInput from './EnrollmentKeyInput';
 
 const { FiActivity, FiClock, FiPlay, FiBookOpen, FiArrowRight } = FiIcons;
 
+const isACTFullLengthCourse = (c) => {
+    if (!c) return false;
+    const mainCat = (c.main_category || '').toUpperCase();
+    const tutorType = (c.tutor_type || '').toUpperCase();
+    const category = (c.category || '').toUpperCase();
+    const name = (c.name || '').toUpperCase();
+    
+    return tutorType === 'FULL-LENGTH ACT' || 
+           category === 'FULL-LENGTH ACT' || 
+           name.includes('ACT FULL-LENGTH') ||
+           name.includes('FULL-LENGTH ACT') ||
+           (mainCat === 'FULL LENGTH TESTS' && (tutorType.includes('ACT') || category.includes('ACT') || name.includes('ACT')));
+};
+
 const PracticeTests = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -76,7 +90,8 @@ const PracticeTests = () => {
                         return hasDirectAccess || hasCourseAccess;
                     })
                     .map(test => {
-                        return { ...test, locked: false };
+                        const fullCourse = (allPracticeCourses || []).find(c => String(c.id) === String(test.course_id));
+                        return { ...test, fullCourse, locked: false };
                     });
 
                 setTests(filteredTests);
@@ -164,14 +179,22 @@ const PracticeTests = () => {
                                                 return;
                                             }
 
-                                            navigate(`/student/course/${test.course_id}/level/${(test.level || 'all').toLowerCase()}/quiz?mode=practice`);
+                                            if (isACTFullLengthCourse(test.fullCourse)) {
+                                                navigate(`/student/course/${test.course_id}/level/all/quiz?mode=practice`);
+                                            } else {
+                                                navigate(`/student/course/${test.course_id}/level/${(test.level || 'all').toLowerCase()}/quiz?mode=practice`);
+                                            }
                                         }}
                                         className={`flex items-center gap-1 text-sm font-bold transition-all ${test.locked ? 'text-gray-400' : 'text-[#E53935] hover:gap-2'}`}
                                     >
                                         {test.locked ? (
                                             <><SafeIcon icon={FiIcons.FiLock} className="w-3 h-3" /> Locked</>
                                         ) : (
-                                            <>Start Test <SafeIcon icon={FiArrowRight} /></>
+                                            isACTFullLengthCourse(test.fullCourse) ? (
+                                                <>START PRACTICE TEST <SafeIcon icon={FiArrowRight} /></>
+                                            ) : (
+                                                <>Start Test <SafeIcon icon={FiArrowRight} /></>
+                                            )
                                         )}
                                     </button>
                                 </div>

@@ -29,6 +29,7 @@ const VideoPlayer = lazy(() => import('./components/student/VideoPlayer'));
 const AdaptivePreTest = lazy(() => import('./components/student/AdaptivePreTest'));
 const ExamInterface = lazy(() => import('./components/student/ExamInterface'));
 const AdaptiveExamInterface = lazy(() => import('./components/student/AdaptiveExamInterface'));
+const ACTFullLengthExam = lazy(() => import('./components/student/ACTFullLengthExam'));
 const LegacyQuizInterface = lazy(() => import('./components/student/QuizInterface'));
 const Leaderboard = lazy(() => import('./components/student/Leaderboard'));
 const StudentSettings = lazy(() => import('./components/student/StudentSettings'));
@@ -355,6 +356,7 @@ const App = () => {
               <Route path="adaptive-pre-test/:courseId" element={<AdaptivePreTest />} />
               <Route path="course/:courseId/level/:level" element={<LevelDashboard />} />
               <Route path="adaptive-test/:courseId" element={<AdaptiveExamInterface />} />
+              <Route path="act-full-length-test/:courseId" element={<ACTFullLengthExam />} />
               <Route path="course/:courseId/level/:level/video" element={<VideoPlayer />} />
               <Route path="course/:courseId/level/:level/quiz" element={<QuizDispatcher />} />
 

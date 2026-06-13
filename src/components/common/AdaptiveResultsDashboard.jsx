@@ -583,6 +583,13 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                       String(courseNameVal).toUpperCase().includes('ACT') || 
                       (submission?.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT')) ||
                       (submission?.course?.name && String(submission.course.name).toUpperCase().includes('ACT'));
+
+    const isACTFullLength = isACTTest && (
+        submission?.metadata?.isACTFullLength === true || 
+        (typeof submission?.metadata === 'string' && submission.metadata.includes('isACTFullLength')) ||
+        String(courseNameVal).toLowerCase().includes('full length') ||
+        String(courseNameVal).toLowerCase().includes('full-length')
+    );
                       
     let actScores = submission?.actScores || scoresData?.actScores;
     
@@ -1158,10 +1165,19 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                             
                             <div className="relative group">
                                     <>
-                                        {renderCircularProgress(isACTTest ? actCorrectCount : coverScoreValue, isACTTest ? actTotalQuestions : coverMaxScore, 280, 16, 'white', 'rgba(255,255,255,0.1)')}
+                                        {renderCircularProgress(
+                                            isACTFullLength ? (actScores?.composite || 0) : (isACTTest ? actCorrectCount : coverScoreValue),
+                                            isACTFullLength ? 36 : (isACTTest ? actTotalQuestions : coverMaxScore),
+                                            280, 16, 'white', 'rgba(255,255,255,0.1)'
+                                        )}
                                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                                             <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mb-2">{coverScoreLabel}</span>
-                                            {isACTTest ? (
+                                            {isACTFullLength ? (
+                                                <>
+                                                    <span className="text-6xl sm:text-8xl font-black tracking-tighter drop-shadow-lg">{actScores?.composite || 0}</span>
+                                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mt-2">out of 36</span>
+                                                </>
+                                            ) : isACTTest ? (
                                                 <>
                                                     <span className="text-5xl sm:text-7xl font-black tracking-tighter drop-shadow-lg">{actCorrectCount} / {actTotalQuestions}</span>
                                                     <span className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] text-blue-300 mt-2">Percentage: {actPercentage}%</span>
@@ -1191,46 +1207,48 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         {isACTTest && actScores && !isACTSingleSubject ? (
                             <div className="w-full flex flex-col items-center">
                                 <div className="relative flex items-center justify-center mb-12">
-                                    {renderCircularProgress(actScores.composite, 36, 256, 15, '#1a237e', '#f1f5f9')}
+                                    {renderCircularProgress(actScores?.composite || 0, 36, 256, 15, '#1a237e', '#f1f5f9')}
                                     <div className="absolute flex flex-col items-center justify-center">
                                         <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Composite Score</span>
-                                        <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{actScores.composite}</span>
+                                        <span className="text-6xl sm:text-8xl font-black text-[#1a237e]">{actScores?.composite || 0}</span>
                                         <span className="text-[10px] font-black text-gray-500">1 to 36</span>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 w-full max-w-4xl px-4">
+                                <div className={`grid grid-cols-2 ${actScores?.science ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-8 sm:gap-12 w-full max-w-4xl px-4`}>
                                     <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(actScores.english.scaled, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                        {renderCircularProgress(actScores?.english?.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
                                         <div className="absolute flex flex-col items-center justify-center">
                                             <span className="text-[8px] font-black text-gray-600 uppercase">English</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{actScores.english.scaled}</span>
+                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.english?.scaled || 0}</span>
                                             <span className="text-[8px] font-black text-gray-500">1 to 36</span>
                                         </div>
                                     </div>
                                     <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(actScores.math.scaled, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                        {renderCircularProgress(actScores?.math?.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
                                         <div className="absolute flex flex-col items-center justify-center text-center">
                                             <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Math</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{actScores.math.scaled}</span>
+                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.math?.scaled || 0}</span>
                                             <span className="text-[8px] font-black text-gray-500">1 to 36</span>
                                         </div>
                                     </div>
                                     <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(actScores.reading.scaled, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                        {renderCircularProgress(actScores?.reading?.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
                                         <div className="absolute flex flex-col items-center justify-center text-center">
                                             <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Reading</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{actScores.reading.scaled}</span>
+                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.reading?.scaled || 0}</span>
                                             <span className="text-[8px] font-black text-gray-500">1 to 36</span>
                                         </div>
                                     </div>
-                                    <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(actScores.science.scaled, 36, 160, 10, '#1a237e', '#f1f5f9')}
-                                        <div className="absolute flex flex-col items-center justify-center text-center">
-                                            <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Science</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{actScores.science.scaled}</span>
-                                            <span className="text-[8px] font-black text-gray-500">1 to 36</span>
+                                    {actScores?.science && (
+                                        <div className="relative flex items-center justify-center">
+                                            {renderCircularProgress(actScores.science.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                            <div className="absolute flex flex-col items-center justify-center text-center">
+                                                <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Science</span>
+                                                <span className="text-4xl font-black text-[#1a237e]">{actScores.science.scaled || 0}</span>
+                                                <span className="text-[8px] font-black text-gray-500">1 to 36</span>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         ) : isACTSingleSubject ? (
@@ -1356,7 +1374,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english' && r.is_correct).length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length > 0 ? Math.round((allResponses.filter(r => r.section === 'english' && r.is_correct).length / allResponses.filter(r => r.section === 'english').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.english.scaled}</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.english?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {allResponses.filter(r => r.section === 'math').length > 0 && (
@@ -1365,7 +1383,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math' && r.is_correct).length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length > 0 ? Math.round((allResponses.filter(r => r.section === 'math' && r.is_correct).length / allResponses.filter(r => r.section === 'math').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.math.scaled}</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.math?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {allResponses.filter(r => r.section === 'reading').length > 0 && (
@@ -1374,7 +1392,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading' && r.is_correct).length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length > 0 ? Math.round((allResponses.filter(r => r.section === 'reading' && r.is_correct).length / allResponses.filter(r => r.section === 'reading').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.reading.scaled}</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.reading?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {allResponses.filter(r => r.section === 'science').length > 0 && (
@@ -1383,7 +1401,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science' && r.is_correct).length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length > 0 ? Math.round((allResponses.filter(r => r.section === 'science' && r.is_correct).length / allResponses.filter(r => r.section === 'science').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores.science.scaled}</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.science?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {!isACTSingleSubject && (
@@ -1392,7 +1410,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.filter(r=>r.is_correct).length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length}</td>
                                                 <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{actScores.composite}</td>
+                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{actScores?.composite || 0}</td>
                                             </tr>
                                         )}
                                     </>
@@ -1522,10 +1540,10 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
 
                 {isACTTest ? (
                     <>
-                        {englishResponses.length > 0 && renderMasterySection('English', actScores.english.scaled, englishResponses.length, getTopicMastery(englishResponses), 1)}
-                        {mathResponses.length > 0 && renderMasterySection('Math', actScores.math.scaled, mathResponses.length, getTopicMastery(mathResponses), 2)}
-                        {readingResponses.length > 0 && renderMasterySection('Reading', actScores.reading.scaled, readingResponses.length, getTopicMastery(readingResponses), 3)}
-                        {scienceResponses.length > 0 && renderMasterySection('Science', actScores.science.scaled, scienceResponses.length, getTopicMastery(scienceResponses), 4)}
+                        {englishResponses.length > 0 && renderMasterySection('English', actScores?.english?.scaled || 0, englishResponses.length, getTopicMastery(englishResponses), 1)}
+                        {mathResponses.length > 0 && renderMasterySection('Math', actScores?.math?.scaled || 0, mathResponses.length, getTopicMastery(mathResponses), 2)}
+                        {readingResponses.length > 0 && renderMasterySection('Reading', actScores?.reading?.scaled || 0, readingResponses.length, getTopicMastery(readingResponses), 3)}
+                        {scienceResponses.length > 0 && renderMasterySection('Science', actScores?.science?.scaled || 0, scienceResponses.length, getTopicMastery(scienceResponses), 4)}
                     </>
                 ) : (
                     <>

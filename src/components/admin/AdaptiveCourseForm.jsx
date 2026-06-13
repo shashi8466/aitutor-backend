@@ -472,22 +472,6 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                   </>
                 ) : (
                   <>
-                    {/* ACT English */}
-                    <div className="space-y-6">
-                      <h5 className="font-black text-blue-900 text-sm uppercase tracking-widest flex items-center gap-2">
-                        <div className="w-2 h-6 bg-blue-500 rounded-full"></div>
-                        ACT English
-                      </h5>
-                      <ModuleContentBlock 
-                        title="English Content"
-                        baseKey="english_all"
-                        newFiles={newFiles}
-                        existingUploads={existingUploads}
-                        onDeleteExisting={handleDeleteExisting}
-                        handleFileChange={handleFileChange}
-                        colorClass="blue"
-                      />
-                    </div>
                     {/* ACT Math */}
                     <div className="space-y-6">
                       <h5 className="font-black text-emerald-900 text-sm uppercase tracking-widest flex items-center gap-2">
@@ -502,6 +486,22 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                         onDeleteExisting={handleDeleteExisting}
                         handleFileChange={handleFileChange}
                         colorClass="emerald"
+                      />
+                    </div>
+                    {/* ACT English */}
+                    <div className="space-y-6">
+                      <h5 className="font-black text-blue-900 text-sm uppercase tracking-widest flex items-center gap-2">
+                        <div className="w-2 h-6 bg-blue-500 rounded-full"></div>
+                        ACT English
+                      </h5>
+                      <ModuleContentBlock 
+                        title="English Content"
+                        baseKey="english_all"
+                        newFiles={newFiles}
+                        existingUploads={existingUploads}
+                        onDeleteExisting={handleDeleteExisting}
+                        handleFileChange={handleFileChange}
+                        colorClass="blue"
                       />
                     </div>
                     {/* ACT Reading */}

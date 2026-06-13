@@ -26,7 +26,7 @@ const StudentCourseList = () => {
 
   const COURSE_CATEGORIES = {
     'SAT': ['SAT Math', 'SAT Reading & Writing', 'FULL LENGTH TEST'],
-    'ACT': ['ACT Math', 'ACT English', 'ACT Science', 'ACT Reading'],
+    'ACT': ['ACT Math', 'ACT English', 'ACT Science', 'ACT Reading', 'ACT Full-Length Test'],
     'AP': [
       'AP Biology',
       'AP Calculus AB',
@@ -275,8 +275,13 @@ const StudentCourseList = () => {
     const hasTopicAccess = topicCourseIds.has(c.id);
     if (!hasDirectAccess && !hasTopicAccess) return false;
 
-    // 1. Must NOT be an official practice course (unless it is adaptive)
-    if (c.is_practice && !c.is_adaptive) return false;
+    // 1. Must NOT be an official practice course (unless it is adaptive OR an ACT full-length test)
+    const isACTFullLength = c.is_practice === true && (
+      (c.tutor_type || '').toUpperCase().includes('ACT') ||
+      (c.main_category || '').toUpperCase() === 'ACT' ||
+      (c.category || '').toUpperCase().includes('ACT')
+    );
+    if (c.is_practice && !c.is_adaptive && !isACTFullLength) return false;
 
     // 2. Must be active (if status column exists)
     if (c.status && c.status !== 'active') return false;
@@ -288,9 +293,20 @@ const StudentCourseList = () => {
         ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science', 'psychology', 'history', 'government', 'english', 'environmental'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
     );
 
-    // Force FULL LENGTH TESTs to appear under SAT category
-    if (c.is_adaptive || mainCat === 'FULL LENGTH TESTs') {
+    // Route FULL LENGTH TESTs:
+    //  - SAT Full-Length (is_adaptive=true or tutor_type contains 'Full-Length SAT') → SAT tab
+    //  - ACT Full-Length (tutor_type='Full-Length ACT') → ACT tab
+    if (mainCat === 'FULL LENGTH TESTs') {
+      const tutorType = (c.tutor_type || '').toUpperCase();
+      if (c.is_adaptive || tutorType.includes('SAT')) {
         mainCat = 'SAT';
+      } else if (tutorType.includes('ACT')) {
+        mainCat = 'ACT';
+      } else {
+        mainCat = 'SAT'; // default fallback
+      }
+    } else if (c.is_adaptive) {
+      mainCat = 'SAT'; // legacy adaptive SAT courses
     }
     
     if (activeCategory !== mainCat) return false;
@@ -300,6 +316,9 @@ const StudentCourseList = () => {
       if (mainCat === 'SAT') {
         const tax = getCourseTaxonomy(c);
         if (tax.section !== activeSubcategory) return false;
+      } else if (activeSubcategory === 'ACT Full-Length Test') {
+        // Match courses with tutor_type 'Full-Length ACT'
+        if (!(c.tutor_type || '').toUpperCase().includes('FULL') || !(c.tutor_type || '').toUpperCase().includes('ACT')) return false;
       } else if (c.tutor_type !== activeSubcategory) {
         return false;
       }

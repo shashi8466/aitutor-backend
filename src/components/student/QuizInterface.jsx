@@ -78,6 +78,20 @@ const QuizInterface = () => {
   const [courseInfo, setCourseInfo] = useState(null);
   const [allUserAnswers, setAllUserAnswers] = useState({}); // Stores answers for ALL modules
 
+  const isACTFullLengthCourse = (c) => {
+    if (!c) return false;
+    const mainCat = (c.main_category || '').toUpperCase();
+    const tutorType = (c.tutor_type || '').toUpperCase();
+    const category = (c.category || '').toUpperCase();
+    const name = (c.name || '').toUpperCase();
+    
+    return tutorType === 'FULL-LENGTH ACT' || 
+           category === 'FULL-LENGTH ACT' || 
+           name.includes('ACT FULL-LENGTH') ||
+           name.includes('FULL-LENGTH ACT') ||
+           (mainCat === 'FULL LENGTH TESTS' && (tutorType.includes('ACT') || category.includes('ACT') || name.includes('ACT')));
+  };
+
   const isSequential = ['AP', 'ACT'].includes(courseInfo?.main_category?.toUpperCase());
 
   let unitId = '';
@@ -229,33 +243,98 @@ const QuizInterface = () => {
       // 2. Standard Quiz Loading
       // STRICT ISOLATION: Only load questions from a specific upload. NEVER fall back to orphaned questions.
       let targetQuestions = [];
+
+      // ACT Full-Length Exam Practice redirection: load questions from all uploads for this course
+      if (isACTFullLengthCourse(cData)) {
+        console.log("🎯 [QUIZ] Initializing ACT Full-Length Practice Flow...");
+        const { data: uploads, error: uploadsErr } = await supabase
+          .from('uploads')
+          .select('id')
+          .eq('course_id', cId)
+          .eq('category', 'quiz_document')
+          .in('status', ['completed', 'warning']);
+        
+        if (uploadsErr) throw uploadsErr;
+        
+        if (uploads && uploads.length > 0) {
+          const uploadIds = uploads.map(u => u.id);
+          const { data: qData, error: qError } = await supabase
+            .from('questions')
+            .select('*')
+            .in('upload_id', uploadIds)
+            .order('id', { ascending: true });
+            
+          if (qError) throw qError;
+          
+          if (qData && qData.length > 0) {
+            targetQuestions = qData.map(q => ({
+              ...q,
+              computedLevel: 'All',
+              correctAnswer: q.correct_answer || ''
+            }));
+            console.log(`✅ [QUIZ] Loaded ${targetQuestions.length} ACT questions from all uploads.`);
+          }
+        }
+      }
+
       // Guard: level may be undefined when accessed via SAT practice mode fallback (no :level param in URL)
       const isSequential = ['AP', 'ACT'].includes(cData?.main_category?.toUpperCase());
       const dbLevel = isSequential
         ? (level ? level : 'UnknownUnit') : (level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Moderate');
 
-      // Step A: Try to find a single upload covering ALL levels (Global Test document)
-      const { data: globalUploadData } = await supabase
-        .from('uploads')
-        .select('id, file_name')
-        .eq('course_id', cId)
-        .eq('category', 'quiz_document')
-        .eq('level', 'All')
-        .in('status', ['completed', 'warning'])
-        .order('id', { ascending: false })
-        .limit(1);
+      // Check for section practice query param (used in ACT full-length sub-sections practice)
+      const querySection = searchParams.get('section');
+      if (querySection) {
+        console.log(`🎯 [QUIZ] Section practice requested: ${querySection}`);
+        const { data: sectionUploadData } = await supabase
+          .from('uploads')
+          .select('id, file_name')
+          .eq('course_id', cId)
+          .eq('category', 'quiz_document')
+          .ilike('section', querySection)
+          .in('status', ['completed', 'warning'])
+          .order('id', { ascending: false })
+          .limit(1);
 
-      if (globalUploadData?.[0]) {
-        console.log(`🎯 [QUIZ] Found global upload ${globalUploadData[0].id}: ${globalUploadData[0].file_name}`);
-        const { data: qData } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('upload_id', globalUploadData[0].id)
-          .order('id', { ascending: true });
-        
-        if (qData && qData.length > 0) {
-          targetQuestions = qData.map(q => ({ ...q, computedLevel: q.level || dbLevel }));
-          console.log(`✅ [QUIZ] Loaded ${targetQuestions.length} questions from global upload.`);
+        if (sectionUploadData?.[0]) {
+          console.log(`🎯 [QUIZ] Found section upload ${sectionUploadData[0].id}: ${sectionUploadData[0].file_name}`);
+          const { data: qData } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('upload_id', sectionUploadData[0].id)
+            .order('id', { ascending: true });
+          
+          if (qData && qData.length > 0) {
+            targetQuestions = qData.map(q => ({ ...q, computedLevel: q.level || dbLevel }));
+            console.log(`✅ [QUIZ] Loaded ${targetQuestions.length} questions for section: ${querySection}`);
+          }
+        }
+      }
+
+      // Step A: Try to find a single upload covering ALL levels (Global Test document)
+      if (targetQuestions.length === 0) {
+        const { data: globalUploadData } = await supabase
+          .from('uploads')
+          .select('id, file_name')
+          .eq('course_id', cId)
+          .eq('category', 'quiz_document')
+          .eq('level', 'All')
+          .in('status', ['completed', 'warning'])
+          .order('id', { ascending: false })
+          .limit(1);
+
+        if (globalUploadData?.[0]) {
+          console.log(`🎯 [QUIZ] Found global upload ${globalUploadData[0].id}: ${globalUploadData[0].file_name}`);
+          const { data: qData } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('upload_id', globalUploadData[0].id)
+            .order('id', { ascending: true });
+          
+          if (qData && qData.length > 0) {
+            targetQuestions = qData.map(q => ({ ...q, computedLevel: q.level || dbLevel }));
+            console.log(`✅ [QUIZ] Loaded ${targetQuestions.length} questions from global upload.`);
+          }
         }
       }
 
@@ -725,8 +804,8 @@ const QuizInterface = () => {
                 }
               } else {
                 return (
-                  <Link to={`/student/course/${courseId}/level/${currentLevelName.toLowerCase()}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
-                    <SafeIcon icon={FiRefreshCw} className="w-5 h-5" /> Retry {currentLevelName} Level
+                  <Link to={isACTFullLengthCourse(courseInfo) ? `/student/course/${courseId}` : `/student/course/${courseId}/level/${currentLevelName.toLowerCase()}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
+                    <SafeIcon icon={FiRefreshCw} className="w-5 h-5" /> Retry {isACTFullLengthCourse(courseInfo) ? 'Practice Quiz' : `${currentLevelName} Level`}
                   </Link>
                 );
               }
@@ -785,7 +864,7 @@ const QuizInterface = () => {
       <div className="max-w-4xl mx-auto relative">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
-            <Link to={isSequential ? `/student/course/${courseId}` : `/student/course/${courseId}/level/${level}`} className="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-2 font-bold transition-colors">
+            <Link to={(isSequential || isACTFullLengthCourse(courseInfo)) ? `/student/course/${courseId}` : `/student/course/${courseId}/level/${level}`} className="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-2 font-bold transition-colors">
               <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Exit
             </Link>
             <button

@@ -277,6 +277,45 @@ const CourseView = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Detect ACT Full-Length Test course:
+  // These are courses with is_practice=true under the ACT main category.
+  // They use the new ACTFullLengthExam engine instead of the regular quiz flow.
+  const isACTFullLengthCourse = (c) => {
+    if (!c) return false;
+    const mainCat = (c.main_category || '').toUpperCase();
+    const tutorType = (c.tutor_type || '').toUpperCase();
+    const category = (c.category || '').toUpperCase();
+    const name = (c.name || '').toUpperCase();
+    
+    return tutorType === 'FULL-LENGTH ACT' || 
+           category === 'FULL-LENGTH ACT' || 
+           name.includes('ACT FULL-LENGTH') ||
+           name.includes('FULL-LENGTH ACT') ||
+           (mainCat === 'FULL LENGTH TESTS' && (tutorType.includes('ACT') || category.includes('ACT') || name.includes('ACT')));
+  };
+
+  const getACTSectionMaterials = (secKey) => {
+    const sectionKeywords = {
+      math: ['math'],
+      english: ['english'],
+      reading: ['reading'],
+      science: ['science']
+    };
+    const keywords = sectionKeywords[secKey] || [secKey];
+    
+    const matchSection = (upload) => {
+      const uSec = (upload.section || '').toLowerCase();
+      const uFile = (upload.file_name || '').toLowerCase();
+      const uLevel = (upload.level || '').toLowerCase();
+      return keywords.some(kw => uSec.includes(kw) || uFile.includes(kw) || uLevel.includes(kw));
+    };
+
+    const study = uploads.find(u => matchSection(u) && u.category === 'study_material');
+    const video = uploads.find(u => matchSection(u) && u.category === 'video_lecture');
+    const quiz = uploads.find(u => matchSection(u) && u.category === 'quiz_document');
+    return { study, video, quiz };
+  };
   const [course, setCourse] = useState(null);
   const [uploads, setUploads] = useState([]);
   const [courseProgress, setCourseProgress] = useState([]);
@@ -541,6 +580,22 @@ const CourseView = () => {
   const getScoreDisplay = () => {
     if (!course) return { score: 0, max: 800, label: 'Estimated Score' };
 
+    if (isACTFullLengthCourse(course)) {
+      let bestComposite = 0;
+      (courseSubmissions || []).forEach(sub => {
+        if (sub.level === 'Adaptive') {
+          const comp = parseInt(sub.scaled_score || 0);
+          if (comp > bestComposite) bestComposite = comp;
+        }
+      });
+      return { 
+        score: bestComposite, 
+        max: 36, 
+        label: 'Best ACT Composite Score',
+        hasSubmissions: bestComposite > 0 
+      };
+    }
+
     const category = getCategory(course);
     const levelScores = { Easy: 0, Medium: 0, Hard: 0 };
 
@@ -579,9 +634,12 @@ const CourseView = () => {
 
   const passedLevels = courseProgress.filter(p => levels.includes(p.level) && p.passed);
   const uniquePassed = new Set(passedLevels.map(p => p.level));
-  const isCourseCompleted = isSequentialCourse ? (completedSeqUnits === seqUnits.length && seqUnits.length > 0) : uniquePassed.size === 3;
-
   const scoreData = getScoreDisplay();
+  const isCourseCompleted = isACTFullLengthCourse(course)
+    ? !!scoreData.hasSubmissions
+    : isSequentialCourse 
+      ? (completedSeqUnits === seqUnits.length && seqUnits.length > 0) 
+      : uniquePassed.size === 3;
 
   const renderApActionGrid = (levelName, study, video, quiz, passed) => (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
@@ -674,18 +732,23 @@ const CourseView = () => {
         <button
           onClick={() => {
             if (quiz) {
-              navigate(`/student/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz`);
+              // ACT Full-Length courses use the dedicated ACT exam engine
+              if (isACTFullLengthCourse(course)) {
+                navigate(`/student/act-full-length-test/${courseId}`);
+              } else {
+                navigate(`/student/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz`);
+              }
             }
           }}
-          disabled={!quiz}
+          disabled={!quiz && !isACTFullLengthCourse(course)}
           className={`w-full mt-4 py-2 px-3 rounded-lg text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 ${
-            quiz 
-              ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' 
+            (quiz || isACTFullLengthCourse(course))
+              ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'
               : 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
           }`}
         >
           <SafeIcon icon={FiIcons.FiAward} className="w-3.5 h-3.5" />
-          {quiz ? (passed ? 'Retake Exam' : 'Start Exam') : 'Not Available'}
+          {(quiz || isACTFullLengthCourse(course)) ? (passed ? 'Retake Exam' : 'Start Exam') : 'Not Available'}
         </button>
       </div>
     </div>
@@ -825,16 +888,58 @@ const CourseView = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-10 text-center px-4 sm:px-0">
           <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white mb-3 tracking-tight">
-            <span className={isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>{course.name}</span>
+            <span className={isACTFullLengthCourse(course) ? "text-red-650" : isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>{course.name}</span>
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
-            {isSequentialCourse 
-              ? "Complete each unit's quiz with ≥5% to unlock the next unit."
-              : "Complete each level to unlock the next difficulty."}
+            {isACTFullLengthCourse(course)
+              ? "Take the official full-length test or practice individual subjects."
+              : isSequentialCourse 
+                ? "Complete each unit's quiz with ≥5% to unlock the next unit."
+                : "Complete each level to unlock the next difficulty."}
           </p>
         </div>
 
-        {isSequentialCourse ? (
+        {isACTFullLengthCourse(course) ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-10 bg-gradient-to-br from-red-950 via-slate-900 to-red-900 text-white p-6 sm:p-10 rounded-3xl shadow-xl border border-red-900/50 text-center relative overflow-hidden mx-4 sm:mx-0"
+          >
+            <div className="relative z-10 flex flex-col items-center">
+              {isCourseCompleted && (
+                <div className="bg-red-500 text-white p-2.5 rounded-full mb-6 shadow-lg shadow-red-500/50 animate-bounce">
+                  <SafeIcon icon={FiAward} className="w-6 h-6" />
+                </div>
+              )}
+
+              <div className="flex flex-col items-center gap-3 mb-6">
+                <span className="text-gray-400 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">{scoreData.label}</span>
+                {isCourseCompleted && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-green-900/50 text-green-400 border border-green-800 font-black uppercase tracking-widest animate-pulse">
+                    <SafeIcon icon={FiTrendingUp} className="w-3.5 h-3.5 mr-2" /> Performance Unlocked
+                  </span>
+                )}
+              </div>
+
+              <div className="inline-block bg-white/5 backdrop-blur-xl p-6 sm:p-10 px-8 sm:px-16 rounded-[2rem] border border-white/10 transform hover:scale-105 transition-all cursor-default shadow-inner">
+                {isCourseCompleted ? (
+                  <div className="text-4xl sm:text-7xl font-black text-red-500 tracking-tighter">
+                    {scoreData.score} <span className="text-base sm:text-2xl text-white/30 font-bold uppercase tracking-widest">/ {scoreData.max}</span>
+                  </div>
+                ) : (
+                  <div className="text-xs sm:text-lg font-black text-gray-500 tracking-[0.1em] uppercase py-2 sm:py-4">
+                    Complete the Test to Reveal Score
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="absolute top-0 left-0 w-full h-full opacity-35 pointer-events-none">
+              <div className="absolute top-[-50%] left-[-10%] w-[500px] h-[500px] bg-red-700 rounded-full blur-[120px]"></div>
+              <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-orange-600 rounded-full blur-[100px]"></div>
+            </div>
+          </motion.div>
+        ) : isSequentialCourse ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -895,7 +1000,7 @@ const CourseView = () => {
                 <span className="text-gray-400 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">{scoreData.label}</span>
                 {isCourseCompleted && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-green-900/50 text-green-400 border border-green-800 font-black uppercase tracking-widest animate-pulse">
-                    <SafeIcon icon={FiTrendingUp} className="w-3 h-3 mr-2" /> Performance Unlocked
+                    <SafeIcon icon={FiTrendingUp} className="w-3.5 h-3.5 mr-2" /> Performance Unlocked
                   </span>
                 )}
               </div>
@@ -920,7 +1025,62 @@ const CourseView = () => {
           </motion.div>
         )}
 
-        {course.is_adaptive ? (
+        {isACTFullLengthCourse(course) ? (
+          <div className="space-y-10 px-4 sm:px-0">
+            <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 text-center relative overflow-hidden">
+               <div className="relative z-10">
+                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-100 dark:bg-red-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
+                   <SafeIcon icon={FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-red-600 dark:text-red-400" />
+                 </div>
+                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 font-black uppercase tracking-widest mb-4">
+                   Official ACT Format
+                 </span>
+                 <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 uppercase tracking-tight">ACT FULL-LENGTH TEST</h2>
+                 <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
+                   This is a complete full-length ACT Practice Test containing Mathematics (45 Qs, 50m), English (50 Qs, 35m), a 15-minute break, Reading (36 Qs, 40m), and an optional Science section (40 Qs, 40m).
+                 </p>
+                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button
+                      onClick={() => navigate(`/student/act-full-length-test/${courseId}`)}
+                      className="w-full sm:w-auto px-10 py-4 bg-red-600 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-red-700 transition-all shadow-lg hover:shadow-red-500/20 hover:-translate-y-1"
+                    >
+                      START FULL-LENGTH ACT TEST
+                    </button>
+                 </div>
+               </div>
+               <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                 <div className="absolute top-[-50%] left-[-10%] w-[500px] h-[500px] bg-red-700 rounded-full blur-[120px]"></div>
+                 <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-orange-600 rounded-full blur-[100px]"></div>
+               </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 text-center relative overflow-hidden">
+               <div className="relative z-10">
+                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-amber-100 dark:bg-amber-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
+                   <SafeIcon icon={FiIcons.FiZap || FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-amber-600 dark:text-amber-400" />
+                 </div>
+                 <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-black uppercase tracking-widest mb-4">
+                   Practice Exam Mode
+                 </span>
+                 <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 uppercase tracking-tight">ACT PRACTICE TEST</h2>
+                 <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
+                   Practice the full exam sequentially with fixed timers, sections, and score conversion. The practice test mimics the official exam format containing Mathematics, English, Reading, and Science.
+                 </p>
+                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button
+                      onClick={() => navigate(`/student/course/${courseId}/level/all/quiz?mode=practice`)}
+                      className="w-full sm:w-auto px-10 py-4 bg-amber-500 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-amber-600 transition-all shadow-lg hover:shadow-amber-500/20 hover:-translate-y-1"
+                    >
+                      START PRACTICE TEST
+                    </button>
+                 </div>
+               </div>
+               <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+                 <div className="absolute top-[-50%] left-[-10%] w-[500px] h-[500px] bg-amber-500 rounded-full blur-[120px]"></div>
+                 <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-yellow-500 rounded-full blur-[100px]"></div>
+               </div>
+            </div>
+          </div>
+        ) : course.is_adaptive ? (
           <div className="space-y-10 px-4 sm:px-0">
             <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 text-center relative overflow-hidden">
                <div className="relative z-10">

@@ -150,30 +150,62 @@ const ExamInterface = () => {
       const levelsToLoad = isSequential ? [level] : ['Easy', 'Medium', 'Hard'];
       let allTargetQuestions = [];
 
-      // 1. First, try to find a single upload that covers ALL levels for this course
-      const { data: globalUpload } = await supabase
-        .from('uploads')
-        .select('id')
-        .eq('course_id', cId)
-        .eq('category', 'quiz_document')
-        .eq('level', 'All')
-        .in('status', ['completed', 'warning'])
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // Check for section practice query param (used in ACT full-length sub-sections practice)
+      const searchParams = new URLSearchParams(window.location.search);
+      const querySection = searchParams.get('section');
+      if (querySection) {
+        console.log(`🎯 [Exam] Section practice requested: ${querySection}`);
+        const { data: sectionUploadData } = await supabase
+          .from('uploads')
+          .select('id, file_name')
+          .eq('course_id', cId)
+          .eq('category', 'quiz_document')
+          .ilike('section', querySection)
+          .in('status', ['completed', 'warning'])
+          .order('id', { ascending: false })
+          .limit(1);
 
-      if (globalUpload?.[0]) {
-        console.log(`🎯 [Exam] Found global upload ${globalUpload[0].id} for course ${cId}`);
-        const { data: qData } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('upload_id', globalUpload[0].id)
-          .order('id', { ascending: true });
-        
-        if (qData && qData.length > 0) {
-          allTargetQuestions = qData.map(q => ({
-            ...q,
-            computedLevel: q.level || 'Medium'
-          }));
+        if (sectionUploadData?.[0]) {
+          console.log(`🎯 [Exam] Found section upload ${sectionUploadData[0].id}: ${sectionUploadData[0].file_name}`);
+          const { data: qData } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('upload_id', sectionUploadData[0].id)
+            .order('id', { ascending: true });
+          
+          if (qData && qData.length > 0) {
+            allTargetQuestions = qData.map(q => ({ ...q, computedLevel: q.level || 'Medium' }));
+            console.log(`✅ [Exam] Loaded ${allTargetQuestions.length} questions for section: ${querySection}`);
+          }
+        }
+      }
+
+      // 1. First, try to find a single upload that covers ALL levels for this course
+      if (allTargetQuestions.length === 0) {
+        const { data: globalUpload } = await supabase
+          .from('uploads')
+          .select('id')
+          .eq('course_id', cId)
+          .eq('category', 'quiz_document')
+          .eq('level', 'All')
+          .in('status', ['completed', 'warning'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (globalUpload?.[0]) {
+          console.log(`🎯 [Exam] Found global upload ${globalUpload[0].id} for course ${cId}`);
+          const { data: qData } = await supabase
+            .from('questions')
+            .select('*')
+            .eq('upload_id', globalUpload[0].id)
+            .order('id', { ascending: true });
+          
+          if (qData && qData.length > 0) {
+            allTargetQuestions = qData.map(q => ({
+              ...q,
+              computedLevel: q.level || 'Medium'
+            }));
+          }
         }
       }
 
