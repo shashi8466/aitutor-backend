@@ -99,21 +99,27 @@ const AIQuestionCard = ({ data, onComplete }) => {
         )}
       </div>
 
-      <div className="mb-4 font-bold text-lg text-black dark:text-white leading-relaxed">
-        <MathRenderer text={questionText} />
-      </div>
+      {data.passage && (
+        <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 text-sm overflow-y-auto max-h-[250px] text-gray-800 dark:text-gray-200">
+          <MathRenderer text={data.passage} />
+        </div>
+      )}
 
-      {/* Fallback image: show if backend returned an imageUrl and the question text doesn't already embed an <img> */}
-      {data.imageUrl && !questionText.includes('<img') && (
+      {/* Fallback image: show if backend returned an imageUrl and the question text/passage doesn't already embed an <img> */}
+      {data.imageUrl && !questionText.includes('<img') && (!data.passage || !data.passage.includes('<img')) && (
         <div className="mb-4 flex justify-center">
           <img
             src={data.imageUrl}
             alt="Question diagram"
-            className="max-w-full max-h-[300px] object-contain rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+            className="max-w-full max-h-[300px] object-contain rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm bg-white"
             onError={(e) => e.target.style.display = 'none'}
           />
         </div>
       )}
+
+      <div className="mb-4 font-bold text-lg text-black dark:text-white leading-relaxed">
+        <MathRenderer text={questionText} />
+      </div>
 
       {effectiveIsMCQ ? (
         <div className="space-y-2 mb-4">
@@ -266,7 +272,8 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
           correctAnswer: question.correctAnswer || "",
           explanation: question.explanation || "",
           // Pass image URL so backend can re-inject the original diagram
-          imageUrl: question.image || question.image_url || question.imageUrl || null
+          imageUrl: question.image || question.image_url || question.imageUrl || null,
+          passage: question.passage || question.passageText || null
         };
 
         const previousQuestions = chatMessages
@@ -314,13 +321,14 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
         const mappedQuestion = {
           id: newQuestion.id || Date.now(),
           question: newQuestion.question || newQuestion.text,
+          passage: newQuestion.passage || newQuestion.passageText || questionPayload.passage || null,
           options: newQuestion.options || [],
           correctAnswer: newQuestion.correctAnswer,
           explanation: newQuestion.explanation || '',
           concept: newQuestion.topic || newQuestion.concept || questionPayload.concept || 'this topic',
           level: questionPayload.level,
           topic: newQuestion.topic,
-          imageUrl: newQuestion.imageUrl || null,
+          imageUrl: newQuestion.imageUrl || questionPayload.imageUrl || null,
           source: isFallback ? 'Test Set Fallback' : 'Knowledge Base'
         };
 
@@ -445,12 +453,14 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
           const mappedQuestion = {
             id: newQuestion.id || Date.now(),
             question: newQuestion.question || newQuestion.text,
+            passage: newQuestion.passage || newQuestion.passageText || question?.passage || question?.passageText || null,
             options: newQuestion.options || [],
             correctAnswer: newQuestion.correctAnswer,
             explanation: newQuestion.explanation || '',
             concept: newQuestion.topic || newQuestion.concept || topic,
             level: question?.level || 'Medium',
             topic: newQuestion.topic,
+            imageUrl: newQuestion.imageUrl || question?.image || question?.image_url || question?.imageUrl || null,
             source: isFallback ? 'Test Set Fallback' : 'AI-Generated (KB Style)'
           };
           
@@ -525,6 +535,19 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
           <div className="hidden md:block w-1/3 bg-[#FAFAFA] dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 p-6 overflow-y-auto">
             <div className="mb-6">
               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Original Context</h4>
+              {question?.passage && (
+                <div className="mb-4 bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 text-sm text-gray-800 dark:text-gray-200 shadow-sm leading-relaxed overflow-y-auto max-h-[250px]">
+                  <MathRenderer text={question.passage} />
+                </div>
+              )}
+              {(() => {
+                const img = question?.image || question?.image_url || question?.imageUrl;
+                return img && (!question?.question?.includes('<img') && (!question?.passage || !question.passage.includes('<img'))) ? (
+                  <div className="mb-4 flex justify-center bg-white p-2 rounded-lg border border-gray-200 dark:border-gray-800">
+                    <img src={img} alt="Original Diagram" className="max-w-full max-h-[200px] object-contain rounded" />
+                  </div>
+                ) : null;
+              })()}
               <div className="bg-white dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-800 text-sm text-gray-800 dark:text-gray-200 shadow-sm leading-relaxed font-medium">
                 <MathRenderer text={question?.question || "No question loaded"} />
               </div>
