@@ -1274,6 +1274,12 @@ const ACTFullLengthExam = () => {
           userAnswer={selectedAnswer} 
           correctAnswer={currentQuestion.correctAnswer} 
           onClose={() => setShowAITutor(false)} 
+          isACT={true}
+          fallbackQuestions={currentQuestions.filter(q => 
+            q.id !== currentQuestion.id && 
+            !userAnswers[q.id] && 
+            (q.topic === currentQuestion.topic || q.concept === currentQuestion.concept)
+          )}
         />
       )}
     </div>

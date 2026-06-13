@@ -766,7 +766,7 @@ export const aiService = {
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
     return axios.post('/api/ai/explain', { question, userAnswer, correctAnswer }, { headers });
   },
-  generateSimilarQuestion: async (question, previousQuestions = []) => {
+  generateSimilarQuestion: async (question, previousQuestions = [], isACT = false) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
     
@@ -775,7 +775,8 @@ export const aiService = {
     
     const payload = {
       question: { ...question, level: normalizedLevel },
-      previousQuestions: previousQuestions.slice(-5)
+      previousQuestions: previousQuestions.slice(-5),
+      isACT
     };
     return axios.post('/api/ai/generate-similar', payload, { headers });
   },

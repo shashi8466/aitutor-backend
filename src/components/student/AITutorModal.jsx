@@ -180,7 +180,7 @@ const AIQuestionCard = ({ data, onComplete }) => {
   );
 };
 
-const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
+const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fallbackQuestions = [] }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [featureEnabled, setFeatureEnabled] = useState(true);
@@ -279,14 +279,36 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
 
         console.log('🎯 [AI Tutor] Fetching similar practice question from Knowledge Base...');
         
-        const response = await aiService.generateSimilarQuestion(
-          questionPayload,
-          previousQuestions
-        );
+        let newQuestion = null;
+        let isFallback = false;
+        try {
+          const response = await aiService.generateSimilarQuestion(
+            questionPayload,
+            previousQuestions,
+            isACT
+          );
+          newQuestion = response.data;
+        } catch (e) {
+          console.warn("[AI Tutor] KB fallback error:", e);
+        }
         
-        const newQuestion = response.data;
         if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
-          throw new Error("Failed to fetch a practice question from the Knowledge Base.");
+          if (fallbackQuestions && fallbackQuestions.length > 0) {
+            console.log('🎯 [AI Tutor] Using fallback question from unattempted test set');
+            // Filter out any fallback questions that we've already shown in this chat
+            const availableFallbacks = fallbackQuestions.filter(fq => 
+              !previousQuestions.includes(fq.question || fq.text)
+            );
+            if (availableFallbacks.length > 0) {
+              const randomIndex = Math.floor(Math.random() * availableFallbacks.length);
+              newQuestion = availableFallbacks[randomIndex];
+              isFallback = true;
+            }
+          }
+        }
+
+        if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
+          throw new Error("Failed to fetch a practice question from the Knowledge Base and no test-set fallback questions are available.");
         }
 
         const mappedQuestion = {
@@ -299,15 +321,19 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
           level: questionPayload.level,
           topic: newQuestion.topic,
           imageUrl: newQuestion.imageUrl || null,
-          source: 'Knowledge Base'
+          source: isFallback ? 'Test Set Fallback' : 'Knowledge Base'
         };
+
+        const aiMessageText = isACT 
+          ? `I've found a practice question for you on **${mappedQuestion.concept}**.`
+          : `I've found a ${questionPayload.level} level practice question for you from the Knowledge Base on **${mappedQuestion.concept}**.`;
 
         setChatMessages(prev => [
           ...prev,
           {
             id: Date.now() + 1,
             sender: 'ai',
-            text: `I've found a ${questionPayload.level} level practice question for you from the Knowledge Base on **${mappedQuestion.concept}**.`,
+            text: aiMessageText,
             isQuestion: true,
             questionData: mappedQuestion
           }
@@ -382,17 +408,39 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
         const topic = question?.topic || question?.concept || "this topic";
         console.log(`🎯 [AI Tutor] Manual question request for topic: "${topic}"`);
         
-        const response = await aiService.generateSimilarQuestion(
-          {
-            question: question?.question || "",
-            level: question?.level || "Medium",
-            concept: topic,
-            topic
-          },
-          chatMessages.filter(m => m.isQuestion).map(m => m.questionData?.question || "")
-        );
+        let newQuestion = null;
+        let isFallback = false;
+        try {
+          const response = await aiService.generateSimilarQuestion(
+            {
+              question: question?.question || "",
+              level: question?.level || "Medium",
+              concept: topic,
+              topic
+            },
+            chatMessages.filter(m => m.isQuestion).map(m => m.questionData?.question || ""),
+            isACT
+          );
+          newQuestion = response.data;
+        } catch (e) {
+          console.warn("[AI Tutor] Manual KB fallback error:", e);
+        }
 
-        const newQuestion = response.data;
+        if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
+          if (fallbackQuestions && fallbackQuestions.length > 0) {
+            console.log('🎯 [AI Tutor] Using fallback question from unattempted test set');
+            const previousQuestions = chatMessages.filter(m => m.isQuestion).map(m => m.questionData?.question || "");
+            const availableFallbacks = fallbackQuestions.filter(fq => 
+              !previousQuestions.includes(fq.question || fq.text)
+            );
+            if (availableFallbacks.length > 0) {
+              const randomIndex = Math.floor(Math.random() * availableFallbacks.length);
+              newQuestion = availableFallbacks[randomIndex];
+              isFallback = true;
+            }
+          }
+        }
+
         if (newQuestion && (newQuestion.question || newQuestion.text)) {
           const mappedQuestion = {
             id: newQuestion.id || Date.now(),
@@ -403,7 +451,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
             concept: newQuestion.topic || newQuestion.concept || topic,
             level: question?.level || 'Medium',
             topic: newQuestion.topic,
-            source: 'AI-Generated (KB Style)'
+            source: isFallback ? 'Test Set Fallback' : 'AI-Generated (KB Style)'
           };
           
           setChatMessages(prev => [
@@ -460,7 +508,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
               <h3 className="font-black text-base md:text-lg text-slate-900 dark:text-white tracking-tight">AI Tutor Assistant</h3>
               <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                Precision Mode • {question?.level || 'Medium'} Level
+                Precision Mode {isACT ? '' : `• ${question?.level || 'Medium'} Level`}
               </p>
             </div>
           </div>
@@ -547,7 +595,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose }) => {
                                     {q.topic}
                                   </span>
                                 )}
-                                {q.difficulty && (
+                                {q.difficulty && !isACT && (
                                   <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2 py-1 rounded border border-blue-100">
                                     {q.difficulty}
                                   </span>

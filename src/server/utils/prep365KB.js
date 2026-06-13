@@ -206,9 +206,9 @@ const matchTopicToKB = async (userTopic) => {
  * - Match: topic + difficulty (Easy/Medium/Hard)
  * - If level not specified → return mixed from same topic only
  */
-const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimit = null, excludeIds = []) => {
+const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimit = null, excludeIds = [], isACT = false) => {
     try {
-        console.log(`🔍 [KB Filter] Topic: "${topic}" | Diff: ${difficulty} | Limit: ${returnLimit} | Excl: ${excludeIds.length}`);
+        console.log(`🔍 [KB Filter] Topic: "${topic}" | Diff: ${difficulty} | Limit: ${returnLimit} | Excl: ${excludeIds.length} | isACT: ${isACT}`);
         
         let query = supabase
             .from('questions')
@@ -237,7 +237,11 @@ const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimi
             // Normalize "Moderate" (frontend/UI) to "Medium" (standard DB level)
             if (targetDiff === 'Moderate') targetDiff = 'Medium';
             
-            query = query.eq('level', targetDiff);
+            if (isACT) {
+                query = query.ilike('level', difficulty);
+            } else {
+                query = query.eq('level', targetDiff);
+            }
         }
 
         // Use provided fetchLimit or calculate it - increase for better variety
@@ -346,15 +350,15 @@ const processAndReturnQuestions = (questions, returnLimit, excludeIds = []) => {
  * Main search function for 24/7 AI Prep365 Chat
  * Returns exact KB questions only - no AI generation
  */
-export const searchExactKBQuestions = async (userTopic, difficulty = null, count = null, excludeIds = []) => {
+export const searchExactKBQuestions = async (userTopic, difficulty = null, count = null, excludeIds = [], isACT = false) => {
     try {
         const requestedCount = Number(count) || 10;
         const safeExcludeIds = Array.isArray(excludeIds) ? excludeIds : [];
         
-        console.log(`🚀 [Prep365 KB] Search initiated for: "${userTopic}" | Difficulty: ${difficulty || 'Mixed'} | Count: ${requestedCount} | Excl: ${safeExcludeIds.length}`);
+        console.log(`🚀 [Prep365 KB] Search initiated for: "${userTopic}" | Difficulty: ${difficulty || 'Mixed'} | Count: ${requestedCount} | Excl: ${safeExcludeIds.length} | isACT: ${isACT}`);
 
         // Step 1: Match topic to KB (returns array of topics)
-        const matchedTopics = await matchTopicToKB(userTopic);
+        const matchedTopics = isACT ? [userTopic] : await matchTopicToKB(userTopic);
         console.log(`🎯 [Prep365 KB] matchedTopics:`, matchedTopics);
         
         let questions = [];
@@ -368,7 +372,7 @@ export const searchExactKBQuestions = async (userTopic, difficulty = null, count
             for (const topic of shuffledTopics) {
                 // Fetch a small batch from each topic to ensure variety
                 const perTopicLimit = Math.max(2, Math.ceil(requestedCount / 3));
-                const topicQuestions = await filterByDifficulty(topic, difficulty, perTopicLimit, perTopicLimit * 5, safeExcludeIds);
+                const topicQuestions = await filterByDifficulty(topic, difficulty, perTopicLimit, perTopicLimit * 5, safeExcludeIds, isACT);
                 allPotentialQuestions = [...allPotentialQuestions, ...topicQuestions];
                 
                 // Keep fetching until we have a healthy pool for variety, but don't over-fetch
@@ -393,6 +397,10 @@ export const searchExactKBQuestions = async (userTopic, difficulty = null, count
                 .from('questions')
                 .select('*')
                 .ilike('topic', `%${fallbackTopic}%`);
+            
+            if (isACT && difficulty && difficulty !== 'Mixed') {
+                widerQuery = widerQuery.ilike('level', difficulty);
+            }
             
             if (currentExcludeIds.length > 0) {
                 const idList = buildSupabaseInList(currentExcludeIds);
@@ -421,6 +429,10 @@ export const searchExactKBQuestions = async (userTopic, difficulty = null, count
                 .from('questions')
                 .select('*')
                 .or(`topic.ilike.%${topicNorm}%,question.ilike.%${topicNorm}%`);
+            
+            if (isACT && difficulty && difficulty !== 'Mixed') {
+                fallbackQuery = fallbackQuery.ilike('level', difficulty);
+            }
             
             if (currentExcludeIds.length > 0) {
                 const idList = buildSupabaseInList(currentExcludeIds);

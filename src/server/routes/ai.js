@@ -279,7 +279,7 @@ Return JSON ONLY: {"concept": "...", "explanation": "...", "steps": ["..."]}
 // 3. Generate Similar (STRICT KB-ONLY VERSION with IMAGE CONSISTENCY)
 router.post('/generate-similar', async (req, res) => {
   try {
-    const { question, previousQuestions } = req.body;
+    const { question, previousQuestions, isACT } = req.body;
     if (!question) return res.status(400).json({ error: "Missing question content" });
 
     const qStr = typeof question === 'string' ? question : (question.question || JSON.stringify(question));
@@ -297,13 +297,13 @@ router.post('/generate-similar', async (req, res) => {
     const originalHasDiagram = isDiagram(qStr) || isDiagram(question.imageUrl);
     const originalHasAnyImage = originalHasChart || originalHasDiagram || !!question.imageUrl || !!question.image_url || !!question.image;
     
-    console.log(`🎯 [Generate Similar] KB-ONLY Mode | Topic: "${topic}" | Image: ${originalHasAnyImage} | Chart: ${originalHasChart}`);
+    console.log(`🎯 [Generate Similar] KB-ONLY Mode | Topic: "${topic}" | Image: ${originalHasAnyImage} | Chart: ${originalHasChart} | isACT: ${isACT}`);
 
     const safePreviousQuestions = Array.isArray(previousQuestions) ? previousQuestions : [];
 
     // 🟢 FETCH EXACT KB QUESTIONS
     const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
-    const kbQuestions = await searchExactKBQuestions(topic, anchorDifficulty, 50); // High limit for granular filtering
+    const kbQuestions = await searchExactKBQuestions(topic, anchorDifficulty, 50, [], isACT); // High limit for granular filtering
 
     if (!kbQuestions || kbQuestions.length === 0) {
       return res.status(404).json({ 

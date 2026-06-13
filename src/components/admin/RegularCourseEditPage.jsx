@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService, questionService, authService } from '../../services/api';
 import CourseForm from './CourseForm';
+import AdaptiveCourseForm from './AdaptiveCourseForm';
 import supabase from '../../supabase/supabase';
 import EnrollmentKeyManager from './EnrollmentKeyManager';
 import TutorGrades from '../tutor/TutorGrades';
@@ -82,7 +83,9 @@ const RegularCourseEditPage = () => {
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{course.name}</h1>
-                  <span className="px-3 py-1 bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 rounded-full text-[10px] font-black uppercase tracking-widest border border-sky-200 dark:border-sky-800">Regular Course</span>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${course.category === 'Full-Length ACT' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' : 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'}`}>
+                    {course.category === 'Full-Length ACT' ? 'ACT Full-Length Test' : 'Regular Course'}
+                  </span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 text-lg mb-4 max-w-2xl">{course.description}</p>
                 <div className="flex flex-wrap items-center gap-4">
@@ -286,11 +289,19 @@ const RegularCourseEditPage = () => {
         </div>
 
         {showEditForm && (
-          <CourseForm
-            course={course}
-            onClose={() => setShowEditForm(false)}
-            onSave={() => { loadCourseData(); }}
-          />
+          course.category === 'Full-Length ACT' ? (
+            <AdaptiveCourseForm
+              course={course}
+              onClose={() => setShowEditForm(false)}
+              onSave={() => { loadCourseData(); }}
+            />
+          ) : (
+            <CourseForm
+              course={course}
+              onClose={() => setShowEditForm(false)}
+              onSave={() => { loadCourseData(); }}
+            />
+          )
         )}
       </div>
     </div>
