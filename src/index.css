@@ -319,6 +319,16 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
   @apply shadow-none border-0 bg-transparent p-0;
 }
 
+/* Allow passage images (wrapped in .prose) to display at full readable size */
+.prose .math-content .docx-image-wrapper img,
+.prose .docx-image-wrapper img {
+  max-height: 75vh !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
 /* If the image is the ONLY thing in the option, make it clean */
 .math-content > .docx-image-wrapper:only-child {
   margin: 0 !important;

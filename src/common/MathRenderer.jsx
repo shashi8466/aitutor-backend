@@ -116,7 +116,7 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
         ? `${supabaseUrl}/${effectiveCourseId}/images/${cleanFilename}`
         : `${supabaseUrl}/images/${cleanFilename}`;
 
-      return `<div class="docx-image-wrapper my-4 flex justify-center"><img src="${fullImageUrl}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-md border border-slate-200 bg-white p-2 cursor-zoom-in hover:scale-[1.01] transition-transform duration-200" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" onerror="this.parentElement.style.display='none'; console.warn('🖼️ [MathRenderer] Failed to load image:', '${fullImageUrl}')" /></div>`;
+      return `<div class="docx-image-wrapper my-4 flex justify-center"><img src="${fullImageUrl}" alt="Question Image" class="max-w-full h-auto rounded-lg shadow-md border border-slate-200 bg-white p-2 cursor-zoom-in hover:scale-[1.01] transition-transform duration-200" onerror="this.parentElement.style.display='none'; console.warn('🖼️ [MathRenderer] Failed to load image:', '${fullImageUrl}')" /></div>`;
     };
 
     // 1. Replace standard tags
