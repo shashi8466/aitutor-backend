@@ -983,6 +983,226 @@ const ACTFullLengthExam = () => {
   // ─────────────────────────────────────────────────────────────────────────────
   // 13. RENDER: ACTIVE EXAM SECTION
   // ─────────────────────────────────────────────────────────────────────────────
+  if (!isPracticeMode) {
+    return (
+      <div className="fixed inset-0 z-[999999] bg-white flex flex-col font-sans select-none text-black overflow-hidden take-quiz-force-white px-0">
+        <style>{`
+          .take-quiz-force-white header { 
+            background: #0f172a !important; 
+            color: white !important; 
+            min-height: 54px !important; 
+            display: flex !important; 
+            align-items: center !important; 
+            justify-content: space-between !important; 
+            padding: 0 12px !important; 
+            position: relative !important; 
+            z-index: 10000 !important; 
+          }
+          @media (min-width: 640px) { 
+            .take-quiz-force-white header { padding: 0 40px !important; min-height: 60px !important; } 
+          }
+          
+          .take-quiz-force-white footer { 
+            background: #ffffff !important; 
+            border-top: 1px solid #e2e8f0 !important; 
+            min-height: 64px !important; 
+            display: flex !important; 
+            align-items: center !important; 
+            justify-content: space-between !important; 
+            padding: 0 12px !important; 
+            position: relative !important; 
+            z-index: 10000 !important; 
+          }
+          @media (min-width: 640px) { 
+            .take-quiz-force-white footer { padding: 0 40px !important; min-height: 70px !important; } 
+          }
+
+          .timer-text { color: #ffffff !important; font-weight: 800 !important; font-size: 14px !important; }
+          @media (min-width: 640px) { .timer-text { font-size: 18px !important; } }
+        `}</style>
+
+        {/* Security Alert */}
+        <AnimatePresence>
+          {showSecurityAlert && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-20 left-1/2 -translate-x-1/2 z-[1000000] bg-red-600 text-white px-6 py-3 rounded-full font-black text-sm shadow-2xl flex items-center gap-3 border-2 border-white/20"
+            >
+              <SafeIcon icon={FiAlertCircle} /> SECURITY: Focus lost — this event has been logged.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <header>
+          <div className="flex flex-col">
+            <h2 className="text-[12px] sm:text-[15px] font-bold text-white leading-tight truncate max-w-[120px] sm:max-w-none">
+                Section {currentSection.sectionNumber}: {currentSection.label}
+            </h2>
+            <span className="text-[9px] sm:text-[11px] text-gray-400 font-medium">Directions <SafeIcon icon={FiChevronDown} className="w-2.5 h-2.5 sm:w-3 sm:h-3" /></span>
+          </div>
+          <div className="flex flex-col items-center mt-1">
+              <div className="timer-text">{formatTime(timeLeft)}</div>
+              <span className="text-[9px] font-bold text-gray-400 tracking-widest cursor-pointer hover:text-white">HIDE</span>
+          </div>
+          <div className="flex items-center gap-3 sm:gap-6 relative">
+             <button 
+               onClick={() => setShowMoreMenu(!showMoreMenu)} 
+               className="flex flex-col items-center cursor-pointer text-gray-300 hover:text-white bg-transparent border-none p-0 outline-none relative z-[10001]"
+             >
+                 <span className="text-lg sm:text-xl font-black leading-none">⋮</span>
+                 <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-widest">More</span>
+             </button>
+
+             <AnimatePresence>
+               {showMoreMenu && (
+                 <>
+                   <div className="fixed inset-0 z-[10000]" onClick={() => setShowMoreMenu(false)}></div>
+                   <motion.div 
+                     initial={{ opacity: 0, y: 10 }} 
+                     animate={{ opacity: 1, y: 0 }} 
+                     exit={{ opacity: 0, y: 10 }}
+                     className="absolute top-[100%] right-0 bg-[#1e293b] border border-slate-700/50 rounded-xl py-2 w-[200px] shadow-2xl z-[10002] mt-2 overflow-hidden"
+                   >
+                      <div 
+                         onClick={() => { setShowMoreMenu(false); navigate(`/student/course/${courseId}`); }} 
+                         className="flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 cursor-pointer text-slate-200 hover:text-white text-sm font-medium transition-colors"
+                      >
+                         <SafeIcon icon={FiLogOut} className="w-4 h-4 opacity-70" />
+                         Save and Exit
+                      </div>
+                   </motion.div>
+                 </>
+               )}
+             </AnimatePresence>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[4px] md:border-b-0 md:border-r-[10px] border-[#0f172a] max-h-[calc(100vh-140px)] custom-scrollbar">
+            <div className="prose prose-slate max-w-none leading-relaxed text-[15px] sm:text-[17px] text-black">
+                  {currentQuestion?.passage ? (
+                      <MathRenderer text={currentQuestion.passage} courseId={courseId} />
+                  ) : (
+                      <MathRenderer text={currentQuestion?.question || currentQuestion?.question_html || currentQuestion?.text || ''} courseId={courseId} />
+                  )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white relative z-20 max-h-[calc(100vh-140px)] custom-scrollbar">
+            <div className="flex items-center justify-between mb-8">
+               <div className="flex items-center gap-4">
+                 <div className="bg-black text-white w-8 h-8 flex items-center justify-center font-bold rounded-lg">{currentQuestionIndex + 1}</div>
+                 <button onClick={toggleFlag} className={`flex items-center gap-2 text-sm font-bold border-b-2 border-dashed ${flaggedQuestions[`${currentSection.key}-${currentQuestionIndex}`] ? 'text-black border-black' : 'text-gray-800 border-gray-400'}`}>
+                    <SafeIcon icon={FiStar} className={flaggedQuestions[`${currentSection.key}-${currentQuestionIndex}`] ? 'fill-current' : ''} /> Mark for Review
+                 </button>
+               </div>
+            </div>
+
+            <div className="space-y-4 relative z-30">
+                {(currentQuestion?.passage || currentQuestion?.question_text) && (
+                   <div className="text-[17px] font-bold text-black mb-8 leading-relaxed">
+                     <MathRenderer text={currentQuestion?.passage ? (currentQuestion?.question || currentQuestion?.text || '') : (currentQuestion?.question_text || '')} courseId={courseId} />
+                   </div>
+                )}
+
+                {(!currentQuestion?.options || currentQuestion.options.filter(o => o && o.toString().trim() !== '').length === 0) ? (
+                    <div className="w-full flex flex-col mt-4">
+                        <p className="text-[15px] font-bold text-slate-500 mb-4 uppercase tracking-wider">STUDENT-PRODUCED RESPONSE</p>
+                        <div className="relative w-full max-w-[180px] transition-all mb-12">
+                            <input 
+                              type="text" 
+                              className="w-full bg-slate-50 border-2 border-slate-200 rounded-lg px-4 py-3 font-bold text-lg text-left focus:outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-50 text-slate-900 placeholder:text-slate-400 transition-all shadow-sm" 
+                              value={selectedAnswer} 
+                              placeholder="Type response"
+                              onChange={(e) => handleAnswerSelect(e.target.value)} 
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    currentQuestion.options.map((optContent, idx) => {
+                      const letter = String.fromCharCode(65 + idx);
+                      const isSelected = selectedAnswer === letter;
+                      return (
+                        <div key={letter} className="flex flex-col sm:flex-row gap-2 sm:gap-4 group relative z-40">
+                           <button
+                              type="button"
+                              onClick={() => handleAnswerSelect(letter)}
+                              className={`w-[36px] h-[36px] sm:w-[44px] sm:h-[44px] rounded-full flex items-center justify-center font-bold shrink-0 transition-colors cursor-pointer pointer-events-auto relative z-50 text-sm sm:text-base ${isSelected ? 'border-2 border-blue-600 text-blue-600 bg-white ring-4 ring-blue-50 shadow-sm' : 'border border-slate-200 text-slate-400 bg-white group-hover:border-slate-300'}`}
+                           >
+                              {letter}
+                           </button>
+                           <div 
+                              role="button"
+                              onClick={() => handleAnswerSelect(letter)}
+                              className={`flex-1 rounded-xl sm:rounded-2xl p-3 sm:p-5 min-h-[48px] sm:min-h-[60px] cursor-pointer pointer-events-auto transition-all flex flex-col justify-center relative z-50 ${isSelected ? 'border-2 border-blue-600 bg-blue-50/5 shadow-sm' : 'border border-slate-200 bg-white group-hover:border-slate-300 shadow-sm'}`}
+                           >
+                              <div className="pointer-events-none w-full">
+                                 <MathRenderer text={optContent} className="text-sm sm:text-[17px] text-slate-900" courseId={courseId} />
+                              </div>
+                           </div>
+                        </div>
+                      );
+                    })
+                )}
+            </div>
+          </div>
+        </main>
+
+        <footer>
+          <div className="text-[10px] sm:text-sm font-bold flex-1 text-slate-900 truncate max-w-[80px] sm:max-w-none">{user?.name || 'Student'}</div>
+          <div className="relative flex justify-center shrink-0 mx-2">
+            <button onClick={() => setShowNavigation(!showNavigation)} className="bg-black text-white px-3 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-2 sm:gap-3">
+                <span className="hidden sm:inline">Question </span>{currentQuestionIndex + 1}<span className="sm:hidden"> / </span><span className="hidden sm:inline"> of </span>{currentQuestions.length}
+                <SafeIcon icon={showNavigation ? FiX : FiChevronDown} className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+            </button>
+            <AnimatePresence>
+            {showNavigation && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-[80px] sm:bottom-[130px] bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-[0_0_40px_-10px_rgba(0,0,0,0.15)] z-[1000] w-[90vw] sm:w-[420px] left-1/2 -translate-x-1/2 flex flex-col items-center max-h-[70vh] overflow-y-auto">
+                 <div className="hidden sm:block absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b border-r border-slate-200 rotate-45"></div>
+                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 w-full relative">
+                    <span className="font-bold text-sm text-slate-900 w-full text-center">
+                        Section {currentSection.sectionNumber}: {currentSection.label} Questions
+                    </span>
+                    <SafeIcon icon={FiX} onClick={() => setShowNavigation(false)} className="cursor-pointer text-gray-400 absolute right-0 top-0" />
+                 </div>
+                 <div className="flex flex-wrap gap-2 mb-8 justify-center">
+                     {currentQuestions.map((q, idx) => {
+                         const isAnswered = !!userAnswers[q.id];
+                         const isFlagged = flaggedQuestions[`${currentSection.key}-${idx}`];
+                         
+                         let btnClass = isAnswered
+                           ? 'text-blue-600 border-blue-600 bg-blue-50 border-solid'
+                           : 'text-blue-600 border-blue-600 border-dashed bg-white';
+                           
+                         if (isFlagged) {
+                           btnClass += ' ring-2 ring-red-500 ring-offset-2 ring-offset-current';
+                         }
+                         
+                         return (
+                           <div key={idx} onClick={() => { setCurrentQuestionIndex(idx); setShowNavigation(false); }} className={`w-[34px] h-[34px] flex items-center justify-center font-black rounded-sm cursor-pointer transition-all text-sm border ${btnClass}`}>
+                               {idx + 1}
+                           </div>
+                         );
+                     })}
+                 </div>
+                 <button onClick={() => { setShowNavigation(false); setScreen('review'); }} className="px-5 py-1.5 rounded-full border border-blue-600 text-blue-600 font-bold text-sm hover:bg-blue-50 transition-all">Go to Review Page</button>
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </div>
+          <div className="flex items-center gap-3 sm:gap-8 flex-1 justify-end">
+            <button onClick={handleBack} disabled={currentQuestionIndex === 0} className="font-bold text-xs sm:text-sm text-blue-600 disabled:opacity-30 hover:underline">Back</button>
+            <button onClick={handleNext} className="px-4 sm:px-8 py-2 sm:py-2.5 bg-blue-600 text-white rounded-full font-bold text-xs sm:text-sm hover:bg-blue-700 transition-colors shadow-sm">
+              {currentQuestionIndex === currentQuestions.length - 1 ? 'Review' : 'Next'}
+            </button>
+          </div>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className={`fixed inset-0 z-[999999] flex flex-col font-sans select-none overflow-hidden px-0 ${isPracticeMode ? 'bg-[#0a0e2a] text-white dark' : 'bg-[#F1F5F9] text-black take-quiz-force-white'}`}>
       {/* Security Alert */}
