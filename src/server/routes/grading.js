@@ -280,6 +280,151 @@ router.post('/submit-test', async (req, res) => {
 
         const result = data[0];
 
+        // 🟢 ACT Full-Length Metadata Calculation and Storage
+        try {
+            const { data: course } = await supabase
+                .from('courses')
+                .select('name, tutor_type, main_category, category')
+                .eq('id', courseId)
+                .maybeSingle();
+
+            const isACTFullLength = course && (
+                (course.tutor_type || '').toUpperCase() === 'FULL-LENGTH ACT' ||
+                (course.category || '').toUpperCase() === 'FULL-LENGTH ACT' ||
+                (course.name || '').toUpperCase().includes('ACT FULL-LENGTH') ||
+                (course.name || '').toUpperCase().includes('FULL-LENGTH ACT') ||
+                ((course.main_category || '').toUpperCase() === 'FULL LENGTH TESTS' && 
+                 ((course.tutor_type || '').toUpperCase().includes('ACT') || 
+                  (course.category || '').toUpperCase().includes('ACT') || 
+                  (course.name || '').toUpperCase().includes('ACT')))
+            );
+
+            if (isACTFullLength && questionIds && questionIds.length > 0) {
+                console.log(`📊 [Grading] Calculating ACT Full-Length scores for submission ${result.submission_id}`);
+                const { data: questionsData } = await supabase
+                    .from('questions')
+                    .select('id, section, correct_answer')
+                    .in('id', questionIds);
+
+                if (questionsData && questionsData.length > 0) {
+                    const englishQs = questionsData.filter(q => (q.section || '').toLowerCase() === 'english');
+                    const mathQs = questionsData.filter(q => {
+                        const s = (q.section || '').toLowerCase();
+                        return s === 'math' || s === 'mathematics';
+                    });
+                    const readingQs = questionsData.filter(q => (q.section || '').toLowerCase() === 'reading');
+                    const scienceQs = questionsData.filter(q => (q.section || '').toLowerCase() === 'science');
+
+                    const getCorrectCount = (qs) => {
+                        let correct = 0;
+                        qs.forEach(q => {
+                            const qIdx = questionIds.findIndex(id => String(id) === String(q.id));
+                            if (qIdx !== -1) {
+                                const studentAns = String(answers[qIdx] || '').trim().toLowerCase();
+                                const correctAns = String(q.correct_answer || '').trim().toLowerCase();
+                                if (studentAns !== '' && studentAns === correctAns) {
+                                    correct++;
+                                }
+                            }
+                        });
+                        return correct;
+                    };
+
+                    const englishCorrect = getCorrectCount(englishQs);
+                    const mathCorrect = getCorrectCount(mathQs);
+                    const readingCorrect = getCorrectCount(readingQs);
+                    const scienceCorrect = getCorrectCount(scienceQs);
+
+                    const getActScaled = (correct, max, sectionName) => {
+                        if (max === 0) return 1;
+                        const ENGLISH_TABLE = {
+                          50:36,49:35,48:34,47:33,46:32,45:31,44:30,43:29,42:29,41:28,40:28,
+                          39:27,38:27,37:26,36:26,35:25,34:25,33:24,32:23,31:23,30:22,29:21,
+                          28:21,27:20,26:20,25:19,24:19,23:18,22:18,21:17,20:16,19:16,18:15,
+                          17:15,16:14,15:13,14:13,13:12,12:11,11:11,10:10,9:9,8:8,7:7,6:6,
+                          5:5,4:4,3:3,2:2,1:1,0:1
+                        };
+                        const MATH_TABLE = {
+                          45:36,44:34,43:33,42:33,41:32,40:32,39:31,38:31,37:30,36:30,35:29,
+                          34:28,33:28,32:27,31:26,30:26,29:25,28:24,27:24,26:23,25:22,24:21,
+                          23:20,22:19,21:19,20:18,19:18,18:17,17:17,16:16,15:16,14:15,13:15,
+                          12:14,11:13,10:13,9:12,8:11,7:10,6:9,5:8,4:7,3:5,2:4,1:2,0:1
+                        };
+                        const READING_TABLE = {
+                          36:36,35:34,34:32,33:31,32:30,31:29,30:28,29:27,28:26,27:25,26:24,
+                          25:24,24:23,23:22,22:22,21:21,20:20,19:20,18:19,17:18,16:18,15:17,
+                          14:16,13:15,12:14,11:13,10:12,9:11,8:10,7:9,6:8,5:7,4:6,3:5,2:3,1:2,0:1
+                        };
+                        const SCIENCE_TABLE = {
+                          40:36,39:35,38:34,37:33,36:32,35:31,34:30,33:29,32:28,31:27,30:26,
+                          29:26,28:25,27:24,26:24,25:23,24:22,23:22,22:21,21:20,20:19,19:19,
+                          18:18,17:17,16:16,15:15,14:14,13:13,12:12,11:11,10:10,9:9,8:8,7:7,
+                          6:6,5:5,4:4,3:3,2:2,1:1,0:1
+                        };
+
+                        const table = sectionName === 'english' ? ENGLISH_TABLE :
+                                      sectionName === 'math' ? MATH_TABLE :
+                                      sectionName === 'reading' ? READING_TABLE :
+                                      SCIENCE_TABLE;
+                        
+                        const clamped = Math.max(0, Math.min(correct, Object.keys(table).length - 1));
+                        return table[clamped] ?? 1;
+                    };
+
+                    const englishScaled = getActScaled(englishCorrect, englishQs.length, 'english');
+                    const mathScaled = getActScaled(mathCorrect, mathQs.length, 'math');
+                    const readingScaled = readingQs.length > 0 ? getActScaled(readingCorrect, readingQs.length, 'reading') : null;
+                    const scienceScaled = scienceQs.length > 0 ? getActScaled(scienceCorrect, scienceQs.length, 'science') : null;
+
+                    const activeSections = [englishScaled, mathScaled];
+                    if (readingScaled !== null) activeSections.push(readingScaled);
+                    const composite = activeSections.length > 0 
+                        ? Math.round((activeSections.reduce((a, b) => a + b, 0) / activeSections.length) + Number.EPSILON)
+                        : 1;
+
+                    const actScores = {
+                        english: { raw: englishCorrect, max: englishQs.length || 50, scaled: englishScaled },
+                        mathematics: { raw: mathCorrect, max: mathQs.length || 45, scaled: mathScaled },
+                        reading: readingScaled !== null ? { raw: readingCorrect, max: readingQs.length || 36, scaled: readingScaled } : null,
+                        science: scienceScaled !== null ? { raw: scienceCorrect, max: scienceQs.length || 40, scaled: scienceScaled } : null,
+                        composite
+                    };
+
+                    const totalQs = questionIds.length;
+                    const totalCorrect = englishCorrect + mathCorrect + (readingCorrect || 0) + (scienceCorrect || 0);
+                    const accuracy = Math.round((totalCorrect / totalQs) * 100);
+
+                    const metadata = {
+                        totalCorrect,
+                        accuracy,
+                        actScores,
+                        totalScore: composite,
+                        isACTFullLength: true,
+                        isPractice: mode === 'practice',
+                        withScience: scienceQs.length > 0
+                    };
+
+                    const { error: updateErr } = await supabase
+                        .from('test_submissions')
+                        .update({ 
+                            metadata,
+                            scaled_score: composite
+                        })
+                        .eq('id', result.submission_id);
+
+                    if (updateErr) {
+                        console.error('❌ [Grading] Failed to update ACT metadata:', updateErr);
+                    } else {
+                        console.log(`✅ [Grading] Successfully computed and saved ACT Full-Length metadata for submission ${result.submission_id}`);
+                        result.metadata = metadata;
+                        result.scaled_score = composite;
+                    }
+                }
+            }
+        } catch (calcErr) {
+            console.error('❌ [Grading] Error calculating ACT Full-Length scores:', calcErr);
+        }
+
         // 🟢 FIX: Ensure student_progress stores LATEST score, not GREATEST
         // This makes sure dashboards and leaderboards are consistent with latest attempts
         try {

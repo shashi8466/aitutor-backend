@@ -5,7 +5,8 @@ import {
   buildWeeklyReportEmail, 
   buildDueDateReminderEmail, 
   buildWelcomeEmail,
-  buildContactSubmissionEmail
+  buildContactSubmissionEmail,
+  buildACTFullLengthCompletionEmail
 } from './notificationEngine.js';
 import { getInternalSettings } from './internalSettings.js';
 
@@ -130,9 +131,6 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   const normalizedEventType = (eventType || '').trim().toUpperCase();
 
   if (normalizedEventType === 'TEST_COMPLETED') {
-    const subject = 'Test Completed – Performance Summary';
-    console.log(`✨ [NotificationOutbox] Using subject: "${subject}" for event: "${eventType}"`);
-    
     // Construct deep-link report URL
     const reportPath = isParent
       ? `/parent/child/${payload.studentId}/course/${payload.courseId}/difficulty/${payload.level?.toLowerCase() || 'medium'}/test/${payload.submissionId}`
@@ -148,6 +146,57 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     // `appUrl` is expected to be something like `https://.../dashboard` already,
     // so we should NOT insert an extra `/` before `?redirect=`.
     const finalUrl = appUrl ? `${appUrl}${redirectParam}${hashPart}` : `/${redirectParam}${hashPart}`;
+
+    const metadata = typeof payload.metadata === 'string' ? JSON.parse(payload.metadata) : (payload.metadata || {});
+    const isACTFullLength = metadata.isACTFullLength === true || 
+                            (typeof payload.metadata === 'string' && payload.metadata.includes('isACTFullLength')) ||
+                            (payload.courseName && String(payload.courseName).toUpperCase().includes('ACT') && 
+                             (String(payload.courseName).toLowerCase().includes('full length') || String(payload.courseName).toLowerCase().includes('full-length')));
+
+    if (isACTFullLength) {
+      const subject = 'Your ACT Full-Length Test Results Are Ready!';
+      console.log(`✨ [NotificationOutbox] Using dedicated ACT Full-Length subject: "${subject}"`);
+      
+      const actScores = metadata.actScores || {};
+      const compositeScore = actScores.composite || payload.scaledScore || 0;
+      const englishScore = actScores.english?.scaled || 0;
+      const mathScore = actScores.mathematics?.scaled || actScores.math?.scaled || 0;
+      const readingScore = actScores.reading ? actScores.reading.scaled : null;
+      const scienceScore = actScores.science ? actScores.science.scaled : null;
+      
+      const totalCorrect = payload.rawScore || metadata.totalCorrect || 0;
+      const totalQuestions = payload.totalQuestions || 0;
+      const accuracyPercentage = payload.rawPercentage !== undefined ? Math.round(payload.rawPercentage) : Math.round(metadata.accuracy || 0);
+      
+      let performanceStatus = 'Needs Improvement';
+      if (accuracyPercentage >= 85) {
+        performanceStatus = 'Excellent Performance';
+      } else if (accuracyPercentage >= 60) {
+        performanceStatus = 'Good Progress';
+      }
+      
+      const emailHtml = buildACTFullLengthCompletionEmail({
+        studentName: payload.studentName,
+        testDate: payload.testDate,
+        compositeScore,
+        englishScore,
+        mathScore,
+        readingScore,
+        scienceScore,
+        totalCorrect,
+        totalQuestions,
+        accuracyPercentage,
+        performanceStatus,
+        reportUrl: finalUrl
+      });
+      
+      const smsMessage = `${appName}: Hello ${payload.studentName}, congratulations on completing your ACT Full-Length Test. Your Composite Score is ${compositeScore}/36. View report: ${finalUrl}`;
+      
+      return { subject, emailHtml, smsMessage };
+    }
+
+    const subject = 'Test Completed – Performance Summary';
+    console.log(`✨ [NotificationOutbox] Using subject: "${subject}" for event: "${eventType}"`);
 
     const emailHtml = buildTestCompletionEmail({
       studentName: payload.studentName,

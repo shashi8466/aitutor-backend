@@ -1067,7 +1067,7 @@ const CourseView = () => {
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button
-                      onClick={() => navigate(`/student/course/${courseId}/level/all/quiz?mode=practice`)}
+                      onClick={() => navigate(`/student/act-full-length-test/${courseId}?mode=practice`)}
                       className="w-full sm:w-auto px-10 py-4 bg-amber-500 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-amber-600 transition-all shadow-lg hover:shadow-amber-500/20 hover:-translate-y-1"
                     >
                       START PRACTICE TEST

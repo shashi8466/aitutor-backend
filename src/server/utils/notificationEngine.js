@@ -786,3 +786,155 @@ export function buildContactSubmissionEmail({ name, email, mobile, subject, type
     </div></div></body></html>`;
 }
 
+export function buildACTFullLengthCompletionEmail({ studentName, testDate, compositeScore, englishScore, mathScore, readingScore, scienceScore, totalCorrect, totalQuestions, accuracyPercentage, performanceStatus, reportUrl }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const formattedDate = new Date(testDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    
+    const showReading = readingScore !== undefined && readingScore !== null;
+    const showScience = scienceScore !== undefined && scienceScore !== null;
+    
+    const statusLower = String(performanceStatus || '').toLowerCase();
+    const statusColor = statusLower.includes('excellent') ? '#4ade80' : statusLower.includes('good') ? '#facc15' : '#f87171';
+    
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Your ACT Full-Length Test Results Are Ready!</title>
+  ${BASE_STYLES}
+  <style>
+    .act-score-grid {
+      display: table;
+      width: 100%;
+      margin: 20px 0;
+      border-collapse: separate;
+      border-spacing: 10px;
+    }
+    .act-score-card {
+      display: table-cell;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .act-score-card.composite-card {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+    .act-score-val {
+      font-size: 28px;
+      font-weight: 800;
+      color: #818cf8;
+      margin-bottom: 2px;
+    }
+    .act-score-lbl {
+      font-size: 11px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+    .act-detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .act-detail-lbl {
+      color: #94a3b8;
+      font-weight: 600;
+    }
+    .act-detail-val {
+      color: #ffffff;
+      font-weight: 700;
+    }
+    .act-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <h1>📋 ACT Full-Length Test Completed!</h1>
+        <p>${appName} – ${formattedDate}</p>
+      </div>
+      <div class="body">
+        <p class="intro-heading">Hello ${studentName || 'Student'},</p>
+        <p class="intro-text">Congratulations on completing your ACT Full-Length Test. Your performance report is now available.</p>
+        
+        <p class="section-title">Overall Performance Summary</p>
+        
+        <div class="act-score-grid">
+          <div class="act-score-card composite-card" style="width: 33%;">
+            <div class="act-score-val" style="color: #a855f7;">${compositeScore} <span style="font-size: 16px; font-weight: 400; color: #94a3b8;">/ 36</span></div>
+            <div class="act-score-lbl">Composite Score</div>
+          </div>
+          <div class="act-score-card" style="width: 33%;">
+            <div class="act-score-val">${englishScore} <span style="font-size: 14px; font-weight: 400; color: #64748b;">/ 36</span></div>
+            <div class="act-score-lbl">English Score</div>
+          </div>
+          <div class="act-score-card" style="width: 33%;">
+            <div class="act-score-val">${mathScore} <span style="font-size: 14px; font-weight: 400; color: #64748b;">/ 36</span></div>
+            <div class="act-score-lbl">Mathematics Score</div>
+          </div>
+        </div>
+
+        ${showReading || showScience ? `
+        <div class="act-score-grid" style="margin-top: -5px;">
+          ${showReading ? `
+          <div class="act-score-card" style="width: 50%;">
+            <div class="act-score-val">${readingScore} <span style="font-size: 14px; font-weight: 400; color: #64748b;">/ 36</span></div>
+            <div class="act-score-lbl">Reading Score</div>
+          </div>
+          ` : ''}
+          ${showScience ? `
+          <div class="act-score-card" style="width: 50%;">
+            <div class="act-score-val">${scienceScore} <span style="font-size: 14px; font-weight: 400; color: #64748b;">/ 36</span></div>
+            <div class="act-score-lbl">Science Score</div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        <p class="section-title">Performance Details</p>
+        
+        <div class="act-detail-row">
+          <span class="act-detail-lbl">Questions Correct</span>
+          <span class="act-detail-val">${totalCorrect} / ${totalQuestions}</span>
+        </div>
+        <div class="act-detail-row">
+          <span class="act-detail-lbl">Accuracy</span>
+          <span class="act-detail-val">${accuracyPercentage}%</span>
+        </div>
+        <div class="act-detail-row">
+          <span class="act-detail-lbl">Grade Status</span>
+          <span class="act-detail-val" style="color: ${statusColor};">${performanceStatus}</span>
+        </div>
+
+        <div class="tip-box">
+          💡 Review your detailed report to identify strengths and areas for improvement. Consistent practice leads to higher ACT scores.
+        </div>
+
+        <a class="cta" href="${reportUrl || '#'}">View Full ACT Report →</a>
+      </div>
+      <div class="footer">
+        ${appName} • This is an automated email sent to you upon completion of your test.
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+

@@ -585,6 +585,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                       (submission?.course?.name && String(submission.course.name).toUpperCase().includes('ACT'));
 
     const isACTFullLength = isACTTest && (
+        submission?.isACTFullLength === true ||
         submission?.metadata?.isACTFullLength === true || 
         (typeof submission?.metadata === 'string' && submission.metadata.includes('isACTFullLength')) ||
         String(courseNameVal).toLowerCase().includes('full length') ||
@@ -1216,36 +1217,36 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                 </div>
                                 <div className={`grid grid-cols-2 ${actScores?.science ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-8 sm:gap-12 w-full max-w-4xl px-4`}>
                                     <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(actScores?.english?.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                        {renderCircularProgress(actScores?.english?.raw || 0, 50, 160, 10, '#1a237e', '#f1f5f9')}
                                         <div className="absolute flex flex-col items-center justify-center">
                                             <span className="text-[8px] font-black text-gray-600 uppercase">English</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.english?.scaled || 0}</span>
-                                            <span className="text-[8px] font-black text-gray-500">1 to 36</span>
+                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.english?.raw || 0}</span>
+                                            <span className="text-[8px] font-black text-gray-500">out of 50</span>
                                         </div>
                                     </div>
                                     <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(actScores?.math?.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                        {renderCircularProgress(actScores?.math?.raw || 0, 45, 160, 10, '#1a237e', '#f1f5f9')}
                                         <div className="absolute flex flex-col items-center justify-center text-center">
                                             <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Math</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.math?.scaled || 0}</span>
-                                            <span className="text-[8px] font-black text-gray-500">1 to 36</span>
+                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.math?.raw || 0}</span>
+                                            <span className="text-[8px] font-black text-gray-500">out of 45</span>
                                         </div>
                                     </div>
                                     <div className="relative flex items-center justify-center">
-                                        {renderCircularProgress(actScores?.reading?.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                        {renderCircularProgress(actScores?.reading?.raw || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
                                         <div className="absolute flex flex-col items-center justify-center text-center">
                                             <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Reading</span>
-                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.reading?.scaled || 0}</span>
-                                            <span className="text-[8px] font-black text-gray-500">1 to 36</span>
+                                            <span className="text-4xl font-black text-[#1a237e]">{actScores?.reading?.raw || 0}</span>
+                                            <span className="text-[8px] font-black text-gray-500">out of 36</span>
                                         </div>
                                     </div>
                                     {actScores?.science && (
                                         <div className="relative flex items-center justify-center">
-                                            {renderCircularProgress(actScores.science.scaled || 0, 36, 160, 10, '#1a237e', '#f1f5f9')}
+                                            {renderCircularProgress(actScores.science.raw || 0, 40, 160, 10, '#1a237e', '#f1f5f9')}
                                             <div className="absolute flex flex-col items-center justify-center text-center">
                                                 <span className="text-[8px] font-black text-gray-600 uppercase leading-tight">Science</span>
-                                                <span className="text-4xl font-black text-[#1a237e]">{actScores.science.scaled || 0}</span>
-                                                <span className="text-[8px] font-black text-gray-500">1 to 36</span>
+                                                <span className="text-4xl font-black text-[#1a237e]">{actScores.science.raw || 0}</span>
+                                                <span className="text-[8px] font-black text-gray-500">out of 40</span>
                                             </div>
                                         </div>
                                     )}

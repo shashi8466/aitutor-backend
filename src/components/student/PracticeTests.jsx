@@ -180,7 +180,7 @@ const PracticeTests = () => {
                                             }
 
                                             if (isACTFullLengthCourse(test.fullCourse)) {
-                                                navigate(`/student/course/${test.course_id}/level/all/quiz?mode=practice`);
+                                                navigate(`/student/act-full-length-test/${test.course_id}?mode=practice`);
                                             } else {
                                                 navigate(`/student/course/${test.course_id}/level/${(test.level || 'all').toLowerCase()}/quiz?mode=practice`);
                                             }

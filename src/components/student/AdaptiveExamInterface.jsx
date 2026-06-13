@@ -76,15 +76,9 @@ const AdaptiveExamInterface = () => {
 
   // 1. Initial Setup: Load Course and Questions
   useEffect(() => {
+    // Store previous theme state exactly ONCE on mount
     wasDarkMode.current = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
-    if (showResults && wasDarkMode.current) {
-      document.documentElement.classList.add('dark');
-      document.body.classList.add('dark');
-    } else if (!showResults) {
-      document.documentElement.classList.remove('dark');
-      document.body.classList.remove('dark');
-    }
-    
+
     if (courseId) {
       loadInitialData();
     }
@@ -93,9 +87,25 @@ const AdaptiveExamInterface = () => {
       if (wasDarkMode.current) {
         document.documentElement.classList.add('dark');
         document.body.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
       }
     };
-  }, [courseId, showResults]);
+  }, [courseId]);
+
+  // Handle theme toggling based on screen
+  useEffect(() => {
+    if (showResults) {
+      if (wasDarkMode.current) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+      }
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+  }, [showResults]);
 
   const loadInitialData = async () => {
     setLoading(true);

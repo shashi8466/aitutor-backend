@@ -14,6 +14,12 @@ const StudentLayout = () => {
   const { user } = useAuth();
   const { settings } = useSettings();
 
+  const isExamMode = 
+    location.pathname.includes('/quiz') || 
+    location.pathname.includes('/adaptive-test/') || 
+    location.pathname.includes('/adaptive-pre-test/') || 
+    location.pathname.includes('/act-full-length-test/');
+
   // Close sidebar when route changes (mobile UX)
   React.useEffect(() => {
     setSidebarOpen(false);
@@ -22,45 +28,49 @@ const StudentLayout = () => {
   return (
     <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 flex flex-col lg:flex-row font-sans">
       {/* Mobile Header (Visible only on lg and below) */}
-      <div className="lg:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 sticky top-0 z-40 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <SafeIcon icon={FiMenu} className="w-6 h-6" />
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-auto max-w-[120px] flex items-center justify-center shadow-md overflow-hidden">
-              {settings.logoUrl ? (
-                <img src={settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
-              ) : (
-                <div className="w-10 h-10 bg-gradient-to-br from-[#E53935] to-[#D32F2F] rounded-[6px] flex items-center justify-center text-white">
-                    <SafeIcon icon={FiZap} className="w-4 h-4" />
-                </div>
-              )}
+      {!isExamMode && (
+        <div className="lg:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 sticky top-0 z-40 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <SafeIcon icon={FiMenu} className="w-6 h-6" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="h-10 w-auto max-w-[120px] flex items-center justify-center shadow-md overflow-hidden">
+                {settings.logoUrl ? (
+                  <img src={settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
+                ) : (
+                  <div className="w-10 h-10 bg-gradient-to-br from-[#E53935] to-[#D32F2F] rounded-[6px] flex items-center justify-center text-white">
+                      <SafeIcon icon={FiZap} className="w-4 h-4" />
+                  </div>
+                )}
+              </div>
+              <span className="font-extrabold text-lg text-gray-900 dark:text-white tracking-tight">{settings.appName}</span>
             </div>
-            <span className="font-extrabold text-lg text-gray-900 dark:text-white tracking-tight">{settings.appName}</span>
+          </div>
+
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 text-xs font-bold border border-white dark:border-gray-800">
+            {user?.name?.charAt(0) || 'S'}
           </div>
         </div>
-
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 text-xs font-bold border border-white dark:border-gray-800">
-          {user?.name?.charAt(0) || 'S'}
-        </div>
-      </div>
+      )}
 
       {/* Sidebar Component */}
-      <StudentSidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {!isExamMode && <StudentSidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />}
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-72 min-w-0 transition-all duration-200 flex flex-col">
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar">
+      <div className={`flex-1 min-w-0 transition-all duration-200 flex flex-col ${isExamMode ? '' : 'lg:ml-72'}`}>
+        <main className={`flex-1 overflow-y-auto custom-scrollbar ${isExamMode ? 'p-0' : 'p-4 sm:p-6 lg:p-8'}`}>
           {/* Scrolling Announcement / Marquee Bar */}
-          <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 shadow-sm">
-            <div className="animate-marquee whitespace-nowrap text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold tracking-wide">
-              “Certain instructional materials and practice content used by our tutors may include officially licensed or authorized resources from the College Board. All copyrights and trademarks related to such materials remain the property of their respective owners and are used solely for educational purposes.”
+          {!isExamMode && (
+            <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 shadow-sm">
+              <div className="animate-marquee whitespace-nowrap text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold tracking-wide">
+                “Certain instructional materials and practice content used by our tutors may include officially licensed or authorized resources from the College Board. All copyrights and trademarks related to such materials remain the property of their respective owners and are used solely for educational purposes.”
+              </div>
             </div>
-          </div>
+          )}
           <Outlet />
         </main>
       </div>

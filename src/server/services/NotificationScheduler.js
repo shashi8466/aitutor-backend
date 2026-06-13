@@ -174,7 +174,7 @@ class NotificationScheduler {
 
       const { data: submission, error: subError } = await supabase
         .from('test_submissions')
-        .select('id, user_id, course_id, level, raw_score, total_questions, raw_score_percentage, scaled_score, test_date')
+        .select('id, user_id, course_id, level, raw_score, total_questions, raw_score_percentage, scaled_score, test_date, metadata')
         .eq('id', submissionId)
         .single();
 
@@ -244,6 +244,7 @@ class NotificationScheduler {
             rawPercentage: submission.raw_score_percentage,
             scaledScore: submission.scaled_score,
             testDate: submission.test_date,
+            metadata: submission.metadata,
             modularScores
           },
           scheduledFor: new Date().toISOString()

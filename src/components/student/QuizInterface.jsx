@@ -724,34 +724,103 @@ const QuizInterface = () => {
           <p className="text-gray-500 mb-6 font-medium">Test session completed successfully</p>
 
           {/* Section Scores Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 transition-all hover:shadow-md">
-              <p className="text-[10px] text-blue-800 dark:text-blue-400 font-black uppercase tracking-widest mb-1">Overall</p>
-              <p className="text-2xl sm:text-3xl font-black text-blue-900 dark:text-blue-200">{res?.totalScore || res?.scaledScore || scaledScore}</p>
-              <p className="text-[10px] font-bold text-blue-700/60 uppercase tracking-tighter">{percentage}% Accuracy</p>
-            </div>
-            
-            {isAdaptive ? (
-                <>
-                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">R&W Section</p>
-                        <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.rwScore || 0}</p>
+          {(() => {
+            const getACTSectionCorrect = (sectionName) => {
+              return questions.filter((q, idx) => {
+                const s = (q.section || q.topic || '').toLowerCase();
+                const matchesSection = sectionName === 'math' 
+                  ? (s === 'math' || s === 'mathematics')
+                  : (s === sectionName);
+                return matchesSection && isCorrectAnswer(idx);
+              }).length;
+            };
+
+            const getACTSectionTotal = (sectionName) => {
+              return questions.filter(q => {
+                const s = (q.section || q.topic || '').toLowerCase();
+                return sectionName === 'math' 
+                  ? (s === 'math' || s === 'mathematics')
+                  : (s === sectionName);
+              }).length;
+            };
+
+            if (isACTFullLengthCourse(courseInfo)) {
+              const hasScience = getACTSectionTotal('science') > 0;
+              return (
+                <div className={`grid grid-cols-1 ${hasScience ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 mb-8`}>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 transition-all hover:shadow-md">
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">English</p>
+                    <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{getACTSectionCorrect('english')} / {getACTSectionTotal('english') || 50}</p>
+                    <p className="text-[10px] font-bold text-gray-400">
+                      {getACTSectionTotal('english') > 0 
+                        ? Math.round((getACTSectionCorrect('english') / getACTSectionTotal('english')) * 100)
+                        : 0}% Accuracy
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 transition-all hover:shadow-md">
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Mathematics</p>
+                    <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{getACTSectionCorrect('math')} / {getACTSectionTotal('math') || 45}</p>
+                    <p className="text-[10px] font-bold text-gray-400">
+                      {getACTSectionTotal('math') > 0 
+                        ? Math.round((getACTSectionCorrect('math') / getACTSectionTotal('math')) * 100)
+                        : 0}% Accuracy
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 transition-all hover:shadow-md">
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Reading</p>
+                    <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{getACTSectionCorrect('reading')} / {getACTSectionTotal('reading') || 36}</p>
+                    <p className="text-[10px] font-bold text-gray-400">
+                      {getACTSectionTotal('reading') > 0 
+                        ? Math.round((getACTSectionCorrect('reading') / getACTSectionTotal('reading')) * 100)
+                        : 0}% Accuracy
+                    </p>
+                  </div>
+                  {hasScience && (
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 transition-all hover:shadow-md">
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Science</p>
+                      <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{getACTSectionCorrect('science')} / {getACTSectionTotal('science') || 40}</p>
+                      <p className="text-[10px] font-bold text-gray-400">
+                        {getACTSectionTotal('science') > 0 
+                          ? Math.round((getACTSectionCorrect('science') / getACTSectionTotal('science')) * 100)
+                          : 0}% Accuracy
+                      </p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Math Section</p>
-                        <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.mathScore || 0}</p>
-                    </div>
-                </>
-            ) : (
-              processedSectionScores.map((data) => (
-                <div key={data.name} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{data.name}</p>
-                  <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
-                  <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
+                  )}
                 </div>
-              ))
-            )}
-          </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 transition-all hover:shadow-md">
+                  <p className="text-[10px] text-blue-800 dark:text-blue-400 font-black uppercase tracking-widest mb-1">Overall</p>
+                  <p className="text-2xl sm:text-3xl font-black text-blue-900 dark:text-blue-200">{res?.totalScore || res?.scaledScore || scaledScore}</p>
+                  <p className="text-[10px] font-bold text-blue-700/60 uppercase tracking-tighter">{percentage}% Accuracy</p>
+                </div>
+                
+                {isAdaptive ? (
+                    <>
+                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">R&W Section</p>
+                            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.rwScore || 0}</p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Math Section</p>
+                            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.mathScore || 0}</p>
+                        </div>
+                    </>
+                ) : (
+                  processedSectionScores.map((data) => (
+                    <div key={data.name} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{data.name}</p>
+                      <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
+                      <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            );
+          })()}
 
           {/* Scoring Info Card */}
           <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-left">
@@ -759,7 +828,9 @@ const QuizInterface = () => {
               <SafeIcon icon={FiInfo} className="w-4 h-4 text-blue-500" /> Scoring Insights
             </h4>
             <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-              {isSequential ? (
+              {isACTFullLengthCourse(courseInfo) ? (
+                "Your ACT Full-Length Practice Test results are recorded. Review your performance in each section to identify areas for improvement."
+              ) : isSequential ? (
                 `Your progress has been recorded for ${unitId}. Complete all unit quizzes with at least 5% accuracy to master the course!`
               ) : isAdaptive ? (
                 `Your score of ${res?.totalScore} reflects the FULL LENGTH TEST model. Students on the Easy path are capped at 1400 total, while the Hard path allows scores up to 1600.`
@@ -861,7 +932,7 @@ const QuizInterface = () => {
   return (
     <div className="dark">
     <div className="min-h-screen bg-white dark:bg-gray-950 py-8 px-4 transition-colors duration-200">
-      <div className="max-w-4xl mx-auto relative">
+      <div className="w-full max-w-7xl mx-auto relative">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
             <Link to={(isSequential || isACTFullLengthCourse(courseInfo)) ? `/student/course/${courseId}` : `/student/course/${courseId}/level/${level}`} className="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-2 font-bold transition-colors">

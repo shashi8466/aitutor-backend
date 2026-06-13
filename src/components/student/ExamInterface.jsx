@@ -68,23 +68,31 @@ const ExamInterface = () => {
 
 
   useEffect(() => {
-    // Store previous theme state and enforce light mode for the test
+    // Store previous theme state exactly ONCE on mount
     wasDarkMode.current = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
-    if (showResults && wasDarkMode.current) {
-      document.documentElement.classList.add('dark');
-      document.body.classList.add('dark');
-    } else if (!showResults) {
-      document.documentElement.classList.remove('dark');
-      document.body.classList.remove('dark');
-    }
     
     return () => {
       // Restore the user's preferred theme upon exit
       if (wasDarkMode.current) {
         document.documentElement.classList.add('dark');
         document.body.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (showResults) {
+      if (wasDarkMode.current) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+      }
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
   }, [showResults]);
 
   useEffect(() => {
