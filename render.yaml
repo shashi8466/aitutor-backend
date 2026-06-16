@@ -10,16 +10,34 @@ services:
         value: production
       - key: PORT
         value: 10000
+
+      # ── Runtime (Server) secrets ──────────────────────────────────
+      # Set these manually in the Render dashboard (sync: false = secret)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
       - key: BREVO_API_KEY
         sync: false
+
+      # ── Build-time (VITE_*) – baked into the frontend bundle ─────
+      # Safe to commit non-secret public values; secrets go in dashboard
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_BACKEND_URL
+        value: https://aitutor-backend-u7h3.onrender.com
+
+      # ── Email ─────────────────────────────────────────────────────
       - key: EMAIL_FROM
         value: ssky57771@gmail.com
       - key: ADMIN_EMAIL
         value: ssky57771@gmail.com
+
+      # ── App metadata ──────────────────────────────────────────────
       - key: APP_NAME
         value: AIPrep365
       - key: APP_URL
