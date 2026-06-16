@@ -48,13 +48,15 @@ const UserManagement = () => {
   const handleUpdateUser = async (userId, updates) => {
     setUpdating(prev => ({ ...prev, [userId]: true }));
     try {
-      await authService.updateProfile(userId, updates);
+      // Use admin-route to bypass RLS for cross-user updates
+      const result = await authService.updateProfileAsAdmin(userId, updates);
+      const updatedData = result.data || updates;
       // Update local state
       setUsers(prev => prev.map(user =>
-        user.id === userId ? { ...user, ...updates } : user
+        user.id === userId ? { ...user, ...updatedData } : user
       ));
       if (selectedUser?.id === userId) {
-        setSelectedUser({ ...selectedUser, ...updates });
+        setSelectedUser(prev => ({ ...prev, ...updatedData }));
       }
     } catch (err) {
       console.error('Error updating user:', err);

@@ -287,8 +287,10 @@ const FullLengthTestEditPage = () => {
                           const currentCourses = tutor.assigned_courses || [];
                           const newCourses = isAssigned ? currentCourses.filter(cid => cid !== parseInt(id)) : [...currentCourses, parseInt(id)];
                           try {
-                            await authService.updateProfile(tutor.id, { assigned_courses: newCourses });
-                            setAllTutors(prev => prev.map(p => p.id === tutor.id ? { ...p, assigned_courses: newCourses } : p));
+                            const result = await authService.updateProfileAsAdmin(tutor.id, { assigned_courses: newCourses });
+                            // Use server-confirmed data so state matches DB
+                            const confirmedCourses = result.data?.assigned_courses || newCourses;
+                            setAllTutors(prev => prev.map(p => p.id === tutor.id ? { ...p, assigned_courses: confirmedCourses } : p));
                           } catch (err) { console.error('Update failed:', err); } finally { setUpdating(prev => ({ ...prev, [tutor.id]: false })); }
                         }}
                         className={`w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isAssigned ? 'bg-purple-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}

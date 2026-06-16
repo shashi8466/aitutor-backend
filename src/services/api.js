@@ -302,7 +302,7 @@ export const authService = {
     try {
       let query = supabase
         .from('profiles')
-        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email')
+        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email')
         .order('created_at', { ascending: false });
 
       if (role) {
@@ -402,6 +402,35 @@ export const authService = {
       data.parentEmail = data.parent_email;
     }
     return { data };
+  },
+
+  /**
+   * Admin-level profile update that routes through the backend (bypasses RLS).
+   * Use this when an admin needs to update another user's profile fields
+   * (e.g. assigned_courses, status, role, tutor_approved, plan_type).
+   */
+  updateProfileAsAdmin: async (userId, updates) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+
+    const dbUpdates = { ...updates };
+    if ('parentName' in dbUpdates) { dbUpdates.father_name = dbUpdates.parentName; delete dbUpdates.parentName; }
+    if ('parentMobile' in dbUpdates) { dbUpdates.father_mobile = dbUpdates.parentMobile; delete dbUpdates.parentMobile; }
+    if ('parentEmail' in dbUpdates) { dbUpdates.parent_email = dbUpdates.parentEmail; delete dbUpdates.parentEmail; }
+
+    const response = await axios.put(`/api/auth/profile/${userId}`, dbUpdates, { headers });
+
+    if (!response.data?.success) {
+      throw new Error(response.data?.error || 'Admin profile update failed');
+    }
+
+    const profile = response.data.profile || {};
+    if (profile) {
+      profile.parentName = profile.father_name || null;
+      profile.parentMobile = profile.father_mobile || null;
+      profile.parentEmail = profile.parent_email || null;
+    }
+    return { data: profile };
   },
   updateEmail: async (userId, newEmail) => {
     // 1. Update Supabase Auth (sends confirmation email)

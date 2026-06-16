@@ -296,6 +296,68 @@ router.get('/profile/:userId', async (req, res) => {
 });
 
 /**
+ * PUT /api/auth/profile/:userId
+ * Update a user's profile (Admin or Self)
+ */
+router.put('/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const updates = req.body;
+    const callerUser = await getUserFromRequest(req);
+    
+    if (!callerUser) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    // Verify admin or self
+    const { data: callerProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', callerUser.id).single();
+    const isAdmin = callerProfile?.role === 'admin';
+    
+    if (!isAdmin && callerUser.id !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    // Filter updates if not admin to prevent privilege escalation
+    let safeUpdates = { ...updates };
+    if (!isAdmin) {
+      const allowedFields = [
+        'name', 'mobile', 'phone_number', 'whatsapp_number', 
+        'tutor_specialty', 'tutor_bio', 'notification_preferences', 
+        'father_name', 'father_mobile', 'parent_email', 'last_active_at'
+      ];
+      safeUpdates = {};
+      for (const field of allowedFields) {
+        if (updates[field] !== undefined) {
+          safeUpdates[field] = updates[field];
+        }
+      }
+    }
+
+    // Auto-sync tutor_approved with status for tutor profiles
+    // This prevents the split-state where status='active' but tutor_approved=false
+    if (safeUpdates.status !== undefined) {
+      // Fetch role to check if target is a tutor
+      const { data: targetProfile } = await supabaseAdmin
+        .from('profiles').select('role').eq('id', userId).maybeSingle();
+      if (targetProfile?.role === 'tutor') {
+        safeUpdates.tutor_approved = safeUpdates.status === 'active';
+      }
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .update(safeUpdates)
+      .eq('id', userId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw error;
+    res.json({ success: true, profile: data });
+  } catch (error) {
+    console.error('❌ [PUT /profile/:userId] Error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /api/auth/save-profile
  * Called during signup to save profile (including parent data) using admin client to bypass RLS.
  * Accepts the user's own JWT to verify identity.
