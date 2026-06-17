@@ -97,10 +97,22 @@ const Signup = () => {
     try {
       const res = await enrollmentService.useKey(key);
       const courseId = res?.data?.courseId || null;
+      console.log('✅ [AutoEnroll] Enrolled via key:', key, '→ courseId:', courseId);
       return courseId;
     } catch (err) {
-      console.error('Auto-enrollment failed:', err);
-      return null;
+      const errMsg = err?.response?.data?.error || err?.message || '';
+      console.warn('⚠️ [AutoEnroll] useKey failed:', errMsg);
+      // Fallback: even if enrollment failed (e.g., already enrolled),
+      // try validate-key to still get the courseId for redirect
+      try {
+        const validateRes = await enrollmentService.validateKey(key);
+        const courseId = validateRes?.data?.courseId || null;
+        console.log('🔁 [AutoEnroll] Fallback validate-key → courseId:', courseId);
+        return courseId;
+      } catch (ve) {
+        console.error('❌ [AutoEnroll] Fallback validate-key also failed:', ve?.message);
+        return null;
+      }
     } finally {
       setEnrolling(false);
     }
@@ -295,12 +307,12 @@ const Signup = () => {
               setLoading(false);
               return;
             }
-            // Auto-enroll via invitation key and get the courseId for redirect
-            const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
             if (!result.session) {
               try {
                 const loginResult = await login({ email: formData.email, password: formData.password });
                 if (loginResult.success) {
+                  // Session established — enroll NOW with valid token
+                  const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
                   setRedirecting(true);
                   await finalizeRegistration(formData.role, enrolledCourseId);
                   return;
@@ -308,6 +320,8 @@ const Signup = () => {
               } catch (e) { }
             }
             if (result.session) {
+              // Session already present — enroll with valid token
+              const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
               setRedirecting(true);
               await finalizeRegistration(formData.role, enrolledCourseId);
             } else {
@@ -447,12 +461,12 @@ const Signup = () => {
           setLoading(false);
           return;
         }
-        // Auto-enroll via invitation key and get the courseId for redirect
-        const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
         if (!result.session) {
           try {
             const loginResult = await login({ email: formData.email, password: formData.password });
             if (loginResult.success) {
+              // Session established — enroll NOW with valid token
+              const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
               setRedirecting(true);
               await finalizeRegistration(formData.role, enrolledCourseId);
               return;
@@ -460,6 +474,8 @@ const Signup = () => {
           } catch (e) { }
         }
         if (result.session) {
+          // Session already present — enroll with valid token
+          const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
           setRedirecting(true);
           await finalizeRegistration(formData.role, enrolledCourseId);
         } else {

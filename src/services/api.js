@@ -937,6 +937,11 @@ export const enrollmentService = {
     return axios.post('/api/enrollment/use-key', { keyCode, courseId });
   },
 
+  // Validate an enrollment key (public - no enrollment, just returns courseId/courseName)
+  validateKey: async (keyCode) => {
+    return axios.post('/api/enrollment/validate-key', { keyCode });
+  },
+
   getKeys: async (courseId = null) => {
     const url = courseId && courseId !== 'all' ? `/api/enrollment/keys?courseId=${courseId}` : '/api/enrollment/keys';
     return axios.get(url);
