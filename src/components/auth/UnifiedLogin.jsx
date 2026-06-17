@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
+import { enrollmentService } from '../../services/api';
 
 const { FiUser, FiLock, FiMail, FiEye, FiEyeOff, FiAlertCircle, FiLoader, FiCheckCircle, FiArrowLeft, FiLogOut, FiBarChart2, FiShield, FiUsers } = FiIcons;
 
@@ -22,9 +23,10 @@ const UnifiedLogin = () => {
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const redirectPath = searchParams.get('redirect');
+    const invitationKey = searchParams.get('key');
 
     // After login, this handles the specific redirection
-    const handleRoleRedirection = (role) => {
+    const handleRoleRedirection = async (role, courseId = null) => {
         setDetectedRole(role);
         setRedirecting(true);
 
@@ -46,6 +48,11 @@ const UnifiedLogin = () => {
             }
         }
 
+        // If a courseId is provided (from invitation link enrollment), redirect student to that course
+        if (courseId && role === 'student' && !redirectPath) {
+            targetPath = `/student/course/${courseId}`;
+        }
+
         // Short delay for the "Success" animation
         setTimeout(() => navigate(targetPath), 1200);
     };
@@ -59,7 +66,21 @@ const UnifiedLogin = () => {
             // This prevents loops where a pending user lands on /admin, gets redirected here,
             // and then this effect tries to send them back to /admin.
             if (userStatus === 'active') {
-                handleRoleRedirection(user.role);
+                // If there's an invitation key and user is a student, auto-enroll first
+                if (invitationKey && user.role === 'student') {
+                    (async () => {
+                        let courseId = null;
+                        try {
+                            const enrollRes = await enrollmentService.useKey(invitationKey.trim().toUpperCase());
+                            courseId = enrollRes?.data?.courseId || null;
+                        } catch (err) {
+                            console.warn('Auto-enrollment for logged-in user failed:', err?.response?.data?.error || err.message);
+                        }
+                        handleRoleRedirection(user.role, courseId);
+                    })();
+                } else {
+                    handleRoleRedirection(user.role);
+                }
             } else if (userStatus === 'pending') {
                 setError("Your account is pending administrator approval. You will receive an email once approved.");
                 logout(); // Clear the session to break the loop
@@ -106,7 +127,18 @@ const UnifiedLogin = () => {
                     return;
                 }
 
-                handleRoleRedirection(result.user.role);
+                // Handle invitation key: auto-enroll and redirect to specific course
+                let enrolledCourseId = null;
+                if (invitationKey && result.user.role === 'student') {
+                    try {
+                        const enrollRes = await enrollmentService.useKey(invitationKey.trim().toUpperCase());
+                        enrolledCourseId = enrollRes?.data?.courseId || null;
+                    } catch (enrollErr) {
+                        console.warn('Auto-enrollment via login failed:', enrollErr?.response?.data?.error || enrollErr.message);
+                    }
+                }
+
+                await handleRoleRedirection(result.user.role, enrolledCourseId);
             }
         } catch (err) {
             console.error(err);

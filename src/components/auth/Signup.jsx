@@ -61,7 +61,7 @@ const Signup = () => {
 
 
 
-  const { signup, login } = useAuth();
+  const { signup, login, user } = useAuth();
   const { settings } = useSettings();
   const navigate = useNavigate();
   const [enrollmentKey, setEnrollmentKey] = useState(null);
@@ -76,13 +76,31 @@ const Signup = () => {
     }
   }, []);
 
+  // Handle already-logged-in student visiting an invitation link
+  useEffect(() => {
+    if (!user || !enrollmentKey) return;
+    if (user.role !== 'student') return;
+    // Auto-enroll and redirect to course
+    (async () => {
+      const courseId = await handleAutoEnroll(enrollmentKey);
+      if (courseId) {
+        navigate(`/student/course/${courseId}`, { replace: true });
+      } else {
+        navigate('/student', { replace: true });
+      }
+    })();
+  }, [user, enrollmentKey]);
+
   const handleAutoEnroll = async (key) => {
-    if (!key) return;
+    if (!key) return null;
     setEnrolling(true);
     try {
-      await enrollmentService.useKey(key);
+      const res = await enrollmentService.useKey(key);
+      const courseId = res?.data?.courseId || null;
+      return courseId;
     } catch (err) {
       console.error('Auto-enrollment failed:', err);
+      return null;
     } finally {
       setEnrolling(false);
     }
@@ -92,7 +110,7 @@ const Signup = () => {
     authService.wakeUp();
   };
 
-  const finalizeRegistration = async (role) => {
+  const finalizeRegistration = async (role, courseId = null) => {
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
       if (role === 'admin') {
@@ -102,7 +120,12 @@ const Signup = () => {
       } else if (role === 'parent') {
         navigate('/parent');
       } else {
-        navigate('/student');
+        // If enrolled via invitation key with a specific course, redirect to that course
+        if (courseId) {
+          navigate(`/student/course/${courseId}`);
+        } else {
+          navigate('/student');
+        }
       }
     } catch (error) {
       console.error('Redirection error:', error);
@@ -272,19 +295,21 @@ const Signup = () => {
               setLoading(false);
               return;
             }
+            // Auto-enroll via invitation key and get the courseId for redirect
+            const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
             if (!result.session) {
               try {
                 const loginResult = await login({ email: formData.email, password: formData.password });
                 if (loginResult.success) {
                   setRedirecting(true);
-                  await finalizeRegistration(formData.role);
+                  await finalizeRegistration(formData.role, enrolledCourseId);
                   return;
                 }
               } catch (e) { }
             }
             if (result.session) {
               setRedirecting(true);
-              await finalizeRegistration(formData.role);
+              await finalizeRegistration(formData.role, enrolledCourseId);
             } else {
               setSuccessMode(true);
             }
@@ -294,8 +319,9 @@ const Signup = () => {
               try {
                 const loginResult = await login({ email: formData.email, password: formData.password });
                 if (loginResult.success) {
+                  const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
                   setRedirecting(true);
-                  await finalizeRegistration(formData.role);
+                  await finalizeRegistration(formData.role, enrolledCourseId);
                   return;
                 } else {
                   setError("This email is registered but the password didn't match. Please Log In.");
@@ -421,19 +447,21 @@ const Signup = () => {
           setLoading(false);
           return;
         }
+        // Auto-enroll via invitation key and get the courseId for redirect
+        const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
         if (!result.session) {
           try {
             const loginResult = await login({ email: formData.email, password: formData.password });
             if (loginResult.success) {
               setRedirecting(true);
-              await finalizeRegistration(formData.role);
+              await finalizeRegistration(formData.role, enrolledCourseId);
               return;
             }
           } catch (e) { }
         }
         if (result.session) {
           setRedirecting(true);
-          await finalizeRegistration(formData.role);
+          await finalizeRegistration(formData.role, enrolledCourseId);
         } else {
           setSuccessMode(true);
         }
@@ -443,8 +471,10 @@ const Signup = () => {
           try {
             const loginResult = await login({ email: formData.email, password: formData.password });
             if (loginResult.success) {
+              // Auto-enroll via invitation key for returning user
+              const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
               setRedirecting(true);
-              await finalizeRegistration(formData.role);
+              await finalizeRegistration(formData.role, enrolledCourseId);
               return;
             } else {
               setError("This email is registered but the password didn't match. Please Log In.");

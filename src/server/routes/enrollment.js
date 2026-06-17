@@ -376,9 +376,13 @@ router.post('/use-key', async (req, res) => {
             });
         }
 
+        // Determine the courseId from key data (for redirect purposes)
+        const enrolledCourseId = keyData.course_id || courseId || null;
+
         res.json({
             enrolled: true,
-            enrollmentId: result.enrollment_id
+            enrollmentId: result.enrollment_id,
+            courseId: enrolledCourseId
         });
 
     } catch (error) {
