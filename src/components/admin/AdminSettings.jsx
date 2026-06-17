@@ -3,16 +3,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useSettings } from '../../contexts/SettingsContext';
-import { settingsService } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { settingsService, uploadService } from '../../services/api';
+import supabase from '../../supabase/supabase';
 
 const {
   FiSave, FiImage, FiType, FiCheck, FiAlertCircle, FiLoader,
   FiUpload, FiX, FiCreditCard, FiMail, FiMessageSquare, FiCpu,
-  FiKey, FiChevronRight, FiShield, FiGlobe, FiSmartphone
+  FiKey, FiChevronRight, FiShield, FiGlobe, FiSmartphone, FiUser
 } = FiIcons;
 
 const AdminSettings = () => {
   const { settings, updateSettings, refreshSettings } = useSettings();
+  const { realUser, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: '', message: '' });
@@ -34,9 +37,43 @@ const AdminSettings = () => {
     api_config: { openai_key: '', gemini_key: '', other_integrations: [] }
   });
 
+  // Profile Settings State
+  const [profileData, setProfileData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobile: '',
+    whatsappNumber: '',
+    password: '',
+    confirmPassword: '',
+    avatarFile: null,
+    avatarUrl: ''
+  });
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState(null);
+  const profileFileInputRef = useRef(null);
+
   useEffect(() => {
     loadAllSettings();
   }, [settings]);
+
+  useEffect(() => {
+    if (realUser) {
+      const names = (realUser.name || '').split(' ');
+      const avatarUrlVal = realUser.avatar_url || realUser.user_metadata?.avatar_url || '';
+      setProfileData({
+        firstName: names[0] || '',
+        lastName: names.slice(1).join(' ') || '',
+        email: realUser.email || '',
+        mobile: realUser.mobile || '',
+        whatsappNumber: realUser.whatsapp_number || '',
+        password: '',
+        confirmPassword: '',
+        avatarFile: null,
+        avatarUrl: avatarUrlVal
+      });
+      setProfilePreviewUrl(avatarUrlVal || null);
+    }
+  }, [realUser]);
 
   const loadAllSettings = async () => {
     if (settings) {
@@ -91,6 +128,20 @@ const AdminSettings = () => {
     }
   };
 
+  const handleProfileFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setStatus({ type: 'error', message: 'Avatar file too large. Max 2MB.' });
+        return;
+      }
+      setProfileData({ ...profileData, avatarFile: file });
+      const reader = new FileReader();
+      reader.onloadend = () => setProfilePreviewUrl(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const saveSettings = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -112,6 +163,70 @@ const AdminSettings = () => {
         const { error } = await settingsService.updateAdvanced(advancedPayload);
         if (error) throw error;
 
+        // 4. Update Admin Profile if profile tab is active or fields changed
+        if (activeTab === 'profile') {
+          // Handle Password Update
+          if (profileData.password) {
+            if (profileData.password !== profileData.confirmPassword) {
+              throw new Error("Passwords do not match.");
+            }
+            const { error: pwdError } = await supabase.auth.updateUser({
+              password: profileData.password
+            });
+            if (pwdError) throw pwdError;
+          }
+
+          // Handle Email Update
+          if (profileData.email && profileData.email !== realUser.email) {
+             const { error: emailError } = await supabase.auth.updateUser({
+              email: profileData.email
+            });
+            if (emailError) throw emailError;
+          }
+
+          // Handle Profile Avatar Upload
+          let finalAvatarUrl = profileData.avatarUrl;
+          if (profileData.avatarFile) {
+            const fileExt = profileData.avatarFile.name.split('.').pop();
+            const fileName = `avatar-${realUser.id}-${Date.now()}.${fileExt}`;
+            
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('public_assets')
+              .upload(`avatars/${fileName}`, profileData.avatarFile, { upsert: true });
+
+            if (uploadError) {
+              throw uploadError;
+            }
+
+            const { data: publicUrlData } = supabase.storage
+              .from('public_assets')
+              .getPublicUrl(`avatars/${fileName}`);
+            
+            finalAvatarUrl = publicUrlData.publicUrl;
+          }
+
+          // Handle Profile Table Updates
+          const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
+          const profileFields = {
+            name: fullName,
+            mobile: profileData.mobile,
+            whatsapp_number: profileData.whatsappNumber
+          };
+          
+          // Only add avatar_url to table update if it's supported by database schema, otherwise metadata only
+          if (realUser && 'avatar_url' in realUser) {
+            profileFields.avatar_url = finalAvatarUrl;
+          } else {
+            // Save to auth user metadata so it persists across sessions
+            await supabase.auth.updateUser({
+              data: { avatar_url: finalAvatarUrl }
+            });
+          }
+
+          const { error: profileError } = await updateProfile(profileFields);
+          if (profileError) throw new Error(profileError);
+        }
+
       setStatus({ type: 'success', message: 'All settings updated successfully!' });
       setTimeout(() => setStatus({ type: '', message: '' }), 5000);
       refreshSettings();
@@ -125,6 +240,7 @@ const AdminSettings = () => {
 
   const tabs = [
     { id: 'general', label: 'General', icon: FiGlobe, description: 'App name & Branding' },
+    { id: 'profile', label: 'Admin Profile', icon: FiUser, description: 'Manage your account' },
     { id: 'payment', label: 'Payments', icon: FiCreditCard, description: 'Stripe & PayPal keys' },
     { id: 'notifications', label: 'Notifications', icon: FiMail, description: 'SMTP & SMS gateways' },
     { id: 'integrations', label: 'Integrations', icon: FiCpu, description: 'AI & Third-party APIs' },
@@ -250,6 +366,91 @@ const AdminSettings = () => {
                         </div>
                         <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Admin Profile Settings */}
+              {activeTab === 'profile' && (
+                <div className="p-8 space-y-8">
+                  <SectionHeader title="Admin Profile" icon={FiUser} color="blue" />
+
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-4">Profile Photo / Avatar</label>
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-3xl p-6 border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center gap-6">
+                        <div className="w-32 h-32 bg-white dark:bg-gray-900 rounded-full shadow-xl flex items-center justify-center overflow-hidden border border-gray-100 dark:border-gray-800 p-1">
+                          {profilePreviewUrl ? (
+                            <img src={profilePreviewUrl} className="w-full h-full object-cover rounded-full" alt="Avatar" />
+                          ) : (
+                            <SafeIcon icon={FiUser} className="w-12 h-12 text-gray-300" />
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <button
+                            onClick={() => profileFileInputRef.current?.click()}
+                            className="bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-6 py-2 rounded-xl font-bold shadow-sm hover:shadow-md transition-all border border-gray-200 dark:border-gray-600"
+                          >
+                            Upload Avatar
+                          </button>
+                          <p className="text-xs text-gray-400 mt-2">Max 2MB. PNG or JPG preferred.</p>
+                        </div>
+                        <input type="file" ref={profileFileInputRef} onChange={handleProfileFileChange} className="hidden" accept="image/*" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigInput
+                        label="First Name"
+                        value={profileData.firstName}
+                        onChange={(val) => setProfileData({ ...profileData, firstName: val })}
+                        placeholder="John"
+                      />
+                      <ConfigInput
+                        label="Last Name"
+                        value={profileData.lastName}
+                        onChange={(val) => setProfileData({ ...profileData, lastName: val })}
+                        placeholder="Doe"
+                      />
+                      <ConfigInput
+                        label="Email Address"
+                        value={profileData.email}
+                        onChange={(val) => setProfileData({ ...profileData, email: val })}
+                        placeholder="admin@example.com"
+                        type="email"
+                      />
+                      <ConfigInput
+                        label="Mobile Number"
+                        value={profileData.mobile}
+                        onChange={(val) => setProfileData({ ...profileData, mobile: val })}
+                        placeholder="+1 555-0199"
+                      />
+                      <ConfigInput
+                        label="WhatsApp Number"
+                        value={profileData.whatsappNumber}
+                        onChange={(val) => setProfileData({ ...profileData, whatsappNumber: val })}
+                        placeholder="+1 555-0199"
+                      />
+                    </div>
+
+                    <hr className="border-gray-100 dark:border-gray-800 my-6" />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <ConfigInput
+                        label="New Password"
+                        value={profileData.password}
+                        onChange={(val) => setProfileData({ ...profileData, password: val })}
+                        placeholder="Leave blank to keep current password"
+                        type="password"
+                      />
+                      <ConfigInput
+                        label="Confirm Password"
+                        value={profileData.confirmPassword}
+                        onChange={(val) => setProfileData({ ...profileData, confirmPassword: val })}
+                        placeholder="Confirm new password"
+                        type="password"
+                      />
                     </div>
                   </div>
                 </div>

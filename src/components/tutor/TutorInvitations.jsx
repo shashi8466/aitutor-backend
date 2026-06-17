@@ -78,8 +78,8 @@ const TutorInvitations = ({ dashboardData, isParentLoading }) => {
     };
 
     const generateLink = (keyCode) => {
-        const baseUrl = window.location.origin + window.location.pathname;
-        return `${baseUrl}#/signup?key=${keyCode}`;
+        const baseUrl = window.location.origin;
+        return `${baseUrl}/signup?key=${keyCode}`;
     };
 
     const copyToClipboard = (text, id) => {

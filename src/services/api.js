@@ -462,15 +462,14 @@ export const authService = {
   },
   resetPasswordForEmail: async (email) => {
     try {
-      // Always use the production URL for the reset link.
-      // window.location.origin would be "localhost" when browsing locally,
-      // causing the emailed link to point to localhost.
-      // We use VITE_BACKEND_URL (production Render URL) when available,
-      // and fall back to window.location.origin only as a last resort.
-      const productionUrl = import.meta.env.VITE_BACKEND_URL
-        ? import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '')        // strip trailing slash
-        : (import.meta.env.PROD ? window.location.origin : 'https://aitutor-backend-u7h3.onrender.com');
-      const redirectTo = `${productionUrl}/reset-password`;
+      const isLocal = 
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1' || 
+        window.location.hostname.startsWith('192.168.') || 
+        window.location.hostname.startsWith('10.') || 
+        window.location.hostname.endsWith('.local');
+      const frontendUrl = isLocal ? window.location.origin : 'https://aiprep365.com';
+      const redirectTo = `${frontendUrl}/reset-password`;
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,

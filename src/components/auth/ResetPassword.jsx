@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { authService } from '../../services/api';
 import { useSettings } from '../../contexts/SettingsContext';
+import supabase from '../../supabase/supabase';
 
 const { FiLock, FiEye, FiEyeOff, FiAlertCircle, FiCheckCircle, FiLoader, FiArrowLeft } = FiIcons;
 
@@ -15,8 +16,37 @@ const ResetPassword = () => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const [tokenValid, setTokenValid] = useState(true);
     const { settings } = useSettings();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const checkToken = async () => {
+            const hash = window.location.hash || '';
+            const params = new URLSearchParams(hash.replace(/^#/, ''));
+            
+            const errorCode = params.get('error_code');
+            const errorDesc = params.get('error_description');
+            
+            if (errorCode || errorDesc) {
+                setTokenValid(false);
+                const friendlyMessage = errorDesc 
+                    ? decodeURIComponent(errorDesc.replace(/\+/g, ' ')) 
+                    : "The password reset link is invalid or has expired.";
+                setError(friendlyMessage);
+                return;
+            }
+
+            // Verify if there is an active session or access_token in the hash
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session && !hash.includes('access_token=')) {
+                setTokenValid(false);
+                setError("No active password reset session found. Please request a new link.");
+            }
+        };
+
+        checkToken();
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -93,83 +123,94 @@ const ResetPassword = () => {
                     transition={{ delay: 0.1 }}
                     className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-gray-700/30"
                 >
-                    <form className="space-y-6" onSubmit={handleSubmit}>
-                        {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 px-4 py-3 rounded-2xl text-sm flex items-start gap-3">
-                                <SafeIcon icon={FiAlertCircle} className="w-5 h-5 flex-shrink-0" />
-                                <span className="font-medium">{error}</span>
-                            </div>
-                        )}
-
-                        {message && (
-                            <div className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 px-4 py-3 rounded-2xl text-sm flex items-start gap-3">
-                                <SafeIcon icon={FiCheckCircle} className="w-5 h-5 flex-shrink-0" />
-                                <span className="font-medium">{message}</span>
-                            </div>
-                        )}
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">
-                                New Password
-                            </label>
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
-                                    <SafeIcon icon={FiLock} className="h-5 w-5" />
-                                </div>
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    required
-                                    className="block w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-gray-700 transition-all text-gray-900 dark:text-white"
-                                    placeholder="••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                />
-                                <button
-                                    type="button"
-                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                >
-                                    <SafeIcon icon={showPassword ? FiEyeOff : FiEye} className="h-5 w-5" />
-                                </button>
-                            </div>
+                    {error && (
+                        <div className="bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 px-4 py-3 rounded-2xl text-sm flex items-start gap-3 mb-6">
+                            <SafeIcon icon={FiAlertCircle} className="w-5 h-5 flex-shrink-0" />
+                            <span className="font-medium">{error}</span>
                         </div>
+                    )}
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">
-                                Confirm New Password
-                            </label>
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
-                                    <SafeIcon icon={FiLock} className="h-5 w-5" />
-                                </div>
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    required
-                                    className="block w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-gray-700 transition-all text-gray-900 dark:text-white"
-                                    placeholder="••••••••"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                />
-                            </div>
+                    {message && (
+                        <div className="bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 px-4 py-3 rounded-2xl text-sm flex items-start gap-3 mb-6">
+                            <SafeIcon icon={FiCheckCircle} className="w-5 h-5 flex-shrink-0" />
+                            <span className="font-medium">{message}</span>
                         </div>
+                    )}
 
-                        <motion.button
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.99 }}
-                            type="submit"
-                            disabled={loading || !!message}
-                            className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-xl text-md font-black text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all"
-                        >
-                            {loading ? (
-                                <div className="flex items-center gap-2">
-                                    <SafeIcon icon={FiLoader} className="w-5 h-5 animate-spin" />
-                                    Updating...
+                    {tokenValid ? (
+                        <form className="space-y-6" onSubmit={handleSubmit}>
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">
+                                    New Password
+                                </label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                                        <SafeIcon icon={FiLock} className="h-5 w-5" />
+                                    </div>
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        required
+                                        className="block w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-gray-700 transition-all text-gray-900 dark:text-white"
+                                        placeholder="••••••••"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                    >
+                                        <SafeIcon icon={showPassword ? FiEyeOff : FiEye} className="h-5 w-5" />
+                                    </button>
                                 </div>
-                            ) : (
-                                "Update Password"
-                            )}
-                        </motion.button>
-                    </form>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">
+                                    Confirm New Password
+                                </label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                                        <SafeIcon icon={FiLock} className="h-5 w-5" />
+                                    </div>
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        required
+                                        className="block w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-gray-700 transition-all text-gray-900 dark:text-white"
+                                        placeholder="••••••••"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <motion.button
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
+                                type="submit"
+                                disabled={loading || !!message}
+                                className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-xl text-md font-black text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all"
+                            >
+                                {loading ? (
+                                    <div className="flex items-center gap-2">
+                                        <SafeIcon icon={FiLoader} className="w-5 h-5 animate-spin" />
+                                        Updating...
+                                    </div>
+                                ) : (
+                                    "Update Password"
+                                )}
+                            </motion.button>
+                        </form>
+                    ) : (
+                        <div className="text-center py-4">
+                            <Link 
+                                to="/forgot-password" 
+                                className="inline-flex items-center justify-center w-full py-4 px-4 border border-transparent rounded-2xl shadow-xl text-md font-black text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all"
+                            >
+                                Request New Reset Link
+                            </Link>
+                        </div>
+                    )}
                 </motion.div>
 
                 <div className="text-center">

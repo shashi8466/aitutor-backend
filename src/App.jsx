@@ -296,6 +296,17 @@ const QuizDispatcher = () => {
 const App = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hash = window.location.hash || '';
+    if (hash.includes('type=recovery') || hash.includes('access_token=') || hash.includes('error=')) {
+      if (location.pathname !== '/reset-password') {
+        console.log('🔄 [App] Global redirecting to /reset-password with hash');
+        navigate(`/reset-password${window.location.hash}`, { replace: true });
+      }
+    }
+  }, [location.pathname, navigate]);
 
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isStudentRoute = location.pathname.startsWith('/student');
