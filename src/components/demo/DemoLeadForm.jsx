@@ -166,6 +166,12 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
         countryCode
       };
       await onSubmit(cleanedFormData);
+      // GTM: fire form_submitted event on successful form submission
+      if (window.dataLayer) {
+        window.dataLayer.push({
+          event: 'form_submitted'
+        });
+      }
       setSubmitted(true);
     } catch (err) {
       console.error('❌ [DEMO] Submit error:', err);
