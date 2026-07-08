@@ -19,8 +19,7 @@ const AIPrep365LandingPage = () => {
   const handleLoginClick = () => { navigate('/login'); };
   const handleSignupClick = () => { navigate('/signup'); };
   const handleStartPracticeClick = () => {
-    if (user) navigate('/student');
-    else navigate('/signup');
+    window.location.href = 'https://aiprep365.com/demo/89';
   };
   const handleBookDemoClick = () => { navigate('/contact'); };
 

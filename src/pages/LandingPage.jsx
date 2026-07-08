@@ -84,7 +84,7 @@ export default function LandingPage() {
                      className="lg:col-span-6"
                   >
                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-600/10 border border-red-600/20 text-[10px] font-black uppercase tracking-widest mb-8 text-red-500 shadow-xl">
-                        <span>✨</span> Your AI Tutor. 365 Days.
+                        <span>✨</span> Your AI Tutor.  Days.
                      </div>
                      <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.1] tracking-tight mb-8 drop-shadow-2xl">
                         Smarter SAT prep with <span className="bg-gradient-to-r from-[#3B82F6] to-[#0EA5E9] bg-clip-text text-transparent">AI tutor</span> <br className="hidden md:block" />
@@ -94,9 +94,9 @@ export default function LandingPage() {
                         Aiprep365 helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep.
                      </p>
                      <div className="flex flex-wrap gap-6">
-                        <Link to="/signup" className="btn-primary">
-                           Start Free Practice
-                        </Link>
+                         <a href="https://aiprep365.com/demo/89" className="btn-primary">
+                            Start Free Practice
+                         </a>
                         <Link to="/contact" className="px-10 py-4 bg-[#0a0f1d] border border-white/5 text-white rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-[#111827] transition-all">
                            Book a Demo
                         </Link>
