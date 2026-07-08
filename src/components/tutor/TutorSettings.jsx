@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { FiUser, FiMail, FiLock, FiBell, FiSave, FiShield } from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import { authService } from '../../services/api';
 
 const TutorSettings = () => {
-    const { user } = useAuth();
+    const { user, updateProfile } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: user?.name || '',
@@ -26,14 +27,35 @@ const TutorSettings = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
+            alert("Passwords do not match.");
+            return;
+        }
+
         setIsLoading(true);
 
-        // Simulation of API call
-        setTimeout(() => {
-            setIsLoading(false);
+        try {
+            if (formData.name !== user?.name) {
+                const result = await updateProfile({ name: formData.name });
+                if (!result.success) throw new Error(result.error);
+            }
+
+            if (formData.newPassword) {
+                if (formData.newPassword.length < 6) {
+                    throw new Error("Password must be at least 6 characters.");
+                }
+                await authService.updatePassword(formData.newPassword);
+            }
+
             alert('Profile updated successfully');
             setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
-        }, 1500);
+        } catch (err) {
+            console.error('Error updating profile:', err);
+            alert(err.message || 'Failed to update profile. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -101,18 +123,34 @@ const TutorSettings = () => {
                     </div>
 
                     <div className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">New Password</label>
-                            <div className="relative">
-                                <SafeIcon icon={FiLock} className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                                <input
-                                    type="password"
-                                    name="newPassword"
-                                    value={formData.newPassword}
-                                    onChange={handleChange}
-                                    className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    placeholder="Leave blank to keep current"
-                                />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">New Password</label>
+                                <div className="relative">
+                                    <SafeIcon icon={FiLock} className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                                    <input
+                                        type="password"
+                                        name="newPassword"
+                                        value={formData.newPassword}
+                                        onChange={handleChange}
+                                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        placeholder="Leave blank to keep current"
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Confirm Password</label>
+                                <div className="relative">
+                                    <SafeIcon icon={FiLock} className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                                    <input
+                                        type="password"
+                                        name="confirmPassword"
+                                        value={formData.confirmPassword}
+                                        onChange={handleChange}
+                                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                        placeholder="Confirm new password"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
