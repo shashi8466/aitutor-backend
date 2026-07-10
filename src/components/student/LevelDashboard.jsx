@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { uploadService, courseService } from '../../services/api';
@@ -13,6 +13,9 @@ const { FiBook, FiVideo, FiMessageCircle, FiAward, FiArrowLeft, FiFileText, FiDo
 const LevelDashboard = () => {
   const { courseId, level } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isTutorContext = location.pathname.startsWith('/tutor');
+  const routeBase = isTutorContext ? '/tutor/course-content' : '/student';
   const [uploads, setUploads] = useState([]);
   const [showAI, setShowAI] = useState(false);
 
@@ -33,7 +36,7 @@ const LevelDashboard = () => {
         courseService.getById(courseId)
       ]);
       if (courseRes.data && ['AP', 'ACT'].includes(courseRes.data.main_category?.toUpperCase())) {
-        navigate(`/student/course/${courseId}`);
+        navigate(`${routeBase}/course/${courseId}`);
         return;
       }
       setUploads(uploadRes.data.filter(u => u.level === level || u.level === 'All'));
@@ -138,7 +141,7 @@ const LevelDashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 px-2 sm:px-0">
 
           {/* Card 1: Videos - White with Red Accent */}
-          <Link to={`/student/course/${courseId}/level/${level}/video`} className="group h-full">
+          <Link to={`${routeBase}/course/${courseId}/level/${level}/video`} className="group h-full">
             <div className="h-full bg-white hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer group-hover:-translate-y-1 group-hover:shadow-lg flex flex-col items-center justify-center">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 shadow-sm text-[#E53935] group-hover:bg-[#E53935] group-hover:text-white transition-colors">
                 <SafeIcon icon={FiVideo} className="w-6 h-6 sm:w-8 sm:h-8" />
@@ -153,8 +156,8 @@ const LevelDashboard = () => {
           {/* Card 3: Practice Quiz */}
           <Link 
             to={course?.is_adaptive 
-              ? `/student/course/${courseId}/level/moderate/quiz?mode=practice` 
-              : `/student/course/${courseId}/level/${level}/quiz?mode=practice`
+              ? `${routeBase}/course/${courseId}/level/moderate/quiz?mode=practice` 
+              : `${routeBase}/course/${courseId}/level/${level}/quiz?mode=practice`
             } 
             className="group h-full"
           >
@@ -172,8 +175,8 @@ const LevelDashboard = () => {
           {/* Card 4: Take the Quiz - Primary Red Card */}
           <Link 
             to={course?.is_adaptive 
-              ? `/student/adaptive-test/${courseId}` 
-              : `/student/course/${courseId}/level/${level}/quiz`
+              ? `${routeBase}/adaptive-test/${courseId}` 
+              : `${routeBase}/course/${courseId}/level/${level}/quiz`
             } 
             className="group h-full"
           >
@@ -189,7 +192,7 @@ const LevelDashboard = () => {
         </div>
 
         <div className="mt-12 text-center">
-          <Link to={`/student/course/${courseId}`} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors py-2">
+          <Link to={`${routeBase}/course/${courseId}`} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors py-2">
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Topics
           </Link>
         </div>

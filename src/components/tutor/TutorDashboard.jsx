@@ -11,7 +11,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import {
     FiHome, FiBook, FiUsers, FiKey, FiMail, FiBarChart2,
     FiSettings, FiLogOut, FiMenu, FiX, FiAward, FiClock,
-    FiTrendingUp, FiCheckCircle, FiLayers
+    FiTrendingUp, FiCheckCircle, FiLayers, FiGrid
 } from 'react-icons/fi';
 
 // Lazy load tutor components
@@ -22,6 +22,17 @@ const TutorStudents = lazy(() => import('./TutorStudents'));
 const TutorEnrollmentKeys = lazy(() => import('./TutorEnrollmentKeys'));
 const TutorInvitations = lazy(() => import('./TutorInvitations'));
 const TutorSettings = lazy(() => import('./TutorSettings'));
+const TutorCourseContent = lazy(() => import('./TutorCourseContent'));
+
+// Lazy load student course view components (for Course Content feature)
+const StudentCourseView = lazy(() => import('../student/CourseView'));
+const StudentLevelDashboard = lazy(() => import('../student/LevelDashboard'));
+const StudentVideoPlayer = lazy(() => import('../student/VideoPlayer'));
+const StudentQuizInterface = lazy(() => import('../student/QuizInterface'));
+const StudentExamInterface = lazy(() => import('../student/ExamInterface'));
+const StudentACTFullLengthExam = lazy(() => import('../student/ACTFullLengthExam'));
+const StudentAdaptiveExamInterface = lazy(() => import('../student/AdaptiveExamInterface'));
+const StudentAdaptivePreTest = lazy(() => import('../student/AdaptivePreTest'));
 
 import Skeleton from '../common/Skeleton';
 
@@ -139,6 +150,7 @@ const TutorDashboard = () => {
     const menuItems = [
         { path: '/tutor', icon: FiHome, label: 'Dashboard', exact: true },
         { path: '/tutor/courses', icon: FiBook, label: 'My Courses' },
+        { path: '/tutor/course-content', icon: FiGrid, label: 'Course Content' },
         { path: '/tutor/students', icon: FiUsers, label: 'Students' },
         { path: '/tutor/groups', icon: FiLayers, label: 'Student Groups' },
         { path: '/tutor/enrollment-keys', icon: FiKey, label: 'Enrollment Keys' },
@@ -300,6 +312,15 @@ const TutorDashboard = () => {
                         <Routes>
                             <Route index element={<TutorOverview dashboardData={dashboardData} loading={loading} />} />
                             <Route path="courses" element={<TutorCourses dashboardData={dashboardData} isParentLoading={loading} />} />
+                            {/* Course Content – same experience as Student My Courses */}
+                            <Route path="course-content" element={<TutorCourseContent />} />
+                            <Route path="course-content/course/:courseId" element={<StudentCourseView />} />
+                            <Route path="course-content/course/:courseId/level/:level" element={<StudentLevelDashboard />} />
+                            <Route path="course-content/course/:courseId/level/:level/video" element={<StudentVideoPlayer />} />
+                            <Route path="course-content/course/:courseId/level/:level/quiz" element={<StudentExamInterface />} />
+                            <Route path="course-content/act-full-length-test/:courseId" element={<StudentACTFullLengthExam />} />
+                            <Route path="course-content/adaptive-test/:courseId" element={<StudentAdaptiveExamInterface />} />
+                            <Route path="course-content/adaptive-pre-test/:courseId" element={<StudentAdaptivePreTest />} />
                             <Route path="students" element={<TutorStudents dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="groups" element={<GroupManager dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="enrollment-keys" element={<TutorEnrollmentKeys dashboardData={dashboardData} isParentLoading={loading} />} />

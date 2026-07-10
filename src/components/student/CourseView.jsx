@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -277,6 +277,11 @@ const CourseView = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const location = useLocation();
+
+  // Detect if viewed from Tutor Panel to route quizzes/exams correctly
+  const isTutorContext = location.pathname.startsWith('/tutor');
+  const routeBase = isTutorContext ? '/tutor/course-content' : '/student';
 
   // Detect ACT Full-Length Test course:
   // These are courses with is_practice=true under the ACT main category.
@@ -343,13 +348,18 @@ const CourseView = () => {
   const checkAccessAndLoad = async () => {
     setLoading(true);
     try {
+      // TUTOR BYPASS: Tutors can view all course content without enrollment
+      const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
+
       // 1. Fetch course details and check enrollment in parallel
       const [courseRes, isEnrolledRes] = await Promise.all([
         courseService.getById(courseId),
-        enrollmentService.isEnrolled(user.id, parseInt(courseId)).catch(err => {
-          console.warn('Enrollment check failed:', err);
-          return false;
-        })
+        isTutorUser
+          ? Promise.resolve(true)
+          : enrollmentService.isEnrolled(user.id, parseInt(courseId)).catch(err => {
+              console.warn('Enrollment check failed:', err);
+              return false;
+            })
       ]);
 
       const courseData = courseRes.data;
@@ -358,8 +368,8 @@ const CourseView = () => {
 
       if (!isEnrolled && courseData?.is_demo) isEnrolled = true;
 
-      // 3. Bypass enrollment block for demo courses or if already enrolled
-      if (!isEnrolled && !courseData?.is_demo) {
+      // 3. Bypass enrollment block for demo courses, tutors, or if already enrolled
+      if (!isEnrolled && !courseData?.is_demo && !isTutorUser) {
         try {
           const response = await enrollmentService.initiateEnrollment(user.id, parseInt(courseId));
           if (response.data?.requiresKey || (response.data?.error && response.data.error.includes('key'))) {
@@ -410,8 +420,8 @@ const CourseView = () => {
         }
       }
 
-      // If we are here and not enrolled (and not a demo), we must block
-      if (!isEnrolled && !courseData?.is_demo) {
+      // If we are here and not enrolled (and not a demo, and not a tutor), we must block
+      if (!isEnrolled && !courseData?.is_demo && !isTutorUser) {
         setAccessDenied(true);
         setLoading(false);
         return;
@@ -706,7 +716,7 @@ const CourseView = () => {
         <button
           onClick={() => {
             if (quiz) {
-              navigate(`/student/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz?mode=practice`);
+              navigate(`${routeBase}/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz?mode=practice`);
             }
           }}
           disabled={!quiz}
@@ -734,9 +744,9 @@ const CourseView = () => {
             if (quiz) {
               // ACT Full-Length courses use the dedicated ACT exam engine
               if (isACTFullLengthCourse(course)) {
-                navigate(`/student/act-full-length-test/${courseId}`);
+                navigate(`${routeBase}/act-full-length-test/${courseId}`);
               } else {
-                navigate(`/student/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz`);
+                navigate(`${routeBase}/course/${courseId}/level/${encodeURIComponent(levelName)}/quiz`);
               }
             }
           }}
@@ -1043,7 +1053,7 @@ const CourseView = () => {
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button
-                      onClick={() => navigate(`/student/act-full-length-test/${courseId}`)}
+                      onClick={() => navigate(`${routeBase}/act-full-length-test/${courseId}`)}
                       className="w-full sm:w-auto px-10 py-4 bg-red-600 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-red-700 transition-all shadow-lg hover:shadow-red-500/20 hover:-translate-y-1"
                     >
                       Take the Quiz
@@ -1069,7 +1079,7 @@ const CourseView = () => {
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button
-                      onClick={() => navigate(`/student/act-full-length-test/${courseId}?mode=practice`)}
+                      onClick={() => navigate(`${routeBase}/act-full-length-test/${courseId}?mode=practice`)}
                       className="w-full sm:w-auto px-10 py-4 bg-amber-500 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-amber-600 transition-all shadow-lg hover:shadow-amber-500/20 hover:-translate-y-1"
                     >
                       Practice Quiz
@@ -1095,7 +1105,7 @@ const CourseView = () => {
                  </p>
                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <button
-                      onClick={() => navigate(`/student/adaptive-pre-test/${courseId}`)}
+                      onClick={() => navigate(`${routeBase}/adaptive-pre-test/${courseId}`)}
                       className="w-full sm:w-auto px-10 py-4 bg-purple-600 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-purple-700 transition-all shadow-lg hover:shadow-purple-500/20 hover:-translate-y-1"
                     >
                       Start Full-Length Test
@@ -1139,7 +1149,7 @@ const CourseView = () => {
                                 </span>
                               )}
                               {video ? (
-                                <Link to={`/student/course/${courseId}/level/${level.toLowerCase()}/video?section=${sec.section.includes('Read') ? 'reading_writing' : 'math'}`} className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
+                                <Link to={`${routeBase}/course/${courseId}/level/${level.toLowerCase()}/video?section=${sec.section.includes('Read') ? 'reading_writing' : 'math'}`} className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
                                   <SafeIcon icon={FiIcons.FiPlay || FiInfo} /> Video
                                 </Link>
                               ) : (
@@ -1342,7 +1352,7 @@ const CourseView = () => {
 
                     <div className="flex flex-col gap-2 w-full md:w-auto md:self-end">
                       <button
-                        onClick={() => unlocked && navigate(`/student/course/${courseId}/level/${level}`)}
+                        onClick={() => unlocked && navigate(`${routeBase}/course/${courseId}/level/${level}`)}
                         disabled={!unlocked}
                         className={`w-full md:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-sm sm:text-base shadow-md transition-all ${theme.btn}`}
                       >
@@ -1363,7 +1373,7 @@ const CourseView = () => {
         )}
 
         <div className="mt-12 text-center">
-          <Link to="/student" className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors">
+          <Link to={isTutorContext ? '/tutor/course-content' : '/student'} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors">
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Dashboard
           </Link>
         </div>
