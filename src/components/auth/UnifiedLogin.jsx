@@ -23,7 +23,7 @@ const UnifiedLogin = () => {
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const redirectPath = searchParams.get('redirect');
-    const invitationKey = searchParams.get('key');
+    const invitationKey = searchParams.get('key') || localStorage.getItem('pendingInvitationKey');
 
     // After login, this handles the specific redirection
     const handleRoleRedirection = async (role, courseId = null) => {
@@ -73,8 +73,14 @@ const UnifiedLogin = () => {
                         try {
                             const enrollRes = await enrollmentService.useKey(invitationKey.trim().toUpperCase());
                             courseId = enrollRes?.data?.courseId || null;
+                            if (courseId) localStorage.removeItem('pendingInvitationKey');
                         } catch (err) {
                             console.warn('Auto-enrollment for logged-in user failed:', err?.response?.data?.error || err.message);
+                            try {
+                                const valRes = await enrollmentService.validateKey(invitationKey.trim().toUpperCase());
+                                courseId = valRes?.data?.courseId || null;
+                                if (courseId) localStorage.removeItem('pendingInvitationKey');
+                            } catch (ve) {}
                         }
                         handleRoleRedirection(user.role, courseId);
                     })();
@@ -133,8 +139,14 @@ const UnifiedLogin = () => {
                     try {
                         const enrollRes = await enrollmentService.useKey(invitationKey.trim().toUpperCase());
                         enrolledCourseId = enrollRes?.data?.courseId || null;
+                        if (enrolledCourseId) localStorage.removeItem('pendingInvitationKey');
                     } catch (enrollErr) {
                         console.warn('Auto-enrollment via login failed:', enrollErr?.response?.data?.error || enrollErr.message);
+                        try {
+                            const valRes = await enrollmentService.validateKey(invitationKey.trim().toUpperCase());
+                            enrolledCourseId = valRes?.data?.courseId || null;
+                            if (enrolledCourseId) localStorage.removeItem('pendingInvitationKey');
+                        } catch (ve) {}
                     }
                 }
 

@@ -299,6 +299,14 @@ const App = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Preserve invitation keys across auth page navigation
+    const query = new URLSearchParams(window.location.search);
+    const key = query.get('key') || query.get('invite');
+    if (key) {
+      localStorage.setItem('pendingInvitationKey', key.trim().toUpperCase());
+      console.log('🔑 [App] Stored pending invitation key globally:', key);
+    }
+
     const hash = window.location.hash || '';
     if (hash.includes('type=recovery') || hash.includes('access_token=') || hash.includes('error=')) {
       if (location.pathname !== '/reset-password') {

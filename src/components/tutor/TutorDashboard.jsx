@@ -102,7 +102,12 @@ const TutorDashboard = () => {
         const handleFocus = () => {
             console.log('👀 [TutorDashboard] Window Focused - Refreshing stats');
             tutorService.getDashboard(user?.id).then(res => {
-                if (res?.data) setDashboardData(res.data);
+                if (res?.data) {
+                    setDashboardData(prev => {
+                        if (JSON.stringify(prev) === JSON.stringify(res.data)) return prev;
+                        return res.data;
+                    });
+                }
             }).catch(() => { });
         };
 

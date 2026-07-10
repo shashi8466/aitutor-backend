@@ -70,7 +70,7 @@ const Signup = () => {
   useEffect(() => {
     authService.wakeUp();
     const query = new URLSearchParams(window.location.search);
-    const key = query.get('key');
+    const key = query.get('key') || query.get('invite') || localStorage.getItem('pendingInvitationKey');
     if (key) {
       setEnrollmentKey(key.trim().toUpperCase());
     }
@@ -98,6 +98,7 @@ const Signup = () => {
       const res = await enrollmentService.useKey(key);
       const courseId = res?.data?.courseId || null;
       console.log('✅ [AutoEnroll] Enrolled via key:', key, '→ courseId:', courseId);
+      if (courseId) localStorage.removeItem('pendingInvitationKey');
       return courseId;
     } catch (err) {
       const errMsg = err?.response?.data?.error || err?.message || '';
@@ -108,6 +109,7 @@ const Signup = () => {
         const validateRes = await enrollmentService.validateKey(key);
         const courseId = validateRes?.data?.courseId || null;
         console.log('🔁 [AutoEnroll] Fallback validate-key → courseId:', courseId);
+        if (courseId) localStorage.removeItem('pendingInvitationKey');
         return courseId;
       } catch (ve) {
         console.error('❌ [AutoEnroll] Fallback validate-key also failed:', ve?.message);

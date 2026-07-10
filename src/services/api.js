@@ -1295,34 +1295,58 @@ export const gradingService = {
   }
 };
 
+// --- TUTOR SERVICE CACHE ---
+const tutorCache = new Map();
+const cachedTutorGet = async (key, url, ttl = 60000) => {
+    if (tutorCache.has(key)) {
+        const { data, timestamp, status, headers } = tutorCache.get(key);
+        if (Date.now() - timestamp < ttl) {
+            return Promise.resolve({ data, status, headers });
+        }
+    }
+    const response = await axios.get(url);
+    tutorCache.set(key, { 
+        data: response.data, 
+        status: response.status, 
+        headers: response.headers, 
+        timestamp: Date.now() 
+    });
+    return response;
+};
+export const clearTutorCache = () => tutorCache.clear();
+
 // --- TUTOR SERVICE (GROUPS & MANAGEMENT) ---
 export const tutorService = {
   getDashboard: async () => {
-    return axios.get('/api/tutor/dashboard');
+    return cachedTutorGet('dashboard', '/api/tutor/dashboard', 30000);
   },
   getGroups: async (courseId = null) => {
     const url = courseId ? `/api/tutor/groups?courseId=${courseId}` : '/api/tutor/groups';
-    return axios.get(url);
+    return cachedTutorGet(`groups_${courseId}`, url);
   },
   createGroup: async (data) => {
+    clearTutorCache();
     return axios.post('/api/tutor/groups', data);
   },
   addGroupMembers: async (groupId, studentIds) => {
+    clearTutorCache();
     return axios.post(`/api/tutor/groups/${groupId}/members`, { studentIds });
   },
   removeGroupMember: async (groupId, studentId) => {
+    clearTutorCache();
     return axios.delete(`/api/tutor/groups/${groupId}/members/${studentId}`);
   },
   deleteGroup: async (groupId) => {
+    clearTutorCache();
     return axios.delete(`/api/tutor/groups/${groupId}`);
   },
   getStudents: async (courseId = null) => {
     const url = courseId ? `/api/tutor/students?courseId=${courseId}` : '/api/tutor/students';
-    return axios.get(url);
+    return cachedTutorGet(`students_${courseId}`, url);
   },
   // New analytics endpoints
   getGroupMembers: async (groupId) => {
-    return axios.get(`/api/tutor/groups/${groupId}/members`);
+    return cachedTutorGet(`groupMembers_${groupId}`, `/api/tutor/groups/${groupId}/members`);
   },
   getGroupAnalytics: async (groupId, startDate = null, endDate = null) => {
     let url = `/api/tutor/groups/${groupId}/analytics`;
@@ -1331,15 +1355,14 @@ export const tutorService = {
     if (endDate) params.append('endDate', endDate);
     const queryString = params.toString();
     if (queryString) url += `?${queryString}`;
-    return axios.get(url);
+    return cachedTutorGet(`groupAnalytics_${groupId}_${queryString}`, url);
   },
   compareGroups: async (groupIds) => {
-    // groupIds should be an array of group IDs
     const idsString = Array.isArray(groupIds) ? groupIds.join(',') : groupIds;
-    return axios.get(`/api/tutor/groups/compare?groupIds=${idsString}`);
+    return cachedTutorGet(`compareGroups_${idsString}`, `/api/tutor/groups/compare?groupIds=${idsString}`);
   },
   getStudentProgress: async (studentId) => {
-    return axios.get(`/api/tutor/student-progress/${studentId}`);
+    return cachedTutorGet(`studentProgress_${studentId}`, `/api/tutor/student-progress/${studentId}`);
   }
 };
 
