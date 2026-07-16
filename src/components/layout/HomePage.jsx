@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
+import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 
@@ -52,15 +53,33 @@ const AIPrep365LandingPage = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [{
+       "@type": "ListItem",
+       "position": 1,
+       "name": "Home",
+       "item": "https://aiprep365.com/"
+    }]
+  };
+
   return (
 
-    <div className="min-h-screen bg-[#020617] text-white transition-colors duration-300 overflow-x-hidden font-jakarta">
+    <main className="min-h-screen bg-[#020617] text-white transition-colors duration-300 overflow-x-hidden font-jakarta">
+      <Helmet>
+        <title>AIPrep365 | Smarter SAT prep with an AI tutor</title>
+        <meta name="description" content="AIPrep365 helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep." />
+        <script type="application/ld+json">
+           {JSON.stringify(breadcrumbSchema)}
+        </script>
+      </Helmet>
 
       {/* 🚀 FIXED HEADER */}
       <header className="fixed top-0 left-0 right-0 z-[100] p-3 md:p-4 lg:p-5 transition-all duration-300">
-        <nav className="mx-auto flex max-w-[1500px] items-center justify-between rounded-[20px] md:rounded-[24px] border border-white/5 bg-slate-900/40 px-5 md:px-10 py-3 md:py-4 backdrop-blur-2xl shadow-2xl w-full">
+        <nav aria-label="Main Navigation" className="mx-auto flex max-w-[1500px] items-center justify-between rounded-[20px] md:rounded-[24px] border border-white/5 bg-slate-900/40 px-5 md:px-10 py-3 md:py-4 backdrop-blur-2xl shadow-2xl w-full">
           <div className="flex items-center gap-4">
-            <Link to="/" className="flex items-center gap-3 md:gap-4 group">
+            <Link to="/" aria-label="Go to Homepage" className="flex items-center gap-3 md:gap-4 group">
               {(settings.logo_url || settings.logoUrl) ? (
                 <div className="h-10 md:h-12 w-auto max-w-[120px] md:max-w-[150px] flex items-center justify-center">
                   <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
@@ -88,6 +107,8 @@ const AIPrep365LandingPage = () => {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle Mobile Menu"
+              aria-expanded={isMobileMenuOpen}
               className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors"
             >
               {isMobileMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
@@ -130,18 +151,18 @@ const AIPrep365LandingPage = () => {
       </header>
 
       {/* ⚡ HERO SECTION */}
-      <section id="hero" className="relative min-h-screen pt-32 md:pt-40 pb-16 md:pb-20 overflow-hidden flex items-center px-6 md:px-12 lg:px-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.1),transparent_40%),radial-gradient(circle_at_left,rgba(251,146,60,0.08),transparent_35%)]" />
+      <section id="hero" aria-labelledby="hero-heading" className="relative min-h-screen pt-32 md:pt-40 pb-16 md:pb-20 overflow-hidden flex items-center px-6 md:px-12 lg:px-20">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.1),transparent_40%),radial-gradient(circle_at_left,rgba(251,146,60,0.08),transparent_35%)]" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-[1500px] w-full grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
 
           {/* Left Text Block */}
           <motion.div initial="hidden" animate="visible" variants={containerVariants} className="text-center lg:text-left">
             <motion.div variants={itemVariants} className="mb-6 inline-flex items-center gap-2 rounded-full border border-sky-500/30 bg-sky-500/5 px-4 py-1.5 text-[10px] font-bold tracking-widest text-sky-400 shadow-xl backdrop-blur-sm">
-              <span className="text-orange-400">✨</span> Your AI Tutor. 365 Days.
+              <span className="text-orange-400" role="img" aria-label="Sparkles">✨</span> Your AI Tutor. 365 Days.
             </motion.div>
 
-            <motion.h1 variants={itemVariants} className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black leading-[1.1] mb-8 font-sans text-white tracking-tight drop-shadow-2xl">
+            <motion.h1 id="hero-heading" variants={itemVariants} className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black leading-[1.1] mb-8 font-sans text-white tracking-tight drop-shadow-2xl">
               Smarter SAT prep with an <span className="bg-gradient-to-r from-[#3B82F6] to-[#0EA5E9] bg-clip-text text-transparent">AI tutor</span> <br className="hidden md:block" />
               that never stops <span className="bg-gradient-to-r from-[#F59E0B] to-[#F97316] bg-clip-text text-transparent">teaching.</span>
             </motion.h1>
@@ -156,9 +177,9 @@ const AIPrep365LandingPage = () => {
             </motion.div>
 
             <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-center lg:justify-start gap-4 md:gap-8 text-[9px] md:text-[11px] font-black text-slate-500 uppercase mt-10">
-              <div className="flex items-center gap-2 whitespace-nowrap">✅ INSTANT FEEDBACK</div>
-              <div className="flex items-center gap-2 whitespace-nowrap">✅ PERSONALIZED LEARNING</div>
-              <div className="flex items-center gap-2 whitespace-nowrap">✅ BUILT FOR SAT SUCCESS</div>
+              <div className="flex items-center gap-2 whitespace-nowrap"><span role="img" aria-label="Check">✅</span> INSTANT FEEDBACK</div>
+              <div className="flex items-center gap-2 whitespace-nowrap"><span role="img" aria-label="Check">✅</span> PERSONALIZED LEARNING</div>
+              <div className="flex items-center gap-2 whitespace-nowrap"><span role="img" aria-label="Check">✅</span> BUILT FOR SAT SUCCESS</div>
             </motion.div>
           </motion.div>
 
@@ -173,7 +194,7 @@ const AIPrep365LandingPage = () => {
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Student Dashboard</p>
                     <p className="text-xl font-black text-white leading-tight">Welcome back, future top scorer</p>
                   </div>
-                  <div className="h-12 w-12 rounded-2xl bg-sky-500 flex items-center justify-center shadow-lg shadow-sky-500/20">
+                  <div className="h-12 w-12 rounded-2xl bg-sky-500 flex items-center justify-center shadow-lg shadow-sky-500/20" role="img" aria-label="Robot icon">
                     <span className="text-2xl">🤖</span>
                   </div>
                 </div>
@@ -227,7 +248,7 @@ const AIPrep365LandingPage = () => {
         </div>
       </section>
 
-      <section id="results" className="scroll-mt-32 border-y border-white/5 bg-slate-900/10 py-8 md:py-12">
+      <section id="results" aria-label="Results statistics" className="scroll-mt-32 border-y border-white/5 bg-slate-900/10 py-8 md:py-12">
         <div className="mx-auto grid max-w-[1500px] gap-4 md:gap-8 px-6 md:px-10 text-center sm:grid-cols-3">
           {[
             ["24/7", "AI tutoring support"],
@@ -242,11 +263,11 @@ const AIPrep365LandingPage = () => {
         </div>
       </section>
 
-      <section id="features" className="scroll-mt-32 py-12 md:py-16">
+      <section id="features" aria-labelledby="features-heading" className="scroll-mt-32 py-12 md:py-16">
         <div className="mx-auto max-w-[1500px] px-6 md:px-10">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={containerVariants} className="mb-10 md:mb-12">
             <p className="text-[10px] md:text-sm font-black uppercase tracking-[0.4em] text-sky-500 mb-4">Features</p>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight uppercase">Everything students need to prep smarter</h2>
+            <h2 id="features-heading" className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight uppercase">Everything students need to prep smarter</h2>
           </motion.div>
 
           <div className="grid gap-6 md:gap-8 md:grid-cols-2 xl:grid-cols-4">
@@ -263,7 +284,7 @@ const AIPrep365LandingPage = () => {
                 viewport={{ once: true }}
                 className="rounded-[28px] md:rounded-[32px] border border-white/5 bg-slate-900/20 p-6 md:p-8 hover:bg-slate-900/40 transition-all hover:border-sky-500/20 group"
               >
-                <div className="mb-4 md:mb-6 text-3xl md:text-4xl group-hover:scale-110 transition-transform">{icon}</div>
+                <div className="mb-4 md:mb-6 text-3xl md:text-4xl group-hover:scale-110 transition-transform" role="img" aria-label={`${title} icon`}>{icon}</div>
                 <h3 className="text-xl font-black text-white mb-3 md:mb-4">{title}</h3>
                 <p className="text-base md:text-lg leading-relaxed md:leading-8 text-slate-300">{desc}</p>
               </motion.div>
@@ -272,11 +293,11 @@ const AIPrep365LandingPage = () => {
         </div>
       </section>
 
-      <section id="how-it-works" className="scroll-mt-32 py-12 md:py-16 bg-slate-900/10">
+      <section id="how-it-works" aria-labelledby="how-it-works-heading" className="scroll-mt-32 py-12 md:py-16 bg-slate-900/10">
         <div className="mx-auto max-w-[1500px] px-6 md:px-10">
           <div className="mb-10 md:mb-12 max-w-2xl text-center md:text-left">
             <p className="text-[10px] md:text-sm font-black uppercase tracking-[0.4em] text-orange-500 mb-4">How it works</p>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight uppercase">A simple path to higher scores</h2>
+            <h2 id="how-it-works-heading" className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight uppercase">A simple path to higher scores</h2>
           </div>
           <div className="grid gap-6 md:gap-8 md:grid-cols-3">
             {[
@@ -294,8 +315,8 @@ const AIPrep365LandingPage = () => {
         </div>
       </section>
 
-      <section id="pricing" className="scroll-mt-32 py-20 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-sky-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <section id="pricing" aria-labelledby="pricing-heading" className="scroll-mt-32 py-20 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-sky-500/5 rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
 
         <div className="mx-auto max-w-[1500px] px-6 md:px-10 relative z-10">
           <div className="text-center mb-16">
@@ -308,6 +329,7 @@ const AIPrep365LandingPage = () => {
               Support Plans
             </motion.p>
             <motion.h2
+              id="pricing-heading"
               initial={{ opacity: 0, y: 10 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -329,7 +351,7 @@ const AIPrep365LandingPage = () => {
             >
               <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">🆓</span>
+                  <span className="text-2xl" role="img" aria-label="Free">🆓</span>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Free Plan</h3>
                 </div>
                 <p className="text-slate-400 font-bold text-sm tracking-wide">💡 Get Started – Best for beginners</p>
@@ -369,7 +391,7 @@ const AIPrep365LandingPage = () => {
                   <span className="bg-orange-500 text-slate-950 text-[10px] md:text-xs font-black px-6 py-2 rounded-full uppercase tracking-[0.2em] shadow-xl">Most Popular</span>
                 </div>
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">💎</span>
+                  <span className="text-2xl" role="img" aria-label="Diamond">💎</span>
                   <h3 className="text-2xl font-black text-white uppercase tracking-tight">Premium Plan</h3>
                 </div>
                 <p className="text-orange-400 font-bold text-sm tracking-wide text-center">🚀 Unlock Full Access – Best for serious students</p>
@@ -430,7 +452,7 @@ const AIPrep365LandingPage = () => {
         </div>
       </section>
 
-      <section className="py-16 md:py-20 px-6">
+      <section aria-labelledby="cta-heading" className="py-16 md:py-20 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="relative overflow-hidden rounded-[40px] border border-white/5 bg-[#0f172a]/50 p-8 md:p-14 text-center shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] backdrop-blur-3xl">
             {/* Subtle gradient glows */}
@@ -438,7 +460,7 @@ const AIPrep365LandingPage = () => {
             <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-[350px] h-[350px] bg-orange-500/5 rounded-full blur-[100px] pointer-events-none" />
 
             <div className="relative z-10">
-              <h2 className="text-3xl md:text-5xl font-black text-white mb-6 tracking-tight leading-[1.1]">
+              <h2 id="cta-heading" className="text-3xl md:text-5xl font-black text-white mb-6 tracking-tight leading-[1.1]">
                 Ready to prep smarter with <br />
                 <span className="text-sky-400">AIPrep365?</span>
               </h2>
@@ -465,7 +487,7 @@ const AIPrep365LandingPage = () => {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-white/5 bg-[#020617] py-8 md:py-12">
+      <footer aria-label="Site Footer" className="border-t border-white/5 bg-[#020617] py-8 md:py-12">
         <div className="mx-auto max-w-[1500px] px-6 md:px-10 text-center flex flex-col items-center gap-4">
           <div className="flex items-center gap-4 text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest">
             <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
@@ -478,7 +500,7 @@ const AIPrep365LandingPage = () => {
         </div>
       </footer>
 
-    </div>
+    </main>
   );
 };
 

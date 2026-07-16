@@ -1,0 +1,17 @@
+# AIPrep365
+
+> Smarter SAT prep with an AI tutor that never stops teaching.
+
+AIPrep365 is an advanced AI-powered educational platform specifically designed for SAT preparation. Our AI tutor provides 24/7 support, instant feedback, personalized learning paths, and identifies student weak areas to maximize their test scores.
+
+## Key Features
+- **Full-Length Adaptive Tests:** Questions and practice plans adjust to the student’s performance in real time.
+- **Instant Feedback:** Students get explanations and corrections right away instead of waiting.
+- **Performance Tracking:** Clear progress reports show what is improving and what needs more work.
+- **Weak Area Focus:** AI spots patterns and targets the exact skills hurting the score.
+
+## Official Links
+- Homepage: [https://aiprep365.com/](https://aiprep365.com/)
+- Sign Up: [https://aiprep365.com/signup](https://aiprep365.com/signup)
+- Login: [https://aiprep365.com/login](https://aiprep365.com/login)
+- Demo/Contact: [https://aiprep365.com/contact](https://aiprep365.com/contact)

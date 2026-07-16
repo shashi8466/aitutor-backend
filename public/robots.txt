@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /student/
+Disallow: /tutor/
+Disallow: /parent/
+
+Sitemap: https://aiprep365.com/sitemap.xml

@@ -7,6 +7,7 @@ import './index.css';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { SettingsProvider } from './contexts/SettingsContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
+import { HelmetProvider } from 'react-helmet-async';
 
 // CRITICAL: Force clear any existing Service Workers that might be caching an old version
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -101,15 +102,17 @@ class ErrorBoundary extends React.Component {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <SettingsProvider>
-            <ThemeProvider>
-              <App />
-            </ThemeProvider>
-          </SettingsProvider>
-        </AuthProvider>
-      </BrowserRouter>
+      <HelmetProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <SettingsProvider>
+              <ThemeProvider>
+                <App />
+              </ThemeProvider>
+            </SettingsProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </HelmetProvider>
     </ErrorBoundary>
   </StrictMode>
 );

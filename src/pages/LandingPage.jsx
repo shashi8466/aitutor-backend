@@ -4,6 +4,7 @@ import { useSettings } from "../contexts/SettingsContext";
 import * as FiIcons from "react-icons/fi";
 import SafeIcon from "../common/SafeIcon";
 import { motion, AnimatePresence } from "framer-motion";
+import { Helmet } from "react-helmet-async";
 
 import BrandName from '../common/BrandName';
 
@@ -32,21 +33,40 @@ export default function LandingPage() {
       };
    }, [settings]);
 
+   const breadcrumbSchema = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [{
+         "@type": "ListItem",
+         "position": 1,
+         "name": "Home",
+         "item": "https://aiprep365.com/"
+      }]
+   };
+
    return (
-      <div className="min-h-screen bg-[#030711] text-white selection:bg-red-500/30 selection:text-red-400 font-sans overflow-x-hidden">
+      <main className="min-h-screen bg-[#030711] text-white selection:bg-red-500/30 selection:text-red-400 font-sans overflow-x-hidden">
+         <Helmet>
+            <title>AIPrep365 | Smarter SAT prep with an AI tutor</title>
+            <meta name="description" content="AIPrep365 helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep." />
+            <script type="application/ld+json">
+               {JSON.stringify(breadcrumbSchema)}
+            </script>
+         </Helmet>
 
          {/* Cinematic Background */}
-         <div className="fixed inset-0 pointer-events-none z-0">
+         <div className="fixed inset-0 pointer-events-none z-0" aria-hidden="true">
             <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-red-600/5 rounded-full blur-[150px] opacity-40 animate-pulse" />
             <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-red-600/5 rounded-full blur-[150px] opacity-30" />
          </div>
 
          {/* Navbar */}
-         <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'py-4' : 'py-8'}`}>
+         <header>
+         <nav aria-label="Main Navigation" className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'py-4' : 'py-8'}`}>
             <div className="max-w-7xl mx-auto px-6">
                <div className={`flex items-center justify-between rounded-full border border-white/5 bg-[#0a0f1d]/80 px-8 py-3 backdrop-blur-xl shadow-2xl transition-all ${scrolled ? 'scale-95' : 'scale-100'}`}>
-                  <Link to="/" className="flex items-center gap-4 group">
-                     <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-black shadow-2xl border border-white/5 group-hover:scale-105 transition-transform">
+                  <Link to="/" aria-label="Go to Homepage" className="flex items-center gap-4 group">
+                     <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-black shadow-2xl border border-white/5 group-hover:scale-105 transition-transform" aria-hidden="true">
                         <span className="text-white font-black italic text-xs">AI</span>
                      </div>
                      <span className="text-xl font-black text-white tracking-tighter uppercase group-hover:text-red-500 transition-colors">{siteConfig.appName}</span>
@@ -72,9 +92,10 @@ export default function LandingPage() {
                </div>
             </div>
          </nav>
+         </header>
 
          {/* Hero Section */}
-         <section className="relative pt-60 pb-32 lg:pt-72 lg:pb-60 z-10">
+         <section aria-labelledby="hero-heading" className="relative pt-60 pb-32 lg:pt-72 lg:pb-60 z-10">
             <div className="max-w-7xl mx-auto px-6">
                <div className="grid lg:grid-cols-12 gap-16 items-center">
 
@@ -84,9 +105,9 @@ export default function LandingPage() {
                      className="lg:col-span-6"
                   >
                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-600/10 border border-red-600/20 text-[10px] font-black uppercase tracking-widest mb-8 text-red-500 shadow-xl">
-                        <span>✨</span> Your AI Tutor.  Days.
+                        <span role="img" aria-label="Sparkles">✨</span> Your AI Tutor.  Days.
                      </div>
-                     <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.1] tracking-tight mb-8 drop-shadow-2xl">
+                     <h1 id="hero-heading" className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.1] tracking-tight mb-8 drop-shadow-2xl">
                         Smarter SAT prep with <span className="bg-gradient-to-r from-[#3B82F6] to-[#0EA5E9] bg-clip-text text-transparent">AI tutor</span> <br className="hidden md:block" />
                         that never stops <span className="bg-gradient-to-r from-[#F59E0B] to-[#F97316] bg-clip-text text-transparent">teaching.</span>
                      </h1>
@@ -114,14 +135,14 @@ export default function LandingPage() {
                      className="lg:col-span-6"
                   >
                      <div className="bg-[#0a0f1d] border border-white/5 rounded-[40px] p-10 shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/5 rounded-bl-[100px] pointer-events-none" />
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/5 rounded-bl-[100px] pointer-events-none" aria-hidden="true" />
 
                         <div className="flex justify-between items-center mb-10">
                            <div>
                               <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">Student Dashboard</p>
                               <h3 className="text-2xl font-black italic tracking-tighter text-white">Welcome back, future top scorer</h3>
                            </div>
-                           <div className="h-16 w-16 rounded-2xl bg-red-600 flex items-center justify-center text-white text-3xl shadow-2xl">🤖</div>
+                           <div className="h-16 w-16 rounded-2xl bg-red-600 flex items-center justify-center text-white text-3xl shadow-2xl" role="img" aria-label="Robot icon">🤖</div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-6 mb-8">
@@ -155,7 +176,7 @@ export default function LandingPage() {
          </section>
 
          {/* Stats Grid */}
-         <section id="results" className="py-24 border-y border-white/5 bg-[#0a0f1d]/50">
+         <section id="results" aria-label="Results statistics" className="py-24 border-y border-white/5 bg-[#0a0f1d]/50">
             <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-8 text-center">
                {[
                   { val: "24/7", lbl: "AI tutoring support" },
@@ -171,11 +192,11 @@ export default function LandingPage() {
          </section>
 
          {/* Features */}
-         <section id="features" className="py-32 bg-[#030711]">
+         <section id="features" aria-labelledby="features-heading" className="py-32 bg-[#030711]">
             <div className="max-w-7xl mx-auto px-6">
                <div className="text-center mb-24">
                   <span className="text-red-500 text-[11px] font-black uppercase tracking-[0.4em] mb-6 inline-block">Parameters</span>
-                  <h2 className="text-4xl md:text-6xl font-black text-white italic tracking-tighter uppercase">Everything students need to prepare smarter</h2>
+                  <h2 id="features-heading" className="text-4xl md:text-6xl font-black text-white italic tracking-tighter uppercase">Everything students need to prepare smarter</h2>
                </div>
 
                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -186,7 +207,7 @@ export default function LandingPage() {
                      { icon: "🧠", title: "Weak Area Focus", desc: "AI spots patterns and targets the exact skills hurting the score." }
                   ].map((f, i) => (
                      <div key={i} className="bg-[#0a0f1d] p-10 rounded-[40px] border border-white/5 shadow-2xl h-full flex flex-col hover:border-red-600/30 transition-colors">
-                        <div className="text-4xl mb-8">{f.icon}</div>
+                        <div className="text-4xl mb-8" role="img" aria-label={`${f.title} icon`}>{f.icon}</div>
                         <h3 className="text-xl font-black italic tracking-tighter text-white uppercase mb-4">{f.title}</h3>
                         <p className="text-sm font-medium text-slate-500 leading-relaxed uppercase tracking-tighter">{f.desc}</p>
                      </div>
@@ -196,11 +217,11 @@ export default function LandingPage() {
          </section>
 
          {/* Footer */}
-         <footer className="py-20 border-t border-white/5 text-center opacity-40">
+         <footer aria-label="Site Footer" className="py-20 border-t border-white/5 text-center opacity-40">
             <p className="text-[10px] font-black text-slate-700 uppercase tracking-[0.4em] mb-4">© 2026 AIPrep365 • Powered by Test Prep Pundits</p>
             <p className="text-[8px] font-black text-slate-800 uppercase tracking-[0.2em] italic">AI-powered SAT prep for ambitious students</p>
          </footer>
 
-      </div>
+      </main>
    );
 }
