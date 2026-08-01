@@ -554,8 +554,8 @@ router.put('/groups/:groupId', async (req, res) => {
 
         if (error) {
             console.error('❌ [GROUPS] Error updating group:', error);
-            // If the error is about a column not existing, we can ignore the extra fields
-            if (error.code === '42703') { // undefined_column
+            // If the error is about a column not existing (PostgREST PGRST204 or Postgres 42703)
+            if (error.code === '42703' || error.code === 'PGRST204') {
                 const basicUpdateData = { name, description };
                 if (courseId) basicUpdateData.course_id = parseInt(courseId);
                 
