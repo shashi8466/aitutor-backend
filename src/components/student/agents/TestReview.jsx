@@ -50,15 +50,24 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
-              <SafeIcon icon={FiActivity} className="text-blue-600" />
-            </div>
-            Test History & Review
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Analyze your past performance and learn from your mistakes.</p>
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm rounded-xl transition-colors text-gray-600 dark:text-gray-400"
+            title="Go Back"
+          >
+            <SafeIcon icon={FiIcons.FiChevronLeft} className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3">
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+                <SafeIcon icon={FiActivity} className="text-blue-600" />
+              </div>
+              Test History & Review
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">Analyze your past performance and learn from your mistakes.</p>
+          </div>
         </div>
       </div>
 
