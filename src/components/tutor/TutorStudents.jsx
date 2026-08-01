@@ -172,7 +172,7 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                                     <SafeIcon icon={FiMail} />
                                                 </button>
                                                 <Link
-                                                    to={`/tutor/grades?studentId=${student.id}&courseId=${student.enrolled_course_id}`}
+                                                    to={`/tutor/student-analysis/${student.id}`}
                                                     className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
                                                     title="View Detailed Progress"
                                                 >

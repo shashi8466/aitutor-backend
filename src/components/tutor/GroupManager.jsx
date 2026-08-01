@@ -406,52 +406,82 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                     <div className="grid gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                                         {loadingMembers ? (
                                             <div className="text-center py-8 text-blue-600 font-bold">Loading members...</div>
-                                        ) : filteredStudents.length === 0 ? (
-                                            <p className="text-center py-8 text-gray-500 text-sm">No students found matching your search.</p>
                                         ) : (
-                                            filteredStudents.map(student => {
-                                                const isAlreadyMember = currentMembers.some(m => m.student_id === student.id);
-                                                return (
-                                                    <div key={student.id} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isAlreadyMember ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800' : 'bg-gray-50 dark:bg-gray-900 border-transparent'}`}>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase ${isAlreadyMember ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}>
-                                                                {student.name?.charAt(0)}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                                    {student.name}
-                                                                    {isAlreadyMember && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">IN BATCH</span>}
-                                                                </p>
-                                                                <p className="text-xs text-gray-500">{student.email}</p>
-                                                            </div>
+                                            <>
+                                                {/* Current Members Section */}
+                                                {currentMembers.length > 0 && (
+                                                    <div className="mb-6">
+                                                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Current Members ({currentMembers.length})</h4>
+                                                        <div className="space-y-2">
+                                                            {currentMembers.map(member => (
+                                                                <div key={member.id} className="flex items-center justify-between p-3 rounded-xl border bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800 transition-all">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase bg-blue-600 text-white">
+                                                                            {member.name?.charAt(0)}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                                {member.name}
+                                                                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">IN BATCH</span>
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-500">{member.email}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => handleRemoveMember(selectedGroup.id, member.id)}
+                                                                        className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                                                    >
+                                                                        <SafeIcon icon={FiIcons.FiUserMinus} />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
                                                         </div>
-                                                        {isAlreadyMember ? (
-                                                            <button
-                                                                onClick={() => handleRemoveMember(selectedGroup.id, student.id)}
-                                                                className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                                                            >
-                                                                <SafeIcon icon={FiIcons.FiUserMinus} />
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => {
-                                                                    if (selectedStudentIds.includes(student.id)) {
-                                                                        setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
-                                                                    } else {
-                                                                        setSelectedStudentIds([...selectedStudentIds, student.id]);
-                                                                    }
-                                                                }}
-                                                                className={`p-2 rounded-lg transition-all ${selectedStudentIds.includes(student.id)
-                                                                    ? 'bg-blue-600 text-white'
-                                                                    : 'bg-white dark:bg-gray-800 text-blue-600 border border-gray-100 dark:border-gray-700'
-                                                                    }`}
-                                                            >
-                                                                <SafeIcon icon={selectedStudentIds.includes(student.id) ? FiCheck : FiPlus} />
-                                                            </button>
-                                                        )}
                                                     </div>
-                                                );
-                                            })
+                                                )}
+
+                                                {/* Available Students Section */}
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Available Students</h4>
+                                                    <div className="space-y-2">
+                                                        {(() => {
+                                                            const availableStudents = filteredStudents.filter(s => !currentMembers.some(m => m.student_id === s.id));
+                                                            if (availableStudents.length === 0) {
+                                                                return <p className="text-center py-4 text-gray-500 text-sm">No available students found.</p>;
+                                                            }
+                                                            return availableStudents.map(student => (
+                                                                <div key={student.id} className="flex items-center justify-between p-3 rounded-xl border transition-all bg-gray-50 dark:bg-gray-900 border-transparent">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase bg-gray-200 dark:bg-gray-700 text-gray-500">
+                                                                            {student.name?.charAt(0)}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                                {student.name}
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-500">{student.email}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (selectedStudentIds.includes(student.id)) {
+                                                                                setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                                                                            } else {
+                                                                                setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                                                            }
+                                                                        }}
+                                                                        className={`p-2 rounded-lg transition-all ${selectedStudentIds.includes(student.id)
+                                                                            ? 'bg-blue-600 text-white'
+                                                                            : 'bg-white dark:bg-gray-800 text-blue-600 border border-gray-100 dark:border-gray-700'
+                                                                            }`}
+                                                                    >
+                                                                        <SafeIcon icon={selectedStudentIds.includes(student.id) ? FiCheck : FiPlus} />
+                                                                    </button>
+                                                                </div>
+                                                            ));
+                                                        })()}
+                                                    </div>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 </div>

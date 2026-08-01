@@ -16,7 +16,7 @@ import {
 const {
     FiBarChart2, FiUser, FiBook, FiCalendar, FiClock,
     FiCheckCircle, FiXCircle, FiChevronRight, FiChevronLeft,
-    FiFilter, FiDownload, FiInfo, FiTrendingUp, FiAlertCircle, FiX
+    FiFilter, FiDownload, FiInfo, FiTrendingUp, FiAlertCircle, FiX, FiFileText
 } = FiIcons;
 
 const TutorGrades = ({ adminMode = false, courseId = null, dashboardData, isParentLoading }) => {
@@ -183,9 +183,18 @@ const TutorGrades = ({ adminMode = false, courseId = null, dashboardData, isPare
         <div className={`space-y-6 ${adminMode ? 'p-0' : ''}`}>
             {!adminMode && (
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Grade Analysis</h2>
-                        <p className="text-gray-500 dark:text-gray-400">Detailed performance tracking per course and student</p>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm rounded-xl transition-colors text-gray-600 dark:text-gray-400"
+                            title="Go Back"
+                        >
+                            <SafeIcon icon={FiChevronLeft} className="w-5 h-5" />
+                        </button>
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Grade Analysis</h2>
+                            <p className="text-gray-500 dark:text-gray-400">Detailed performance tracking per course and student</p>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -324,12 +333,40 @@ const TutorGrades = ({ adminMode = false, courseId = null, dashboardData, isPare
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            <button
-                                                onClick={() => viewSubmissionDetails(sub)}
-                                                className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                                            >
-                                                <SafeIcon icon={FiChevronRight} className="w-5 h-5" />
-                                            </button>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/${adminMode ? 'admin' : 'tutor'}/report/${sub.id}`);
+                                                    }}
+                                                    className="px-3 py-1.5 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-colors"
+                                                    title="View Full Report"
+                                                >
+                                                    <SafeIcon icon={FiFileText} />
+                                                    Report
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/${adminMode ? 'admin' : 'tutor'}/report/${sub.id}?download=true`);
+                                                    }}
+                                                    className="px-3 py-1.5 bg-white text-gray-700 border border-gray-200 hover:bg-gray-100 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-colors"
+                                                    title="Download PDF"
+                                                >
+                                                    <SafeIcon icon={FiDownload} />
+                                                    PDF
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        navigate(`/${adminMode ? 'admin' : 'tutor'}/student-analysis/${sub.user_id}`);
+                                                    }}
+                                                    className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm ml-2"
+                                                    title="View Full Test History"
+                                                >
+                                                    <SafeIcon icon={FiChevronRight} className="w-5 h-5" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

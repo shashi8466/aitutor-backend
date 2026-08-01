@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -11,10 +12,11 @@ const {
     FiArrowLeft, FiBarChart2, FiBook, FiMail, FiCalendar,
     FiTrendingUp, FiTarget, FiActivity, FiArrowRight,
     FiPlus, FiX, FiUser, FiCheck, FiLayers, FiClock,
-    FiAward, FiCheckCircle, FiXCircle, FiInfo
+    FiAward, FiCheckCircle, FiXCircle, FiInfo, FiFileText
 } = FiIcons;
 
 const AdminGroupManagement = () => {
+    const navigate = useNavigate();
     const [viewMode, setViewMode] = useState('list'); // 'list', 'detail', or 'analytics'
     const [groups, setGroups] = useState([]);
     const [tutors, setTutors] = useState([]);
@@ -382,6 +384,7 @@ const AdminGroupManagement = () => {
 };
 
 const GroupDetailView = ({ group, onBack }) => {
+    const navigate = useNavigate();
     const [members, setMembers] = useState([]);
     const [analytics, setAnalytics] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -686,7 +689,7 @@ const GroupDetailView = ({ group, onBack }) => {
                                         <td className="p-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
-                                                    onClick={() => handleViewStudentHistory(member)}
+                                                    onClick={() => navigate(`/admin/student-analysis/${member.id}`)}
                                                     className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors border border-indigo-100 dark:border-indigo-900/50"
                                                     title="View all scores"
                                                 >
@@ -886,13 +889,33 @@ const GroupDetailView = ({ group, onBack }) => {
                                                         <p className="text-xs text-gray-500 font-medium">Attempted on {new Date(score.created_at).toLocaleDateString()} at {new Date(score.created_at).toLocaleTimeString()}</p>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-8">
+                                                <div className="flex items-center gap-6">
                                                     <div className="text-center">
                                                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Percentage</p>
                                                         <p className="text-xl font-black text-gray-900 dark:text-white">{score.raw_score_percentage}%</p>
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-blue-600 font-bold text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        VIEW ANALYSIS <SafeIcon icon={FiArrowRight} />
+                                                    <div className="flex flex-col gap-2">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/admin/report/${score.id}`);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-white dark:bg-gray-800 text-blue-600 border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg text-xs flex items-center justify-center gap-1 shadow-sm transition-colors whitespace-nowrap"
+                                                        >
+                                                            <SafeIcon icon={FiFileText} /> View Report
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/admin/report/${score.id}?download=true`);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-xs flex items-center justify-center gap-1 shadow-sm transition-colors whitespace-nowrap"
+                                                        >
+                                                            <SafeIcon icon={FiDownload} /> Download PDF
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 text-blue-600 font-bold text-[10px] opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                                        ANALYSIS <SafeIcon icon={FiArrowRight} />
                                                     </div>
                                                 </div>
                                             </div>

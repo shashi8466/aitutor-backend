@@ -406,8 +406,8 @@ const GroupAnalytics = ({ groupId, groupName, onBack, adminMode = false }) => {
                                         <td className="py-3 px-4 text-center">
                                             <button
                                                 onClick={() => {
-                                                    const path = adminMode ? '/admin/grades' : '/tutor/grades';
-                                                    navigate(`${path}?courseId=${analytics?.course_id}&studentId=${member.id}`);
+                                                    const path = adminMode ? '/admin' : '/tutor';
+                                                    navigate(`${path}/student-analysis/${member.id}`);
                                                 }}
                                                 className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-600 hover:text-white transition-all group"
                                                 title="View Detailed Test Analysis"

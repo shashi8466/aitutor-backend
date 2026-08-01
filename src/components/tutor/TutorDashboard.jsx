@@ -33,6 +33,9 @@ const StudentExamInterface = lazy(() => import('../student/ExamInterface'));
 const StudentACTFullLengthExam = lazy(() => import('../student/ACTFullLengthExam'));
 const StudentAdaptiveExamInterface = lazy(() => import('../student/AdaptiveExamInterface'));
 const StudentAdaptivePreTest = lazy(() => import('../student/AdaptivePreTest'));
+const TestReview = lazy(() => import('../student/agents/TestReview'));
+const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
+const FullTestReport = lazy(() => import('../common/FullTestReport'));
 
 import Skeleton from '../common/Skeleton';
 
@@ -331,6 +334,9 @@ const TutorDashboard = () => {
                             <Route path="enrollment-keys" element={<TutorEnrollmentKeys dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="invitations" element={<TutorInvitations dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="grades" element={<TutorGrades dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="student-analysis/:studentId" element={<TestReview basePath="/tutor" />} />
+                            <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
+                            <Route path="report/:submissionId" element={<FullTestReport adminMode={true} />} />
                             <Route path="settings" element={<TutorSettings dashboardData={dashboardData} isParentLoading={loading} />} />
                         </Routes>
                     </Suspense>

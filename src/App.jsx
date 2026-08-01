@@ -59,6 +59,7 @@ const SmartAITutor = lazy(() => import('./components/student/agents/SmartAITutor
 const PublicDemoCourseView = lazy(() => import('./components/demo/PublicDemoCourseView'));
 const PublicDemoQuizInterface = lazy(() => import('./components/demo/PublicDemoQuizInterface'));
 const DemoReport = lazy(() => import('./components/demo/DemoReport'));
+const FullTestReport = lazy(() => import('./components/common/FullTestReport'));
 
 // Notification Components - ADMIN ONLY
 // const NotificationPreferences = lazy(() => import('./components/common/NotificationPreferences'));
@@ -359,9 +360,15 @@ const App = () => {
             <Route path="/demo/:courseId/level/:level" element={<PublicDemoQuizInterface />} />
             <Route path="/demo/:courseId/report" element={<DemoReport />} />
 
-            {/* Student Routes */}
-            <Route
-              path="/student"
+              {/* Student Routes */}
+              <Route path="/student/report/:submissionId" element={
+                  <ProtectedRoute role="student">
+                      <FullTestReport />
+                  </ProtectedRoute>
+              } />
+              
+              <Route
+                path="/student"
               element={
                 <ProtectedRoute role="student">
                   <StudentLayout />

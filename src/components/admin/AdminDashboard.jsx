@@ -22,7 +22,9 @@ const AdminParentManagement = lazy(() => import('./AdminParentManagement'));
 const AdminNotificationManager = lazy(() => import('./AdminNotificationManager'));
 const AdminParentNotificationManager = lazy(() => import('./AdminParentNotificationManager'));
 const AdminPlanManagement = lazy(() => import('./AdminPlanManagement'));
+const TestReview = lazy(() => import('../student/agents/TestReview'));
 const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
+const FullTestReport = lazy(() => import('../common/FullTestReport'));
 const AdminEnrollmentKeys = lazy(() => import('./AdminEnrollmentKeys'));
 const AdminDemoLeads = lazy(() => import('./AdminDemoLeads'));
 
@@ -193,7 +195,9 @@ const AdminDashboard = () => {
             <Route path="/full-length-test/:id" element={<FullLengthTestEditPage />} />
             <Route path="/regular-course/:id" element={<RegularCourseEditPage />} />
             <Route path="/course/:id" element={<AdminCourseDetail />} />
+            <Route path="/student-analysis/:studentId" element={<TestReview basePath="/admin" />} />
             <Route path="/detailed-review/:submissionId" element={<DetailedTestReview />} />
+            <Route path="/report/:submissionId" element={<FullTestReport adminMode={true} />} />
             <Route path="/groups" element={<AdminGroupManagement />} />
             <Route path="/parents" element={<AdminParentManagement />} />
             <Route path="/notifications" element={<AdminNotificationManager />} />

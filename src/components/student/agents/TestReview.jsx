@@ -1,28 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
-import { gradingService } from '../../../services/api';
+import { gradingService, tutorService } from '../../../services/api';
 import { useAuth } from '../../../contexts/AuthContext';
 
-const { FiActivity, FiClock, FiAward, FiArrowRight, FiFileText, FiTrendingUp } = FiIcons;
+const { FiActivity, FiClock, FiAward, FiArrowRight, FiFileText, FiTrendingUp, FiDownload } = FiIcons;
 
-const TestReview = () => {
+const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { studentId: paramStudentId } = useParams();
+  const studentId = propStudentId || paramStudentId;
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) loadScores();
-  }, [user]);
+  }, [user, studentId]);
 
   const loadScores = async () => {
     try {
       setLoading(true);
-      const response = await gradingService.getAllMyScores();
-      setSubmissions(response.data.submissions || []);
+      if (studentId) {
+        // Admin or Tutor viewing a student's progress
+        const response = await tutorService.getStudentProgress(studentId);
+        setSubmissions(response.data.submissions || []);
+      } else {
+        // Student viewing their own scores
+        const response = await gradingService.getAllMyScores();
+        setSubmissions(response.data.submissions || []);
+      }
     } catch (error) {
       console.error("Failed to load test history", error);
     } finally {
@@ -160,13 +169,29 @@ const TestReview = () => {
                         {isSAT ? 'SAT Score' : 'Test Score'}
                       </p>
                     </div>
-                    <button
-                      onClick={() => navigate(`/student/detailed-review/${sub.id}`)}
-                      className="w-full lg:w-auto px-5 py-2.5 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-sm sm:text-base"
-                    >
-                      <SafeIcon icon={FiArrowRight} />
-                      Detailed Review
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto">
+                      <button
+                        onClick={() => navigate(`${basePath}/report/${sub.id}`)}
+                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base"
+                      >
+                        <SafeIcon icon={FiFileText} />
+                        View Report
+                      </button>
+                      <button
+                        onClick={() => navigate(`${basePath}/detailed-review/${sub.id}`)}
+                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-sm sm:text-base"
+                      >
+                        <SafeIcon icon={FiArrowRight} />
+                        Question-wise Analysis
+                      </button>
+                      <button
+                        onClick={() => navigate(`${basePath}/report/${sub.id}?download=true`)}
+                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base"
+                        title="Download PDF"
+                      >
+                        <SafeIcon icon={FiDownload} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
