@@ -76,7 +76,7 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
           {submissions.map((sub, idx) => {
             const score = sub.scaled_score || Math.round(200 + ((sub.raw_score_percentage || 0) / 100) * 600);
             const testDate = new Date(sub.test_date || sub.created_at);
-            const courseName = sub.courses?.name || 'General Test';
+            const courseName = sub.course?.name || sub.courses?.name || sub.courseName || sub.test_name || 'General Test';
             const isSAT = courseName.toLowerCase().includes('sat') || courseName.toLowerCase().includes('full length');
 
             // Determine performance level

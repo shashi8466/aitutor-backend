@@ -123,7 +123,7 @@ const DetailedTestReview = () => {
                           submission.is_adaptive || 
                           (submission.level && submission.level.toUpperCase() === 'ADAPTIVE');
 
-    const courseNameVal = submission.course?.name || '';
+    const courseNameVal = submission.course?.name || submission.courses?.name || submission.courseName || submission.test_name || '';
     const isACTTest = submission.isACT || 
                       String(courseNameVal).toUpperCase().includes('ACT') || 
                       (submission.course?.tutor_type && String(submission.course.tutor_type).toUpperCase().includes('ACT'));
@@ -236,7 +236,7 @@ const DetailedTestReview = () => {
                             <SafeIcon icon={FiBook} className="w-5 h-5 opacity-80" />
                             <p className="text-blue-100 text-sm font-bold">Subject</p>
                         </div>
-                        <p className="text-xl font-bold">{submission.course?.name || 'SAT Test'}</p>
+                        <p className="text-xl font-bold">{courseNameVal || 'SAT Test'}</p>
                     </div>
                     <div>
                         <div className="flex items-center gap-2 mb-2">

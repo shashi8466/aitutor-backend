@@ -60,7 +60,9 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
         
         // 2. Normalize response format
         const courseNameVal = submission?.course?.name || 
+                              submission?.courses?.name ||
                               submission?.courseName || 
+                              submission?.test_name ||
                               submission?.course?.tutor_type || 
                               '';
         const isACT = submission?.isACT || 
