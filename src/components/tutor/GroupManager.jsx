@@ -34,6 +34,13 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [selectedCourseId, setSelectedCourseId] = useState('');
     const [groupDescription, setGroupDescription] = useState('');
     const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+    
+    // Edit Form States
+    const [editGroupName, setEditGroupName] = useState('');
+    const [editCourseId, setEditCourseId] = useState('');
+    const [editGroupDescription, setEditGroupDescription] = useState('');
+    const [editGroupStatus, setEditGroupStatus] = useState('active');
+    const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' or 'students'
 
     useEffect(() => {
         if (dashboardData?.courses) {
@@ -139,11 +146,43 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         }
     };
 
-    const handleOpenManageMembers = async (group) => {
+    const handleOpenEditGroup = async (group) => {
         setSelectedGroup(group);
+        setEditGroupName(group.name);
+        setEditCourseId(group.course_id || '');
+        setEditGroupDescription(group.description || '');
+        setEditGroupStatus(group.status || 'active');
+        setActiveEditTab('settings');
         setSelectedStudentIds([]);
         setShowAddMemberModal(true);
-        await fetchGroupMembers(group.id);
+        fetchGroupMembers(group.id);
+    };
+
+    const handleUpdateGroup = async (e) => {
+        e.preventDefault();
+        try {
+            await tutorService.updateGroup(selectedGroup.id, {
+                name: editGroupName,
+                courseId: editCourseId,
+                description: editGroupDescription,
+                status: editGroupStatus
+            });
+            loadData();
+            alert('Group updated successfully!');
+            // We do not close the modal so they can continue managing students if needed
+        } catch (error) {
+            console.error('Error updating group:', error);
+            const errMsg = error.response?.data?.details || error.response?.data?.error || 'Failed to update group';
+            alert(`Error: ${errMsg}`);
+        }
+    };
+
+    const handleOpenManageMembers = async (group) => {
+        setSelectedGroup(group);
+        setActiveEditTab('students');
+        setSelectedStudentIds([]);
+        setShowAddMemberModal(true);
+        fetchGroupMembers(group.id);
     };
 
     const handleRemoveMember = async (groupId, studentId) => {
@@ -272,6 +311,12 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                         >
                                             <SafeIcon icon={FiUserPlus} /> Manage
                                         </button>
+                                        <button
+                                            onClick={() => handleOpenEditGroup(group)}
+                                            className="text-sm font-bold text-green-600 hover:text-green-700 flex items-center gap-1"
+                                        >
+                                            <SafeIcon icon={FiEdit2} /> Edit
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -382,17 +427,76 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                             <div className="flex justify-between items-center mb-6">
                                 <div>
                                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedGroup?.name}</h3>
-                                    <p className="text-sm text-gray-500">Manage group members</p>
+                                    <p className="text-sm text-gray-500">Edit group settings and members</p>
                                 </div>
                                 <button onClick={() => setShowAddMemberModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
                                     <SafeIcon icon={FiX} />
                                 </button>
                             </div>
 
+                            <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+                                <button
+                                    onClick={() => setActiveEditTab('settings')}
+                                    className={`pb-3 px-4 font-bold text-sm transition-colors border-b-2 ${activeEditTab === 'settings' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    Group Settings
+                                </button>
+                                <button
+                                    onClick={() => setActiveEditTab('students')}
+                                    className={`pb-3 px-4 font-bold text-sm transition-colors border-b-2 ${activeEditTab === 'students' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    Manage Students
+                                </button>
+                            </div>
+
                             <div className="flex-1 overflow-y-auto space-y-6">
-                                {/* Current Members - This part would need backend update to fetch actual member profiles */}
-                                <div>
-                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Available Students</h4>
+                                {activeEditTab === 'settings' ? (
+                                    <form onSubmit={handleUpdateGroup} className="space-y-4 pr-2">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Group Name</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                value={editGroupName}
+                                                onChange={(e) => setEditGroupName(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Course</label>
+                                            <select
+                                                required
+                                                value={editCourseId}
+                                                onChange={(e) => setEditCourseId(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            >
+                                                <option value="">Select a course</option>
+                                                {courses.map(course => (
+                                                    <option key={course.id} value={course.id}>{course.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                                            <textarea
+                                                value={editGroupDescription}
+                                                onChange={(e) => setEditGroupDescription(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                                rows="3"
+                                            ></textarea>
+                                        </div>
+                                        <div className="flex justify-end pt-4">
+                                            <button
+                                                type="submit"
+                                                className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
+                                            >
+                                                Save Changes
+                                            </button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div>
+                                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Available Students</h4>
                                     <div className="relative mb-4">
                                         <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                         <input
@@ -484,39 +588,42 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                             </>
                                         )}
                                     </div>
-                                </div>
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="pt-6 border-t border-gray-100 dark:border-gray-700 mt-6 bg-white dark:bg-gray-800">
-                                <div className="flex justify-between items-center mb-4">
-                                    <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                                        {selectedStudentIds.length} students selected
-                                    </p>
-                                    {selectedStudentIds.length > 0 && (
+                            {activeEditTab === 'students' && (
+                                <div className="pt-6 border-t border-gray-100 dark:border-gray-700 mt-6 bg-white dark:bg-gray-800">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                                            {selectedStudentIds.length} students selected
+                                        </p>
+                                        {selectedStudentIds.length > 0 && (
+                                            <button
+                                                onClick={() => setSelectedStudentIds([])}
+                                                className="text-xs font-bold text-red-600 hover:underline"
+                                            >
+                                                Clear All
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-3">
                                         <button
-                                            onClick={() => setSelectedStudentIds([])}
-                                            className="text-xs font-bold text-red-600 hover:underline"
+                                            onClick={() => setShowAddMemberModal(false)}
+                                            className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl"
                                         >
-                                            Clear All
+                                            Cancel
                                         </button>
-                                    )}
+                                        <button
+                                            onClick={handleAddMembers}
+                                            disabled={selectedStudentIds.length === 0}
+                                            className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none"
+                                        >
+                                            Add to Group
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => setShowAddMemberModal(false)}
-                                        className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleAddMembers}
-                                        disabled={selectedStudentIds.length === 0}
-                                        className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none"
-                                    >
-                                        Add to Group
-                                    </button>
-                                </div>
-                            </div>
+                            )}
                         </motion.div>
                     </div>
                 )}

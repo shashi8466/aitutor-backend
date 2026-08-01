@@ -492,6 +492,97 @@ router.post('/groups', async (req, res) => {
 });
 
 /**
+ * PUT /api/tutor/groups/:groupId
+ * Update a student group
+ */
+router.put('/groups/:groupId', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        const { name, courseId, description, status, visibility, tutor_notes } = req.body;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        if (!name) {
+            return res.status(400).json({ error: 'Group name is required' });
+        }
+
+        // Verify group belongs to tutor or tutor is admin
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        const isAdmin = profile?.role === 'admin';
+
+        const { data: group } = await supabase
+            .from('student_groups')
+            .select('created_by')
+            .eq('id', groupId)
+            .single();
+
+        if (!group) {
+            return res.status(404).json({ error: 'Group not found' });
+        }
+
+        if (!isAdmin && group.created_by !== userId) {
+            return res.status(403).json({ error: 'Not authorized to edit this group' });
+        }
+
+        const updateData = {
+            name,
+            description
+        };
+
+        if (courseId) {
+            updateData.course_id = parseInt(courseId);
+        }
+        
+        if (status !== undefined) updateData.status = status;
+        if (visibility !== undefined) updateData.visibility = visibility;
+        if (tutor_notes !== undefined) updateData.tutor_notes = tutor_notes;
+
+        const { data: updatedGroup, error } = await supabase
+            .from('student_groups')
+            .update(updateData)
+            .eq('id', groupId)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ [GROUPS] Error updating group:', error);
+            // If the error is about a column not existing, we can ignore the extra fields
+            if (error.code === '42703') { // undefined_column
+                const basicUpdateData = { name, description };
+                if (courseId) basicUpdateData.course_id = parseInt(courseId);
+                
+                const { data: basicUpdated, error: basicError } = await supabase
+                    .from('student_groups')
+                    .update(basicUpdateData)
+                    .eq('id', groupId)
+                    .select()
+                    .single();
+                    
+                if (basicError) {
+                    return res.status(500).json({ error: 'Failed to update group' });
+                }
+                return res.json({ group: basicUpdated });
+            }
+            return res.status(500).json({ error: 'Failed to update group' });
+        }
+
+        res.json({ group: updatedGroup });
+
+    } catch (error) {
+        console.error('Update group error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * POST /api/tutor/groups/:groupId/members
  * Add students to a group
  */

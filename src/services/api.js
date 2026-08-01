@@ -1328,6 +1328,10 @@ export const tutorService = {
     clearTutorCache();
     return axios.post('/api/tutor/groups', data);
   },
+  updateGroup: async (groupId, data) => {
+    clearTutorCache();
+    return axios.put(`/api/tutor/groups/${groupId}`, data);
+  },
   addGroupMembers: async (groupId, studentIds) => {
     clearTutorCache();
     return axios.post(`/api/tutor/groups/${groupId}/members`, { studentIds });
