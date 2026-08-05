@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
@@ -8,22 +8,30 @@ const { FiPrinter, FiArrowLeft, FiCheck, FiX, FiMinus, FiCalendar, FiClock, FiMo
 const DemoReport = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [reportData, setReportData] = useState(null);
 
     useEffect(() => {
         try {
-            const savedProgress = localStorage.getItem(`demo_progress_${courseId}`);
-            if (savedProgress) {
-                setReportData(JSON.parse(savedProgress));
+            if (location.state?.reportData) {
+                setReportData(location.state.reportData);
+                if (location.state.autoPrint) {
+                    setTimeout(() => window.print(), 1000);
+                }
             } else {
-                // Redirect back if no progress
-                navigate(`/demo/${courseId}`);
+                const savedProgress = localStorage.getItem(`demo_progress_${courseId}`);
+                if (savedProgress) {
+                    setReportData(JSON.parse(savedProgress));
+                } else {
+                    // Redirect back if no progress
+                    navigate(`/demo/${courseId}`);
+                }
             }
         } catch (e) {
             console.error("Failed to load report data", e);
             navigate(`/demo/${courseId}`);
         }
-    }, [courseId, navigate]);
+    }, [courseId, navigate, location.state]);
 
     if (!reportData) return <div className="min-h-screen bg-white flex items-center justify-center">Loading Report...</div>;
 
@@ -46,6 +54,7 @@ const DemoReport = () => {
         Object.keys(moduleDetails).forEach(mKey => {
             const isRW = mKey.startsWith('rw');
             const mod = moduleDetails[mKey];
+            if (!mod) return; // Skip if module was not taken
             const targetTopics = isRW ? rwTopics : mathTopics;
 
             if (isRW) {
@@ -161,7 +170,7 @@ const DemoReport = () => {
             {/* NO-PRINT HEADER */}
             <div className="bg-white border-b p-4 flex justify-between items-center sticky top-0 z-50 print:hidden shadow-sm">
                 <button 
-                    onClick={() => navigate(`/demo/${courseId}`)}
+                    onClick={() => location.state?.isAdminView ? navigate('/admin/demo-leads') : navigate(`/demo/${courseId}`)}
                     className="flex items-center gap-2 text-gray-600 hover:text-black font-bold"
                 >
                     <SafeIcon icon={FiArrowLeft} /> Back to Dashboard
@@ -374,28 +383,38 @@ const DemoReport = () => {
                                         <div className="font-black text-center text-gray-800 text-[10px] mb-3 pb-2 border-b border-gray-200 leading-tight uppercase tracking-wider print:mb-2 print:pb-1">
                                             {getModuleLabel(mKey)}
                                         </div>
-                                        {/* Column headers */}
-                                        <div className="flex text-[8px] font-black text-gray-400 text-center mb-2 uppercase tracking-tighter w-full">
-                                            <span className="w-[15%]">#</span>
-                                            <span className="w-[30%] leading-none">Your<br/>Ans</span>
-                                            <span className="w-[30%] leading-none">Cor<br/>rect</span>
-                                            <span className="w-[25%]">Tag</span>
-                                        </div>
-                                        {/* Rows */}
-                                        <div className="flex-1 space-y-0.5">
-                                            {qs.map((q, idx) => (
-                                                <div key={idx} className="flex text-[9px] text-center py-1 border-b border-gray-100/50 items-center w-full print:py-0.5">
-                                                    <span className="w-[15%] text-gray-400 font-bold">{idx + 1}</span>
-                                                    <div className="w-[30%] flex justify-center">
-                                                        <span className={`w-4 h-4 flex items-center justify-center rounded-sm text-white font-black text-[8px] ${q.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}>
-                                                            {q.userAnswer || '—'}
-                                                        </span>
-                                                    </div>
-                                                    <span className="w-[30%] text-gray-700 font-bold">{q.correctAnswer || '—'}</span>
-                                                    <span className="w-[25%] text-gray-400 text-[7px] font-medium truncate px-0.5">{(q.topic || '').substring(0, 4)}</span>
+                                        {qs.length === 0 ? (
+                                            <div className="flex-1 flex flex-col items-center justify-center py-10 text-gray-400 text-center px-4">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                <span className="text-[10px] font-bold">Answer data not available</span>
+                                                <span className="text-[8px] mt-1 text-gray-300">from earlier test version</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* Column headers */}
+                                                <div className="flex text-[8px] font-black text-gray-400 text-center mb-2 uppercase tracking-tighter w-full">
+                                                    <span className="w-[15%]">#</span>
+                                                    <span className="w-[30%] leading-none">Your<br/>Ans</span>
+                                                    <span className="w-[30%] leading-none">Cor<br/>rect</span>
+                                                    <span className="w-[25%]">Tag</span>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                {/* Rows */}
+                                                <div className="flex-1 space-y-0.5">
+                                                    {qs.map((q, idx) => (
+                                                        <div key={idx} className="flex text-[9px] text-center py-1 border-b border-gray-100/50 items-center w-full print:py-0.5">
+                                                            <span className="w-[15%] text-gray-400 font-bold">{idx + 1}</span>
+                                                            <div className="w-[30%] flex justify-center">
+                                                                <span className={`w-4 h-4 flex items-center justify-center rounded-sm text-white font-black text-[8px] ${q.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}>
+                                                                    {q.userAnswer || '—'}
+                                                                </span>
+                                                            </div>
+                                                            <span className="w-[30%] text-gray-700 font-bold">{q.correctAnswer || '—'}</span>
+                                                            <span className="w-[25%] text-gray-400 text-[7px] font-medium truncate px-0.5">{(q.topic || '').substring(0, 4)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 );
                             })}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -6,12 +7,41 @@ import supabase from '../../supabase/supabase';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
 
-const { FiDownload, FiRefreshCw, FiAlertCircle, FiLoader, FiCheckCircle, FiXCircle, FiTrash2 } = FiIcons;
+const { FiDownload, FiRefreshCw, FiAlertCircle, FiLoader, FiCheckCircle, FiXCircle, FiTrash2, FiFileText } = FiIcons;
 
 const AdminDemoLeads = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const buildReportData = (lead) => {
+    return {
+      studentName: lead.full_name || 'Demo Student',
+      finalScores: {
+        totalScore: lead.score_details?.comprehensive?.finalPredictedScore || lead.final_combined_score,
+        rwScore: lead.score_details?.comprehensive?.rwScore,
+        mathScore: lead.score_details?.comprehensive?.mathScore,
+        overallAccuracy: lead.score_details?.comprehensive?.overallAccuracy,
+        moduleDetails: lead.score_details?.allLevels || {},
+        completedAt: lead.created_at
+      },
+      moduleHistory: lead.score_details?.comprehensive?.moduleHistory || [],
+      moduleAnswers: lead.score_details?.moduleAnswers || {},
+      questionTimes: lead.score_details?.questionTimes || {},
+      moduleDurations: lead.score_details?.moduleDurations || {},
+    };
+  };
+
+  const handleViewReport = (lead) => {
+    const reportData = buildReportData(lead);
+    navigate(`/demo/${lead.course_id}/report`, { state: { reportData, isAdminView: true } });
+  };
+
+  const handleDownloadReport = (lead) => {
+    const reportData = buildReportData(lead);
+    navigate(`/demo/${lead.course_id}/report`, { state: { reportData, isAdminView: true, autoPrint: true } });
+  };
 
   useEffect(() => {
     loadLeads();
@@ -255,6 +285,24 @@ const AdminDemoLeads = () => {
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600">
                             <SafeIcon icon={FiAlertCircle} className="w-3 h-3" /> In Progress
                           </span>
+                        )}
+                        {lead.final_combined_score > 0 && (
+                          <>
+                            <button
+                              onClick={() => handleViewReport(lead)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                              title="View Report"
+                            >
+                              <SafeIcon icon={FiFileText} className="w-3.5 h-3.5" /> View Report
+                            </button>
+                            <button
+                              onClick={() => handleDownloadReport(lead)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors border border-green-200"
+                              title="Download PDF"
+                            >
+                              <SafeIcon icon={FiDownload} className="w-3.5 h-3.5" /> Download PDF
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => handleDeleteLead(lead.id)}

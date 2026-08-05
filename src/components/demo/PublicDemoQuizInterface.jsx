@@ -601,7 +601,26 @@ const PublicDemoQuizInterface = () => {
                      (courseInfo?.category?.toLowerCase()?.includes('sat') || courseInfo?.name?.toLowerCase()?.includes('sat')),
       scoringMethod: 'weighted_adaptive_routing', // Updated to reflect routing-based scoring
       routingPath: hasHardModules ? 'hard' : 'easy',
-      maxAchievableScore: hasHardModules ? 1600 : 1400
+      maxAchievableScore: hasHardModules ? 1600 : 1400,
+      moduleAnswers: (() => {
+        const data = {};
+        moduleHistory.forEach(mKey => {
+          const mQuestions = modules[mKey] || [];
+          data[mKey] = mQuestions.map(q => ({
+            id: q.id,
+            questionNumber: q.questionNumber || q.order,
+            correctAnswer: q.correctAnswer,
+            userAnswer: userAnswers[q.id] || null,
+            topic: q.topic || 'General',
+            isCorrect: userAnswers[q.id] && q.correctAnswer &&
+              userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
+            timeSpent: questionTimes[q.id] || 0
+          }));
+        });
+        return data;
+      })(),
+      questionTimes: questionTimes,
+      moduleDurations: moduleDurations
     };
 
     try {
@@ -642,20 +661,7 @@ const PublicDemoQuizInterface = () => {
         };
         savedProgress.moduleHistory = moduleHistory;
         // Save per-module question data (answers + time) for Answer Summary & Time Analysis pages
-        savedProgress.moduleAnswers = {};
-        moduleHistory.forEach(mKey => {
-          const mQuestions = modules[mKey] || [];
-          savedProgress.moduleAnswers[mKey] = mQuestions.map(q => ({
-            id: q.id,
-            questionNumber: q.questionNumber || q.order,
-            correctAnswer: q.correctAnswer,
-            userAnswer: userAnswers[q.id] || null,
-            topic: q.topic || 'General',
-            isCorrect: userAnswers[q.id] && q.correctAnswer &&
-              userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
-            timeSpent: questionTimes[q.id] || 0
-          }));
-        });
+        savedProgress.moduleAnswers = scoreDetails.moduleAnswers;
         // Save time tracking data
         savedProgress.questionTimes = questionTimes;
         savedProgress.moduleDurations = moduleDurations;
@@ -765,8 +771,16 @@ const PublicDemoQuizInterface = () => {
                   <button onClick={() => setShowCheckWork(false)} className="px-8 py-3.5 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[15px] hover:bg-slate-50 transition-all flex items-center gap-3">
                     <SafeIcon icon={FiChevronLeft} /> Back to Questions
                   </button>
-                  <button onClick={handleNextModule} className="px-10 py-3.5 bg-blue-600 text-white rounded-full font-black text-[15px] hover:bg-blue-700 transition-all flex items-center gap-3 shadow-xl">
-                    {moduleHistory.length < 4 ? 'Next Module' : 'Submit Test'} <SafeIcon icon={FiChevronRight} />
+                  <button onClick={handleNextModule} disabled={isSubmittingLead} className="px-10 py-3.5 bg-blue-600 text-white rounded-full font-black text-[15px] hover:bg-blue-700 transition-all flex items-center gap-3 shadow-xl disabled:opacity-70 disabled:cursor-not-allowed">
+                    {isSubmittingLead ? (
+                      <>
+                        <SafeIcon icon={FiRefreshCw} className="animate-spin w-5 h-5" /> Submitting...
+                      </>
+                    ) : (
+                      <>
+                        {moduleHistory.length < 4 ? 'Next Module' : 'Submit Test'} <SafeIcon icon={FiChevronRight} />
+                      </>
+                    )}
                   </button>
               </div>
             </div>
