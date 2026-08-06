@@ -894,22 +894,32 @@ const CourseView = () => {
   if (!course) return <div className="p-12 text-center text-gray-500 font-bold">Course not found</div>;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] pb-12">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-10 text-center px-4 sm:px-0">
-          <h1 className="text-2xl sm:text-4xl font-black text-slate-900 mb-3 tracking-tight">
-            <span className={isACTFullLengthCourse(course) ? "text-slate-900" : isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>
-              {isACTFullLengthCourse(course) ? "ACT FULL-LENGTH TEST" : course.name}
-            </span>
-          </h1>
-          {!isACTFullLengthCourse(course) && (
-            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg font-bold uppercase tracking-widest">
-              {isSequentialCourse 
-                  ? "Complete each unit's quiz with ≥5% to unlock the next unit."
-                  : "Complete each level to unlock the next difficulty."}
-            </p>
-          )}
+    <div className={`min-h-screen pb-12 relative ${course?.is_adaptive ? 'bg-[#f8f9fc]' : 'bg-[#FAFAFA]'}`}>
+      {course?.is_adaptive && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-[-10%] right-[-5%] w-[60vw] h-[60vw] rounded-full bg-gradient-to-br from-indigo-200/20 to-purple-200/20 blur-[100px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-gradient-to-tr from-blue-200/20 to-indigo-200/20 blur-[100px]" />
+          <div className="absolute inset-0 opacity-[0.2]" style={{ backgroundImage: 'radial-gradient(#5b42f3 1.5px, transparent 1.5px)', backgroundSize: '32px 32px' }}></div>
         </div>
+      )}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        
+        {course?.is_adaptive ? null : (
+          <div className="mb-10 text-center px-4 sm:px-0 flex flex-col items-center">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 tracking-tight">
+              <span className={isACTFullLengthCourse(course) ? "text-slate-900 uppercase" : isSequentialCourse ? "text-indigo-600" : "text-[#E53935]"}>
+                {isACTFullLengthCourse(course) ? "ACT FULL-LENGTH TEST" : course.name}
+              </span>
+            </h1>
+            {!isACTFullLengthCourse(course) && (
+              <p className="text-slate-500 text-sm sm:text-base font-normal uppercase tracking-widest font-bold">
+                {isSequentialCourse 
+                    ? "Complete each unit's quiz with ≥5% to unlock the next unit."
+                    : "Complete each level to unlock the next difficulty."}
+              </p>
+            )}
+          </div>
+        )}
 
         {isACTFullLengthCourse(course) ? (
           <motion.div
@@ -995,7 +1005,7 @@ const CourseView = () => {
               <div className="absolute bottom-[-50%] right-[-10%] w-[400px] h-[400px] bg-emerald-600 rounded-full blur-[100px]"></div>
             </div>
           </motion.div>
-        ) : (
+        ) : course.is_adaptive ? null : (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1093,41 +1103,83 @@ const CourseView = () => {
             </div>
           </div>
         ) : course.is_adaptive ? (
-          <div className="space-y-10 px-4 sm:px-0">
-            <div className="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 text-center relative overflow-hidden">
-               <div className="relative z-10">
-                 <div className="w-16 h-16 sm:w-20 sm:h-20 bg-purple-100 dark:bg-purple-900/20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md transform rotate-12">
-                   <SafeIcon icon={FiTarget} className="w-8 h-8 sm:w-10 sm:h-10 text-purple-700 dark:text-purple-400" />
-                 </div>
-                 <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 uppercase tracking-tight">FULL LENGTH TEST</h2>
-                 <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-lg mb-8 max-w-2xl mx-auto font-medium">
-                   This is a full-length, FULL LENGTH TEST containing Reading & Writing and Math sections. The difficulty of the second module will adapt based on your performance in the first module.
-                 </p>
-                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button
-                      onClick={() => navigate(`${routeBase}/adaptive-pre-test/${courseId}`)}
-                      className="w-full sm:w-auto px-10 py-4 bg-purple-600 text-white font-black uppercase tracking-widest text-xs sm:text-sm rounded-xl hover:bg-purple-700 transition-all shadow-lg hover:shadow-purple-500/20 hover:-translate-y-1"
-                    >
-                      Start Full-Length Test
-                    </button>
-                 </div>
-               </div>
+          <div className="space-y-10 mx-4 sm:mx-0">
+            
+            {/* Header for Adaptive */}
+            <div className="text-center flex flex-col items-center mt-4 mb-8">
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mb-2 tracking-tight uppercase">
+                {course.name}
+              </h1>
+              <p className="text-slate-600 text-sm sm:text-base font-medium">
+                Complete each level to unlock the next difficulty.
+              </p>
+              <div className="w-12 h-1 bg-[#5b42f3] rounded-full mt-4"></div>
             </div>
 
-            <div id="preparation-materials" className="space-y-6">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <SafeIcon icon={FiIcons.FiBook || FiInfo} className="text-purple-600" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              
+              {/* Left Card: Full Length Test Info */}
+              <div className="bg-gradient-to-br from-[#5b42f3] to-[#422bc7] p-8 sm:p-10 rounded-3xl border border-indigo-400/20 relative overflow-hidden flex flex-col shadow-xl shadow-indigo-500/20">
+                <div className="relative z-10 flex flex-col h-full items-start text-left">
+                  <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mb-8 shadow-sm text-[#5b42f3]">
+                    <SafeIcon icon={FiTarget} className="w-8 h-8" />
+                  </div>
+                  <h2 className="text-xl font-bold text-white mb-4 uppercase tracking-tight">FULL LENGTH TEST</h2>
+                  <p className="text-indigo-100/90 text-sm sm:text-base mb-8 font-normal leading-relaxed flex-1">
+                    This is a full-length SAT test containing Reading & Writing and Math sections. The difficulty of the second module will adapt based on your performance in the first module.
+                  </p>
+                  <button
+                    onClick={() => navigate(`${routeBase}/adaptive-pre-test/${courseId}`)}
+                    className="bg-white text-[#5b42f3] font-bold uppercase tracking-widest text-xs px-8 py-4 rounded-xl hover:bg-slate-50 transition-colors shadow-lg shadow-black/10 w-full sm:w-auto self-start flex items-center justify-center"
+                  >
+                    START FULL-LENGTH TEST <span className="ml-2 font-black">&gt;</span>
+                  </button>
+                </div>
+                {/* Subtle wave/dot pattern inside */}
+                <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'radial-gradient(circle at 100% 0%, #ffffff 20%, transparent 21%)', backgroundSize: '15px 15px' }}></div>
+                <div className="absolute bottom-[-30%] right-[-10%] w-[400px] h-[400px] bg-white/10 rounded-full blur-[80px] pointer-events-none"></div>
+              </div>
+
+              {/* Right Card: Score */}
+              <div className="bg-white p-8 sm:p-10 rounded-3xl shadow-sm border border-slate-200/70 flex flex-col items-center justify-center text-center">
+                <div className="flex flex-col items-center w-full">
+                  <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-purple-100 text-purple-600">
+                    <SafeIcon icon={FiIcons.FiBarChart2 || FiTrendingUp} className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-widest mb-6">{scoreData.label}</h3>
+                  
+                  <div className="bg-slate-50/70 border border-slate-100 p-8 rounded-2xl w-full max-w-sm flex flex-col items-center justify-center min-h-[160px]">
+                    {isCourseCompleted ? (
+                      <div className="text-5xl font-black text-slate-800 tracking-tighter">
+                        {scoreData.score}
+                      </div>
+                    ) : (
+                      <>
+                        <SafeIcon icon={FiLock} className="w-6 h-6 text-purple-500 mb-4" />
+                        <span className="text-[10px] font-bold text-slate-600 tracking-widest uppercase leading-loose">
+                          Complete all levels<br/>to reveal score
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Preparation Materials Section */}
+            <div id="preparation-materials" className="bg-white p-8 sm:p-10 rounded-[2rem] shadow-sm border border-slate-200/70 mt-6">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-3 mb-8">
+                <SafeIcon icon={FiIcons.FiBookOpen || FiIcons.FiBook} className="text-purple-600 w-5 h-5" />
                 Preparation & Study Materials
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
                 {[
                   { section: 'Reading & Writing', levels: ['Moderate', 'Easy', 'Hard'] },
                   { section: 'Math', levels: ['Moderate', 'Easy', 'Hard'] }
                 ].map((sec) => (
                   <div key={sec.section} className="space-y-4">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-                      <div className="w-1 h-4 bg-purple-500 rounded-full"></div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-widest text-purple-600 border-b-2 border-purple-600 pb-2 inline-block mb-2">
                       {sec.section}
                     </h4>
                     <div className="space-y-3">
@@ -1136,25 +1188,28 @@ const CourseView = () => {
                         const video = uploads.find(u => u.section === (sec.section.includes('Read') ? 'reading_writing' : 'math') && u.level === level && u.category === 'video_lecture');
                         
                         return (
-                          <div key={level} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="font-bold text-gray-800">{level} Module</div>
-                            <div className="flex gap-2">
+                          <div key={level} className="bg-white p-3.5 px-4 rounded-xl border border-slate-100 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-purple-200 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <SafeIcon icon={FiIcons.FiFileText} className="w-4 h-4 text-purple-500" />
+                              <span className="font-semibold text-sm text-slate-800">{level} Module</span>
+                            </div>
+                            <div className="flex items-center gap-2">
                               {study ? (
-                                <a href={`${study.file_url}#toolbar=0`} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
-                                  <SafeIcon icon={FiIcons.FiFileText || FiInfo} /> PDF
+                                <a href={`${study.file_url}#toolbar=0`} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors flex items-center gap-1.5 text-[10px] font-bold uppercase">
+                                  <SafeIcon icon={FiIcons.FiFileText} className="w-3 h-3" /> PDF
                                 </a>
                               ) : (
-                                <span className="p-2 bg-gray-50 text-gray-300 rounded-lg text-xs font-bold uppercase flex items-center gap-2 cursor-not-allowed">
-                                  <SafeIcon icon={FiIcons.FiFileText || FiInfo} /> No PDF
+                                <span className="px-3 py-1.5 text-slate-400 bg-slate-50/50 rounded-md text-[10px] font-bold uppercase flex items-center gap-1.5 cursor-not-allowed">
+                                  <SafeIcon icon={FiIcons.FiFileText} className="w-3 h-3" /> No PDF
                                 </span>
                               )}
                               {video ? (
-                                <Link to={`${routeBase}/course/${courseId}/level/${level.toLowerCase()}/video?section=${sec.section.includes('Read') ? 'reading_writing' : 'math'}`} className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors flex items-center gap-2 text-xs font-bold uppercase">
-                                  <SafeIcon icon={FiIcons.FiPlay || FiInfo} /> Video
+                                <Link to={`${routeBase}/course/${courseId}/level/${level.toLowerCase()}/video?section=${sec.section.includes('Read') ? 'reading_writing' : 'math'}`} className="px-3 py-1.5 bg-purple-50 text-purple-600 rounded-md hover:bg-purple-100 transition-colors flex items-center gap-1.5 text-[10px] font-bold uppercase">
+                                  <SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> Video
                                 </Link>
                               ) : (
-                                <span className="p-2 bg-gray-50 text-gray-300 rounded-lg text-xs font-bold uppercase flex items-center gap-2 cursor-not-allowed">
-                                  <SafeIcon icon={FiIcons.FiPlay || FiInfo} /> No Video
+                                <span className="px-3 py-1.5 text-slate-400 bg-slate-50/50 rounded-md text-[10px] font-bold uppercase flex items-center gap-1.5 cursor-not-allowed">
+                                  <SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> No Video
                                 </span>
                               )}
                             </div>

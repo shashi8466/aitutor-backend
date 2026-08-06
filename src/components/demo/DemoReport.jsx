@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import logoImg from '../../../public/logo.png';
+import TransparentLogo from '../common/TransparentLogo';
 
 const { FiPrinter, FiArrowLeft, FiCheck, FiX, FiMinus, FiCalendar, FiClock, FiMonitor, FiBarChart2 } = FiIcons;
 
@@ -175,7 +177,6 @@ const DemoReport = () => {
                 >
                     <SafeIcon icon={FiArrowLeft} /> Back to Dashboard
                 </button>
-                <div className="font-black text-xl tracking-tighter">AIPrep365 <span className="text-[#E53935]">REPORTS</span></div>
                 <button 
                     onClick={handlePrint}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-bold shadow-lg transition-all"
@@ -190,12 +191,15 @@ const DemoReport = () => {
                 <div className="bg-white shadow-2xl overflow-hidden mb-8 md:mb-12 print:mb-0 print:shadow-none print:break-after-page print:break-inside-avoid-page print:h-screen flex flex-col w-full relative p-4 md:p-8">
                     
                     {/* Top Browser-like Header */}
-                    <div className="flex justify-between items-center text-[10px] text-gray-400 mb-2 px-2">
-                        <div className="flex items-center gap-1">
+                    <div className="grid grid-cols-3 items-center text-[10px] text-gray-400 mb-2 px-2">
+                        <div className="flex items-center gap-1 justify-start">
                              <SafeIcon icon={FiCalendar} className="text-[10px]" />
                              <span>{new Date().toLocaleDateString()}, {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                         </div>
-                        <div className="font-bold tracking-tight">AIPrep365</div>
+                        <div className="flex justify-center items-center h-16 md:h-20">
+                             <TransparentLogo src={logoImg} className="h-full w-64" />
+                        </div>
+                        <div></div>
                     </div>
 
                     <div className="flex-[3] bg-gradient-to-br from-[#1a237e] via-[#311b92] to-[#e65100] p-8 md:p-16 flex flex-col relative z-10 rounded-xl" style={{ color: 'white' }}>
@@ -204,7 +208,7 @@ const DemoReport = () => {
                             <div className="space-y-3 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.9)' }}>
                                 <div className="flex items-center gap-3">
                                     <SafeIcon icon={FiCalendar} className="text-lg opacity-80" />
-                                    <span>{formatDate(completedAt)} (Demo FULL LENGTH TEST)</span>
+                                    <span>{formatDate(completedAt)} (FULL LENGTH TEST)</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <SafeIcon icon={FiMonitor} className="text-lg opacity-80" />
@@ -214,9 +218,6 @@ const DemoReport = () => {
                                     <SafeIcon icon={FiClock} className="text-lg opacity-80" />
                                     <span>Pace: Standard</span>
                                 </div>
-                            </div>
-                            <div className="bg-white px-5 py-3 rounded-xl flex items-center justify-center shadow-lg">
-                                <span className="text-[#E53935] font-black tracking-tighter text-2xl" style={{ WebkitTextFillColor: '#E53935' }}>AIPrep365</span>
                             </div>
                         </div>
 
@@ -272,7 +273,7 @@ const DemoReport = () => {
                             </div>
                          </div>
                          <div className="text-center w-full text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-16">
-                             © AIPrep365 Demo Report
+                             © AIPrep365 Test Report
                          </div>
                     </div>
                 </div>

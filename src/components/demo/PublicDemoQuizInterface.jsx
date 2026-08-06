@@ -325,9 +325,7 @@ const PublicDemoQuizInterface = () => {
     const section = detectSection();
     const difficulty = currentModuleKey.split('_')[1];
     if (difficulty === 'moderate') return `${section} - Part 1`;
-    if (difficulty === 'easy') return `${section} - E`;
-    if (difficulty === 'hard') return `${section} - H`;
-    return `${section} - ${difficulty ? difficulty.toUpperCase() : ''}`;
+    return `${section} - Part 2`;
   };
 
   const formatTime = (seconds) => {
@@ -850,7 +848,7 @@ const PublicDemoQuizInterface = () => {
         </div>
         
         <div className="p-8 border-t border-white/5">
-          <p className="text-gray-500 font-bold text-lg">Demo User</p>
+          <p className="text-gray-500 font-bold text-lg">{leadDetails?.fullName || JSON.parse(localStorage.getItem(`demo_lead_${courseId}`) || '{}').fullName || 'Demo User'}</p>
         </div>
       </div>
     );
@@ -990,7 +988,7 @@ const PublicDemoQuizInterface = () => {
       </main>
 
       <footer>
-        <div className="text-[10px] sm:text-sm font-bold flex-1 text-slate-900 truncate max-w-[80px] sm:max-w-none">Demo User</div>
+        <div className="text-[10px] sm:text-sm font-bold flex-1 text-slate-900 truncate max-w-[80px] sm:max-w-none">{leadDetails?.fullName || JSON.parse(localStorage.getItem(`demo_lead_${courseId}`) || '{}').fullName || 'Demo User'}</div>
         <div className="relative flex justify-center shrink-0 mx-2">
           <button onClick={() => setShowNavigation(!showNavigation)} className="bg-black text-white px-3 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold flex items-center gap-2 sm:gap-3">
               <span className="hidden sm:inline">Question </span>{currentQuestionIndex + 1}<span className="sm:hidden"> / </span><span className="hidden sm:inline"> of </span>{questions.length}

@@ -221,4 +221,4 @@ const NotificationCard = ({ n, handleAction, userRole, isModal = false }) => {
     );
 };
 
-export default DashboardNotifications;
+export default React.memo(DashboardNotifications);

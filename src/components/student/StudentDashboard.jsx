@@ -105,52 +105,34 @@ const StudentDashboard = () => {
     }
     
     try {
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => {
-        abortController.abort();
-        setEnrollmentsLoaded(true);
-        setProgressLoaded(true);
-        setPlanLoaded(true);
-        setSubmissionsLoaded(true);
-        setLoading(false);
-      }, 20000);
-      
-      enrollmentService.getStudentEnrollments(user.id)
-        .then(res => {
-          setRawData(prev => ({ ...prev, enrollments: res.data || [] }));
-          setEnrollmentsLoaded(true);
-        })
-        .catch(() => setEnrollmentsLoaded(true));
-      
-      progressService.getAllUserProgress(user.id)
-        .then(res => {
-          setRawData(prev => ({ ...prev, progress: res.data || [] }));
-          setProgressLoaded(true);
-        })
-        .catch(() => setProgressLoaded(true));
-      
-      planService.getPlan(user.id)
-        .then(res => {
-          setRawData(prev => ({ ...prev, plan: res.data || null }));
-          setPlanLoaded(true);
-        })
-        .catch(() => setPlanLoaded(true));
-      
-      gradingService.getAllMyScores(user.id)
-        .then(res => {
-          setRawData(prev => ({ ...prev, submissions: res.data?.submissions || [] }));
-          setSubmissionsLoaded(true);
-        })
-        .catch(() => setSubmissionsLoaded(true));
+      const [enrollmentsRes, progressRes, planRes, submissionsRes] = await Promise.allSettled([
+        enrollmentService.getStudentEnrollments(user.id),
+        progressService.getAllUserProgress(user.id),
+        planService.getPlan(user.id),
+        gradingService.getAllMyScores(user.id)
+      ]);
 
-      setTimeout(() => setLoading(false), 300);
+      const enrollments = enrollmentsRes.status === 'fulfilled' ? (enrollmentsRes.value?.data || []) : [];
+      const progress = progressRes.status === 'fulfilled' ? (progressRes.value?.data || []) : [];
+      const plan = planRes.status === 'fulfilled' ? (planRes.value?.data || null) : null;
+      const submissions = submissionsRes.status === 'fulfilled' ? (submissionsRes.value?.data?.submissions || []) : [];
 
-      return () => {
-        clearTimeout(timeoutId);
-        abortController.abort();
-      };
+      setRawData({
+        enrollments,
+        progress,
+        plan,
+        submissions
+      });
+      
+      setEnrollmentsLoaded(true);
+      setProgressLoaded(true);
+      setPlanLoaded(true);
+      setSubmissionsLoaded(true);
+      
     } catch (err) {
-      setError(err.message);
+      console.error('Failed to load dashboard data:', err);
+      setError(err.message || 'Failed to load dashboard data');
+    } finally {
       setLoading(false);
     }
   };

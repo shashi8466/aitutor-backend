@@ -1793,54 +1793,46 @@ router.get('/leaderboard/:courseId', async (req, res) => {
         const category = getCategory(course?.name, course?.tutor_type);
         const maxScore = (course?.name?.toUpperCase().includes('ENGLISH') || course?.name?.toUpperCase().includes('MATH') || course?.name?.toUpperCase().includes('RW')) ? 800 : 1600;
 
-        // 2. Fetch ALL progress for this course
-        const { data: allProgress, error: progressError } = await supabase
-            .from('student_progress')
+        // 2. Fetch ALL test submissions for this course
+        const { data: allSubmissions, error: subError } = await supabase
+            .from('test_submissions')
             .select(`
                 user_id,
-                score,
-                level,
-                profiles!user_id(id, name)
+                scaled_score,
+                profiles!inner(id, name, role)
             `)
-            .eq('course_id', courseId);
+            .eq('course_id', courseId)
+            .eq('profiles.role', 'student');
 
-        if (progressError) {
-            console.error('Leaderboard fetch error:', progressError);
+        if (subError) {
+            console.error('Leaderboard fetch error:', subError);
             return res.status(500).json({ error: 'Failed to fetch leaderboard' });
         }
 
-        // 3. Group by user and calculate WEIGHTED aggregate score
+        // 3. Group by user and find the BEST scaled_score
         const studentMap = new Map();
-        allProgress.forEach(p => {
-            const userId = p.user_id;
-            const level = p.level ? p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase() : 'Medium';
+        allSubmissions.forEach(sub => {
+            const userId = sub.user_id;
+            const score = Number(sub.scaled_score) || 0;
             
             if (!studentMap.has(userId)) {
                 studentMap.set(userId, {
                     user_id: userId,
-                    name: p.profiles?.name || 'Anonymous Student',
-                    accuracies: { Easy: 0, Medium: 0, Hard: 0 },
-                    levels_completed: 0
+                    name: sub.profiles?.name || 'Anonymous Student',
+                    score: score,
+                    levels_completed: 1
                 });
-            }
-            
-            const existing = studentMap.get(userId);
-            if (p.score > existing.accuracies[level]) {
-                existing.accuracies[level] = p.score;
+            } else {
+                const existing = studentMap.get(userId);
+                if (score > existing.score) {
+                    existing.score = score;
+                }
                 existing.levels_completed++;
             }
         });
 
-        // Calculate final weighted score for each student using SAT-style formula
-        const allRankings = Array.from(studentMap.values()).map(s => {
-            const weightedScore = calculateSatScore(s.accuracies.Easy, s.accuracies.Medium, s.accuracies.Hard);
-            return {
-                user_id: s.user_id,
-                name: s.name,
-                score: weightedScore,
-                levels_completed: s.levels_completed
-            };
-        }).sort((a, b) => b.score - a.score);
+        // 4. Calculate final ranking
+        const allRankings = Array.from(studentMap.values()).sort((a, b) => b.score - a.score);
 
         // 5. Format results
         const leaderboard = allRankings.slice(0, 50).map(s => ({
@@ -1881,15 +1873,17 @@ router.get('/global-leaderboard', async (req, res) => {
         const currentUserId = req.user?.id;
         console.log(`📡 [GlobalLeaderboard] Calculating total SAT scores for all students...`);
 
-        // 1. Fetch all students' progress and course info
-        const { data: allProgress, error } = await supabase
-            .from('student_progress')
+        // 1. Fetch all test submissions for students
+        const { data: allSubmissions, error } = await supabase
+            .from('test_submissions')
             .select(`
                 user_id,
-                score,
-                level,
-                courses(name, tutor_type),
-                profiles!user_id(id, name)
+                scaled_score,
+                math_scaled_score,
+                reading_scaled_score,
+                writing_scaled_score,
+                courses!inner(name, tutor_type, category, main_category),
+                profiles!inner(id, name, role)
             `)
             .eq('profiles.role', 'student');
 
@@ -1898,29 +1892,82 @@ router.get('/global-leaderboard', async (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch global rankings' });
         }
 
-        // 2. Group by user
+        // 2. Group by user to calculate super score
         const userGroups = {};
-        allProgress.forEach(p => {
-            const uid = p.user_id;
+        allSubmissions.forEach(sub => {
+            const course = sub.courses;
+            // Filter only SAT-related courses
+            const isSAT = (course?.name?.toUpperCase().includes('SAT') || 
+                          course?.tutor_type?.toUpperCase().includes('SAT') || 
+                          course?.category?.toUpperCase().includes('SAT') ||
+                          course?.main_category?.toUpperCase().includes('SAT'));
+                          
+            const isACT = (course?.name?.toUpperCase().includes('ACT') || 
+                          course?.tutor_type?.toUpperCase().includes('ACT') || 
+                          course?.category?.toUpperCase().includes('ACT') ||
+                          course?.main_category?.toUpperCase().includes('ACT'));
+
+            if (!isSAT || isACT) return; // Skip non-SAT tests
+
+            const uid = sub.user_id;
             if (!userGroups[uid]) {
                 userGroups[uid] = {
                     user_id: uid,
-                    name: p.profiles?.name || 'Anonymous Student',
-                    entries: []
+                    name: sub.profiles?.name || 'Anonymous Student',
+                    maxMath: 0,
+                    maxRW: 0,
+                    submissions_count: 0
                 };
             }
-            userGroups[uid].entries.push(p);
+
+            const cat = getCategory(course?.name, course?.tutor_type);
+            const userState = userGroups[uid];
+            userState.submissions_count++;
+
+            const scaledScore = Number(sub.scaled_score) || 0;
+            const mathScaled = Number(sub.math_scaled_score) || 0;
+            const readingScaled = Number(sub.reading_scaled_score) || 0;
+            const writingScaled = Number(sub.writing_scaled_score) || 0;
+
+            // If it's a full length test with component scores
+            if (mathScaled > 0 || readingScaled > 0) {
+                if (mathScaled > userState.maxMath) userState.maxMath = mathScaled;
+                const totalRW = readingScaled + writingScaled;
+                // Sometimes reading_scaled_score includes both, sometimes separate. 
+                // Let's use reading_scaled_score if it's the combined RW score.
+                const effectiveRW = (readingScaled > 0 && readingScaled <= 400 && writingScaled > 0) ? (readingScaled + writingScaled) : readingScaled;
+                if (effectiveRW > userState.maxRW) userState.maxRW = effectiveRW;
+            } 
+            // If it's a modular test and we only have scaled_score
+            else if (cat === 'MATH') {
+                if (scaledScore > userState.maxMath) userState.maxMath = scaledScore;
+            } else if (cat === 'RW') {
+                if (scaledScore > userState.maxRW) userState.maxRW = scaledScore;
+            } else {
+                // Unknown SAT module type, maybe a full length that only populated scaled_score
+                // Distribute evenly or skip if we can't determine (fallback logic)
+                if (scaledScore > 800) { 
+                    // Assume it's a full test total score
+                    const estimatedMath = Math.round(scaledScore / 2);
+                    const estimatedRW = scaledScore - estimatedMath;
+                    if (estimatedMath > userState.maxMath) userState.maxMath = estimatedMath;
+                    if (estimatedRW > userState.maxRW) userState.maxRW = estimatedRW;
+                }
+            }
         });
 
         // 3. Calculate scores for each user
         const allRankings = Object.values(userGroups).map(u => {
-            const scores = calculateTotalSATScore(u.entries);
+            const bestMath = Math.min(800, Math.max(200, u.maxMath || 200));
+            const bestRW = Math.min(800, Math.max(200, u.maxRW || 200));
+            const total = bestMath + bestRW;
+
             return {
                 user_id: u.user_id,
                 name: u.name,
-                total_points: scores.total, // frontend expects total_points
-                scoreDisplay: `${scores.total}`,
-                levels_completed: u.entries.length
+                total_points: total, // frontend expects total_points
+                scoreDisplay: `${total}`,
+                levels_completed: u.submissions_count
             };
         }).sort((a, b) => b.total_points - a.total_points);
 

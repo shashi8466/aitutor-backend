@@ -163,13 +163,8 @@ const PublicDemoCourseView = () => {
             {/* Direct Header - No Navigation Sidebar */}
             <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 p-6 sticky top-0 z-50">
                 <div className="max-w-6xl mx-auto flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-[#E53935] rounded-xl flex items-center justify-center text-white shadow-lg shadow-red-100 dark:shadow-none">
-                            <SafeIcon icon={FiZap} className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <span className="font-black text-xl text-gray-900 dark:text-white uppercase tracking-tighter">AIPrep365 <span className="text-[#E53935]">DEMO</span></span>
-                        </div>
+                    <div className="flex items-center">
+                        <img src="/logo.png" alt="AIPrep365 Logo" className="h-10 w-auto" />
                     </div>
                     <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-full">
                         <SafeIcon icon={FiShield} className="w-4 h-4 text-blue-600" />
@@ -213,7 +208,7 @@ const PublicDemoCourseView = () => {
                             })()}
                         </h1>
                         <p className="text-gray-500 dark:text-gray-400 text-lg font-medium max-w-2xl mx-auto">
-                            Experience our FULL LENGTH TEST engine. Complete each level to reveal your estimated SAT performance.
+                            Complete all parts to unlock your SAT Score with detailed performance analysis and advanced analytics.
                         </p>
                    </motion.div>
                 </div>
@@ -233,7 +228,7 @@ const PublicDemoCourseView = () => {
                         <div className="inline-block bg-white/5 backdrop-blur-xl p-8 px-12 rounded-[24px] border border-white/10 transform hover:scale-105 transition-transform cursor-default shadow-2xl">
                             <div className="text-lg md:text-xl font-black text-gray-400 uppercase tracking-tight py-2 flex items-center gap-3">
                                 <SafeIcon icon={FiLock} className="w-5 h-5 text-[#E53935]" />
-                                Complete All Levels to Unlock
+                                COMPLETE ALL PARTS TO GET YOUR SAT SCORE
                             </div>
                         </div>
                         

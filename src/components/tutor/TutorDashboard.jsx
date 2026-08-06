@@ -102,36 +102,14 @@ const TutorDashboard = () => {
 
         document.body.style.overflow = 'unset';
 
-        const handleFocus = () => {
-            console.log('👀 [TutorDashboard] Window Focused - Refreshing stats');
-            tutorService.getDashboard(user?.id).then(res => {
-                if (res?.data) {
-                    setDashboardData(prev => {
-                        if (JSON.stringify(prev) === JSON.stringify(res.data)) return prev;
-                        return res.data;
-                    });
-                }
-            }).catch(() => { });
-        };
-
-        window.addEventListener('focus', handleFocus);
         return () => {
             console.log('🧹 [TutorDashboard] Component Effect Cleanup');
-            window.removeEventListener('focus', handleFocus);
             document.body.style.overflow = 'unset';
         };
     }, []);
 
     const fetchDashboardData = async () => {
         setLoading(true);
-        const timeoutId = setTimeout(() => {
-            if (loading) {
-                console.warn('⏰ Dashboard global fetch timed out');
-                setLoading(false);
-                setDashboardData({ courses: [], students: [], groups: [] });
-            }
-        }, 12000);
-
         try {
             console.log('📡 [TutorDashboard] Fetching data...');
             const response = await tutorService.getDashboard(user?.id);
@@ -145,7 +123,6 @@ const TutorDashboard = () => {
             console.error('❌ [TutorDashboard] Error:', error);
             setDashboardData({ courses: [], students: [], groups: [] });
         } finally {
-            clearTimeout(timeoutId);
             setLoading(false);
         }
     };

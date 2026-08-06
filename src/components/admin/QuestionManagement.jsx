@@ -237,66 +237,71 @@ const QuestionManagement = () => {
             <select
               value={filters.courseId}
               onChange={(e) => handleFilterChange('courseId', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
             >
-              <option value="">All Courses</option>
+              <option value="">Select a Course</option>
               {courses.map(course => (
-                <option key={course.id} value={course.id}>{course.name}</option>
+                <option key={course.id} value={course.id} className="text-gray-900">{course.name}</option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Source File</label>
-            <select
-              value={filters.uploadId}
-              onChange={(e) => handleFilterChange('uploadId', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="">All Files / Sources</option>
-              <option value="manual">Manual Entry / Orphans (No File)</option>
-              {uploads.map(u => (
-                <option key={u.id} value={u.id}>{u.file_name} ({u.level})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
-            <select
-              value={filters.level}
-              onChange={(e) => handleFilterChange('level', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="">All Levels</option>
-              <option value="Easy">Easy</option>
-              <option value="Medium">Medium</option>
-              <option value="Hard">Hard</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-            <select
-              value={filters.type}
-              onChange={(e) => handleFilterChange('type', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="">All Types</option>
-              <option value="mcq">Multiple Choice</option>
-              <option value="short_answer">Short Answer</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-            <div className="relative">
-              <SafeIcon icon={FiSearch} className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-                placeholder="Search questions..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
+          {filters.courseId && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Source File</label>
+                <select
+                  value={filters.uploadId}
+                  onChange={(e) => handleFilterChange('uploadId', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                >
+                  <option value="">All Files / Sources</option>
+                  <option value="manual">Manual Entry / Orphans (No File)</option>
+                  {uploads.map(u => (
+                    <option key={u.id} value={u.id} className="text-gray-900">{u.file_name} ({u.level})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
+                <select
+                  value={filters.level}
+                  onChange={(e) => handleFilterChange('level', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                >
+                  <option value="">All Levels</option>
+                  <option value="Easy">Easy</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Hard">Hard</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  value={filters.type}
+                  onChange={(e) => handleFilterChange('type', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                >
+                  <option value="">All Types</option>
+                  <option value="mcq">Multiple Choice</option>
+                  <option value="short_answer">Short Answer</option>
+                  <option value="fill_in_the_blank">Fill in the Blank</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <div className="relative">
+                  <SafeIcon icon={FiSearch} className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={filters.search}
+                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                    placeholder="Search questions..."
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </motion.div>
 
@@ -316,14 +321,20 @@ const QuestionManagement = () => {
           className="text-center py-12 bg-white rounded-xl shadow-lg border border-gray-200"
         >
           <SafeIcon icon={FiHelpCircle} className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No questions found</h3>
-          <p className="text-gray-600 mb-4">Try adjusting your filters or add a new question.</p>
-          <button
-            onClick={handleCreateQuestion}
-            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
-          >
-            Create First Question
-          </button>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            {!filters.courseId ? "Select a Course" : "No questions found"}
+          </h3>
+          <p className="text-gray-600 mb-4">
+            {!filters.courseId ? "Please select a course from the filters above to view its questions." : "Try adjusting your filters or add a new question."}
+          </p>
+          {filters.courseId && (
+            <button
+              onClick={handleCreateQuestion}
+              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+            >
+              Create First Question
+            </button>
+          )}
         </motion.div>
       ) : (
         <div className="space-y-4">
