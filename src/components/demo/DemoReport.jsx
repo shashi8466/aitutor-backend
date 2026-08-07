@@ -4,6 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import logoImg from '../../../public/logo.png';
 import TransparentLogo from '../common/TransparentLogo';
+import { useSettings } from '../../contexts/SettingsContext';
 
 const { FiPrinter, FiArrowLeft, FiCheck, FiX, FiMinus, FiCalendar, FiClock, FiMonitor, FiBarChart2 } = FiIcons;
 
@@ -11,6 +12,7 @@ const DemoReport = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
+    const { settings } = useSettings();
     const [reportData, setReportData] = useState(null);
 
     useEffect(() => {
@@ -197,7 +199,15 @@ const DemoReport = () => {
                              <span>{new Date().toLocaleDateString()}, {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                         </div>
                         <div className="flex justify-center items-center h-16 md:h-20">
-                             <TransparentLogo src={logoImg} className="h-full w-64" />
+                            {(settings?.logo_url || settings?.logoUrl) ? (
+                                <div className="h-16 w-auto max-w-[240px] flex items-center justify-center">
+                                    <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
+                                </div>
+                            ) : (
+                                <div className="h-16 w-16 rounded-[20px] bg-gradient-to-tr from-blue-600 to-indigo-700 border border-white/20 flex items-center justify-center shadow-md">
+                                    <span className="text-3xl">🤖</span>
+                                </div>
+                            )}
                         </div>
                         <div></div>
                     </div>

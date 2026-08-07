@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import { useSettings } from '../../contexts/SettingsContext';
 import { courseService, uploadService } from '../../services/api';
 
 const { FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiInfo, FiLoader, FiZap } = FiIcons;
@@ -10,6 +11,7 @@ const { FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiInfo, FiLoader, FiZa
 const PublicDemoCourseView = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
+    const { settings } = useSettings();
     const [course, setCourse] = useState(null);
     const [uploads, setUploads] = useState([]);
     const [demoProgress, setDemoProgress] = useState({
@@ -164,7 +166,15 @@ const PublicDemoCourseView = () => {
             <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 p-6 sticky top-0 z-50">
                 <div className="max-w-6xl mx-auto flex justify-between items-center">
                     <div className="flex items-center">
-                        <img src="/logo.png" alt="AIPrep365 Logo" className="h-10 w-auto" />
+                        {(settings?.logo_url || settings?.logoUrl) ? (
+                            <div className="h-10 w-auto max-w-[120px] flex items-center justify-center">
+                                <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[3px]" />
+                            </div>
+                        ) : (
+                            <div className="h-10 w-10 rounded-[14px] bg-gradient-to-tr from-blue-600 to-indigo-700 border border-white/20 flex items-center justify-center shadow-md">
+                                <span className="text-xl">🤖</span>
+                            </div>
+                        )}
                     </div>
                     <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-full">
                         <SafeIcon icon={FiShield} className="w-4 h-4 text-blue-600" />

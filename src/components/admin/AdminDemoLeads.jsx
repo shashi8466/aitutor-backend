@@ -13,6 +13,12 @@ const AdminDemoLeads = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Filtering state
+  const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'yesterday', '7days', '30days', 'custom'
+  const [customDateRange, setCustomDateRange] = useState({ from: '', to: '' });
+  const [testFilter, setTestFilter] = useState('all');
+
   const navigate = useNavigate();
 
   const buildReportData = (lead) => {
@@ -108,8 +114,51 @@ const AdminDemoLeads = () => {
     }
   };
 
+  const filteredLeads = leads.filter(lead => {
+    if (testFilter !== 'all' && lead.courses?.name !== testFilter) {
+      return false;
+    }
+    
+    if (dateFilter !== 'all') {
+      const leadDate = new Date(lead.created_at);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (dateFilter === 'today') {
+        if (leadDate < today) return false;
+      } else if (dateFilter === 'yesterday') {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (leadDate < yesterday || leadDate >= today) return false;
+      } else if (dateFilter === '7days') {
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        if (leadDate < sevenDaysAgo) return false;
+      } else if (dateFilter === '30days') {
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        if (leadDate < thirtyDaysAgo) return false;
+      } else if (dateFilter === 'custom') {
+        if (customDateRange.from) {
+          const fromDate = new Date(customDateRange.from);
+          fromDate.setHours(0,0,0,0);
+          if (leadDate < fromDate) return false;
+        }
+        if (customDateRange.to) {
+          const toDate = new Date(customDateRange.to);
+          toDate.setHours(23,59,59,999);
+          if (leadDate > toDate) return false;
+        }
+      }
+    }
+    
+    return true;
+  });
+
+  const availableTests = Array.from(new Set(leads.map(l => l.courses?.name).filter(Boolean)));
+
   const processDataForExport = () => {
-    return leads.map(lead => ({
+    return filteredLeads.map(lead => ({
       'Date Submitted': formatDate(lead.created_at),
       'Student Name': lead.full_name || 'N/A',
       'Grade': lead.grade || 'N/A',
@@ -181,14 +230,14 @@ const AdminDemoLeads = () => {
           </button>
           <button
             onClick={handleExportCSV}
-            disabled={loading || leads.length === 0}
+            disabled={loading || filteredLeads.length === 0}
             className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition-all disabled:opacity-50"
           >
             <SafeIcon icon={FiDownload} /> CSV
           </button>
           <button
             onClick={handleExportExcel}
-            disabled={loading || leads.length === 0}
+            disabled={loading || filteredLeads.length === 0}
             className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg shadow-green-200 dark:shadow-none"
           >
             <SafeIcon icon={FiDownload} /> Excel
@@ -203,6 +252,51 @@ const AdminDemoLeads = () => {
         </div>
       )}
 
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-[24px] shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-4 items-center mb-6">
+        <select 
+          value={dateFilter} 
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Dates</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="7days">Last 7 Days</option>
+          <option value="30days">Last 30 Days</option>
+          <option value="custom">Custom Range</option>
+        </select>
+        
+        {dateFilter === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input 
+              type="date" 
+              value={customDateRange.from} 
+              onChange={e => setCustomDateRange({...customDateRange, from: e.target.value})}
+              className="px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-gray-400">-</span>
+            <input 
+              type="date" 
+              value={customDateRange.to} 
+              onChange={e => setCustomDateRange({...customDateRange, to: e.target.value})}
+              className="px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        )}
+
+        <select
+          value={testFilter}
+          onChange={(e) => setTestFilter(e.target.value)}
+          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+        >
+          <option value="all">All Tests</option>
+          {availableTests.map(test => (
+            <option key={test} value={test}>{test}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Leads Table */}
       <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 responsive-table-container">
         {loading ? (
@@ -210,7 +304,7 @@ const AdminDemoLeads = () => {
             <SafeIcon icon={FiLoader} className="w-8 h-8 animate-spin text-blue-600" />
             <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Loading leads...</p>
           </div>
-        ) : leads.length === 0 ? (
+        ) : filteredLeads.length === 0 ? (
           <div className="py-20 text-center">
             <SafeIcon icon={FiAlertCircle} className="w-12 h-12 text-gray-200 mx-auto mb-4" />
             <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">No demo leads found.</p>
@@ -228,7 +322,7 @@ const AdminDemoLeads = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {leads.map((lead) => (
+                {filteredLeads.map((lead) => (
                   <tr key={lead.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-all">
                     {/* Date */}
                     <td className="px-6 py-5 whitespace-nowrap">
