@@ -1372,6 +1372,127 @@ export const tutorService = {
 
 // --- ADMIN SERVICE (GROUP MANAGEMENT) ---
 export const adminService = {
+  getDashboardStats: async () => {
+    try {
+      const coursesResponse = await courseService.getAll();
+      const courses = coursesResponse.data || [];
+      const totalCourses = courses.length;
+      const totalQuestions = courses.reduce((sum, c) => sum + (c.questions_count || 0), 0);
+
+      const subjectCounts = { SAT: 0, ACT: 0, AP: 0, Other: 0 };
+      courses.forEach(c => {
+          const name = (c.name || '').toUpperCase();
+          if (name.includes('SAT')) subjectCounts.SAT++;
+          else if (name.includes('ACT')) subjectCounts.ACT++;
+          else if (name.includes('AP')) subjectCounts.AP++;
+          else subjectCounts.Other++;
+      });
+      const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+      const pieData = Object.keys(subjectCounts)
+          .filter(key => subjectCounts[key] > 0)
+          .map((key, idx) => ({
+              name: `${key} Courses`,
+              value: subjectCounts[key],
+              percent: `${((subjectCounts[key] / totalCourses) * 100).toFixed(1)}%`,
+              color: colors[idx % colors.length]
+          }));
+
+      const [{ count: totalStudents }, { count: demoLeadsCount }] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student'),
+        supabase.from('demo_leads').select('*', { count: 'exact', head: true })
+      ]);
+
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString();
+      
+      const { count: activeTests } = await supabase.from('test_submissions').select('*', { count: 'exact', head: true }).gte('created_at', sevenDaysAgoStr);
+
+      const [{ data: recentDemoLeads }, { data: recentStudents }] = await Promise.all([
+        supabase.from('demo_leads').select('created_at').gte('created_at', sevenDaysAgoStr),
+        supabase.from('profiles').select('created_at').eq('role', 'student').gte('created_at', sevenDaysAgoStr)
+      ]);
+      
+      const lineDataMap = {};
+      for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          lineDataMap[dateStr] = { name: dateStr, demoLeads: 0, originalLeads: 0 };
+      }
+
+      (recentDemoLeads || []).forEach(lead => {
+          const d = new Date(lead.created_at);
+          const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          if (lineDataMap[dateStr]) lineDataMap[dateStr].demoLeads++;
+      });
+
+      (recentStudents || []).forEach(student => {
+          const d = new Date(student.created_at);
+          const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          if (lineDataMap[dateStr]) lineDataMap[dateStr].originalLeads++;
+      });
+      const lineData = Object.values(lineDataMap);
+
+      const activities = [];
+      const [{ data: latestDemoLeads }, { data: latestStudents }, { data: latestCourses }] = await Promise.all([
+        supabase.from('demo_leads').select('id, name, created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('profiles').select('id, full_name, email, created_at').eq('role', 'student').order('created_at', { ascending: false }).limit(5),
+        supabase.from('courses').select('id, name, created_at').order('created_at', { ascending: false }).limit(5)
+      ]);
+
+      (latestDemoLeads || []).forEach(lead => {
+          activities.push({
+              type: 'demo', iconName: 'FiCheckCircle', color: 'teal', title: 'Demo test submitted',
+              details: `${lead.name || 'A user'} submitted a demo test`, by: 'Student', created_at: new Date(lead.created_at)
+          });
+      });
+      (latestStudents || []).forEach(student => {
+          activities.push({
+              type: 'student', iconName: 'FiUserPlus', color: 'blue', title: 'New student registered',
+              details: `${student.full_name || student.email || 'A user'} joined as a student`, by: 'System', created_at: new Date(student.created_at)
+          });
+      });
+      (latestCourses || []).forEach(course => {
+          activities.push({
+              type: 'course', iconName: 'FiBook', color: 'green', title: 'New course created',
+              details: `${course.name} course has been created`, by: 'Admin', created_at: new Date(course.created_at)
+          });
+      });
+
+      activities.sort((a, b) => b.created_at - a.created_at);
+      const recentActivities = activities.slice(0, 5).map(act => {
+          const diffMs = new Date() - act.created_at;
+          const diffMins = Math.floor(diffMs / 60000);
+          let timeAgo = `${diffMins}m ago`;
+          if (diffMins > 60) {
+              const diffHrs = Math.floor(diffMins / 60);
+              timeAgo = diffHrs > 24 ? `${Math.floor(diffHrs / 24)}d ago` : `${diffHrs}h ago`;
+          }
+          return { ...act, time: timeAgo };
+      });
+
+      return {
+        data: {
+          totals: {
+            totalStudents: totalStudents || 0,
+            demoLeads: demoLeadsCount || 0,
+            originalLeads: totalStudents || 0,
+            activeStudents: totalStudents || 0,
+            totalCourses: totalCourses || 0,
+            totalQuestions: totalQuestions || 0,
+            activeTests: activeTests || 0
+          },
+          pieData,
+          lineData,
+          recentActivities
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      return { data: null, error };
+    }
+  },
   getAllTutors: async () => {
     return axios.get('/api/admin/tutors');
   },
