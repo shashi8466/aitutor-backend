@@ -25,8 +25,8 @@ const StudentCourseList = () => {
   const isPremium = (user?.plan_type || '').toLowerCase() === 'premium';
 
   const COURSE_CATEGORIES = {
-    'SAT': ['SAT Math', 'SAT Reading & Writing', 'FULL LENGTH TEST'],
-    'ACT': ['ACT Math', 'ACT English', 'ACT Science', 'ACT Reading', 'ACT Full-Length Test'],
+    'SAT': ['SAT Math', 'SAT Reading & Writing'],
+    'ACT': ['ACT Math', 'ACT English', 'ACT Science', 'ACT Reading'],
     'AP': [
       'AP Biology',
       'AP Calculus AB',
@@ -39,7 +39,8 @@ const StudentCourseList = () => {
       'AP Psychology',
       'AP United States Government and Politics',
       'AP United States History'
-    ]
+    ],
+    'FULL LENGTH TESTS': ['SAT', 'ACT', 'Linear SAT']
   };
 
   const COURSE_TAXONOMY = {
@@ -294,19 +295,9 @@ const StudentCourseList = () => {
     );
 
     // Route FULL LENGTH TESTs:
-    //  - SAT Full-Length (is_adaptive=true or tutor_type contains 'Full-Length SAT') → SAT tab
-    //  - ACT Full-Length (tutor_type='Full-Length ACT') → ACT tab
-    if (mainCat === 'FULL LENGTH TESTs') {
-      const tutorType = (c.tutor_type || '').toUpperCase();
-      if (c.is_adaptive || tutorType.includes('SAT')) {
-        mainCat = 'SAT';
-      } else if (tutorType.includes('ACT')) {
-        mainCat = 'ACT';
-      } else {
-        mainCat = 'SAT'; // default fallback
-      }
-    } else if (c.is_adaptive) {
-      mainCat = 'SAT'; // legacy adaptive SAT courses
+    // Keep them under FULL LENGTH TESTS category.
+    if (mainCat === 'FULL LENGTH TESTs' || c.is_adaptive || (c.tutor_type || '').toUpperCase() === 'LINEAR SAT') {
+      mainCat = 'FULL LENGTH TESTS';
     }
     
     if (activeCategory !== mainCat) return false;
@@ -316,9 +307,11 @@ const StudentCourseList = () => {
       if (mainCat === 'SAT') {
         const tax = getCourseTaxonomy(c);
         if (tax.section !== activeSubcategory) return false;
-      } else if (activeSubcategory === 'ACT Full-Length Test') {
-        // Match courses with tutor_type 'Full-Length ACT'
-        if (!(c.tutor_type || '').toUpperCase().includes('FULL') || !(c.tutor_type || '').toUpperCase().includes('ACT')) return false;
+      } else if (mainCat === 'FULL LENGTH TESTS') {
+        const tutorType = (c.tutor_type || '').toUpperCase();
+        if (activeSubcategory === 'SAT' && !c.is_adaptive && !tutorType.includes('FULL-LENGTH SAT')) return false;
+        if (activeSubcategory === 'ACT' && !tutorType.includes('ACT')) return false;
+        if (activeSubcategory === 'Linear SAT' && tutorType !== 'LINEAR SAT') return false;
       } else if (c.tutor_type !== activeSubcategory) {
         return false;
       }
@@ -429,7 +422,7 @@ const StudentCourseList = () => {
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           {/* Subject Switch */}
           <div className="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-full flex relative shadow-inner border border-gray-200 dark:border-gray-700 overflow-x-auto no-scrollbar scrollbar-hide">
-            {['SAT', 'ACT', 'AP'].map((category) => (
+            {['SAT', 'ACT', 'AP', 'FULL LENGTH TESTS'].map((category) => (
               <button
                 key={category}
                 disabled={category === 'ACT' && user?.email !== 'ssky57771@gmail.com' && user?.email !== 'admink338@gmail.com'}

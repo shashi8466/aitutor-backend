@@ -120,6 +120,7 @@ const DetailedTestReview = () => {
 
     // Check if this is an adaptive test
     const isAdaptiveType = submission.course?.tutor_type === 'Full-Length SAT Test' || 
+                          submission.course?.tutor_type === 'Linear SAT' || 
                           submission.is_adaptive || 
                           (submission.level && submission.level.toUpperCase() === 'ADAPTIVE');
 
@@ -498,7 +499,7 @@ const DetailedTestReview = () => {
                                     {submission.scaled_score || submission.totalScore || submission.score || 'N/A'}
                                 </div>
                                 <div className="text-sm opacity-80">
-                                    {isACTTest ? scoreLabel : submission.course?.tutor_type === 'Full-Length SAT Test' ? 'SAT Score' : 'Test Score'}
+                                    {isACTTest ? scoreLabel : (submission.course?.tutor_type === 'Full-Length SAT Test' || submission.course?.tutor_type === 'Linear SAT') ? 'SAT Score' : 'Test Score'}
                                 </div>
                             </div>
                             
@@ -509,7 +510,7 @@ const DetailedTestReview = () => {
                                     <p className="text-blue-800 dark:text-blue-400 text-sm">
                                         {(() => {
                                             const score = parseInt(submission.scaled_score || submission.totalScore || submission.score || 0);
-                                            if (submission.course?.tutor_type === 'Full-Length SAT Test') {
+                                            if (submission.course?.tutor_type === 'Full-Length SAT Test' || submission.course?.tutor_type === 'Linear SAT') {
                                                 if (score >= 1400) return 'Excellent - Top 5%';
                                                 if (score >= 1200) return 'Good - Top 25%';
                                                 if (score >= 1000) return 'Average - Middle 50%';
@@ -530,7 +531,7 @@ const DetailedTestReview = () => {
                                     <p className="text-green-800 dark:text-green-400 text-sm">
                                         {(() => {
                                             const score = parseInt(submission.scaled_score || submission.totalScore || submission.score || 0);
-                                            if (submission.course?.tutor_type === 'Full-Length SAT Test') {
+                                            if (submission.course?.tutor_type === 'Full-Length SAT Test' || submission.course?.tutor_type === 'Linear SAT') {
                                                 if (score < 1200) return 'Focus on fundamentals and consistent practice';
                                                 if (score < 1400) return 'Work on advanced topics and time management';
                                                 return 'Challenge yourself with harder problems';

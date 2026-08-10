@@ -152,7 +152,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
     console.log("Submit triggered", { isEditMode, formData, newFiles });
     
     let requiredModules = [];
-    if (testType === 'Full-Length SAT') {
+    if (testType === 'Full-Length SAT' || testType === 'Linear SAT') {
       requiredModules = ['rw_moderate', 'rw_easy', 'rw_hard', 'math_moderate', 'math_easy', 'math_hard'];
     } else {
       requiredModules = ['english_all', 'math_all', 'reading_all', 'science_all'];
@@ -223,7 +223,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
       let sections = [];
       let levels = [];
       
-      if (testType === 'Full-Length SAT') {
+      if (testType === 'Full-Length SAT' || testType === 'Linear SAT') {
         sections = ['reading_writing', 'math'];
         levels = ['Moderate', 'Easy', 'Hard'];
       } else {
@@ -234,7 +234,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
       for (const section of sections) {
         for (const level of levels) {
           let sectionKey;
-          if (testType === 'Full-Length SAT') {
+          if (testType === 'Full-Length SAT' || testType === 'Linear SAT') {
             sectionKey = section === 'reading_writing' ? 'rw' : 'math';
           } else {
             sectionKey = section;
@@ -360,7 +360,8 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                     disabled={isEditMode}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
                   >
-                    <option value="Full-Length SAT">SAT Full-Length Test</option>
+                    <option value="Full-Length SAT">SAT Full-Length Test (Adaptive)</option>
+                    <option value="Linear SAT">Linear SAT Full-Length Test</option>
                     <option value="Full-Length ACT">ACT Full-Length Test</option>
                   </select>
                 </div>
@@ -392,7 +393,7 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
               </div>
 
               <div className="space-y-10">
-                {testType === 'Full-Length SAT' ? (
+                {testType === 'Full-Length SAT' || testType === 'Linear SAT' ? (
                   <>
                     {/* Reading & Writing Modules */}
                     <div className="space-y-6">

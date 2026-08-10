@@ -25,6 +25,12 @@ export const getCategory = (item) => {
   const type = (item.tutor_type || item.courses?.tutor_type || item.course?.tutor_type || '').toLowerCase();
   const name = (item.name || item.courses?.name || item.course?.name || item.course_name || '').toLowerCase();
 
+  // Explicitly prevent "Linear SAT" from being globally categorized as MATH or RW.
+  // Full tests should not return a single category here unless specifically evaluated by module.
+  if (type === 'linear sat' || type === 'full-length sat' || type === 'full-length act') {
+    return null;
+  }
+
   // Math Keywords (Highly Specific) - Checked FIRST
   const mathKeywords = [
     'linear', 'functions', 'math', 'quant', 'algebra', 'geometry', 'calc', 'trig', 
@@ -81,6 +87,31 @@ export const calculateSatScore = (easy, medium, hard) => {
   const finalScore = 200 + (maxAccuracy / 100) * 600;
   
   return Math.round(finalScore);
+};
+
+// --- LINEAR SAT SCORING ---
+export const calculateLinearSatScore = (section, rawScore, module2Path) => {
+  // section: 'MATH' or 'RW'
+  // rawScore: Total correct across Module 1 and Module 2
+  // module2Path: 'hard' (Upper Path) or 'easy' (Lower Path)
+
+  // TODO: Replace with the exact conversion arrays provided by the user.
+  // Using a placeholder linear proportional mapping based on typical scaled constraints:
+  // RW Max = 54. Math Max = 44.
+  // Hard path: Max = 800. Easy path: Max = 700.
+  
+  const maxRaw = section === 'RW' ? 54 : 44;
+  const maxScore = module2Path === 'hard' ? 800 : 700;
+  const minScore = 200;
+
+  if (rawScore <= 0) return minScore;
+  if (rawScore >= maxRaw) return maxScore;
+
+  // Simple linear interpolation
+  const scaled = minScore + (rawScore / maxRaw) * (maxScore - minScore);
+  
+  // Round to nearest 10 for standard SAT scoring
+  return Math.round(scaled / 10) * 10;
 };
 
 // --- ACT SCORING ---

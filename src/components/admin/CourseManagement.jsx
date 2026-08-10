@@ -36,12 +36,26 @@ const CourseManagement = ({ onStatsUpdate }) => {
       'AP United States Government and Politics',
       'AP United States History'
     ],
-    'FULL LENGTH TESTs': ['Full-Length SAT', 'Full-Length ACT']
+    'FULL LENGTH TESTs': ['Full-Length SAT', 'Full-Length ACT', 'Linear SAT']
   };
 
   useEffect(() => {
     loadCourses();
   }, [filters, activeCategory, activeSubcategory]);
+
+  const getMainCategory = (c) => {
+    let mainCat = c.main_category;
+    if (mainCat && mainCat.toUpperCase() === 'FULL LENGTH TESTS') return 'FULL LENGTH TESTs';
+    if (mainCat) return mainCat;
+
+    if (c.is_adaptive || (COURSE_CATEGORIES['FULL LENGTH TESTs'] && COURSE_CATEGORIES['FULL LENGTH TESTs'].includes(c.tutor_type))) {
+      return 'FULL LENGTH TESTs';
+    }
+    const type = (c.tutor_type || '').toLowerCase();
+    if (type.includes('sat')) return 'SAT';
+    if (type.includes('act')) return 'ACT';
+    return 'AP';
+  };
 
   const loadCourses = async () => {
     setLoading(true);
@@ -64,19 +78,11 @@ const CourseManagement = ({ onStatsUpdate }) => {
 
       // Hierarchy Filter
       filteredCourses = filteredCourses.filter(c => {
-        const mainCat = c.main_category || (
-          c.is_adaptive ? 'FULL LENGTH TESTs' :
-          (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
-          (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' :
-          ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science', 'psychology', 'history', 'government', 'english', 'environmental'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
-        );
-
+        const mainCat = getMainCategory(c);
         if (mainCat !== activeCategory) return false;
-
         if (activeSubcategory !== 'All') {
           return c.tutor_type === activeSubcategory;
         }
-
         return true;
       });
 
@@ -97,15 +103,18 @@ const CourseManagement = ({ onStatsUpdate }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-[#0f1115] min-h-screen p-6 rounded-2xl">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
+        <div className="flex flex-col">
+          <h2 className="text-2xl font-bold text-white">Course Management</h2>
+          <p className="text-sm text-gray-400">Manage courses, questions, content, and settings</p>
+        </div>
         <div className="flex gap-3">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700 transition-colors shadow-sm"
+            className="bg-[#1e3a8a] text-blue-400 border border-[#1e40af] px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-900 transition-colors shadow-sm text-sm font-semibold"
           >
             <SafeIcon icon={FiPlus} className="w-4 h-4" />
             <span>Regular Course</span>
@@ -114,88 +123,158 @@ const CourseManagement = ({ onStatsUpdate }) => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setShowAdaptiveForm(true)}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-purple-700 transition-colors shadow-sm"
+            className="bg-[#4c1d95] text-purple-300 border border-[#5b21b6] px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-purple-900 transition-colors shadow-sm text-sm font-semibold"
           >
             <SafeIcon icon={FiPlus} className="w-4 h-4" />
-            <span>FULL LENGTH TEST</span>
+            <span>Full Length Test</span>
           </motion.button>
         </div>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-700">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${activeCategory === 'FULL LENGTH TESTs' ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4 animate-in fade-in duration-700`}>
           {/* Dynamic Subject Cards based on Category */}
           {activeCategory === 'SAT' ? (
             <>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#E53935] mb-1">SAT MATH</span>
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">
-                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('math') && !(c.tutor_type || '').toLowerCase().includes('act')).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-                  </span>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-blue-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBriefcase} className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">SAT MATH</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'SAT' && (c.tutor_type || '').toLowerCase().includes('math')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-1">SAT R&W</span>
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">
-                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('reading')).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-                  </span>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-green-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBookOpen} className="w-6 h-6 text-green-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">SAT E&W</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'SAT' && (c.tutor_type || '').toLowerCase().includes('reading')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
               </div>
             </>
           ) : activeCategory === 'ACT' ? (
             <>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">ACT MATH</span>
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">
-                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('act math')).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-                  </span>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-emerald-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBriefcase} className="w-6 h-6 text-emerald-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">ACT MATH</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'ACT' && (c.tutor_type || '').toLowerCase().includes('math')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">ACT ENGLISH/SCIENCE</span>
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">
-                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('act') && !((c.tutor_type || '').toLowerCase().includes('math'))).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-                  </span>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-amber-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBookOpen} className="w-6 h-6 text-amber-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">ACT ENGLISH/SCIENCE</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'ACT' && !(c.tutor_type || '').toLowerCase().includes('math')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
+              </div>
+            </>
+          ) : activeCategory === 'AP' ? (
+            <>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-purple-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBriefcase} className="w-6 h-6 text-purple-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">AP SCIENCES</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'AP' && ['physics', 'chemistry', 'biology', 'science', 'environmental'].some(s => (c.tutor_type || '').toLowerCase().includes(s))).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
+              </div>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-indigo-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBookOpen} className="w-6 h-6 text-indigo-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">AP MATH/HUMANITIES</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'AP' && !['physics', 'chemistry', 'biology', 'science', 'environmental'].some(s => (c.tutor_type || '').toLowerCase().includes(s))).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
               </div>
             </>
           ) : (
             <>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-1">{activeCategory} SCIENCES</span>
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">
-                    {allCoursesRaw.filter(c => ['physics', 'chemistry', 'biology'].some(s => (c.tutor_type || '').toLowerCase().includes(s))).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-                  </span>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-blue-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBriefcase} className="w-6 h-6 text-blue-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">FULL-LENGTH SAT</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'FULL LENGTH TESTs' && (c.tutor_type || '').toLowerCase().includes('sat') && !(c.tutor_type || '').toLowerCase().includes('linear')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-1">{activeCategory} MATH/HUMANITIES</span>
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">
-                    {allCoursesRaw.filter(c => (c.tutor_type || '').toLowerCase().includes('ap') && !['physics', 'chemistry', 'biology'].some(s => (c.tutor_type || '').toLowerCase().includes(s))).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-                  </span>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-emerald-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiBookOpen} className="w-6 h-6 text-emerald-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">FULL-LENGTH ACT</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'FULL LENGTH TESTs' && (c.tutor_type || '').toLowerCase().includes('act')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
+              </div>
+              <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+                  <div className="bg-orange-900/30 p-3 rounded-2xl">
+                     <SafeIcon icon={FiIcons.FiActivity} className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <div className="flex flex-col">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">LINEAR SAT</span>
+                     <span className="text-2xl font-black text-white">
+                       {allCoursesRaw.filter(c => getMainCategory(c) === 'FULL LENGTH TESTs' && (c.tutor_type || '').toLowerCase().includes('linear')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                     </span>
+                  </div>
               </div>
             </>
           )}
 
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{activeCategory} TOTAL</span>
-              <span className="text-2xl font-black text-gray-900 dark:text-white">
-                {allCoursesRaw.filter(c => {
-                   const mainCat = c.main_category || (
-                    (c.tutor_type || '').toLowerCase().includes('sat') ? 'SAT' :
-                    (c.tutor_type || '').toLowerCase().includes('act') ? 'ACT' : 'AP'
-                  );
-                  return mainCat === activeCategory;
-                }).reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-              </span>
+          <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+              <div className="bg-yellow-900/30 p-3 rounded-2xl">
+                 <SafeIcon icon={FiIcons.FiFileText} className="w-6 h-6 text-yellow-500" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">{activeCategory} TOTAL</span>
+                 <span className="text-2xl font-black text-white">
+                   {allCoursesRaw.filter(c => getMainCategory(c) === activeCategory).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                 </span>
+              </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center shadow-sm">
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">GRAND TOTAL</span>
-              <span className="text-2xl font-black text-gray-900 dark:text-white">
-                {allCoursesRaw.reduce((sum, c) => sum + (c.questions_count || 0), 0)} <span className="text-xs font-bold text-gray-400">Questions</span>
-              </span>
+          <div className="bg-[#1b2028] p-4 rounded-2xl border border-gray-800 flex items-center gap-4 shadow-sm">
+              <div className="bg-purple-900/30 p-3 rounded-2xl">
+                 <SafeIcon icon={FiIcons.FiAward} className="w-6 h-6 text-purple-500" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">GRAND TOTAL</span>
+                 <span className="text-2xl font-black text-white">
+                   {allCoursesRaw.reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
+                 </span>
+              </div>
           </div>
       </div>
 
       {/* Category Tabs */}
       <div className="flex flex-col space-y-4">
-        <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm w-fit">
+        <div className="flex space-x-6 border-b border-gray-800">
           {Object.keys(COURSE_CATEGORIES).map(cat => (
             <button
               key={cat}
@@ -203,7 +282,11 @@ const CourseManagement = ({ onStatsUpdate }) => {
                 setActiveCategory(cat);
                 setActiveSubcategory('All');
               }}
-              className={`px-6 py-2 rounded-lg font-bold transition-all ${activeCategory === cat ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`pb-2 text-sm font-semibold transition-all relative ${
+                activeCategory === cat 
+                  ? 'text-blue-500 border-b-2 border-blue-500' 
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
             >
               {cat}
             </button>
@@ -211,10 +294,14 @@ const CourseManagement = ({ onStatsUpdate }) => {
         </div>
 
         {/* Subcategory Tabs */}
-        <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 no-scrollbar scrollbar-hide">
           <button
             onClick={() => setActiveSubcategory('All')}
-            className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${activeSubcategory === 'All' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+              activeSubcategory === 'All' 
+                ? 'bg-[#1e293b] border-[#334155] text-blue-400' 
+                : 'bg-transparent border-[#1e293b] text-gray-400 hover:border-gray-500'
+            }`}
           >
             All Subcourses
           </button>
@@ -222,7 +309,11 @@ const CourseManagement = ({ onStatsUpdate }) => {
             <button
               key={sub}
               onClick={() => setActiveSubcategory(sub)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all border ${activeSubcategory === sub ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                activeSubcategory === sub 
+                  ? 'bg-[#1e293b] border-[#334155] text-blue-400' 
+                  : 'bg-transparent border-[#1e293b] text-gray-400 hover:border-gray-500'
+              }`}
             >
               {sub}
             </button>
@@ -234,40 +325,40 @@ const CourseManagement = ({ onStatsUpdate }) => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
+        className="bg-[#1b2028] rounded-xl border border-gray-800 p-4"
       >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
-            <SafeIcon icon={FiFilter} className="w-5 h-5 text-gray-600" />
-            <h3 className="font-medium text-gray-900">Filters</h3>
+            <SafeIcon icon={FiFilter} className="w-4 h-4 text-gray-400" />
+            <h3 className="font-semibold text-white">Filters</h3>
           </div>
-          <button onClick={loadCourses} className="text-blue-600 hover:text-blue-700 text-sm flex items-center">
-            <SafeIcon icon={FiRefreshCw} className="w-3 h-3 mr-1" />
+          <button onClick={loadCourses} className="text-gray-400 hover:text-white text-xs flex items-center bg-[#1f2937] px-3 py-1.5 rounded-full border border-gray-700 transition-colors">
+            <SafeIcon icon={FiRefreshCw} className="w-3 h-3 mr-2" />
             Refresh
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-none sm:w-1/4">
+            <label className="block text-xs font-medium text-gray-400 mb-1">Status</label>
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-3 pr-8 py-2 bg-[#0f1115] border border-gray-700 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-white text-sm"
             >
               <option value="">All Status</option>
               <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="draft">Draft</option>
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+          <div className="flex-1 relative mt-auto">
             <input
               type="text"
+              placeholder="Search courses..."
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search courses..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-4 pr-10 py-2 bg-[#0f1115] border border-gray-700 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-white text-sm"
             />
+            <SafeIcon icon={FiSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
           </div>
         </div>
       </motion.div>

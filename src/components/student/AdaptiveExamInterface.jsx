@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import { courseService, gradingService } from '../../services/api';
+import { calculateLinearSatScore } from '../../utils/scoreCalculator';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
@@ -420,8 +421,9 @@ const AdaptiveExamInterface = () => {
                          userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase()
             }));
             
-            // 1. Difficulty Weights (Easy=1, Moderate=2, Hard=3)
-            const weight = diff === 'hard' ? 3 : (diff === 'moderate' ? 2 : 1);
+            const isLinear = courseInfo?.tutor_type === 'Linear SAT';
+            // 1. Difficulty Weights (Easy=1, Moderate=2, Hard=3) for Adaptive. Linear is always 1.
+            const weight = isLinear ? 1 : (diff === 'hard' ? 3 : (diff === 'moderate' ? 2 : 1));
             
             // Track if student went to Easy or Hard module for the ceiling
             if (isRW) {
@@ -475,15 +477,29 @@ const AdaptiveExamInterface = () => {
             };
         });
 
-        // 2. Adaptive Flow Bounds (Min 200)
-        // Hard path: 200 - 800 (Scale: 600)
-        // Easy path: 200 - 700 (Scale: 500)
-        const rwSectionScale = rwPath === 'hard' ? 600 : 500;
-        const mathSectionScale = mathPath === 'hard' ? 600 : 500;
+        const isLinear = courseInfo?.tutor_type === 'Linear SAT';
 
-        // Final score calculation: 200 + (Weighted_Raw / Weighted_Max) * Section_Scale
-        const finalRwScore = rwMax > 0 ? Math.round(200 + (rwRaw / rwMax) * rwSectionScale) : 200;
-        const finalMathScore = mathMax > 0 ? Math.round(200 + (mathRaw / mathMax) * mathSectionScale) : 200;
+        // 2. Flow Bounds and Score Calculation
+        let finalRwScore = 200;
+        let finalMathScore = 200;
+
+        if (isLinear) {
+            // Linear scoring: straight mapping using the new calculator
+            // raw is total correct answers across both modules for that section
+            finalRwScore = calculateLinearSatScore('RW', rwRaw, rwPath);
+            finalMathScore = calculateLinearSatScore('MATH', mathRaw, mathPath);
+        } else {
+            // Adaptive scoring
+            // Hard path: 200 - 800 (Scale: 600)
+            // Easy path: 200 - 700 (Scale: 500)
+            const rwSectionScale = rwPath === 'hard' ? 600 : 500;
+            const mathSectionScale = mathPath === 'hard' ? 600 : 500;
+
+            // Final score calculation: 200 + (Weighted_Raw / Weighted_Max) * Section_Scale
+            finalRwScore = rwMax > 0 ? Math.round(200 + (rwRaw / rwMax) * rwSectionScale) : 200;
+            finalMathScore = mathMax > 0 ? Math.round(200 + (mathRaw / mathMax) * mathSectionScale) : 200;
+        }
+
         const finalTotalScore = finalRwScore + finalMathScore;
 
         const totalCorrect = pathQuestions.filter(q => {
