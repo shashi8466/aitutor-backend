@@ -95,23 +95,33 @@ export const calculateLinearSatScore = (section, rawScore, module2Path) => {
   // rawScore: Total correct across Module 1 and Module 2
   // module2Path: 'hard' (Upper Path) or 'easy' (Lower Path)
 
-  // TODO: Replace with the exact conversion arrays provided by the user.
-  // Using a placeholder linear proportional mapping based on typical scaled constraints:
-  // RW Max = 54. Math Max = 44.
-  // Hard path: Max = 800. Easy path: Max = 700.
-  
-  const maxRaw = section === 'RW' ? 54 : 44;
-  const maxScore = module2Path === 'hard' ? 800 : 700;
-  const minScore = 200;
+  // EXACT SCORING TABLES
+  // Format: index = raw score. value = [Upper Path Score, Lower Path Score]
+  const RW_CONVERSION = [
+    [320, 230], [330, 240], [340, 250], [350, 260], [360, 260], [370, 270], [370, 280], [380, 290], [390, 300], [400, 310],
+    [410, 320], [420, 320], [430, 330], [440, 340], [450, 350], [460, 360], [460, 370], [470, 370], [480, 380], [490, 390],
+    [500, 400], [510, 410], [520, 420], [530, 430], [540, 430], [550, 440], [550, 450], [560, 460], [570, 470], [580, 480],
+    [590, 490], [600, 490], [610, 500], [620, 510], [630, 520], [640, 530], [640, 540], [650, 540], [660, 550], [670, 560],
+    [680, 570], [690, 580], [700, 590], [710, 600], [720, 600], [730, 610], [730, 620], [740, 630], [750, 640], [760, 650],
+    [770, 650], [780, 650], [790, 650], [800, 650], [800, 650]
+  ];
 
-  if (rawScore <= 0) return minScore;
-  if (rawScore >= maxRaw) return maxScore;
+  const MATH_CONVERSION = [
+    [300, 220], [310, 230], [320, 240], [330, 250], [350, 260], [360, 270], [370, 280], [380, 290], [390, 300], [400, 310],
+    [420, 320], [430, 330], [440, 340], [450, 350], [460, 360], [470, 370], [480, 380], [500, 390], [510, 400], [520, 410],
+    [530, 420], [540, 430], [550, 440], [560, 450], [580, 460], [590, 470], [600, 480], [610, 490], [620, 500], [630, 510],
+    [650, 520], [660, 530], [670, 540], [680, 550], [690, 560], [700, 570], [710, 580], [730, 590], [740, 600], [750, 610],
+    [760, 620], [770, 630], [780, 640], [790, 650], [800, 650]
+  ];
 
-  // Simple linear interpolation
-  const scaled = minScore + (rawScore / maxRaw) * (maxScore - minScore);
+  const conversionTable = section === 'RW' ? RW_CONVERSION : MATH_CONVERSION;
   
-  // Round to nearest 10 for standard SAT scoring
-  return Math.round(scaled / 10) * 10;
+  // Bound the rawScore safely to prevent out-of-bounds array access
+  const safeRawScore = Math.max(0, Math.min(rawScore, conversionTable.length - 1));
+  const mapping = conversionTable[safeRawScore];
+
+  // Return Upper Path or Lower Path based on module 2
+  return module2Path === 'hard' || module2Path === 'upper' ? mapping[0] : mapping[1];
 };
 
 // --- ACT SCORING ---

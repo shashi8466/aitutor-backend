@@ -152,7 +152,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
                      <SafeIcon icon={FiIcons.FiBookOpen} className="w-6 h-6 text-green-500" />
                   </div>
                   <div className="flex flex-col">
-                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">SAT E&W</span>
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">SAT READING & WRITING</span>
                      <span className="text-2xl font-black text-white">
                        {allCoursesRaw.filter(c => getMainCategory(c) === 'SAT' && (c.tutor_type || '').toLowerCase().includes('reading')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
                      </span>
@@ -177,7 +177,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
                      <SafeIcon icon={FiIcons.FiBookOpen} className="w-6 h-6 text-amber-500" />
                   </div>
                   <div className="flex flex-col">
-                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">ACT ENGLISH/SCIENCE</span>
+                     <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">ACT ENGLISH/READING/ETC.</span>
                      <span className="text-2xl font-black text-white">
                        {allCoursesRaw.filter(c => getMainCategory(c) === 'ACT' && !(c.tutor_type || '').toLowerCase().includes('math')).reduce((sum, c) => sum + (c.questions_count || 0), 0).toLocaleString()} <span className="text-[10px] font-bold text-gray-500">Questions</span>
                      </span>
