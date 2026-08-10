@@ -143,27 +143,20 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         overflow-hidden flex flex-col
       `}>
-        {/* Logo Area */}
-        <div className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 justify-between flex-shrink-0">
-          <div className="flex items-center">
-            <div className="h-10 w-auto max-w-[120px] flex items-center justify-center mr-3 overflow-hidden text-black dark:text-white">
+        <div className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 justify-center flex-shrink-0 relative">
+          <div className="flex items-center justify-center w-full">
+            <div className="h-12 w-auto max-w-[200px] flex items-center justify-center overflow-hidden text-black dark:text-white">
             {appSettings.logoUrl ? (
               <img src={appSettings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
             ) : (
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
-                <span className="text-xl">🤖</span>
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
+                <span className="text-2xl">🤖</span>
               </div>
             )}
             </div>
-            <div>
-              <span className="font-extrabold text-lg text-gray-900 dark:text-white tracking-tight block leading-none">
-                {appSettings.appName === 'Aiprep365' || appSettings.appName === 'AIPrep365' || !appSettings.appName ? <BrandName className="text-lg" /> : appSettings.appName}
-              </span>
-              <span className="text-[9px] uppercase font-bold text-[#E53935] tracking-widest mt-0.5 block">Learning Portal</span>
-            </div>
           </div>
           {/* Close Button (Mobile Only) */}
-          <button onClick={onClose} className="lg:hidden p-2 text-gray-400 hover:text-[#E53935] transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+          <button onClick={onClose} className="absolute right-4 lg:hidden p-2 text-gray-400 hover:text-[#E53935] transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
             <SafeIcon icon={FiX} className="w-6 h-6" />
           </button>
         </div>

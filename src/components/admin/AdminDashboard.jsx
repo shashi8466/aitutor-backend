@@ -165,22 +165,19 @@ const AdminDashboard = () => {
         } ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
         {/* Logo Area */}
-        <div className="h-20 flex items-center justify-between px-4 border-b border-slate-800/50">
-          <div className="flex items-center gap-3 overflow-hidden">
+        <div className="h-20 flex items-center justify-center px-4 border-b border-slate-800/50 relative">
+          <div className="flex items-center justify-center w-full overflow-hidden">
             {(settings?.logo_url || settings?.logoUrl) ? (
-              <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-8 w-auto object-contain rounded-[4px] shrink-0" />
+              <img src={settings.logo_url || settings.logoUrl} alt="Logo" className="h-12 w-auto object-contain rounded-[4px] shrink-0" />
             ) : (
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shrink-0">
-                <span className="text-sm">🤖</span>
+              <div className="h-12 w-12 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shrink-0">
+                <span className="text-2xl">🤖</span>
               </div>
-            )}
-            {isSidebarOpen && (
-              <span className="text-white font-bold text-lg whitespace-nowrap">AIPrep365</span>
             )}
           </div>
           {/* Mobile close button */}
           <button 
-            className="md:hidden text-slate-400 hover:text-white"
+            className="absolute right-4 md:hidden text-slate-400 hover:text-white"
             onClick={() => setIsMobileMenuOpen(false)}
           >
             <SafeIcon icon={FiX} className="w-5 h-5" />

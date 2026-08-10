@@ -20,7 +20,8 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
     manual_enrollment_count: course?.manual_enrollment_count || '',
     status: course?.status || 'active',
     is_demo: course?.is_demo || false,
-    is_practice: course?.is_practice ?? false
+    is_practice: course?.is_practice ?? false,
+    uploader_name: ''
   });
 
   // Enrollment Key State
@@ -259,7 +260,8 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                 level,
                 section,
                 category: config.category,
-                parse: config.parse
+                parse: config.parse,
+                uploader_name: formData.uploader_name
               });
               if (res.data?.warning) {
                 errors.push(`${file.name}: ${res.data.message}`);
@@ -376,6 +378,31 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
                   />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleChange}
+                    rows={3}
+                    placeholder="Enter a brief description for this test"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Uploader Name</label>
+                  <input
+                    type="text"
+                    name="uploader_name"
+                    value={formData.uploader_name}
+                    onChange={handleChange}
+                    placeholder="Enter your name (will be displayed as 'Uploaded By')"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none"
+                  />
+                </div>
+                </div>
+                
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Threshold Percentage (%)</label>
                   <input
@@ -540,7 +567,6 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                   </>
                 )}
               </div>
-            </div>
 
             {/* Section 2: General Course Settings (Reuse Existing Features) */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-8">

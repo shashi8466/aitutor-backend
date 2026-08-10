@@ -427,7 +427,8 @@ const CourseForm = ({ course, onClose, onSave }) => {
       is_practice: course?.is_practice || false,
       is_demo: course?.is_demo || false,
       main_category: mainCat,
-      category: topic
+      category: topic,
+      uploader_name: ''
     };
   });
 
@@ -708,7 +709,7 @@ const CourseForm = ({ course, onClose, onSave }) => {
         }
 
         try {
-          const res = await courseService.uploadFile(savedCourse.id, file, { category, level, parse });
+          const res = await courseService.uploadFile(savedCourse.id, file, { category, level, parse, uploader_name: formData.uploader_name });
           if (res.data?.warning) {
             errors.push(`${file.name}: ${res.data.message}`);
           } else {
@@ -956,6 +957,18 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     onChange={handleChange}
                     rows={2}
                     placeholder="Enter course description (optional)"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white transition-all"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Uploader Name</label>
+                  <input
+                    type="text"
+                    name="uploader_name"
+                    value={formData.uploader_name}
+                    onChange={handleChange}
+                    placeholder="Enter your name (will be displayed as 'Uploaded By')"
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white transition-all"
                   />
                 </div>

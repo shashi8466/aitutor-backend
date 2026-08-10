@@ -1436,21 +1436,21 @@ export const adminService = {
 
       const activities = [];
       const [{ data: latestDemoLeads }, { data: latestStudents }, { data: latestCourses }] = await Promise.all([
-        supabase.from('demo_leads').select('id, name, created_at').order('created_at', { ascending: false }).limit(5),
-        supabase.from('profiles').select('id, full_name, email, created_at').eq('role', 'student').order('created_at', { ascending: false }).limit(5),
+        supabase.from('demo_leads').select('id, full_name, created_at').order('created_at', { ascending: false }).limit(5),
+        supabase.from('profiles').select('id, name, email, created_at').eq('role', 'student').order('created_at', { ascending: false }).limit(5),
         supabase.from('courses').select('id, name, created_at').order('created_at', { ascending: false }).limit(5)
       ]);
 
       (latestDemoLeads || []).forEach(lead => {
           activities.push({
               type: 'demo', iconName: 'FiCheckCircle', color: 'teal', title: 'Demo test submitted',
-              details: `${lead.name || 'A user'} submitted a demo test`, by: 'Student', created_at: new Date(lead.created_at)
+              details: `${lead.full_name || 'A user'} submitted a demo test`, by: 'Student', created_at: new Date(lead.created_at)
           });
       });
       (latestStudents || []).forEach(student => {
           activities.push({
               type: 'student', iconName: 'FiUserPlus', color: 'blue', title: 'New student registered',
-              details: `${student.full_name || student.email || 'A user'} joined as a student`, by: 'System', created_at: new Date(student.created_at)
+              details: `${student.name || student.email || 'A user'} joined as a student`, by: 'System', created_at: new Date(student.created_at)
           });
       });
       (latestCourses || []).forEach(course => {

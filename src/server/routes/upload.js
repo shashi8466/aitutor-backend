@@ -125,9 +125,9 @@ router.post('/', upload.single('file'), async (req, res) => {
     console.log('✅ [UPLOAD] File detected:', req.file.originalname);
 
     // 2. Extract metadata
-    const { courseId, category = 'source_document', level = 'All', parse = 'false', is_practice = 'false', section = 'general' } = req.body;
+    const { courseId, category = 'source_document', level = 'All', parse = 'false', is_practice = 'false', section = 'general', uploader_name = '' } = req.body;
     
-    console.log('📦 [UPLOAD] Metadata:', { courseId, category, level, parse, is_practice, section });
+    console.log('📦 [UPLOAD] Metadata:', { courseId, category, level, parse, is_practice, section, uploader_name });
 
     if (!courseId || courseId === 'undefined' || courseId === 'null') {
       console.error('❌ [UPLOAD] Invalid courseId:', courseId);
@@ -177,14 +177,16 @@ router.post('/', upload.single('file'), async (req, res) => {
     console.log('✅ [UPLOAD] Public URL:', fileUrl);
 
     // 5. Database Record
+    const finalFileName = uploader_name ? `${req.file.originalname}|${uploader_name}` : req.file.originalname;
     const uploadData = {
       course_id: numericCourseId,
-      file_name: req.file.originalname,
+      file_name: finalFileName,
       status: (parse === 'true' || category === 'quiz_document') ? 'processing' : 'completed',
       category: category,
       level: level,
       section: section || 'general',
       file_type: fileExt,
+      file_size: req.file.size,
       file_url: fileUrl,
       is_practice: is_practice === 'true' || is_practice === true,
       questions_count: 0

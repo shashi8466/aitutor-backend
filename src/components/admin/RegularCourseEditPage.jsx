@@ -68,45 +68,45 @@ const RegularCourseEditPage = () => {
   if (!course) return <div className="p-8 text-center">Course not found</div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-12 transition-colors duration-200">
+    <div className="min-h-screen bg-[#0f1115] pb-12 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Link to="/admin/courses" className="inline-flex items-center text-sky-600 hover:text-sky-700 mb-4 font-bold text-sm">
+          <Link to="/admin/courses" className="inline-flex items-center text-blue-500 hover:text-blue-400 mb-4 font-bold text-sm transition-colors">
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4 mr-1" /> Back to Course Management
           </Link>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 flex flex-col md:flex-row gap-6 md:justify-between md:items-start">
+          <div className="bg-[#1b2028] rounded-2xl shadow-sm border border-gray-800 p-8 flex flex-col md:flex-row gap-6 md:justify-between md:items-start">
             <div className="flex items-start gap-6">
-              <div className="bg-sky-100 dark:bg-sky-900/30 p-4 rounded-2xl">
-                <SafeIcon icon={FiBook} className="w-10 h-10 text-sky-600 dark:text-sky-400" />
+              <div className="bg-sky-900/30 p-4 rounded-2xl">
+                <SafeIcon icon={FiBook} className="w-10 h-10 text-sky-500" />
               </div>
               <div>
                 <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{course.name}</h1>
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${course.category === 'Full-Length ACT' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800' : 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'}`}>
+                  <h1 className="text-2xl font-black text-white tracking-tight">{course.name}</h1>
+                  <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${course.category === 'Full-Length ACT' ? 'bg-purple-900/30 text-purple-500 border-purple-500/30' : 'bg-sky-900/30 text-sky-500 border-sky-500/30'}`}>
                     {course.category === 'Full-Length ACT' ? 'ACT Full-Length Test' : 'Regular Course'}
                   </span>
                 </div>
-                <p className="text-slate-600 dark:text-slate-400 text-lg mb-4 max-w-2xl">{course.description}</p>
+                <p className="text-gray-400 text-sm mb-4 max-w-2xl">{course.description}</p>
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <SafeIcon icon={FiHelpCircle} className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{questionsCount} Questions</span>
+                  <div className="flex items-center gap-2 bg-transparent border border-gray-700 px-3 py-1.5 rounded-lg">
+                    <SafeIcon icon={FiHelpCircle} className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-xs font-bold text-gray-300">{questionsCount} Questions</span>
                   </div>
-                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <SafeIcon icon={FiUsers} className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{(course.manual_enrollment_count || 0) > students.length ? course.manual_enrollment_count : students.length} Students</span>
+                  <div className="flex items-center gap-2 bg-transparent border border-gray-700 px-3 py-1.5 rounded-lg">
+                    <SafeIcon icon={FiUsers} className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-xs font-bold text-gray-300">{(course.manual_enrollment_count || 0) > students.length ? course.manual_enrollment_count : students.length} Students</span>
                   </div>
-                  <div className="flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-center gap-2 bg-emerald-900/10 px-3 py-1.5 rounded-lg border border-emerald-900/50">
                     <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                    <span className="text-sm font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">{course.status}</span>
+                    <span className="text-xs font-black text-emerald-500 uppercase tracking-widest">{course.status}</span>
                   </div>
                 </div>
               </div>
             </div>
             <button
               onClick={() => setShowEditForm(true)}
-              className="w-full md:w-auto px-6 py-3 bg-sky-600 text-white rounded-xl font-bold hover:bg-sky-700 transition-all shadow-lg shadow-sky-200 flex items-center justify-center gap-2"
+              className="w-full md:w-auto px-5 py-2.5 bg-sky-600 text-white rounded-lg font-bold hover:bg-sky-700 transition-all text-sm flex items-center justify-center gap-2 shadow-sm"
             >
               <SafeIcon icon={FiEdit} className="w-4 h-4" /> Edit Course Details
             </button>
@@ -114,7 +114,7 @@ const RegularCourseEditPage = () => {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 mb-8 p-1 flex overflow-x-auto hide-scrollbar">
+        <div className="flex overflow-x-auto hide-scrollbar border-b border-gray-800 mb-8 pb-4">
           {[
             { id: 'content', icon: FiFile, label: 'Course Content' },
             { id: 'students', icon: FiUsers, label: `Students (${students.length})` },
@@ -125,10 +125,10 @@ const RegularCourseEditPage = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 min-w-[140px] py-3.5 px-4 rounded-xl text-sm font-black transition-all flex items-center justify-center gap-2 uppercase tracking-widest ${
+              className={`flex-1 min-w-[140px] py-2 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-widest ${
                 activeTab === tab.id
-                  ? 'bg-sky-600 text-white shadow-lg shadow-sky-200'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  ? 'bg-sky-600 text-white'
+                  : 'text-gray-500 hover:text-white bg-transparent'
               }`}
             >
               <SafeIcon icon={tab.icon} className="w-4 h-4" /> {tab.label}
@@ -140,91 +140,159 @@ const RegularCourseEditPage = () => {
         <div className="space-y-8 animate-in fade-in duration-500">
           {activeTab === 'content' && (
             <div className="space-y-10">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-6">
+                 <h3 className="text-sm font-bold text-white flex items-center gap-3">
+                    <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
+                    Course Files by Difficulty
+                 </h3>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <UploadsGroup level="Easy" color="blue" uploads={uploads} onDelete={handleDeleteUpload} />
                 <UploadsGroup level="Medium" color="purple" uploads={uploads} onDelete={handleDeleteUpload} />
                 <UploadsGroup level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
               </div>
+              </div>
 
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
-                   <div>
-                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Content Library</h3>
-                     <p className="text-sm text-slate-500">All uploaded materials for this course</p>
-                   </div>
-                </div>
+              <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 overflow-hidden mt-8">
+                 <div className="p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Content Library</h3>
+                      <p className="text-xs text-gray-500 mt-1">All uploaded materials for this course</p>
+                    </div>
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                      <div className="relative flex-1 md:flex-none">
+                        <input type="text" placeholder="Search files..." className="w-full bg-[#0f1115] border border-gray-700 text-white text-xs rounded-lg pl-3 pr-8 py-2 outline-none focus:border-gray-500 md:w-64" />
+                        <SafeIcon icon={FiIcons.FiSearch} className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+                      </div>
+                      <button className="flex items-center gap-2 bg-transparent border border-gray-700 text-gray-300 px-3 py-2 rounded-lg text-xs hover:bg-[#0f1115] transition-colors">
+                        <SafeIcon icon={FiIcons.FiFilter} className="w-3.5 h-3.5" /> Filter
+                      </button>
+                      <button className="flex items-center gap-2 bg-transparent border border-gray-700 text-gray-300 px-3 py-2 rounded-lg text-xs hover:bg-[#0f1115] transition-colors">
+                        <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-800/50">
+                    <thead className="bg-[#0f1115]/50 border-b border-gray-800">
                       <tr>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Resource Name</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Level</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Resource Name</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Type</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Level</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Questions</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Size</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uploaded By</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uploaded On <SafeIcon icon={FiIcons.FiArrowDown} className="inline w-3 h-3 ml-1" /></th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {uploads.map((upload) => (
-                        <tr key={upload.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-3 font-bold text-slate-900 dark:text-slate-100 text-sm">
-                              <SafeIcon icon={getFileIcon(upload.category)} className="w-4 h-4 text-slate-400" />
-                              {upload.file_name}
+                    <tbody className="divide-y divide-gray-800">
+                      {uploads.map((upload) => {
+                        const [actualFileName, uploaderNameStr] = upload.file_name?.includes('|') ? upload.file_name.split('|') : [upload.file_name, 'Admin'];
+                        const uploaderName = uploaderNameStr || 'Admin';
+                        const initials = uploaderName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                        
+                        const uploadDate = new Date(upload.created_at);
+                        const diffDays = Math.floor((Date.now() - uploadDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const relativeTime = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+
+                        return (
+                        <tr key={upload.id} className="hover:bg-[#252b36] transition-colors group">
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3 font-medium text-gray-300 text-xs">
+                              <SafeIcon icon={getFileIcon(upload.category)} className="w-4 h-4 text-gray-500" />
+                              {actualFileName}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span className="text-[11px] font-medium text-gray-400 capitalize">
                               {upload.category?.replace('_', ' ')}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest border ${getLevelColor(upload.level)}`}>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${getLevelColor(upload.level)}`}>
                               {upload.level}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <button onClick={() => handleDeleteUpload(upload.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                              <SafeIcon icon={FiTrash2} className="w-4 h-4" />
-                            </button>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span className="text-xs text-gray-300">{upload.questions_count || 0}</span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span className="text-xs text-gray-400">{upload.file_size ? (upload.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${['bg-blue-600', 'bg-purple-600', 'bg-orange-600', 'bg-emerald-600', 'bg-rose-600'][Math.abs(uploaderName.length % 5)]}`}>
+                                {initials}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs text-gray-300 font-medium">{uploaderName}</span>
+                                <span className="text-[10px] text-gray-500">Admin</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="text-[11px] text-gray-300">{uploadDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} {uploadDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className={`text-[10px] ${diffDays < 3 ? 'text-emerald-500' : diffDays > 10 ? 'text-red-500' : 'text-gray-500'}`}>{diffDays === 0 ? '(Latest)' : relativeTime}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => window.open(upload.file_url)} className="p-1.5 bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors border border-gray-700">
+                                <SafeIcon icon={FiIcons.FiDownload} className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDeleteUpload(upload.id)} className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/40 hover:text-red-400 rounded-lg transition-colors border border-red-900/30">
+                                <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
+                  <div className="p-4 border-t border-gray-800 flex justify-between items-center bg-[#0f1115]/50">
+                    <span className="text-[10px] text-gray-500 font-medium">Showing 1 to {uploads.length} of {uploads.length} files</span>
+                    <div className="flex gap-1">
+                      <button className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white disabled:opacity-50 text-xs bg-[#1b2028] border border-gray-800 rounded">&lt;</button>
+                      <button className="w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded text-xs">1</button>
+                      <button className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white disabled:opacity-50 text-xs bg-[#1b2028] border border-gray-800 rounded">&gt;</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {activeTab === 'students' && (
-             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
+             <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 p-8">
                 <div className="flex justify-between items-center mb-8">
-                   <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Enrolled Students</h3>
+                   <h3 className="text-xl font-bold text-white">Enrolled Students</h3>
                    <div className="flex gap-2">
-                     <span className="bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border border-sky-200 dark:border-sky-800">
+                     <span className="bg-sky-900/30 text-sky-500 border border-sky-500/30 text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest">
                        Total: {students.length}
                      </span>
                    </div>
                 </div>
                 {students.length === 0 ? (
-                  <div className="text-center py-20 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-                    <SafeIcon icon={FiUsers} className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500 font-bold uppercase tracking-widest">No students enrolled</p>
+                  <div className="text-center py-20 bg-[#0f1115] rounded-xl border border-gray-800">
+                    <SafeIcon icon={FiUsers} className="w-10 h-10 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">No students enrolled</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {students.map((student, idx) => (
-                      <div key={idx} className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 group hover:bg-white dark:hover:bg-slate-800 transition-all hover:shadow-md">
-                         <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center font-black text-sky-600 border border-slate-200 dark:border-slate-700 shadow-sm group-hover:scale-110 transition-transform">
+                      <div key={idx} className="p-4 bg-[#0f1115] rounded-xl border border-gray-800 flex items-center gap-4 hover:border-gray-700 transition-colors">
+                         <div className="w-12 h-12 bg-[#1b2028] rounded-xl flex items-center justify-center font-black text-sky-500 border border-gray-800">
                            {student.profiles?.name?.charAt(0) || 'U'}
                          </div>
                          <div className="min-w-0">
-                            <p className="font-bold text-slate-900 dark:text-white truncate text-lg">{student.profiles?.name || 'User'}</p>
-                            <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                            <p className="font-bold text-gray-200 truncate text-sm">{student.profiles?.name || 'User'}</p>
+                            <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-1">
                                <SafeIcon icon={FiMail} className="w-3 h-3" />
                                {student.profiles?.email}
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 font-bold">
+                            <p className="text-[10px] text-gray-600 mt-1 flex items-center gap-1 font-bold">
                                <SafeIcon icon={FiCalendar} className="w-3 h-3" />
                                {new Date(student.enrolled_at).toLocaleDateString()}
                             </p>
@@ -237,26 +305,26 @@ const RegularCourseEditPage = () => {
           )}
 
           {activeTab === 'keys' && (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
+            <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 p-8">
               <EnrollmentKeyManager courseId={id} courseName={course.name} />
             </div>
           )}
 
           {activeTab === 'tutors' && (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
+            <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 p-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {allTutors.map(tutor => {
                   const isAssigned = (tutor.assigned_courses || []).includes(parseInt(id));
                   const isUpdating = updating[tutor.id];
                   return (
-                    <div key={tutor.id} className={`p-6 rounded-2xl border-2 transition-all ${isAssigned ? 'border-sky-500 bg-sky-50/20 shadow-lg' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'}`}>
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-white ${isAssigned ? 'bg-sky-600' : 'bg-slate-400'}`}>
+                    <div key={tutor.id} className={`p-5 rounded-xl border transition-all ${isAssigned ? 'border-sky-500/50 bg-sky-900/10' : 'border-gray-800 bg-[#0f1115]'}`}>
+                      <div className="flex items-center gap-4 mb-5">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white text-sm ${isAssigned ? 'bg-sky-600' : 'bg-gray-700'}`}>
                           {tutor.name?.charAt(0) || 'T'}
                         </div>
                         <div className="min-w-0">
-                          <h4 className="font-black text-slate-900 dark:text-white truncate tracking-tight">{tutor.name}</h4>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Instructor</p>
+                          <h4 className="font-bold text-gray-200 truncate">{tutor.name}</h4>
+                          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Instructor</p>
                         </div>
                       </div>
                       <button
@@ -267,12 +335,11 @@ const RegularCourseEditPage = () => {
                           const newCourses = isAssigned ? currentCourses.filter(cid => cid !== parseInt(id)) : [...currentCourses, parseInt(id)];
                           try {
                             const result = await authService.updateProfileAsAdmin(tutor.id, { assigned_courses: newCourses });
-                            // Use server-confirmed data so state matches DB
                             const confirmedCourses = result.data?.assigned_courses || newCourses;
                             setAllTutors(prev => prev.map(p => p.id === tutor.id ? { ...p, assigned_courses: confirmedCourses } : p));
                           } catch (err) { console.error('Update failed:', err); } finally { setUpdating(prev => ({ ...prev, [tutor.id]: false })); }
                         }}
-                        className={`w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isAssigned ? 'bg-sky-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                        className={`w-full py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${isAssigned ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
                       >
                         {isUpdating ? <SafeIcon icon={FiRefreshCw} className="animate-spin mx-auto" /> : isAssigned ? 'Revoke Access' : 'Authorize Access'}
                       </button>
@@ -284,7 +351,7 @@ const RegularCourseEditPage = () => {
           )}
 
           {activeTab === 'grades' && (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-4">
+            <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 p-4">
               <TutorGrades adminMode={true} courseId={id} />
             </div>
           )}
@@ -313,27 +380,44 @@ const RegularCourseEditPage = () => {
 const UploadsGroup = ({ level, color, uploads, onDelete }) => {
   const levelUploads = uploads.filter(u => u.level?.toLowerCase() === level.toLowerCase() || (level === 'Medium' && u.level === 'Moderate'));
   const colors = {
-    blue: 'bg-blue-50/50 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-100',
-    purple: 'bg-purple-50/50 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-100',
-    orange: 'bg-orange-50/50 border-orange-200 text-orange-900 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-100',
+    blue: 'bg-transparent border-blue-900/50 text-blue-100',
+    purple: 'bg-transparent border-purple-900/50 text-purple-100',
+    orange: 'bg-transparent border-orange-900/50 text-orange-100',
   };
 
+  const titleColors = {
+    blue: 'text-blue-500',
+    purple: 'text-purple-500',
+    orange: 'text-orange-500',
+  }
+
   return (
-    <div className={`rounded-2xl border p-6 transition-all hover:shadow-md ${colors[color]}`}>
-      <h3 className="font-black text-sm uppercase tracking-widest mb-6 flex items-center justify-between">
+    <div className={`rounded-xl border p-5 transition-all ${colors[color]}`}>
+      <h3 className={`font-bold text-xs uppercase tracking-widest mb-4 flex items-center justify-between ${titleColors[color]}`}>
         {level} Tier
-        <span className="text-[10px] bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded border border-white/20">{levelUploads.length} files</span>
+        <span className="text-[10px] bg-[#0f1115]/50 px-2 py-0.5 rounded border border-gray-800/50 text-gray-400">{levelUploads.length} FILE{levelUploads.length !== 1 ? 'S' : ''}</span>
       </h3>
-      <div className="space-y-3">
-        {levelUploads.length === 0 && <p className="text-xs opacity-50 italic">No resources yet</p>}
-        {levelUploads.map(file => (
-          <div key={file.id} className="bg-white/80 dark:bg-slate-900/40 p-3 rounded-xl border border-white/40 dark:border-slate-700/40 flex justify-between items-center group">
+      <div className="space-y-6">
+        {levelUploads.length === 0 && <p className="text-[10px] text-gray-600 italic">No resources yet</p>}
+        {levelUploads.map(file => {
+          const uploadDate = new Date(file.created_at);
+          return (
+          <div key={file.id} className="flex flex-col gap-2 relative group">
             <div className="flex items-center gap-2 overflow-hidden">
-              <SafeIcon icon={getFileIcon(file.category)} className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
-              <span className="text-xs truncate font-bold text-slate-800 dark:text-slate-200" title={file.file_name}>{file.file_name}</span>
+              <SafeIcon icon={getFileIcon(file.category)} className="w-4 h-4 flex-shrink-0 text-gray-400" />
+              <span className="text-sm truncate font-medium text-gray-200" title={file.file_name}>{file.file_name?.split('|')[0]}</span>
+            </div>
+            <div className="flex items-center gap-6 text-xs text-gray-400 ml-6">
+               <span>{file.questions_count || 0} Questions</span>
+               <span>{file.file_size ? (file.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500 ml-6">
+               <SafeIcon icon={FiIcons.FiCloud} className="w-3.5 h-3.5" />
+               <span>Uploaded on {uploadDate.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -348,11 +432,11 @@ const getFileIcon = (category) => {
 const getLevelColor = (level) => {
   const l = level?.toLowerCase();
   switch (l) {
-    case 'easy': return 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400';
+    case 'easy': return 'bg-blue-900/30 border-blue-500/30 text-blue-400';
     case 'medium': 
-    case 'moderate': return 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-400';
-    case 'hard': return 'bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-400';
-    default: return 'bg-slate-50 border-slate-200 text-slate-700';
+    case 'moderate': return 'bg-purple-900/30 border-purple-500/30 text-purple-400';
+    case 'hard': return 'bg-orange-900/30 border-orange-500/30 text-orange-400';
+    default: return 'bg-gray-800 border-gray-700 text-gray-400';
   }
 };
 

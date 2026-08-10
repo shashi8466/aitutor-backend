@@ -9,7 +9,7 @@ import supabase from '../../supabase/supabase';
 import EnrollmentKeyManager from './EnrollmentKeyManager';
 import TutorGrades from '../tutor/TutorGrades';
 
-const { FiBook, FiArrowLeft, FiEdit, FiFile, FiVideo, FiHelpCircle, FiUsers, FiTrash2, FiCheck, FiRefreshCw, FiCheckCircle, FiPlus, FiActivity } = FiIcons;
+const { FiBook, FiArrowLeft, FiEdit, FiFile, FiVideo, FiHelpCircle, FiUsers, FiTrash2, FiCheck, FiRefreshCw, FiCheckCircle, FiPlus, FiActivity, FiSearch } = FiIcons;
 
 const FullLengthTestEditPage = () => {
   const { id } = useParams();
@@ -205,13 +205,24 @@ const FullLengthTestEditPage = () => {
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">File Name</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Category</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Tier</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Questions</th>
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Size</th>
-                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uploaded On</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uploaded By</th>
+                        <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uploaded On <SafeIcon icon={FiIcons.FiArrowDown} className="inline w-3 h-3 ml-1" /></th>
                         <th className="px-5 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800">
-                      {uploads.map((upload) => (
+                      {uploads.map((upload) => {
+                        const [actualFileName, uploaderNameStr] = upload.file_name?.includes('|') ? upload.file_name.split('|') : [upload.file_name, 'Admin'];
+                        const uploaderName = uploaderNameStr || 'Admin';
+                        const initials = uploaderName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                        
+                        const uploadDate = new Date(upload.created_at);
+                        const diffDays = Math.floor((Date.now() - uploadDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const relativeTime = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+
+                        return (
                         <tr key={upload.id} className="hover:bg-[#252b36] transition-colors group">
                           <td className="px-5 py-4">
                             <input type="checkbox" className="rounded border-gray-700 bg-transparent text-purple-600 focus:ring-purple-600 focus:ring-offset-gray-900" />
@@ -219,7 +230,7 @@ const FullLengthTestEditPage = () => {
                           <td className="px-5 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3 font-medium text-gray-300 text-xs">
                               <SafeIcon icon={getFileIcon(upload.category)} className="w-4 h-4 text-gray-500" />
-                              {upload.file_name}
+                              {actualFileName}
                             </div>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
@@ -233,19 +244,41 @@ const FullLengthTestEditPage = () => {
                             </span>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="text-[11px] font-medium text-gray-400">1.24 MB</span>
+                            <span className="text-xs text-gray-300">{upload.questions_count || 0}</span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap flex flex-col">
-                            <span className="text-[11px] font-medium text-gray-300">{new Date(upload.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
-                            <span className="text-[10px] text-emerald-500 mt-0.5">Recent</span>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span className="text-xs text-gray-400">{upload.file_size ? (upload.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${['bg-blue-600', 'bg-purple-600', 'bg-orange-600', 'bg-emerald-600', 'bg-rose-600'][Math.abs(uploaderName.length % 5)]}`}>
+                                {initials}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs text-gray-300 font-medium">{uploaderName}</span>
+                                <span className="text-[10px] text-gray-500">Admin</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span className="text-[11px] text-gray-300">{uploadDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} {uploadDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className={`text-[10px] ${diffDays < 3 ? 'text-emerald-500' : diffDays > 10 ? 'text-red-500' : 'text-gray-500'}`}>{diffDays === 0 ? '(Latest)' : relativeTime}</span>
+                            </div>
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap text-right">
-                            <button onClick={() => handleDeleteUpload(upload.id)} className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/40 hover:text-red-400 rounded-lg transition-colors border border-red-900/30">
-                              <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => window.open(upload.file_url)} className="p-1.5 bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors border border-gray-700">
+                                <SafeIcon icon={FiIcons.FiDownload} className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDeleteUpload(upload.id)} className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/40 hover:text-red-400 rounded-lg transition-colors border border-red-900/30">
+                                <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                   <div className="p-4 border-t border-gray-800 flex justify-between items-center bg-[#0f1115]/50">
@@ -400,7 +433,7 @@ const UploadsGroup = ({ section, level, color, uploads, onDelete }) => {
           <div key={file.id} className="bg-[#1b2028] p-2.5 rounded-lg border border-gray-800 flex justify-between items-center group">
             <div className="flex items-center gap-2 overflow-hidden">
               <SafeIcon icon={getFileIcon(file.category)} className="w-3.5 h-3.5 flex-shrink-0 text-gray-500" />
-              <span className="text-[11px] truncate font-medium text-gray-300" title={file.file_name}>{file.file_name}</span>
+              <span className="text-[11px] truncate font-medium text-gray-300" title={file.file_name}>{file.file_name?.split('|')[0]}</span>
             </div>
             <button onClick={() => onDelete(file.id)} className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-500 transition-all">
                <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" />
