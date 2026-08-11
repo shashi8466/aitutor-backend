@@ -49,7 +49,7 @@ const RegularCourseEditPage = () => {
         .from('enrollments')
         .select(`*, profiles (*)`)
         .eq('course_id', id);
-        
+
       setStudents(studentsData || []);
 
     } catch (error) {
@@ -60,8 +60,19 @@ const RegularCourseEditPage = () => {
   };
 
   const handleDeleteUpload = async (uploadId) => {
-    await uploadService.delete(uploadId);
-    loadCourseData();
+    if (!window.confirm("Are you sure you want to delete this file?")) {
+      return;
+    }
+
+    try {
+      setUploads(prev => prev.filter(u => u.id !== uploadId && String(u.id) !== String(uploadId)));
+      await uploadService.delete(uploadId);
+      await loadCourseData();
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      alert("Failed to delete file: " + (error.message || "Unknown error"));
+      await loadCourseData();
+    }
   };
 
   if (loading) return <div className="p-8 text-center">Loading Course Details...</div>;
@@ -125,11 +136,10 @@ const RegularCourseEditPage = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 min-w-[140px] py-2 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-widest ${
-                activeTab === tab.id
+              className={`flex-1 min-w-[140px] py-2 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-widest ${activeTab === tab.id
                   ? 'bg-sky-600 text-white'
                   : 'text-gray-500 hover:text-white bg-transparent'
-              }`}
+                }`}
             >
               <SafeIcon icon={tab.icon} className="w-4 h-4" /> {tab.label}
             </button>
@@ -141,36 +151,36 @@ const RegularCourseEditPage = () => {
           {activeTab === 'content' && (
             <div className="space-y-10">
               <div className="space-y-6">
-                 <h3 className="text-sm font-bold text-white flex items-center gap-3">
-                    <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
-                    Course Files by Difficulty
-                 </h3>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <UploadsGroup level="Easy" color="blue" uploads={uploads} onDelete={handleDeleteUpload} />
-                <UploadsGroup level="Medium" color="purple" uploads={uploads} onDelete={handleDeleteUpload} />
-                <UploadsGroup level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
-              </div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-3">
+                  <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
+                  Course Files by Difficulty
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <UploadsGroup level="Easy" color="blue" uploads={uploads} onDelete={handleDeleteUpload} />
+                  <UploadsGroup level="Medium" color="purple" uploads={uploads} onDelete={handleDeleteUpload} />
+                  <UploadsGroup level="Hard" color="orange" uploads={uploads} onDelete={handleDeleteUpload} />
+                </div>
               </div>
 
               <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 overflow-hidden mt-8">
-                 <div className="p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800">
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Content Library</h3>
-                      <p className="text-xs text-gray-500 mt-1">All uploaded materials for this course</p>
+                <div className="p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-800">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Content Library</h3>
+                    <p className="text-xs text-gray-500 mt-1">All uploaded materials for this course</p>
+                  </div>
+                  <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:flex-none">
+                      <input type="text" placeholder="Search files..." className="w-full bg-[#0f1115] border border-gray-700 text-white text-xs rounded-lg pl-3 pr-8 py-2 outline-none focus:border-gray-500 md:w-64" />
+                      <SafeIcon icon={FiIcons.FiSearch} className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
                     </div>
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                      <div className="relative flex-1 md:flex-none">
-                        <input type="text" placeholder="Search files..." className="w-full bg-[#0f1115] border border-gray-700 text-white text-xs rounded-lg pl-3 pr-8 py-2 outline-none focus:border-gray-500 md:w-64" />
-                        <SafeIcon icon={FiIcons.FiSearch} className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-                      </div>
-                      <button className="flex items-center gap-2 bg-transparent border border-gray-700 text-gray-300 px-3 py-2 rounded-lg text-xs hover:bg-[#0f1115] transition-colors">
-                        <SafeIcon icon={FiIcons.FiFilter} className="w-3.5 h-3.5" /> Filter
-                      </button>
-                      <button className="flex items-center gap-2 bg-transparent border border-gray-700 text-gray-300 px-3 py-2 rounded-lg text-xs hover:bg-[#0f1115] transition-colors">
-                        <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                 </div>
+                    <button className="flex items-center gap-2 bg-transparent border border-gray-700 text-gray-300 px-3 py-2 rounded-lg text-xs hover:bg-[#0f1115] transition-colors">
+                      <SafeIcon icon={FiIcons.FiFilter} className="w-3.5 h-3.5" /> Filter
+                    </button>
+                    <button className="flex items-center gap-2 bg-transparent border border-gray-700 text-gray-300 px-3 py-2 rounded-lg text-xs hover:bg-[#0f1115] transition-colors">
+                      <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead className="bg-[#0f1115]/50 border-b border-gray-800">
@@ -190,63 +200,63 @@ const RegularCourseEditPage = () => {
                         const [actualFileName, uploaderNameStr] = upload.file_name?.includes('|') ? upload.file_name.split('|') : [upload.file_name, 'Admin'];
                         const uploaderName = uploaderNameStr || 'Admin';
                         const initials = uploaderName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-                        
+
                         const uploadDate = new Date(upload.created_at);
                         const diffDays = Math.floor((Date.now() - uploadDate.getTime()) / (1000 * 60 * 60 * 24));
                         const relativeTime = diffDays === 0 ? 'Today' : diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
 
                         return (
-                        <tr key={upload.id} className="hover:bg-[#252b36] transition-colors group">
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-3 font-medium text-gray-300 text-xs">
-                              <SafeIcon icon={getFileIcon(upload.category)} className="w-4 h-4 text-gray-500" />
-                              {actualFileName}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="text-[11px] font-medium text-gray-400 capitalize">
-                              {upload.category?.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${getLevelColor(upload.level)}`}>
-                              {upload.level}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="text-xs text-gray-300">{upload.questions_count || 0}</span>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <span className="text-xs text-gray-400">{upload.file_size ? (upload.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${['bg-blue-600', 'bg-purple-600', 'bg-orange-600', 'bg-emerald-600', 'bg-rose-600'][Math.abs(uploaderName.length % 5)]}`}>
-                                {initials}
+                          <tr key={upload.id} className="hover:bg-[#252b36] transition-colors group">
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-3 font-medium text-gray-300 text-xs">
+                                <SafeIcon icon={getFileIcon(upload.category)} className="w-4 h-4 text-gray-500" />
+                                {actualFileName}
                               </div>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <span className="text-[11px] font-medium text-gray-400 capitalize">
+                                {upload.category?.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${getLevelColor(upload.level)}`}>
+                                {upload.level}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <span className="text-xs text-gray-300">{upload.questions_count || 0}</span>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <span className="text-xs text-gray-400">{upload.file_size ? (upload.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${['bg-blue-600', 'bg-purple-600', 'bg-orange-600', 'bg-emerald-600', 'bg-rose-600'][Math.abs(uploaderName.length % 5)]}`}>
+                                  {initials}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-xs text-gray-300 font-medium">{uploaderName}</span>
+                                  <span className="text-[10px] text-gray-500">Admin</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap">
                               <div className="flex flex-col">
-                                <span className="text-xs text-gray-300 font-medium">{uploaderName}</span>
-                                <span className="text-[10px] text-gray-500">Admin</span>
+                                <span className="text-[11px] text-gray-300">{uploadDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} {uploadDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className={`text-[10px] ${diffDays < 3 ? 'text-emerald-500' : diffDays > 10 ? 'text-red-500' : 'text-gray-500'}`}>{diffDays === 0 ? '(Latest)' : relativeTime}</span>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <div className="flex flex-col">
-                              <span className="text-[11px] text-gray-300">{uploadDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} {uploadDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span className={`text-[10px] ${diffDays < 3 ? 'text-emerald-500' : diffDays > 10 ? 'text-red-500' : 'text-gray-500'}`}>{diffDays === 0 ? '(Latest)' : relativeTime}</span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 whitespace-nowrap text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => window.open(upload.file_url)} className="p-1.5 bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors border border-gray-700">
-                                <SafeIcon icon={FiIcons.FiDownload} className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => handleDeleteUpload(upload.id)} className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/40 hover:text-red-400 rounded-lg transition-colors border border-red-900/30">
-                                <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-5 py-4 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button onClick={() => window.open(upload.file_url)} className="p-1.5 bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors border border-gray-700">
+                                  <SafeIcon icon={FiIcons.FiDownload} className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => handleDeleteUpload(upload.id)} className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/40 hover:text-red-400 rounded-lg transition-colors border border-red-900/30">
+                                  <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -265,43 +275,43 @@ const RegularCourseEditPage = () => {
           )}
 
           {activeTab === 'students' && (
-             <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 p-8">
-                <div className="flex justify-between items-center mb-8">
-                   <h3 className="text-xl font-bold text-white">Enrolled Students</h3>
-                   <div className="flex gap-2">
-                     <span className="bg-sky-900/30 text-sky-500 border border-sky-500/30 text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest">
-                       Total: {students.length}
-                     </span>
-                   </div>
+            <div className="bg-[#1b2028] rounded-xl shadow-sm border border-gray-800 p-8">
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="text-xl font-bold text-white">Enrolled Students</h3>
+                <div className="flex gap-2">
+                  <span className="bg-sky-900/30 text-sky-500 border border-sky-500/30 text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest">
+                    Total: {students.length}
+                  </span>
                 </div>
-                {students.length === 0 ? (
-                  <div className="text-center py-20 bg-[#0f1115] rounded-xl border border-gray-800">
-                    <SafeIcon icon={FiUsers} className="w-10 h-10 text-gray-600 mx-auto mb-4" />
-                    <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">No students enrolled</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {students.map((student, idx) => (
-                      <div key={idx} className="p-4 bg-[#0f1115] rounded-xl border border-gray-800 flex items-center gap-4 hover:border-gray-700 transition-colors">
-                         <div className="w-12 h-12 bg-[#1b2028] rounded-xl flex items-center justify-center font-black text-sky-500 border border-gray-800">
-                           {student.profiles?.name?.charAt(0) || 'U'}
-                         </div>
-                         <div className="min-w-0">
-                            <p className="font-bold text-gray-200 truncate text-sm">{student.profiles?.name || 'User'}</p>
-                            <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-1">
-                               <SafeIcon icon={FiMail} className="w-3 h-3" />
-                               {student.profiles?.email}
-                            </p>
-                            <p className="text-[10px] text-gray-600 mt-1 flex items-center gap-1 font-bold">
-                               <SafeIcon icon={FiCalendar} className="w-3 h-3" />
-                               {new Date(student.enrolled_at).toLocaleDateString()}
-                            </p>
-                         </div>
+              </div>
+              {students.length === 0 ? (
+                <div className="text-center py-20 bg-[#0f1115] rounded-xl border border-gray-800">
+                  <SafeIcon icon={FiUsers} className="w-10 h-10 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">No students enrolled</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {students.map((student, idx) => (
+                    <div key={idx} className="p-4 bg-[#0f1115] rounded-xl border border-gray-800 flex items-center gap-4 hover:border-gray-700 transition-colors">
+                      <div className="w-12 h-12 bg-[#1b2028] rounded-xl flex items-center justify-center font-black text-sky-500 border border-gray-800">
+                        {student.profiles?.name?.charAt(0) || 'U'}
                       </div>
-                    ))}
-                  </div>
-                )}
-             </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-200 truncate text-sm">{student.profiles?.name || 'User'}</p>
+                        <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-1">
+                          <SafeIcon icon={FiMail} className="w-3 h-3" />
+                          {student.profiles?.email}
+                        </p>
+                        <p className="text-[10px] text-gray-600 mt-1 flex items-center gap-1 font-bold">
+                          <SafeIcon icon={FiCalendar} className="w-3 h-3" />
+                          {new Date(student.enrolled_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {activeTab === 'keys' && (
@@ -358,7 +368,7 @@ const RegularCourseEditPage = () => {
         </div>
 
         {showEditForm && (
-          course.category === 'Full-Length ACT' ? (
+          (course.category === 'Full-Length ACT' || course.category === 'Linear SAT' || course.tutor_type === 'Linear SAT' || course.category === 'Full-Length SAT' || course.tutor_type === 'Full-Length SAT') ? (
             <AdaptiveCourseForm
               course={course}
               onClose={() => setShowEditForm(false)}
@@ -402,20 +412,20 @@ const UploadsGroup = ({ level, color, uploads, onDelete }) => {
         {levelUploads.map(file => {
           const uploadDate = new Date(file.created_at);
           return (
-          <div key={file.id} className="flex flex-col gap-2 relative group">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <SafeIcon icon={getFileIcon(file.category)} className="w-4 h-4 flex-shrink-0 text-gray-400" />
-              <span className="text-sm truncate font-medium text-gray-200" title={file.file_name}>{file.file_name?.split('|')[0]}</span>
+            <div key={file.id} className="flex flex-col gap-2 relative group">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <SafeIcon icon={getFileIcon(file.category)} className="w-4 h-4 flex-shrink-0 text-gray-400" />
+                <span className="text-sm truncate font-medium text-gray-200" title={file.file_name}>{file.file_name?.split('|')[0]}</span>
+              </div>
+              <div className="flex items-center gap-6 text-xs text-gray-400 ml-6">
+                <span>{file.questions_count || 0} Questions</span>
+                <span>{file.file_size ? (file.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 ml-6">
+                <SafeIcon icon={FiIcons.FiCloud} className="w-3.5 h-3.5" />
+                <span>Uploaded on {uploadDate.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-6 text-xs text-gray-400 ml-6">
-               <span>{file.questions_count || 0} Questions</span>
-               <span>{file.file_size ? (file.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-gray-500 ml-6">
-               <SafeIcon icon={FiIcons.FiCloud} className="w-3.5 h-3.5" />
-               <span>Uploaded on {uploadDate.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-          </div>
           );
         })}
       </div>
@@ -433,7 +443,7 @@ const getLevelColor = (level) => {
   const l = level?.toLowerCase();
   switch (l) {
     case 'easy': return 'bg-blue-900/30 border-blue-500/30 text-blue-400';
-    case 'medium': 
+    case 'medium':
     case 'moderate': return 'bg-purple-900/30 border-purple-500/30 text-purple-400';
     case 'hard': return 'bg-orange-900/30 border-orange-500/30 text-orange-400';
     default: return 'bg-gray-800 border-gray-700 text-gray-400';

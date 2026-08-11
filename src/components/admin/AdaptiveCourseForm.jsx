@@ -11,7 +11,13 @@ const { FiX, FiSave, FiAlertTriangle, FiBook, FiLoader, FiUsers, FiDollarSign, F
 
 const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
   const isEditMode = !!course;
-  const [testType, setTestType] = useState(course?.category || 'Full-Length SAT');
+  const initialType = (course?.category === 'Linear SAT' || course?.tutor_type === 'Linear SAT')
+    ? 'Linear SAT'
+    : (course?.category === 'Full-Length ACT' || course?.tutor_type === 'Full-Length ACT')
+      ? 'Full-Length ACT'
+      : (course?.category || course?.tutor_type || 'Full-Length SAT');
+
+  const [testType, setTestType] = useState(initialType);
   const [formData, setFormData] = useState({
     name: course?.name || 'FULL LENGTH TEST',
     description: course?.description || 'An FULL LENGTH TEST that adjusts difficulty based on performance in the first module.',
@@ -68,7 +74,8 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
           else if (u.section === 'math') sectionKey = 'math';
           else if (u.section === 'reading_writing') sectionKey = 'rw';
           else sectionKey = u.file_name?.toLowerCase().includes('math') ? 'math' : 'rw';
-          const levelKey = u.level?.toLowerCase();
+          let levelKey = u.level?.toLowerCase();
+          if (levelKey === 'medium') levelKey = 'moderate';
           const typeKey = u.category === 'study_material' ? 'study' : 
                           u.category === 'video_lecture' ? 'video' : 'quiz';
           
@@ -88,6 +95,10 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
   const handleDeleteExisting = async (key) => {
     const upload = existingUploads[key];
     if (!upload) return;
+
+    if (!window.confirm("Are you sure you want to delete this file?")) {
+      return;
+    }
 
     try {
       setLoading(true);
@@ -314,10 +325,20 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <div>
             <h3 className="text-2xl font-bold text-purple-700">
-              Create {testType === 'Full-Length SAT' ? 'Full-Length SAT Test (Adaptive)' : 'ACT Full-Length Test'}
+              {isEditMode 
+                ? `Edit ${formData.name || 'Course'} Details`
+                : (testType === 'Full-Length SAT' 
+                    ? 'Create Full-Length SAT Test (Adaptive)' 
+                    : testType === 'Linear SAT' 
+                      ? 'Create Linear SAT Full-Length Test' 
+                      : 'Create ACT Full-Length Test')}
             </h3>
             <p className="text-sm text-gray-500">
-              {testType === 'Full-Length SAT' ? 'Configure strict 6-module adaptive flow' : 'Configure 4-section full-length ACT flow'}
+              {testType === 'Full-Length SAT' 
+                ? 'Configure strict 6-module adaptive flow & content' 
+                : testType === 'Linear SAT' 
+                  ? 'Configure 6-module linear SAT flow & content' 
+                  : 'Configure 4-section full-length ACT flow & content'}
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
@@ -345,10 +366,18 @@ const AdaptiveCourseForm = ({ onClose, onSave, course = null }) => {
                 </div>
                 <div>
                    <h4 className="font-bold text-gray-900 text-lg">
-                     {testType === 'Full-Length SAT' ? 'SAT Test Configuration' : 'ACT Test Configuration'}
+                     {testType === 'Linear SAT' 
+                       ? 'Linear SAT Test Configuration' 
+                       : testType === 'Full-Length SAT' 
+                         ? 'SAT Test Configuration' 
+                         : 'ACT Test Configuration'}
                    </h4>
                    <p className="text-xs text-gray-500">
-                     {testType === 'Full-Length SAT' ? 'Define the adaptive logic layer and upload core modules' : 'Define test name and upload core modules'}
+                     {testType === 'Linear SAT' 
+                       ? 'Define test details and manage 6-module content' 
+                       : testType === 'Full-Length SAT' 
+                         ? 'Define the adaptive logic layer and upload core modules' 
+                         : 'Define test name and upload core modules'}
                    </p>
                 </div>
               </div>

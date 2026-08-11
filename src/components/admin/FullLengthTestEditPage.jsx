@@ -74,8 +74,20 @@ const FullLengthTestEditPage = () => {
   };
 
   const handleDeleteUpload = async (uploadId) => {
-    await uploadService.delete(uploadId);
-    loadCourseData();
+    if (!window.confirm("Are you sure you want to delete this file?")) {
+      return;
+    }
+
+    try {
+      // Optimistically update UI immediately
+      setUploads(prev => prev.filter(u => u.id !== uploadId && String(u.id) !== String(uploadId)));
+      await uploadService.delete(uploadId);
+      await loadCourseData();
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      alert("Failed to delete file: " + (error.message || "Unknown error"));
+      await loadCourseData();
+    }
   };
 
   if (loading) return <div className="p-8 text-center">Loading Test Details...</div>;

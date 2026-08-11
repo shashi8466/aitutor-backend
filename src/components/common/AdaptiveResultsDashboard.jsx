@@ -685,44 +685,55 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     const actCorrectCount = allResponses.filter(r => r.is_correct).length;
     const actPercentage = actTotalQuestions > 0 ? ((actCorrectCount / actTotalQuestions) * 100).toFixed(1) : "0.0";
 
-    let coverTitle = "Full Length Test Report";
+    const getDynamicReportTitle = (fallbackTitle) => {
+        if (courseNameVal && courseNameVal.trim() !== '') {
+            const cleanName = courseNameVal.trim();
+            if (cleanName.toUpperCase().endsWith('REPORT')) {
+                return cleanName;
+            }
+            return `${cleanName} Report`;
+        }
+        return fallbackTitle;
+    };
+
+    let coverTitle = getDynamicReportTitle("Full Length Test Report");
     let coverScoreLabel = "Total Score";
     let coverScoreValue = totalScore;
     let coverMaxScore = 1600;
 
     if (isACTTest) {
         if (isACTScience) {
-            coverTitle = "ACT Science Report";
+            coverTitle = getDynamicReportTitle("ACT Science Report");
             coverScoreLabel = "Science Score";
             coverMaxScore = totalScore > 36 ? 800 : 36;
         } else if (isACTEnglish) {
-            coverTitle = "ACT English Report";
+            coverTitle = getDynamicReportTitle("ACT English Report");
             coverScoreLabel = "English Score";
             coverMaxScore = totalScore > 36 ? 800 : 36;
         } else if (isACTReading) {
-            coverTitle = "ACT Reading Report";
+            coverTitle = getDynamicReportTitle("ACT Reading Report");
             coverScoreLabel = "Reading Score";
             coverMaxScore = totalScore > 36 ? 800 : 36;
         } else if (isACTMath) {
-            coverTitle = "ACT Math Report";
+            coverTitle = getDynamicReportTitle("ACT Math Report");
             coverScoreLabel = "Math Score";
             coverMaxScore = totalScore > 36 ? 800 : 36;
         } else {
-            coverTitle = "ACT Performance Report";
+            coverTitle = getDynamicReportTitle("ACT Performance Report");
             coverScoreLabel = "Composite Score";
             coverScoreValue = actScores?.composite || totalScore;
             coverMaxScore = 36;
         }
     } else if (isApCourse) {
-        coverTitle = apCourseTitle;
+        coverTitle = getDynamicReportTitle(apCourseTitle);
         coverScoreLabel = "Accuracy";
     } else {
         if (isFullLength) {
-            coverTitle = "Full Length Test Report";
+            coverTitle = getDynamicReportTitle("Full Length Test Report");
             coverScoreLabel = "Total Score";
             coverMaxScore = 1600;
         } else {
-            coverTitle = hasMath ? "SAT Math Report" : "SAT Reading & Writing Report";
+            coverTitle = getDynamicReportTitle(hasMath ? "SAT Math Report" : "SAT Reading & Writing Report");
             coverScoreLabel = hasMath ? "Math Score" : "Reading & Writing Score";
             coverScoreValue = hasMath ? mathScore : rwScore;
             coverMaxScore = 800;

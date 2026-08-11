@@ -92,9 +92,19 @@ const AdminCourseDetail = () => {
   };
 
   const handleDeleteUpload = async (uploadId) => {
-    // Removed window.confirm to avoid sandbox errors
-    await uploadService.delete(uploadId);
-    loadCourseData();
+    if (!window.confirm("Are you sure you want to delete this file?")) {
+      return;
+    }
+
+    try {
+      setUploads(prev => prev.filter(u => u.id !== uploadId && String(u.id) !== String(uploadId)));
+      await uploadService.delete(uploadId);
+      await loadCourseData();
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      alert("Failed to delete file: " + (error.message || "Unknown error"));
+      await loadCourseData();
+    }
   };
 
   if (loading) return <div className="p-8 text-center">Loading Course Details...</div>;
@@ -422,7 +432,7 @@ const AdminCourseDetail = () => {
 
         {/* Edit Form Modal */}
         {showEditForm && (
-          course?.tutor_type === 'Full-Length SAT Test' ? (
+          (course?.tutor_type === 'Full-Length SAT Test' || course?.tutor_type === 'Full-Length SAT' || course?.tutor_type === 'Linear SAT' || course?.category === 'Linear SAT' || course?.category === 'Full-Length ACT' || course?.category === 'Full-Length SAT') ? (
             <AdaptiveCourseForm
               course={course}
               onClose={() => setShowEditForm(false)}

@@ -46,11 +46,11 @@ const AdaptivePreTest = () => {
         
         {/* Back Button */}
         <button 
-          onClick={() => navigate(`/student/course/${courseId}`)}
+          onClick={() => navigate('/student/courses')}
           className="group flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold transition-colors mb-6 text-sm"
         >
           <SafeIcon icon={FiArrowLeft} className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Course
+          Back to Courses
         </button>
 
         {/* Main White Container */}
@@ -61,17 +61,17 @@ const AdaptivePreTest = () => {
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-5">
                 <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/20">
-                  Full-Length SAT
+                  {course?.category === 'Linear SAT' || course?.tutor_type === 'Linear SAT' ? 'LINEAR SAT' : 'FULL-LENGTH SAT'}
                 </span>
                 <span className="px-3 py-1 bg-emerald-500/20 backdrop-blur-md rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-500/30 text-emerald-300">
-                  Adaptive
+                  {course?.category === 'Linear SAT' || course?.tutor_type === 'Linear SAT' ? 'LINEAR' : 'ADAPTIVE'}
                 </span>
               </div>
               <h1 className="text-3xl sm:text-4xl font-bold mb-4 tracking-tight">
-                {course?.name || 'SAT FULL LENGTH TEST 2'}
+                {course?.name || 'LINEAR FULL LENGTH TEST'}
               </h1>
               <p className="text-purple-100 text-sm sm:text-base max-w-2xl font-normal leading-relaxed">
-                Experience a realistic testing environment. This test adapts to your skill level in real-time.
+                {course?.description || 'Experience a realistic testing environment.'}
               </p>
             </div>
             {/* Abstract Background Shapes (Simulating subtle wave/pattern) */}

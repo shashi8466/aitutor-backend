@@ -24,6 +24,7 @@ const StudentCourseList = () => {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [planAccess, setPlanAccess] = useState([]);
   const [topicCourseIds, setTopicCourseIds] = useState(new Set());
+  const [studentSubmissionsMap, setStudentSubmissionsMap] = useState({});
 
   const isPremium = (user?.plan_type || '').toLowerCase() === 'premium';
 
@@ -199,6 +200,47 @@ const StudentCourseList = () => {
       setPlanAccess(accessData);
       const ids = new Set(enrollmentsData.map(e => e.course_id));
       setEnrolledIds(ids);
+
+      // Fetch student submissions for accurate attempt/completion tracking
+      const subsMap = {};
+      const addSubToMap = (s) => {
+        if (!s) return;
+        const keys = new Set();
+        if (s.course_id) keys.add(String(s.course_id));
+        if (s.course?.id) keys.add(String(s.course.id));
+        if (s.courses?.id) keys.add(String(s.courses.id));
+        const cName = (s.course?.name || s.courses?.name || s.course_name || s.test_name || '').toLowerCase().trim();
+        if (cName) keys.add(cName);
+
+        keys.forEach(k => {
+          if (!subsMap[k]) subsMap[k] = [];
+          if (!subsMap[k].some(existing => existing.id === s.id)) {
+            subsMap[k].push(s);
+          }
+        });
+      };
+
+      try {
+        const scoresRes = await gradingService.getAllMyScores(user.id);
+        const apiSubs = scoresRes.data?.submissions || scoresRes.submissions || [];
+        apiSubs.forEach(s => addSubToMap(s));
+      } catch (e) {
+        console.warn("API scores fetch warning:", e.message);
+      }
+
+      try {
+        const { data: dbSubs } = await supabase
+          .from('test_submissions')
+          .select('*, courses:courses(id, name)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        (dbSubs || []).forEach(s => addSubToMap(s));
+      } catch (subErr) {
+        console.warn("Submissions fetch warning:", subErr);
+      }
+
+      setStudentSubmissionsMap(subsMap);
 
       // Indirect Access: Fetch course IDs that have assigned topics
       if (user?.plan_type !== 'premium') {
@@ -474,6 +516,25 @@ const StudentCourseList = () => {
       );
     }
 
+  const getSubmissionsForCourse = (course, subsMap = {}) => {
+    if (!course) return [];
+    const idKey = String(course.id);
+    const nameKey = (course.name || '').toLowerCase().trim();
+    
+    const fromId = subsMap[idKey] || [];
+    const fromName = subsMap[nameKey] || [];
+
+    const combined = [...fromId, ...fromName];
+    const uniqueMap = new Map();
+    combined.forEach(s => {
+      if (s && s.id && !uniqueMap.has(s.id)) {
+        uniqueMap.set(s.id, s);
+      }
+    });
+
+    return Array.from(uniqueMap.values()).sort((a, b) => new Date(b.created_at || b.test_date || 0) - new Date(a.created_at || a.test_date || 0));
+  };
+
     return viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {sortedList.map((course, idx) => (
@@ -482,11 +543,18 @@ const StudentCourseList = () => {
             course={course}
             index={idx}
             isEnrolled={isEnrolledFlag}
+            submissions={getSubmissionsForCourse(course, studentSubmissionsMap)}
             isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
             isLoading={enrollLoading === course.id}
             onAction={() => {
               if (isEnrolledFlag) {
-                navigate(`/student/course/${course.id}`);
+                const isLinearSAT = course.category === 'Linear SAT' || course.tutor_type === 'Linear SAT' || (course.name || '').toLowerCase().includes('linear sat');
+                const isAdaptiveSAT = course.is_adaptive || (course.category || '').toLowerCase().includes('full-length sat') || (course.tutor_type || '').toLowerCase().includes('full-length sat');
+                if (isLinearSAT || isAdaptiveSAT) {
+                  navigate(`/student/adaptive-pre-test/${course.id}`);
+                } else {
+                  navigate(`/student/course/${course.id}`);
+                }
               } else {
                 handleEnroll(course.id);
               }
@@ -502,11 +570,18 @@ const StudentCourseList = () => {
             course={course}
             index={idx}
             isEnrolled={isEnrolledFlag}
+            submissions={getSubmissionsForCourse(course, studentSubmissionsMap)}
             isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
             isLoading={enrollLoading === course.id}
             onAction={() => {
               if (isEnrolledFlag) {
-                navigate(`/student/course/${course.id}`);
+                const isLinearSAT = course.category === 'Linear SAT' || course.tutor_type === 'Linear SAT' || (course.name || '').toLowerCase().includes('linear sat');
+                const isAdaptiveSAT = course.is_adaptive || (course.category || '').toLowerCase().includes('full-length sat') || (course.tutor_type || '').toLowerCase().includes('full-length sat');
+                if (isLinearSAT || isAdaptiveSAT) {
+                  navigate(`/student/adaptive-pre-test/${course.id}`);
+                } else {
+                  navigate(`/student/course/${course.id}`);
+                }
               } else {
                 handleEnroll(course.id);
               }
@@ -699,7 +774,78 @@ const StudentCourseList = () => {
   );
 };
 
-const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted }) => {
+const getCourseStatusInfo = (course, submissions = []) => {
+  const latestSub = submissions.length > 0 ? submissions[0] : null;
+
+  const isTest = Boolean(
+    course.is_adaptive ||
+    (course.category || '').toLowerCase().includes('full-length') ||
+    (course.tutor_type || '').toLowerCase().includes('full-length') ||
+    (course.tutor_type || '').toLowerCase().includes('linear sat') ||
+    (course.name || '').toLowerCase().includes('full length') ||
+    (course.name || '').toLowerCase().includes('linear sat')
+  );
+
+  const isCompleted = Boolean(
+    (latestSub && (
+      latestSub.status === 'completed' ||
+      latestSub.is_completed === true ||
+      (latestSub.raw_score_percentage !== undefined && latestSub.raw_score_percentage !== null) ||
+      (latestSub.scaled_score !== undefined && latestSub.scaled_score > 0)
+    )) ||
+    course.user_progress === 100 ||
+    course.progress === 100
+  );
+
+  const hasAttempt = Boolean(
+    latestSub ||
+    (course.user_progress !== undefined && Number(course.user_progress) > 0) ||
+    (course.progress !== undefined && Number(course.progress) > 0)
+  );
+
+  const isInProgress = !isCompleted && hasAttempt;
+  const isNotAttempted = !isCompleted && !isInProgress;
+
+  let progressPct = 0;
+  if (isCompleted) {
+    progressPct = 100;
+  } else if (isInProgress) {
+    if (course.user_progress !== undefined && Number(course.user_progress) > 0) {
+      progressPct = Number(course.user_progress);
+    } else if (course.progress !== undefined && Number(course.progress) > 0) {
+      progressPct = Number(course.progress);
+    } else if (latestSub?.completed_modules_count) {
+      progressPct = Math.round((latestSub.completed_modules_count / 4) * 100);
+    } else if (latestSub?.raw_score_percentage !== undefined) {
+      progressPct = Number(latestSub.raw_score_percentage);
+    } else {
+      progressPct = 25;
+    }
+  }
+
+  let primaryBtnText = isTest ? 'Start Test' : 'Start Course';
+  if (isInProgress) {
+    primaryBtnText = isTest ? 'Continue Test' : 'Continue Learning';
+  } else if (isCompleted) {
+    primaryBtnText = 'View Results';
+  }
+
+  return {
+    isTest,
+    isCompleted,
+    isInProgress,
+    isNotAttempted,
+    progressPct,
+    latestSub,
+    primaryBtnText
+  };
+};
+
+const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted, submissions = [] }) => {
+  const navigate = useNavigate();
+  const statusInfo = getCourseStatusInfo(course, submissions);
+  const { isTest, isCompleted, isInProgress, isNotAttempted, progressPct, latestSub, primaryBtnText } = statusInfo;
+
   const isMath = (course.tutor_type || '').toLowerCase().includes('math') || (course.tutor_type || '').toLowerCase().includes('quant');
   const isReading = (course.tutor_type || '').toLowerCase().includes('reading') || (course.tutor_type || '').toLowerCase().includes('writing') || (course.tutor_type || '').toLowerCase().includes('english');
   
@@ -739,43 +885,106 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
 
       {isEnrolled && (
         <div className="mt-6 space-y-2">
-          <div className="flex justify-between text-[10px] font-bold text-gray-400">
-            <span>{course.progress || '33'}% Completed</span>
-            <span className="flex items-center gap-1 text-green-500"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> Active</span>
+          <div className="flex justify-between items-center text-[10px] font-bold">
+            <span className="text-gray-300">{progressPct}% Completed</span>
+            {isCompleted ? (
+              <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[9px]">
+                <SafeIcon icon={FiIcons.FiCheckCircle} className="w-2.5 h-2.5 text-emerald-400" /> Completed
+              </span>
+            ) : isInProgress ? (
+              <span className="flex items-center gap-1 text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 text-[9px]">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></div> In Progress
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-gray-400 bg-gray-500/10 px-2 py-0.5 rounded-full border border-gray-800 text-[9px]">
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-500"></div> Not Attempted
+              </span>
+            )}
           </div>
-          <div className="h-1 bg-[#1C202B] rounded-full overflow-hidden">
-            <div className="h-full bg-green-500 rounded-full" style={{ width: `${course.progress || 33}%` }}></div>
+          <div className="h-1.5 bg-[#1C202B] rounded-full overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all duration-300 ${
+                isCompleted ? 'bg-emerald-500' : isInProgress ? 'bg-blue-500' : 'bg-gray-600'
+              }`} 
+              style={{ width: `${progressPct}%` }}
+            ></div>
           </div>
         </div>
       )}
     </div>
 
     <div className="p-4 border-t border-[#1C202B]">
-      <button
-        onClick={onAction}
-        disabled={isLoading}
-        className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border
-          ${isEnrolled
-            ? 'bg-transparent border-[#1C202B] text-gray-300 hover:border-gray-600 hover:text-white'
-            : 'bg-transparent border-purple-500/50 text-purple-400 hover:bg-purple-500/10'
+      {!isEnrolled ? (
+        <button
+          onClick={onAction}
+          disabled={isLoading}
+          className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border ${
+            isPremiumRestricted
+              ? 'bg-transparent border-amber-500/50 text-amber-400 hover:bg-amber-500/10'
+              : 'bg-transparent border-purple-500/50 text-purple-400 hover:bg-purple-500/10'
           } ${isLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
-      >
-        {isLoading ? (
-          <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
-        ) : isEnrolled ? (
-          <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> Continue Learning</>
-        ) : isPremiumRestricted ? (
-          <><SafeIcon icon={FiIcons.FiZap} className="w-3 h-3" /> Unlock Premium</>
-        ) : (
-          <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-3 h-3" /> Enroll Now</>
-        )}
-      </button>
+        >
+          {isLoading ? (
+            <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
+          ) : isPremiumRestricted ? (
+            <><SafeIcon icon={FiIcons.FiZap} className="w-3 h-3" /> Unlock Premium</>
+          ) : (
+            <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-3 h-3" /> Enroll Now</>
+          )}
+        </button>
+      ) : isCompleted ? (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (latestSub?.id) {
+                navigate(`/student/report/${latestSub.id}`);
+              } else {
+                onAction();
+              }
+            }}
+            className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-sm"
+          >
+            <SafeIcon icon={FiIcons.FiFileText} className="w-3.5 h-3.5" /> View Results
+          </button>
+          <button
+            onClick={() => {
+              const isLinearSAT = course.category === 'Linear SAT' || course.tutor_type === 'Linear SAT' || (course.name || '').toLowerCase().includes('linear sat');
+              const isAdaptiveSAT = course.is_adaptive || (course.category || '').toLowerCase().includes('full-length sat') || (course.tutor_type || '').toLowerCase().includes('full-length sat');
+              if (isLinearSAT || isAdaptiveSAT) {
+                navigate(`/student/adaptive-pre-test/${course.id}?retake=true`);
+              } else {
+                navigate(`/student/course/${course.id}?retake=true`);
+              }
+            }}
+            className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+            title="Start a new test attempt while keeping prior history"
+          >
+            <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3 h-3" /> Start Again
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={onAction}
+          disabled={isLoading}
+          className="w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 bg-transparent border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white"
+        >
+          {isLoading ? (
+            <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
+          ) : (
+            <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> {primaryBtnText}</>
+          )}
+        </button>
+      )}
     </div>
   </motion.div>
   );
 };
 
-const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted }) => {
+const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted, submissions = [] }) => {
+  const navigate = useNavigate();
+  const statusInfo = getCourseStatusInfo(course, submissions);
+  const { isTest, isCompleted, isInProgress, isNotAttempted, progressPct, latestSub, primaryBtnText } = statusInfo;
+
   const isMath = (course.tutor_type || '').toLowerCase().includes('math') || (course.tutor_type || '').toLowerCase().includes('quant');
   const isReading = (course.tutor_type || '').toLowerCase().includes('reading') || (course.tutor_type || '').toLowerCase().includes('writing') || (course.tutor_type || '').toLowerCase().includes('english');
   
@@ -817,34 +1026,83 @@ const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremi
           {isEnrolled && (
             <div className="mt-2 flex items-center gap-3 w-full max-w-xs">
               <div className="flex-1 h-1 bg-[#1C202B] rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 rounded-full" style={{ width: `${course.progress || 33}%` }}></div>
+                <div 
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    isCompleted ? 'bg-emerald-500' : isInProgress ? 'bg-blue-500' : 'bg-gray-600'
+                  }`} 
+                  style={{ width: `${progressPct}%` }}
+                ></div>
               </div>
-              <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{course.progress || '33'}% Completed</span>
+              <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">
+                {isCompleted ? 'Completed · 100%' : isInProgress ? `In Progress · ${progressPct}%` : 'Not Attempted · 0%'}
+              </span>
             </div>
           )}
         </div>
       </div>
 
       <div className="flex items-center gap-3 sm:self-center flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 border-[#1C202B] pt-3 sm:pt-0">
-        <button
-          onClick={onAction}
-          disabled={isLoading}
-          className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border whitespace-nowrap
-            ${isEnrolled
-              ? 'bg-transparent border-[#1C202B] text-gray-300 hover:border-gray-600 hover:text-white'
-              : 'bg-transparent border-purple-500/50 text-purple-400 hover:bg-purple-500/10'
+        {!isEnrolled ? (
+          <button
+            onClick={onAction}
+            disabled={isLoading}
+            className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border whitespace-nowrap ${
+              isPremiumRestricted
+                ? 'bg-transparent border-amber-500/50 text-amber-400 hover:bg-amber-500/10'
+                : 'bg-transparent border-purple-500/50 text-purple-400 hover:bg-purple-500/10'
             } ${isLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
-        >
-          {isLoading ? (
-            <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
-          ) : isEnrolled ? (
-            <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> Continue Learning</>
-          ) : isPremiumRestricted ? (
-            <><SafeIcon icon={FiIcons.FiZap} className="w-3 h-3" /> Unlock Premium</>
-          ) : (
-            <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-3 h-3" /> Enroll Now</>
-          )}
-        </button>
+          >
+            {isLoading ? (
+              <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
+            ) : isPremiumRestricted ? (
+              <><SafeIcon icon={FiIcons.FiZap} className="w-3 h-3" /> Unlock Premium</>
+            ) : (
+              <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-3 h-3" /> Enroll Now</>
+            )}
+          </button>
+        ) : isCompleted ? (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => {
+                if (latestSub?.id) {
+                  navigate(`/student/report/${latestSub.id}`);
+                } else {
+                  onAction();
+                }
+              }}
+              className="px-4 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap"
+            >
+              <SafeIcon icon={FiIcons.FiFileText} className="w-3.5 h-3.5" /> View Results
+            </button>
+            <button
+              onClick={() => {
+                const isLinearSAT = course.category === 'Linear SAT' || course.tutor_type === 'Linear SAT' || (course.name || '').toLowerCase().includes('linear sat');
+                const isAdaptiveSAT = course.is_adaptive || (course.category || '').toLowerCase().includes('full-length sat') || (course.tutor_type || '').toLowerCase().includes('full-length sat');
+                if (isLinearSAT || isAdaptiveSAT) {
+                  navigate(`/student/adaptive-pre-test/${course.id}?retake=true`);
+                } else {
+                  navigate(`/student/course/${course.id}?retake=true`);
+                }
+              }}
+              className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+              title="Start a new test attempt while keeping prior history"
+            >
+              <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3 h-3" /> Start Again
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onAction}
+            disabled={isLoading}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white whitespace-nowrap"
+          >
+            {isLoading ? (
+              <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
+            ) : (
+              <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> {primaryBtnText}</>
+            )}
+          </button>
+        )}
       </div>
     </motion.div>
   );

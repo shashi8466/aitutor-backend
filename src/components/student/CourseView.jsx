@@ -364,6 +364,18 @@ const CourseView = () => {
 
       const courseData = courseRes.data;
       setCourse(courseData);
+
+      const cCat = (courseData?.category || '').toLowerCase();
+      const cTut = (courseData?.tutor_type || '').toLowerCase();
+      const cName = (courseData?.name || '').toLowerCase();
+      const isLinear = cCat.includes('linear sat') || cTut.includes('linear sat') || cName.includes('linear sat');
+      const isFullSAT = courseData?.is_adaptive || cCat.includes('full-length sat') || cTut.includes('full-length sat');
+
+      if (!isTutorContext && (isLinear || isFullSAT)) {
+        navigate(`/student/adaptive-pre-test/${courseId}`, { replace: true });
+        return;
+      }
+
       let isEnrolled = isEnrolledRes;
 
       if (!isEnrolled && courseData?.is_demo) isEnrolled = true;

@@ -674,52 +674,46 @@ export const uploadService = {
   },
   delete: async (id) => {
     try {
-      return await axios.delete(`/api/upload/${id}`);
-    } catch (error) {
-      // Some deployed backends may not expose DELETE /api/upload/:id yet.
-      // Fallback to direct Supabase deletion so admin UX still works.
-      if (error?.response?.status !== 404) throw error;
-
-      const uploadId = String(id);
-      const { data: uploadRow, error: fetchErr } = await supabase
-        .from('uploads')
-        .select('id,file_url')
-        .eq('id', uploadId)
-        .maybeSingle();
-      if (fetchErr) throw fetchErr;
-      if (!uploadRow) {
-        const notFound = new Error('Upload record not found');
-        notFound.status = 404;
-        throw notFound;
-      }
-
-      // Keep data integrity: remove dependent questions first.
-      const { error: qErr } = await supabase
-        .from('questions')
-        .delete()
-        .eq('upload_id', uploadId);
-      if (qErr) throw qErr;
-
-      const { error: uploadErr } = await supabase
-        .from('uploads')
-        .delete()
-        .eq('id', uploadId);
-      if (uploadErr) throw uploadErr;
-
-      // Best-effort storage cleanup from public URL.
-      if (uploadRow.file_url) {
-        try {
-          const parts = String(uploadRow.file_url).split('/documents/');
-          if (parts.length > 1) {
-            await supabase.storage.from('documents').remove([parts[1]]);
-          }
-        } catch (_) {
-          // no-op: DB cleanup already succeeded
-        }
-      }
-
-      return { data: { success: true, fallback: true } };
+      const res = await axios.delete(`/api/upload/${id}`);
+      if (res.data?.success) return res;
+    } catch (apiErr) {
+      console.warn("Backend API delete endpoint failed, executing direct database purge fallback:", apiErr.message);
     }
+
+    const uploadId = String(id);
+    const rawId = isNaN(Number(id)) ? id : Number(id);
+
+    // 1. Fetch record to extract storage URL
+    const { data: uploadRow } = await supabase
+      .from('uploads')
+      .select('id,file_url')
+      .or(`id.eq.${uploadId},id.eq.${rawId}`)
+      .maybeSingle();
+
+    // 2. Delete related questions
+    await supabase.from('questions').delete().or(`upload_id.eq.${uploadId},upload_id.eq.${rawId}`);
+
+    // 3. Delete upload record from uploads table
+    const { error: uploadErr } = await supabase
+      .from('uploads')
+      .delete()
+      .or(`id.eq.${uploadId},id.eq.${rawId}`);
+
+    if (uploadErr) {
+      await supabase.from('uploads').delete().eq('id', uploadId);
+    }
+
+    // 4. Best-effort storage cleanup from public URL
+    if (uploadRow?.file_url) {
+      try {
+        const parts = String(uploadRow.file_url).split('/documents/');
+        if (parts.length > 1) {
+          await supabase.storage.from('documents').remove([parts[1]]);
+        }
+      } catch (_) {}
+    }
+
+    return { data: { success: true } };
   },
   getStats: async () => {
     const { count: uploadsCount } = await supabase
