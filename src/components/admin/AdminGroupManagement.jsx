@@ -143,181 +143,226 @@ const AdminGroupManagement = () => {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="bg-[#0B0D14] min-h-screen text-white p-6 sm:p-8 rounded-[32px] font-sans">
             {/* Header */}
-            <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Group Management</h2>
-                <p className="text-gray-500 dark:text-gray-400">Manage all student groups across tutors</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <div>
+                    <h2 className="text-3xl font-extrabold text-white flex items-center gap-3">
+                        <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-500 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
+                            <SafeIcon icon={FiUsers} className="w-6 h-6" />
+                        </div>
+                        Group Management
+                    </h2>
+                    <p className="text-gray-400 mt-2 ml-[3.75rem] font-medium text-sm">Manage all student groups across tutors</p>
+                </div>
+                <button className="flex items-center gap-2 px-5 py-2.5 bg-[#11131A] text-gray-300 rounded-xl border border-[#1C202B] hover:bg-gray-800 transition-colors text-sm font-bold shadow-sm">
+                    <SafeIcon icon={FiDownload} className="w-4 h-4" /> Export Report
+                </button>
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
-                    <div className="flex items-center justify-between mb-2">
-                        <SafeIcon icon={FiUsers} className="w-8 h-8 opacity-80" />
-                        <span className="text-3xl font-bold">{stats.totalGroups}</span>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                {/* Total Groups */}
+                <div className="bg-[#11131A] rounded-2xl p-6 border border-[#1C202B] relative overflow-hidden shadow-lg group">
+                    <div className="flex items-center gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-500/10 border border-blue-500/20 text-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] group-hover:scale-110 transition-transform">
+                            <SafeIcon icon={FiUsers} className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Total Groups</p>
+                            <h3 className="text-2xl font-bold text-white mt-1">{stats.totalGroups}</h3>
+                            <p className="text-gray-500 text-[10px] mt-0.5">Across all tutors</p>
+                        </div>
                     </div>
-                    <p className="text-blue-100 font-bold">Total Groups</p>
-                    <p className="text-blue-200 text-xs mt-1">Across all tutors</p>
+                    <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full"></div>
                 </div>
 
-                <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg">
-                    <div className="flex items-center justify-between mb-2">
-                        <SafeIcon icon={FiUserCheck} className="w-8 h-8 opacity-80" />
-                        <span className="text-3xl font-bold">{stats.totalStudents}</span>
+                {/* Students in Groups */}
+                <div className="bg-[#11131A] rounded-2xl p-6 border border-[#1C202B] relative overflow-hidden shadow-lg group">
+                    <div className="flex items-center gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-green-500/10 border border-green-500/20 text-green-500 shadow-[0_0_15px_rgba(34,197,94,0.15)] group-hover:scale-110 transition-transform">
+                            <SafeIcon icon={FiUserCheck} className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Students in Groups</p>
+                            <h3 className="text-2xl font-bold text-white mt-1">{stats.totalStudents}</h3>
+                            <p className="text-gray-500 text-[10px] mt-0.5">Total enrollments</p>
+                        </div>
                     </div>
-                    <p className="text-green-100 font-bold">Students in Groups</p>
-                    <p className="text-green-200 text-xs mt-1">Total enrollments</p>
+                    <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-500/10 blur-3xl rounded-full"></div>
                 </div>
 
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
-                    <div className="flex items-center justify-between mb-2">
-                        <SafeIcon icon={FiUsers} className="w-8 h-8 opacity-80" />
-                        <span className="text-3xl font-bold">{stats.totalTutors}</span>
+                {/* Tutors with Groups */}
+                <div className="bg-[#11131A] rounded-2xl p-6 border border-[#1C202B] relative overflow-hidden shadow-lg group">
+                    <div className="flex items-center gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-purple-500/10 border border-purple-500/20 text-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.15)] group-hover:scale-110 transition-transform">
+                            <SafeIcon icon={FiUsers} className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Tutors with Groups</p>
+                            <h3 className="text-2xl font-bold text-white mt-1">{stats.totalTutors}</h3>
+                            <p className="text-gray-500 text-[10px] mt-0.5">Unique tutors</p>
+                        </div>
                     </div>
-                    <p className="text-purple-100 font-bold">Tutors with Groups</p>
-                    <p className="text-purple-200 text-xs mt-1">Unique tutors</p>
+                    <div className="absolute bottom-0 right-0 w-32 h-32 bg-purple-500/10 blur-3xl rounded-full"></div>
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
-                    <div className="flex items-center justify-between mb-2">
-                        <SafeIcon icon={FiUsers} className="w-8 h-8 opacity-80" />
-                        <span className="text-3xl font-bold">{stats.avgGroupSize}</span>
+                {/* Avg Group Size */}
+                <div className="bg-[#11131A] rounded-2xl p-6 border border-[#1C202B] relative overflow-hidden shadow-lg group">
+                    <div className="flex items-center gap-4 relative z-10">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-orange-500/10 border border-orange-500/20 text-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.15)] group-hover:scale-110 transition-transform">
+                            <SafeIcon icon={FiUsers} className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Avg Group Size</p>
+                            <h3 className="text-2xl font-bold text-white mt-1">{stats.avgGroupSize}</h3>
+                            <p className="text-gray-500 text-[10px] mt-0.5">Students per group</p>
+                        </div>
                     </div>
-                    <p className="text-orange-100 font-bold">Avg Group Size</p>
-                    <p className="text-orange-200 text-xs mt-1">Students per group</p>
+                    <div className="absolute bottom-0 right-0 w-32 h-32 bg-orange-500/10 blur-3xl rounded-full"></div>
                 </div>
             </div>
 
             {/* Filters */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1 relative">
-                        <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="bg-[#11131A] rounded-2xl border border-[#1C202B] p-4 mb-8 shadow-sm">
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                    <div className="flex-1 relative w-full">
+                        <SafeIcon icon={FiSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                         <input
                             type="text"
                             placeholder="Search groups, tutors, or courses..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl"
+                            className="w-full pl-11 pr-4 py-3 bg-[#0B0D14] border border-[#1C202B] text-white rounded-xl focus:outline-none focus:border-[#7C3AED] transition-colors text-sm"
                         />
                     </div>
-                    <div className="flex items-center gap-2">
-                        <SafeIcon icon={FiFilter} className="text-gray-400" />
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                        <SafeIcon icon={FiFilter} className="text-gray-500 absolute ml-4 pointer-events-none" />
                         <select
                             value={filterTutor}
                             onChange={(e) => setFilterTutor(e.target.value)}
-                            className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl"
+                            className="pl-11 pr-8 py-3 bg-[#0B0D14] border border-[#1C202B] text-white rounded-xl focus:outline-none focus:border-[#7C3AED] transition-colors text-sm appearance-none min-w-[200px]"
                         >
                             <option value="all">All Tutors</option>
                             {tutors.map(tutor => (
                                 <option key={tutor.id} value={tutor.id}>{tutor.name}</option>
                             ))}
                         </select>
+                        <button
+                            onClick={loadData}
+                            className="px-6 py-3 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-xl flex items-center gap-2 font-bold transition-colors shadow-[0_0_15px_rgba(124,58,237,0.3)] text-sm ml-auto"
+                        >
+                            <SafeIcon icon={FiRefreshCw} className="w-4 h-4" />
+                            Refresh
+                        </button>
                     </div>
-                    <button
-                        onClick={loadData}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-2 font-bold transition-colors"
-                    >
-                        <SafeIcon icon={FiRefreshCw} />
-                        Refresh
-                    </button>
                 </div>
             </div>
 
             {/* Groups Grid (Premium UI) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-12">
                 {filteredGroups.length > 0 ? (
-                    filteredGroups.map((group) => (
+                    filteredGroups.map((group, index) => {
+                        const themeColors = [
+                            { main: 'text-[#3B82F6]', bg: 'bg-[#3B82F6]/10', border: 'border-[#3B82F6]/20', solid: 'bg-[#3B82F6] hover:bg-[#2563EB]', shadow: 'hover:shadow-[#3B82F6]/10', icon: 'text-blue-500' },
+                            { main: 'text-[#10B981]', bg: 'bg-[#10B981]/10', border: 'border-[#10B981]/20', solid: 'bg-[#10B981] hover:bg-[#059669]', shadow: 'hover:shadow-[#10B981]/10', icon: 'text-emerald-500' },
+                            { main: 'text-[#8B5CF6]', bg: 'bg-[#8B5CF6]/10', border: 'border-[#8B5CF6]/20', solid: 'bg-[#8B5CF6] hover:bg-[#7C3AED]', shadow: 'hover:shadow-[#8B5CF6]/10', icon: 'text-purple-500' },
+                            { main: 'text-[#F97316]', bg: 'bg-[#F97316]/10', border: 'border-[#F97316]/20', solid: 'bg-[#F97316] hover:bg-[#EA580C]', shadow: 'hover:shadow-[#F97316]/10', icon: 'text-orange-500' }
+                        ];
+                        const theme = themeColors[index % themeColors.length];
+
+                        return (
                         <motion.div
                             key={group.id}
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             whileHover={{ y: -4 }}
-                            className="bg-white dark:bg-gray-800 rounded-[32px] border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col group hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300"
+                            className={`bg-[#11131A] rounded-[24px] border border-[#1C202B] shadow-lg overflow-hidden flex flex-col group transition-all duration-300 relative ${theme.shadow}`}
                         >
-                            <div className="p-8 flex-1">
+                            <div className={`absolute top-0 right-0 w-48 h-48 opacity-[0.03] blur-3xl rounded-full pointer-events-none ${theme.bg.replace('/10', '')}`}></div>
+                            <div className="p-6 flex-1 relative z-10">
                                 <div className="flex justify-between items-start mb-6">
-                                    <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                        <SafeIcon icon={FiLayers} className="w-7 h-7" />
+                                    <div className={`w-12 h-12 ${theme.bg} rounded-xl flex items-center justify-center ${theme.main} border ${theme.border}`}>
+                                        <SafeIcon icon={FiLayers} className="w-6 h-6" />
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-2">
                                         <button
                                             onClick={() => {
                                                 setSelectedGroup(group);
                                                 setShowReassignModal(true);
                                             }}
-                                            className="p-2.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
+                                            className={`p-2 ${theme.main} hover:${theme.bg} rounded-lg transition-all border border-transparent hover:${theme.border}`}
                                             title="Reassign tutor"
                                         >
-                                            <SafeIcon icon={FiRefreshCw} />
+                                            <SafeIcon icon={FiRefreshCw} className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={() => handleDeleteGroup(group.id)}
-                                            className="p-2.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
+                                            className="p-2 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all border border-transparent hover:border-red-500/20"
                                             title="Delete group"
                                         >
-                                            <SafeIcon icon={FiTrash2} />
+                                            <SafeIcon icon={FiTrash2} className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 mb-6">
+                                <div className="space-y-3 mb-6">
                                     <div className="flex items-center gap-2">
-                                        <span className="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-full">
+                                        <span className={`px-2.5 py-1 ${theme.bg} ${theme.main} text-[10px] font-black uppercase tracking-widest rounded-md border ${theme.border}`}>
                                             {group.course?.name || 'No Course'}
                                         </span>
                                     </div>
-                                    <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-tighter leading-none">
+                                    <h3 className="text-xl font-bold text-white uppercase tracking-tight leading-none mt-2">
                                         {group.name}
                                     </h3>
                                     {group.description && (
-                                        <p className="text-sm text-gray-500 line-clamp-2">{group.description}</p>
+                                        <p className="text-xs text-gray-500 line-clamp-2">{group.description}</p>
                                     )}
                                 </div>
 
-                                <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700/50">
+                                <div className="space-y-3 p-4 bg-[#0B0D14] rounded-xl border border-[#1C202B]">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-gray-500 text-xs">
                                             <SafeIcon icon={FiUser} className="w-4 h-4" />
                                             <span className="font-bold">STUDENTS</span>
                                         </div>
-                                        <span className="font-black text-gray-900 dark:text-white">{group.member_count || 0}</span>
+                                        <span className={`font-black ${theme.main}`}>{group.member_count || 0}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-gray-500 text-xs">
                                             <SafeIcon icon={FiBook} className="w-4 h-4" />
                                             <span className="font-bold">ASSIGNED TUTOR</span>
                                         </div>
-                                        <span className="font-black text-blue-600">{group.tutor_name}</span>
+                                        <span className={`font-black text-xs ${theme.main} truncate max-w-[130px]`} title={group.tutor_name}>{group.tutor_name}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="p-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700/50 grid grid-cols-2 gap-2">
+                            <div className="p-4 grid grid-cols-2 gap-3 relative z-10 border-t border-[#1C202B] bg-[#11131A]">
                                 <button
                                     onClick={() => {
                                         setSelectedGroup(group);
                                         setViewMode('analytics');
                                     }}
-                                    className="flex items-center justify-center gap-2 py-3 px-4 bg-white dark:bg-gray-800 text-blue-600 font-black rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all text-xs"
+                                    className={`flex items-center justify-center gap-2 py-2.5 px-4 bg-transparent ${theme.main} font-bold rounded-xl border ${theme.border} hover:${theme.bg} transition-all text-xs`}
                                 >
-                                    <SafeIcon icon={FiTrendingUp} /> ANALYTICS
+                                    <SafeIcon icon={FiTrendingUp} className="w-4 h-4" /> Analytics
                                 </button>
                                 <button
                                     onClick={() => handleViewDetail(group)}
-                                    className="flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-all text-xs shadow-lg shadow-blue-200 dark:shadow-none"
+                                    className={`flex items-center justify-center gap-2 py-2.5 px-4 ${theme.solid} text-white font-bold rounded-xl transition-all text-xs shadow-sm shadow-black/20`}
                                 >
-                                    <SafeIcon icon={FiActivity} /> MANAGE
+                                    <SafeIcon icon={FiActivity} className="w-4 h-4" /> Manage
                                 </button>
                             </div>
                         </motion.div>
-                    ))
+                        );
+                    })
                 ) : (
-                    <div className="col-span-full py-20 bg-white dark:bg-gray-800 rounded-[32px] border-2 border-dashed border-gray-200 dark:border-gray-700 flex flex-col items-center gap-4">
-                        <SafeIcon icon={FiAlertCircle} className="w-12 h-12 text-gray-400" />
+                    <div className="col-span-full py-20 bg-[#11131A] rounded-[24px] border border-[#1C202B] flex flex-col items-center gap-4">
+                        <SafeIcon icon={FiAlertCircle} className="w-12 h-12 text-gray-500" />
                         <div className="text-center">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">No Groups Found</h3>
+                            <h3 className="text-lg font-bold text-white">No Groups Found</h3>
                             <p className="text-gray-500">Try adjusting your filters or search query</p>
                         </div>
                     </div>

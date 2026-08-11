@@ -19,6 +19,9 @@ const StudentCourseList = () => {
   const [filter, setFilter] = useState('');
   const [activeCategory, setActiveCategory] = useState('SAT');
   const [activeSubcategory, setActiveSubcategory] = useState('All');
+  const [sortBy, setSortBy] = useState('recent');
+  const [viewMode, setViewMode] = useState('grid');
+  const [expandedCategory, setExpandedCategory] = useState(null);
   const [planAccess, setPlanAccess] = useState([]);
   const [topicCourseIds, setTopicCourseIds] = useState(new Set());
 
@@ -153,7 +156,7 @@ const StudentCourseList = () => {
       if (course.tutor_type && course.tutor_type !== section) continue;
 
       for (const [cat, subtopics] of Object.entries(categories)) {
-        if (subtopics.some(s => n === s.toLowerCase() || n.includes(s.toLowerCase()))) {
+        if (Array.isArray(subtopics) && subtopics.some(s => n === s.toLowerCase() || n.includes(s.toLowerCase()))) {
           return { section, category: cat };
         }
       }
@@ -198,7 +201,6 @@ const StudentCourseList = () => {
       setEnrolledIds(ids);
 
       // Indirect Access: Fetch course IDs that have assigned topics
-      // Only for non-premium to determine restricted UI
       if (user?.plan_type !== 'premium') {
         const assignedTopics = accessData
           .filter(a => a.content_type === 'topic' && a.plan_type === 'free')
@@ -268,10 +270,8 @@ const StudentCourseList = () => {
 
   const filteredCourses = allCourses.filter(c => {
     const userPlan = (user?.plan_type || 'free').toLowerCase();
-    const isUserPremium = userPlan === 'premium';
     
-    // 0. Access Filter: 
-    // - Students see only what is explicitly assigned to their plan.
+    // 0. Access Filter:
     const hasDirectAccess = planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan);
     const hasTopicAccess = topicCourseIds.has(c.id);
     if (!hasDirectAccess && !hasTopicAccess) return false;
@@ -284,7 +284,7 @@ const StudentCourseList = () => {
     );
     if (c.is_practice && !c.is_adaptive && !isACTFullLength) return false;
 
-    // 2. Must be active (if status column exists)
+    // 2. Must be active
     if (c.status && c.status !== 'active') return false;
 
     // 3. Category Filter Match
@@ -294,8 +294,6 @@ const StudentCourseList = () => {
         ['physics', 'chemistry', 'biology', 'calculus', 'algebra', 'geometry', 'science', 'psychology', 'history', 'government', 'english', 'environmental'].some(kw => (c.tutor_type || '').toLowerCase().includes(kw)) ? 'AP' : 'SAT'
     );
 
-    // Route FULL LENGTH TESTs:
-    // Keep them under FULL LENGTH TESTS category.
     if (mainCat === 'FULL LENGTH TESTs' || c.is_adaptive || (c.tutor_type || '').toUpperCase() === 'LINEAR SAT') {
       mainCat = 'FULL LENGTH TESTS';
     }
@@ -318,68 +316,167 @@ const StudentCourseList = () => {
     }
 
     // 5. Search match
+    if (!filter || !filter.trim()) return true;
+    const searchTerm = filter.trim().toLowerCase();
+    const courseName = (c.name || '').toLowerCase();
+    const courseDesc = (c.description || '').toLowerCase();
+    const courseCat = (c.category || '').toLowerCase();
+    const courseTutor = (c.tutor_type || '').toLowerCase();
+    
     return (
-      c.name.toLowerCase().includes(filter.toLowerCase()) ||
-      c.description?.toLowerCase().includes(filter.toLowerCase())
+      courseName.includes(searchTerm) ||
+      courseDesc.includes(searchTerm) ||
+      courseCat.includes(searchTerm) ||
+      courseTutor.includes(searchTerm)
     );
   });
+
+  const sortCourses = (coursesList) => {
+    return [...coursesList].sort((a, b) => {
+      if (sortBy === 'recent') {
+        const dateA = new Date(a.created_at || a.updated_at || 0).getTime() || Number(a.id || 0);
+        const dateB = new Date(b.created_at || b.updated_at || 0).getTime() || Number(b.id || 0);
+        return dateB - dateA;
+      }
+      if (sortBy === 'oldest') {
+        const dateA = new Date(a.created_at || a.updated_at || 0).getTime() || Number(a.id || 0);
+        const dateB = new Date(b.created_at || b.updated_at || 0).getTime() || Number(b.id || 0);
+        return dateA - dateB;
+      }
+      if (sortBy === 'name') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      if (sortBy === 'progress') {
+        const progA = Number(a.progress || 0);
+        const progB = Number(b.progress || 0);
+        return progB - progA;
+      }
+      return 0;
+    });
+  };
 
   const enrolledCourses = filteredCourses.filter(c => enrolledIds.has(c.id));
   const availableCourses = filteredCourses.filter(c => !enrolledIds.has(c.id));
 
   const renderCourseGrid = (coursesList, isEnrolledFlag) => {
+    const sortedList = sortCourses(coursesList);
+
     if (activeCategory === 'SAT') {
       const groups = {};
-      coursesList.forEach(c => {
+      sortedList.forEach(c => {
         const tax = getCourseTaxonomy(c);
         const cat = tax.category;
         if (!groups[cat]) groups[cat] = [];
         groups[cat].push(c);
       });
 
-      const sortedGroups = Object.keys(groups).sort((a,b) => {
+      let categoryKeys = Object.keys(groups);
+      if (expandedCategory) {
+        categoryKeys = categoryKeys.filter(cat => cat === expandedCategory);
+      }
+
+      const sortedGroups = categoryKeys.sort((a,b) => {
         if (a === 'General') return 1;
         if (b === 'General') return -1;
         return a.localeCompare(b);
       });
 
-      return sortedGroups.map(cat => (
-        <div key={cat} className="mb-4">
-          {cat !== 'General' && (
-             <div className="bg-[#1e293b] rounded-t-xl px-4 py-2 border-b border-gray-100/10 mb-4 shadow-sm relative overflow-hidden">
-               <h3 className="relative z-10 text-[14px] font-bold text-white tracking-wide">{cat}</h3>
-             </div>
+      return (
+        <div>
+          {expandedCategory && (
+            <div className="flex items-center justify-between bg-[#11131A] p-3 px-4 rounded-xl border border-[#1C202B] mb-6">
+              <span className="text-xs sm:text-sm font-semibold text-gray-300">
+                Showing courses for: <strong className="text-purple-400">{expandedCategory}</strong>
+              </span>
+              <button 
+                onClick={() => setExpandedCategory(null)}
+                className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1"
+              >
+                ← Back to All Categories
+              </button>
+            </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {groups[cat].map((course, idx) => (
-              <CourseCard
-                key={course.id}
-                course={course}
-                index={idx}
-                isEnrolled={isEnrolledFlag}
-                isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
-                isLoading={enrollLoading === course.id}
-                onAction={() => {
-                  if (isEnrolledFlag) {
-                    if (course.is_adaptive) {
-                      navigate(`/student/course/${course.id}`);
-                    } else {
-                      navigate(`/student/course/${course.id}`);
-                    }
-                  } else {
-                    handleEnroll(course.id);
-                  }
-                }}
-              />
-            ))}
-          </div>
+          {sortedGroups.map((cat, index) => {
+            const catIcons = [FiIcons.FiStar, FiIcons.FiUser, FiIcons.FiSettings, FiIcons.FiTriangle, FiIcons.FiBox, FiIcons.FiActivity];
+            const catColors = ['text-purple-500', 'text-red-500', 'text-teal-500', 'text-purple-400', 'text-blue-500', 'text-orange-500'];
+            const Icon = catIcons[index % catIcons.length];
+            const colorClass = catColors[index % catColors.length];
+
+            return (
+            <div key={cat} className="mb-8">
+              {cat !== 'General' && (
+                 <div className="flex justify-between items-center mb-6 mt-4 border-b border-[#1C202B] pb-2">
+                   <h3 className="text-[15px] font-bold text-gray-300 flex items-center gap-2">
+                     <SafeIcon icon={Icon} className={`w-4 h-4 ${colorClass}`} /> {cat}
+                   </h3>
+                   {expandedCategory === cat ? (
+                     <button 
+                       onClick={() => setExpandedCategory(null)}
+                       className="text-purple-500 hover:text-purple-400 text-xs font-bold flex items-center gap-1 transition-colors"
+                     >
+                       Show All Categories
+                     </button>
+                   ) : (
+                     <button 
+                       onClick={() => setExpandedCategory(cat)}
+                       className="text-purple-500 hover:text-purple-400 text-xs font-bold flex items-center gap-1 transition-colors"
+                     >
+                       View All <SafeIcon icon={FiIcons.FiArrowRight} className="w-3 h-3" />
+                     </button>
+                   )}
+                 </div>
+              )}
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                  {groups[cat].map((course, idx) => (
+                    <CourseCard
+                      key={course.id}
+                      course={course}
+                      index={idx}
+                      isEnrolled={isEnrolledFlag}
+                      isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+                      isLoading={enrollLoading === course.id}
+                      onAction={() => {
+                        if (isEnrolledFlag) {
+                          navigate(`/student/course/${course.id}`);
+                        } else {
+                          handleEnroll(course.id);
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {groups[cat].map((course, idx) => (
+                    <CourseListRow
+                      key={course.id}
+                      course={course}
+                      index={idx}
+                      isEnrolled={isEnrolledFlag}
+                      isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+                      isLoading={enrollLoading === course.id}
+                      onAction={() => {
+                        if (isEnrolledFlag) {
+                          navigate(`/student/course/${course.id}`);
+                        } else {
+                          handleEnroll(course.id);
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            );
+          })}
         </div>
-      ));
+      );
     }
 
-    return (
+    return viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {coursesList.map((course, idx) => (
+        {sortedList.map((course, idx) => (
           <CourseCard
             key={course.id}
             course={course}
@@ -389,11 +486,27 @@ const StudentCourseList = () => {
             isLoading={enrollLoading === course.id}
             onAction={() => {
               if (isEnrolledFlag) {
-                if (course.is_adaptive) {
-                  navigate(`/student/course/${course.id}`);
-                } else {
-                  navigate(`/student/course/${course.id}`);
-                }
+                navigate(`/student/course/${course.id}`);
+              } else {
+                handleEnroll(course.id);
+              }
+            }}
+          />
+        ))}
+      </div>
+    ) : (
+      <div className="flex flex-col gap-3">
+        {sortedList.map((course, idx) => (
+          <CourseListRow
+            key={course.id}
+            course={course}
+            index={idx}
+            isEnrolled={isEnrolledFlag}
+            isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+            isLoading={enrollLoading === course.id}
+            onAction={() => {
+              if (isEnrolledFlag) {
+                navigate(`/student/course/${course.id}`);
               } else {
                 handleEnroll(course.id);
               }
@@ -411,79 +524,156 @@ const StudentCourseList = () => {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 pb-12">
+    <div className="max-w-6xl mx-auto space-y-8 pb-12 font-sans">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-gray-100 dark:border-gray-800/50 pb-8 px-4 sm:px-0">
-        <div className="flex-1">
-          <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tight uppercase">Courses</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm sm:text-lg font-bold uppercase tracking-widest">Master each topic and boost your scores!</p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight flex items-center gap-3">
+            Courses <FiIcons.FiAward className="text-purple-400 w-8 h-8" />
+          </h1>
+          <p className="text-gray-400 mt-2 text-sm font-medium">Master each topic and boost your scores!</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-          {/* Subject Switch */}
-          <div className="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-full flex relative shadow-inner border border-gray-200 dark:border-gray-700 overflow-x-auto no-scrollbar scrollbar-hide">
-            {['SAT', 'ACT', 'AP', 'FULL LENGTH TESTS'].map((category) => (
-              <button
-                key={category}
-                disabled={category === 'ACT' && user?.email !== 'ssky57771@gmail.com' && user?.email !== 'admink338@gmail.com'}
-                onClick={() => {
-                  setActiveCategory(category);
-                  setActiveSubcategory('All');
-                }}
-                className={`relative px-5 sm:px-6 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all z-10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  activeCategory === category 
-                    ? 'text-white' 
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                {category}
-                {activeCategory === category && (
-                  <motion.div
-                    layoutId="activeTab"
-                    className="absolute inset-0 bg-[#E53935] rounded-full -z-10 shadow-lg"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-            {/* Search Box */}
-            <div className="relative w-full sm:w-64 group">
-              <SafeIcon icon={FiSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#E53935] transition-colors w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search courses..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-[#E53935]/20 focus:border-[#E53935] outline-none text-sm transition-all shadow-sm"
-              />
-            </div>
-          </div>
+        {/* Search Box */}
+        <div className="relative w-full sm:w-72 group">
+          <SafeIcon icon={FiSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4 group-focus-within:text-purple-500 transition-colors" />
+          <input
+            type="text"
+            placeholder="Search courses..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="w-full pl-11 pr-9 py-2.5 bg-[#11131A] border border-[#1C202B] text-white rounded-xl focus:outline-none focus:border-purple-500 transition-colors text-sm shadow-sm"
+          />
+          {filter && (
+            <button 
+              onClick={() => setFilter('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs p-1"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
+      </div>
 
-      {/* Subcategory Pills */}
-      <div className="flex flex-nowrap sm:flex-wrap gap-2 overflow-x-auto no-scrollbar scrollbar-hide px-4 sm:px-0 animate-in fade-in slide-in-from-top-4 duration-500 pb-2">
-        <button
-          onClick={() => setActiveSubcategory('All')}
-          className={`px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all border flex-shrink-0 ${activeSubcategory === 'All' ? 'bg-[#E53935] border-[#E53935] text-white shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#E53935] hover:text-[#E53935]'}`}
-        >
-          All
-        </button>
-        {COURSE_CATEGORIES[activeCategory].map(sub => (
+      {/* Top Category Buttons (Compact & Balanced) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
+        {[
+           { id: 'SAT', title: 'SAT', subtitle: 'Digital SAT Prep', icon: FiIcons.FiBookOpen, bg: 'bg-[#181033]', border: 'border-[#7C3AED]', text: 'text-[#c4b5fd]' },
+           { id: 'ACT', title: 'ACT', subtitle: 'ACT Prep', icon: FiIcons.FiActivity, bg: 'bg-[#064E3B]', border: 'border-green-500', text: 'text-green-300' },
+           { id: 'AP', title: 'AP', subtitle: 'AP Courses', icon: FiIcons.FiGrid, bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' },
+           { id: 'FULL LENGTH TESTS', title: 'FULL LENGTH TESTS', subtitle: 'Real Exam Simulation', icon: FiIcons.FiClipboard, bg: 'bg-[#0F172A]', border: 'border-blue-500', text: 'text-blue-300' }
+        ].map(cat => (
           <button
-            key={sub}
-            onClick={() => setActiveSubcategory(sub)}
-            className={`px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all border flex-shrink-0 ${activeSubcategory === sub ? 'bg-[#E53935] border-[#E53935] text-white shadow-md shadow-red-500/20' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#E53935] hover:text-[#E53935]'}`}
+            key={cat.id}
+            disabled={cat.id === 'ACT' && user?.email !== 'ssky57771@gmail.com' && user?.email !== 'admink338@gmail.com'}
+            onClick={() => {
+              setActiveCategory(cat.id);
+              setActiveSubcategory('All');
+              setExpandedCategory(null);
+            }}
+            className={`px-4 py-3 rounded-2xl border flex items-center gap-3.5 transition-all duration-200 ${
+              activeCategory === cat.id 
+                ? `${cat.bg} ${cat.border} shadow-[0_0_18px_rgba(124,58,237,0.25)] ring-1 ring-purple-500/30` 
+                : 'bg-[#131622] border-[#252A3C] hover:border-purple-500/40 hover:bg-[#1A1F30]'
+            } disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group`}
           >
-            {sub}
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border flex-shrink-0 transition-colors ${
+              activeCategory === cat.id 
+                ? `border-purple-400/30 bg-purple-500/10 ${cat.text}` 
+                : 'border-[#2D3448] bg-[#1B2030] text-slate-400 group-hover:text-slate-200 group-hover:border-purple-500/40'
+            }`}>
+              <SafeIcon icon={cat.icon} className="w-4 h-4" />
+            </div>
+            <div className="text-left min-w-0">
+              <h3 className={`font-bold text-xs sm:text-sm truncate tracking-tight ${activeCategory === cat.id ? 'text-white' : 'text-slate-200 group-hover:text-white'}`}>{cat.title}</h3>
+              <p className={`text-[10px] truncate ${activeCategory === cat.id ? 'text-purple-200/80' : 'text-slate-400'}`}>{cat.subtitle}</p>
+            </div>
           </button>
         ))}
       </div>
 
+      {/* Subcategory Pills & Sort/View Controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div className="flex flex-nowrap sm:flex-wrap gap-2.5 overflow-x-auto no-scrollbar scrollbar-hide px-1 py-1">
+          <button
+            onClick={() => {
+              setActiveSubcategory('All');
+              setExpandedCategory(null);
+            }}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+              activeSubcategory === 'All' 
+                ? 'bg-[#7C3AED] border-[#7C3AED] text-white shadow-[0_0_15px_rgba(124,58,237,0.35)]' 
+                : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
+            }`}
+          >
+            All
+          </button>
+          {COURSE_CATEGORIES[activeCategory]?.map(sub => (
+            <button
+              key={sub}
+              onClick={() => {
+                setActiveSubcategory(sub);
+                setExpandedCategory(null);
+              }}
+              className={`px-4 py-2 rounded-full text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer ${
+                activeSubcategory === sub 
+                  ? 'bg-[#181033] border-[#7C3AED] text-white shadow-[0_0_12px_rgba(124,58,237,0.25)]' 
+                  : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
+              }`}
+            >
+              <SafeIcon icon={FiIcons.FiBookOpen} className={`w-3 h-3 ${activeSubcategory === sub ? 'text-purple-300' : 'text-slate-400'}`} />
+              {sub}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex items-center gap-3 text-xs font-bold text-gray-400">
+           <div className="flex items-center gap-1.5">
+             <span className="text-gray-400 hidden sm:inline">Sort by:</span>
+             <select
+               value={sortBy}
+               onChange={(e) => setSortBy(e.target.value)}
+               className="bg-[#11131A] border border-[#1C202B] text-white text-xs font-bold py-1.5 px-3 rounded-lg focus:outline-none focus:border-purple-500 cursor-pointer hover:border-gray-700 transition-colors"
+             >
+               <option value="recent">Recent</option>
+               <option value="name">Name (A-Z)</option>
+               <option value="progress">Progress</option>
+               <option value="oldest">Oldest</option>
+             </select>
+           </div>
+           
+           <div className="flex gap-1.5 bg-[#11131A] p-1 rounded-lg border border-[#1C202B]">
+              <button 
+                title="Grid View"
+                onClick={() => setViewMode('grid')}
+                className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
+                  viewMode === 'grid' 
+                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]' 
+                    : 'bg-transparent text-gray-400 hover:text-white'
+                }`}
+              >
+                 <SafeIcon icon={FiIcons.FiGrid} className="w-3.5 h-3.5" />
+              </button>
+              <button 
+                title="List View"
+                onClick={() => setViewMode('list')}
+                className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
+                  viewMode === 'list' 
+                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]' 
+                    : 'bg-transparent text-gray-400 hover:text-white'
+                }`}
+              >
+                 <SafeIcon icon={FiIcons.FiList} className="w-3.5 h-3.5" />
+              </button>
+           </div>
+        </div>
+      </div>
+
       {/* Enrolled Section */}
       {enrolledCourses.length > 0 && (
-        <section className="px-4 sm:px-0">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+        <section className="mb-8">
+          <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-[#1C202B] pb-3">
             <SafeIcon icon={FiCheckCircle} className="text-green-500" /> My Enrollments
           </h2>
           {renderCourseGrid(enrolledCourses, true)}
@@ -491,15 +681,15 @@ const StudentCourseList = () => {
       )}
 
       {/* Available Section */}
-      <section className="px-4 sm:px-0">
-        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-          <SafeIcon icon={FiBook} className="text-[#E53935]" /> Available Courses
+      <section>
+        <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-[#1C202B] pb-3">
+          <SafeIcon icon={FiIcons.FiBookOpen} className="text-purple-400" /> Available Courses
         </h2>
         {availableCourses.length > 0 ? (
           renderCourseGrid(availableCourses, false)
         ) : (
-          <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400">
+          <div className="text-center py-12 bg-[#11131A] rounded-2xl border border-dashed border-[#1C202B]">
+            <p className="text-gray-500">
               {filter ? 'No courses match your search.' : 'No new courses available at the moment.'}
             </p>
           </div>
@@ -509,68 +699,155 @@ const StudentCourseList = () => {
   );
 };
 
-const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted }) => (
+const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted }) => {
+  const isMath = (course.tutor_type || '').toLowerCase().includes('math') || (course.tutor_type || '').toLowerCase().includes('quant');
+  const isReading = (course.tutor_type || '').toLowerCase().includes('reading') || (course.tutor_type || '').toLowerCase().includes('writing') || (course.tutor_type || '').toLowerCase().includes('english');
+  
+  const tagTheme = isMath 
+      ? { bg: 'bg-blue-500/20', text: 'text-blue-400', iconBg: 'bg-[#181033]', iconText: 'text-purple-400' } 
+      : isReading 
+      ? { bg: 'bg-orange-500/20', text: 'text-orange-400', iconBg: 'bg-[#332210]', iconText: 'text-orange-400' }
+      : { bg: 'bg-green-500/20', text: 'text-green-400', iconBg: 'bg-[#064E3B]', iconText: 'text-green-400' };
+
+  return (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: index * 0.05 }}
-    className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-all group flex flex-col h-full"
+    className="bg-[#11131A] rounded-2xl shadow-sm border border-[#1C202B] overflow-hidden hover:border-gray-700 transition-all group flex flex-col h-full"
   >
     <div className="p-5 md:p-6 flex-1">
-      <div className="flex items-center gap-3 md:gap-4 mb-4">
-        <div className={`w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0 transition-all duration-300 shadow-sm ${isEnrolled ? 'bg-green-100 text-green-600 dark:bg-green-900/30' : isPremiumRestricted ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 group-hover:bg-[#E53935] group-hover:text-white'}`}>
-          <SafeIcon icon={isPremiumRestricted ? FiIcons.FiLock : (course.is_adaptive ? FiIcons.FiActivity : FiBook)} className="w-5 h-5 md:w-7 md:h-7" />
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${tagTheme.iconBg} ${tagTheme.iconText}`}>
+              <SafeIcon icon={isPremiumRestricted ? FiIcons.FiLock : (course.is_adaptive ? FiIcons.FiActivity : FiIcons.FiBook)} className="w-4 h-4" />
+            </div>
+            <div>
+              <span className={`text-[8px] md:text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded flex items-center w-fit mb-1.5 ${tagTheme.bg} ${tagTheme.text}`}>
+                {course.tutor_type || 'General'}
+              </span>
+              <h3 className="font-bold text-sm md:text-[15px] text-white leading-tight line-clamp-2 group-hover:text-blue-400 transition-colors flex items-start gap-1">
+                {course.name}
+                {isPremiumRestricted && <FiIcons.FiZap className="w-3 h-3 text-amber-500 fill-amber-500 flex-shrink-0 mt-0.5" />}
+              </h3>
+            </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-md mb-1 md:mb-1.5 inline-block ${
-            (course.tutor_type || '').toLowerCase().includes('math') || (course.tutor_type || '').toLowerCase().includes('quant')
-              ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
-              : (course.tutor_type || '').toLowerCase().includes('reading') || (course.tutor_type || '').toLowerCase().includes('writing') || (course.tutor_type || '').toLowerCase().includes('english')
-              ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400'
-              : 'bg-green-50 text-green-600 dark:bg-green-900/40 dark:text-green-400'
-          }`}>
-            {course.tutor_type || 'General'}
-          </span>
-          <h3 className="font-extrabold text-sm md:text-lg text-gray-900 dark:text-white leading-tight line-clamp-2 group-hover:text-[#E53935] transition-colors flex items-center gap-1 md:gap-2">
-            {course.name}
-            {isPremiumRestricted && <FiIcons.FiZap className="w-3 h-3 md:w-4 md:h-4 text-amber-500 fill-amber-500 flex-shrink-0" />}
-          </h3>
-        </div>
+        <button className="text-gray-500 hover:text-white transition-colors">
+            <FiIcons.FiMoreVertical className="w-4 h-4" />
+        </button>
       </div>
-      <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{course.description}</p>
 
       {isEnrolled && (
-        <div className="mt-4 flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-green-500 w-1/3 rounded-full"></div>
+        <div className="mt-6 space-y-2">
+          <div className="flex justify-between text-[10px] font-bold text-gray-400">
+            <span>{course.progress || '33'}% Completed</span>
+            <span className="flex items-center gap-1 text-green-500"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> Active</span>
           </div>
-          <span className="text-xs font-bold text-gray-500">Active</span>
+          <div className="h-1 bg-[#1C202B] rounded-full overflow-hidden">
+            <div className="h-full bg-green-500 rounded-full" style={{ width: `${course.progress || 33}%` }}></div>
+          </div>
         </div>
       )}
     </div>
 
-    <div className="p-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-100 dark:border-gray-700">
+    <div className="p-4 border-t border-[#1C202B]">
       <button
         onClick={onAction}
         disabled={isLoading}
-        className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2
+        className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border
           ${isEnrolled
-            ? 'bg-white border border-gray-200 text-gray-900 hover:border-[#E53935] hover:text-[#E53935]'
-            : 'bg-[#E53935] text-white hover:bg-[#d32f2f] shadow-md shadow-red-500/20'
+            ? 'bg-transparent border-[#1C202B] text-gray-300 hover:border-gray-600 hover:text-white'
+            : 'bg-transparent border-purple-500/50 text-purple-400 hover:bg-purple-500/10'
           } ${isLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
       >
         {isLoading ? (
-          <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" />
+          <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
         ) : isEnrolled ? (
-          <><SafeIcon icon={FiPlay} className="w-4 h-4" /> Continue Learning</>
+          <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> Continue Learning</>
         ) : isPremiumRestricted ? (
-          <><SafeIcon icon={FiIcons.FiZap} className="w-4 h-4" /> Unlock Premium</>
+          <><SafeIcon icon={FiIcons.FiZap} className="w-3 h-3" /> Unlock Premium</>
         ) : (
-          <><SafeIcon icon={FiPlusCircle} className="w-4 h-4" /> Enroll Now</>
+          <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-3 h-3" /> Enroll Now</>
         )}
       </button>
     </div>
   </motion.div>
-);
+  );
+};
+
+const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted }) => {
+  const isMath = (course.tutor_type || '').toLowerCase().includes('math') || (course.tutor_type || '').toLowerCase().includes('quant');
+  const isReading = (course.tutor_type || '').toLowerCase().includes('reading') || (course.tutor_type || '').toLowerCase().includes('writing') || (course.tutor_type || '').toLowerCase().includes('english');
+  
+  const tagTheme = isMath 
+      ? { bg: 'bg-blue-500/20', text: 'text-blue-400', iconBg: 'bg-[#181033]', iconText: 'text-purple-400' } 
+      : isReading 
+      ? { bg: 'bg-orange-500/20', text: 'text-orange-400', iconBg: 'bg-[#332210]', iconText: 'text-orange-400' }
+      : { bg: 'bg-green-500/20', text: 'text-green-400', iconBg: 'bg-[#064E3B]', iconText: 'text-green-400' };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className="bg-[#11131A] rounded-2xl p-4 border border-[#1C202B] hover:border-gray-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+    >
+      <div className="flex items-start sm:items-center gap-4 flex-1 min-w-0">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${tagTheme.iconBg} ${tagTheme.iconText}`}>
+          <SafeIcon icon={isPremiumRestricted ? FiIcons.FiLock : (course.is_adaptive ? FiIcons.FiActivity : FiIcons.FiBook)} className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${tagTheme.bg} ${tagTheme.text}`}>
+              {course.tutor_type || 'General'}
+            </span>
+            {course.category && (
+              <span className="text-[10px] text-gray-400 font-medium truncate">
+                • {course.category}
+              </span>
+            )}
+          </div>
+          <h3 className="font-bold text-sm md:text-base text-white leading-tight truncate group-hover:text-blue-400 transition-colors flex items-start sm:items-center gap-1.5">
+            {course.name}
+            {isPremiumRestricted && <FiIcons.FiZap className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0 mt-0.5 sm:mt-0" />}
+          </h3>
+          {course.description && (
+            <p className="text-gray-400 text-xs mt-1 line-clamp-1">{course.description}</p>
+          )}
+          {isEnrolled && (
+            <div className="mt-2 flex items-center gap-3 w-full max-w-xs">
+              <div className="flex-1 h-1 bg-[#1C202B] rounded-full overflow-hidden">
+                <div className="h-full bg-green-500 rounded-full" style={{ width: `${course.progress || 33}%` }}></div>
+              </div>
+              <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{course.progress || '33'}% Completed</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 sm:self-center flex-shrink-0 w-full sm:w-auto border-t sm:border-t-0 border-[#1C202B] pt-3 sm:pt-0">
+        <button
+          onClick={onAction}
+          disabled={isLoading}
+          className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border whitespace-nowrap
+            ${isEnrolled
+              ? 'bg-transparent border-[#1C202B] text-gray-300 hover:border-gray-600 hover:text-white'
+              : 'bg-transparent border-purple-500/50 text-purple-400 hover:bg-purple-500/10'
+            } ${isLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
+        >
+          {isLoading ? (
+            <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
+          ) : isEnrolled ? (
+            <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> Continue Learning</>
+          ) : isPremiumRestricted ? (
+            <><SafeIcon icon={FiIcons.FiZap} className="w-3 h-3" /> Unlock Premium</>
+          ) : (
+            <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-3 h-3" /> Enroll Now</>
+          )}
+        </button>
+      </div>
+    </motion.div>
+  );
+};
 
 export default StudentCourseList;

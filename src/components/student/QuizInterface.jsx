@@ -649,11 +649,19 @@ const QuizInterface = () => {
   if (showResults) {
     const res = submissionResult;
     const percentage = res ? Math.round(res.percentage) : 0;
-    // Use scaled score from API response (should always be provided by backend now)
-    // Fallback only if API returns null/undefined/0 (shouldn't happen with fixed backend)
+    const cName = (courseInfo?.name || '').toLowerCase();
+    const isACT = cName.includes('act');
+    const isAP = cName.includes('ap');
+    const isSAT = cName.includes('sat');
     const scaledScore = res?.scaledScore && res.scaledScore > 0 
       ? res.scaledScore 
-      : Math.round(200 + (percentage / 100) * 600);
+      : isACT 
+        ? Math.max(1, Math.min(36, Math.round(1 + (percentage / 100) * 35)))
+        : isAP 
+          ? (percentage >= 85 ? 5 : percentage >= 70 ? 4 : percentage >= 55 ? 3 : percentage >= 40 ? 2 : 1)
+          : isSAT 
+            ? Math.round(400 + (percentage / 100) * 1200)
+            : percentage;
     const isPassed = percentage >= 5;
     const isRWCourse = (courseInfo?.category || '').toLowerCase().includes('reading') || (courseInfo?.name || '').toLowerCase().includes('rhetorical') || (courseInfo?.name || '').toLowerCase().includes('reading');
     const isMathCourse = (courseInfo?.category || '').toLowerCase().includes('math') || (courseInfo?.name || '').toLowerCase().includes('math');

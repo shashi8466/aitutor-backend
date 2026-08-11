@@ -6,7 +6,107 @@ import SafeIcon from '../../../common/SafeIcon';
 import { gradingService, tutorService } from '../../../services/api';
 import { useAuth } from '../../../contexts/AuthContext';
 
-const { FiActivity, FiClock, FiAward, FiArrowRight, FiFileText, FiTrendingUp, FiDownload } = FiIcons;
+const { FiActivity, FiClock, FiAward, FiArrowRight, FiFileText, FiTrendingUp, FiDownload, FiCheckCircle, FiXCircle } = FiIcons;
+
+// Helper to compute real attempt stats for any course/test type
+const getTestAttemptStats = (sub) => {
+  const courseName = sub.course?.name || sub.courses?.name || sub.courseName || sub.test_name || 'Practice Test';
+  const nameLower = courseName.toLowerCase();
+  
+  const isACT = nameLower.includes('act');
+  const isAP = nameLower.includes('ap');
+  const isSAT = nameLower.includes('sat') || nameLower.includes('digital sat') || nameLower.includes('linear sat');
+  const isFullLength = nameLower.includes('full length') || nameLower.includes('full-length') || sub.is_full_length;
+
+  const totalQuestions = sub.total_questions || sub.question_count || sub.totalQuestions || 
+    ((sub.incorrect_questions?.length || 0) + (sub.correct_questions?.length || 0)) || 0;
+  
+  const rawScore = sub.raw_score !== undefined && sub.raw_score !== null 
+    ? sub.raw_score 
+    : (sub.correct_questions?.length || 0);
+
+  const accuracy = sub.raw_score_percentage !== undefined && sub.raw_score_percentage !== null
+    ? Math.round(sub.raw_score_percentage)
+    : (totalQuestions > 0 ? Math.round((rawScore / totalQuestions) * 100) : 0);
+
+  const wrongCount = totalQuestions > 0 ? Math.max(0, totalQuestions - rawScore) : 0;
+  const durationSec = sub.test_duration_seconds || sub.duration || sub.time_spent || 0;
+  const durationText = durationSec > 0 
+    ? (durationSec < 60 ? `${durationSec} sec` : `${Math.floor(durationSec / 60)} min`)
+    : 'N/A';
+
+  let displayScore = 0;
+  let scoreLabel = 'Test Score';
+  let performanceLevel = 'Needs Improvement';
+  let performanceColor = 'red';
+
+  if (isACT) {
+    scoreLabel = 'ACT Score';
+    if (sub.scaled_score && sub.scaled_score >= 1 && sub.scaled_score <= 36) {
+      displayScore = sub.scaled_score;
+    } else {
+      displayScore = Math.max(1, Math.min(36, Math.round(1 + (accuracy / 100) * 35)));
+    }
+    if (displayScore >= 30) { performanceLevel = 'Excellent'; performanceColor = 'green'; }
+    else if (displayScore >= 24) { performanceLevel = 'Good'; performanceColor = 'blue'; }
+    else if (displayScore >= 18) { performanceLevel = 'Average'; performanceColor = 'yellow'; }
+    else if (displayScore >= 14) { performanceLevel = 'Below Average'; performanceColor = 'orange'; }
+    else { performanceLevel = 'Needs Improvement'; performanceColor = 'red'; }
+  } else if (isAP) {
+    scoreLabel = 'AP Score';
+    if (sub.scaled_score && sub.scaled_score >= 1 && sub.scaled_score <= 5) {
+      displayScore = sub.scaled_score;
+    } else {
+      displayScore = accuracy >= 85 ? 5 : accuracy >= 70 ? 4 : accuracy >= 55 ? 3 : accuracy >= 40 ? 2 : 1;
+    }
+    if (displayScore >= 5) { performanceLevel = 'Excellent'; performanceColor = 'green'; }
+    else if (displayScore >= 4) { performanceLevel = 'Good'; performanceColor = 'blue'; }
+    else if (displayScore >= 3) { performanceLevel = 'Average'; performanceColor = 'yellow'; }
+    else if (displayScore >= 2) { performanceLevel = 'Below Average'; performanceColor = 'orange'; }
+    else { performanceLevel = 'Needs Improvement'; performanceColor = 'red'; }
+  } else if (isSAT || isFullLength) {
+    scoreLabel = 'SAT Score';
+    if (sub.scaled_score && sub.scaled_score >= 200) {
+      displayScore = sub.scaled_score;
+    } else if (sub.math_scaled_score && sub.reading_scaled_score) {
+      displayScore = sub.math_scaled_score + sub.reading_scaled_score;
+    } else {
+      displayScore = Math.round(400 + (accuracy / 100) * 1200);
+    }
+    if (displayScore >= 1400) { performanceLevel = 'Excellent'; performanceColor = 'green'; }
+    else if (displayScore >= 1200) { performanceLevel = 'Good'; performanceColor = 'blue'; }
+    else if (displayScore >= 1000) { performanceLevel = 'Average'; performanceColor = 'yellow'; }
+    else if (displayScore >= 800) { performanceLevel = 'Below Average'; performanceColor = 'orange'; }
+    else { performanceLevel = 'Needs Improvement'; performanceColor = 'red'; }
+  } else {
+    // Modular / Practice / Topic Tests
+    if (sub.scaled_score && sub.scaled_score > 0) {
+      displayScore = sub.scaled_score;
+    } else {
+      displayScore = accuracy;
+    }
+    scoreLabel = 'Test Score';
+    if (accuracy >= 90) { performanceLevel = 'Excellent'; performanceColor = 'green'; }
+    else if (accuracy >= 80) { performanceLevel = 'Good'; performanceColor = 'blue'; }
+    else if (accuracy >= 70) { performanceLevel = 'Average'; performanceColor = 'yellow'; }
+    else if (accuracy >= 60) { performanceLevel = 'Below Average'; performanceColor = 'orange'; }
+    else { performanceLevel = 'Needs Improvement'; performanceColor = 'red'; }
+  }
+
+  return {
+    courseName,
+    displayScore,
+    scoreLabel,
+    performanceLevel,
+    performanceColor,
+    accuracy,
+    rawScore,
+    wrongCount,
+    totalQuestions,
+    durationText,
+    testDate: new Date(sub.test_date || sub.created_at)
+  };
+};
 
 const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) => {
   const { user } = useAuth();
@@ -74,29 +174,7 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
       {submissions.length > 0 ? (
         <div className="grid grid-cols-1 gap-6">
           {submissions.map((sub, idx) => {
-            const score = sub.scaled_score || Math.round(200 + ((sub.raw_score_percentage || 0) / 100) * 600);
-            const testDate = new Date(sub.test_date || sub.created_at);
-            const courseName = sub.course?.name || sub.courses?.name || sub.courseName || sub.test_name || 'General Test';
-            const isSAT = courseName.toLowerCase().includes('sat') || courseName.toLowerCase().includes('full length');
-
-            // Determine performance level
-            const getPerformanceLevel = (score) => {
-              if (isSAT) {
-                if (score >= 1400) return { level: 'Excellent', color: 'green' };
-                if (score >= 1200) return { level: 'Good', color: 'blue' };
-                if (score >= 1000) return { level: 'Average', color: 'yellow' };
-                if (score >= 800) return { level: 'Below Average', color: 'orange' };
-                return { level: 'Needs Improvement', color: 'red' };
-              } else {
-                if (score >= 90) return { level: 'Excellent', color: 'green' };
-                if (score >= 80) return { level: 'Good', color: 'blue' };
-                if (score >= 70) return { level: 'Average', color: 'yellow' };
-                if (score >= 60) return { level: 'Below Average', color: 'orange' };
-                return { level: 'Needs Improvement', color: 'red' };
-              }
-            };
-
-            const performance = getPerformanceLevel(score);
+            const stats = getTestAttemptStats(sub);
 
             return (
               <motion.div
@@ -110,10 +188,10 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
                   <div className="flex items-center gap-4 flex-1">
                     <div className={`p-4 rounded-2xl flex-shrink-0 ${
-                      performance.color === 'green' ? 'bg-green-50 text-green-600' :
-                      performance.color === 'blue' ? 'bg-blue-50 text-blue-600' :
-                      performance.color === 'yellow' ? 'bg-yellow-50 text-yellow-600' :
-                      performance.color === 'orange' ? 'bg-orange-50 text-orange-600' :
+                      stats.performanceColor === 'green' ? 'bg-green-50 text-green-600' :
+                      stats.performanceColor === 'blue' ? 'bg-blue-50 text-blue-600' :
+                      stats.performanceColor === 'yellow' ? 'bg-yellow-50 text-yellow-600' :
+                      stats.performanceColor === 'orange' ? 'bg-orange-50 text-orange-600' :
                       'bg-red-50 text-red-600'
                     }`}>
                       <SafeIcon icon={FiFileText} className="w-6 h-6" />
@@ -121,17 +199,17 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                         <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white leading-tight">
-                          {courseName}
+                          {stats.courseName}
                         </h3>
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap ${
-                            performance.color === 'green' ? 'bg-green-100 text-green-700' :
-                            performance.color === 'blue' ? 'bg-blue-100 text-blue-700' :
-                            performance.color === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
-                            performance.color === 'orange' ? 'bg-orange-100 text-orange-700' :
+                            stats.performanceColor === 'green' ? 'bg-green-100 text-green-700' :
+                            stats.performanceColor === 'blue' ? 'bg-blue-100 text-blue-700' :
+                            stats.performanceColor === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
+                            stats.performanceColor === 'orange' ? 'bg-orange-100 text-orange-700' :
                             'bg-red-100 text-red-700'
                           }`}>
-                            {performance.level}
+                            {stats.performanceLevel}
                           </span>
                           <span className={`px-2 py-0.5 sm:py-1 rounded text-[9px] sm:text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${
                             sub.level === 'Hard' ? 'bg-red-100 text-red-700' :
@@ -145,18 +223,16 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
                       <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
                         <span className="flex items-center gap-2">
                           <SafeIcon icon={FiClock} className="w-4 h-4" />
-                          {testDate.toLocaleDateString()} at {testDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {stats.testDate.toLocaleDateString()} at {stats.testDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         <span className="flex items-center gap-2">
                           <SafeIcon icon={FiTrendingUp} className="w-4 h-4" />
-                          Accuracy: {sub.raw_score_percentage || 'N/A'}%
+                          Accuracy: {stats.accuracy}%
                         </span>
-                        {sub.test_duration_seconds && (
-                          <span className="flex items-center gap-2">
-                            <SafeIcon icon={FiAward} className="w-4 h-4" />
-                            {Math.floor(sub.test_duration_seconds / 60)} min
-                          </span>
-                        )}
+                        <span className="flex items-center gap-2">
+                          <SafeIcon icon={FiAward} className="w-4 h-4" />
+                          {stats.durationText}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -166,36 +242,36 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
                     <div className="text-center lg:text-right flex-1 lg:flex-none">
                       <p className="text-[10px] text-gray-400 font-black uppercase mb-1 tracking-widest">Score</p>
                       <p className={`text-2xl sm:text-3xl font-black ${
-                        performance.color === 'green' ? 'text-green-600' :
-                        performance.color === 'blue' ? 'text-blue-600' :
-                        performance.color === 'yellow' ? 'text-yellow-600' :
-                        performance.color === 'orange' ? 'text-orange-600' :
+                        stats.performanceColor === 'green' ? 'text-green-600' :
+                        stats.performanceColor === 'blue' ? 'text-blue-600' :
+                        stats.performanceColor === 'yellow' ? 'text-yellow-600' :
+                        stats.performanceColor === 'orange' ? 'text-orange-600' :
                         'text-red-600'
                       }`}>
-                        {score}
+                        {stats.displayScore}
                       </p>
                       <p className="text-[10px] text-gray-400 mt-1 font-bold">
-                        {isSAT ? 'SAT Score' : 'Test Score'}
+                        {stats.scoreLabel}
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto">
                       <button
                         onClick={() => navigate(`${basePath}/report/${sub.id}`)}
-                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base"
+                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base cursor-pointer"
                       >
                         <SafeIcon icon={FiFileText} />
                         View Report
                       </button>
                       <button
                         onClick={() => navigate(`${basePath}/detailed-review/${sub.id}`)}
-                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-sm sm:text-base"
+                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-sm sm:text-base cursor-pointer"
                       >
                         <SafeIcon icon={FiArrowRight} />
                         Question-wise Analysis
                       </button>
                       <button
                         onClick={() => navigate(`${basePath}/report/${sub.id}?download=true`)}
-                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base"
+                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base cursor-pointer"
                         title="Download PDF"
                       >
                         <SafeIcon icon={FiDownload} />
@@ -204,18 +280,18 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
                   </div>
                 </div>
 
-                {/* Quick Stats */}
+                {/* Quick Stats Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                   <div className="text-center">
                     <p className="text-xs text-gray-400 font-black uppercase">Performance</p>
                     <p className={`text-sm font-bold ${
-                      performance.color === 'green' ? 'text-green-600' :
-                      performance.color === 'blue' ? 'text-blue-600' :
-                      performance.color === 'yellow' ? 'text-yellow-600' :
-                      performance.color === 'orange' ? 'text-orange-600' :
+                      stats.performanceColor === 'green' ? 'text-green-600' :
+                      stats.performanceColor === 'blue' ? 'text-blue-600' :
+                      stats.performanceColor === 'yellow' ? 'text-yellow-600' :
+                      stats.performanceColor === 'orange' ? 'text-orange-600' :
                       'text-red-600'
                     }`}>
-                      {performance.level}
+                      {stats.performanceLevel}
                     </p>
                   </div>
                   <div className="text-center">
@@ -225,13 +301,13 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
                   <div className="text-center">
                     <p className="text-xs text-gray-400 font-black uppercase">Questions</p>
                     <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                      {sub.total_questions || sub.question_count || 'N/A'}
+                      {stats.totalQuestions || 'N/A'}
                     </p>
                   </div>
                   <div className="text-center">
                     <p className="text-xs text-gray-400 font-black uppercase">Duration</p>
                     <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                      {sub.test_duration_seconds ? Math.floor(sub.test_duration_seconds / 60) + ' min' : 'N/A'}
+                      {stats.durationText}
                     </p>
                   </div>
                 </div>
@@ -246,9 +322,9 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
           <p className="text-gray-500 mt-2 max-w-sm mx-auto">Take a practice quiz to see your detailed breakdown here.</p>
           <button
             onClick={() => navigate('/student/practice-tests')}
-            className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold"
+            className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold cursor-pointer"
           >
-            Go to Practice Tests
+            Start Practice
           </button>
         </div>
       )}

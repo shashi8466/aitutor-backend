@@ -480,8 +480,19 @@ const ExamInterface = () => {
                 mode: 'test'
             });
 
-            // Standard SAT Logic
-            const finalTotalScore = response.data?.scaled_score || response.data?.score || Math.round(200 + (totalCorrect / allQuestions.length) * 600);
+            const cName = (courseInfo?.name || '').toLowerCase();
+            const isACT = cName.includes('act');
+            const isAP = cName.includes('ap');
+            const isSAT = cName.includes('sat');
+            const accuracyRatio = allQuestions.length > 0 ? (totalCorrect / allQuestions.length) : 0;
+            const computedScore = isACT
+                ? Math.max(1, Math.min(36, Math.round(1 + accuracyRatio * 35)))
+                : isAP
+                    ? (accuracyRatio >= 0.85 ? 5 : accuracyRatio >= 0.70 ? 4 : accuracyRatio >= 0.55 ? 3 : accuracyRatio >= 0.40 ? 2 : 1)
+                    : isSAT
+                        ? Math.round(400 + accuracyRatio * 1200)
+                        : Math.round(accuracyRatio * 100);
+            const finalTotalScore = response.data?.scaled_score || response.data?.score || computedScore;
             
             finalResult = {
                 ...response.data,
