@@ -294,9 +294,9 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
 .h-\[85vh\] { height: 100dvh !important; }
 .h-screen { height: 100dvh !important; }
 
-/* Improve default table ergonomics on phones. */
+/* Improve default table ergonomics and prevent column clipping at all zoom levels. */
 .responsive-table-container table {
-  min-width: 640px;
+  min-width: max-content;
 }
 
 /* DOCX Extracted Image Handling */

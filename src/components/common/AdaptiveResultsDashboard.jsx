@@ -1011,7 +1011,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                     [class*="Header"],
                     [class*="nav"],
                     [class*="menu"],
-                    .lg\:hidden,
+                    .lg\\:hidden,
                     .sticky,
                     div[class*="sticky"] { 
                         display: none !important; 
@@ -1024,21 +1024,27 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                     }
                     
                     /* Reset layout margins from StudentLayout.jsx */
-                    .lg\:ml-72, 
-                    div.lg\:ml-72,
+                    .lg\\:ml-72, 
+                    div.lg\\:ml-72,
                     [class*="ml-72"] { 
                         margin-left: 0 !important; 
                     }
                     
                     /* Reset main content area */
+                    html,
+                    body,
+                    #root,
                     main, 
                     .flex-1,
-                    #root,
-                    body,
+                    div[class*="h-screen"],
+                    div[class*="overflow-y-auto"],
                     #report-container {
                         padding: 0 !important;
                         margin: 0 !important;
                         width: 100% !important;
+                        height: auto !important;
+                        min-height: 100% !important;
+                        max-height: none !important;
                         max-width: none !important;
                         display: block !important;
                         overflow: visible !important;
@@ -1073,14 +1079,14 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                 /* FORCE READABILITY ON SCREEN WHEN IN DARK MODE */
                 #report-container [class*="bg-white"],
                 #report-container .bg-white,
-                #report-container .section-break:not(.bg-\[\#1a237e\]) {
+                #report-container .section-break:not(.bg-\\[\\#1a237e\\]) {
                     color: #0a0e2a !important;
                 }
                 
                 #report-container [class*="bg-white"] td,
                 #report-container [class*="bg-white"] p,
                 #report-container [class*="bg-white"] span:not(.text-white):not(.bg-blue-600),
-                #report-container [class*="bg-white"] div:not(.bg-blue-600):not(.bg-green-600):not(.bg-red-600):not(.bg-\[\#1a237e\]) {
+                #report-container [class*="bg-white"] div:not(.bg-blue-600):not(.bg-green-600):not(.bg-red-600):not(.bg-\\[\\#1a237e\\]) {
                     color: #0a0e2a !important;
                     opacity: 1 !important;
                 }
@@ -1093,7 +1099,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                 
                 /* Protect specific colors */
                 #report-container .text-white,
-                #report-container .bg-\[\#1a237e\] *,
+                #report-container .bg-\\[\\#1a237e\\] *,
                 #report-container thead *,
                 #report-container .bg-blue-600 *,
                 #report-container .text-yellow-400 {
@@ -1345,15 +1351,15 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                         )}
                     </div>
 
-                    <div className="rounded-3xl overflow-x-auto border-2 border-[#1a237e] shadow-2xl print:shadow-none mx-0 sm:mx-4 custom-scrollbar px-4 sm:px-0">
-                        <table className="w-full text-left font-bold border-collapse min-w-[600px] sm:min-w-0">
+                    <div className="rounded-3xl overflow-x-auto border-2 border-[#1a237e] shadow-2xl print:shadow-none mx-0 sm:mx-4 print:mx-0 custom-scrollbar px-4 sm:px-0 print:px-0 print:overflow-hidden">
+                        <table className="w-full table-fixed text-left font-bold border-collapse min-w-[600px] sm:min-w-0">
                             <thead className="bg-[#1a237e] text-white !text-white text-[10px] sm:text-[11px] uppercase tracking-widest">
                                 <tr>
-                                    <th className="py-4 sm:py-6 px-4 sm:px-10 border-r-2 border-white/10">{isApCourse ? 'Unit Name' : 'Section'}</th>
-                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">{isApCourse ? 'Correct Answers' : 'Correct'}</th>
-                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">{isApCourse ? 'Total Questions' : 'Total'}</th>
-                                    <th className="py-4 sm:py-6 px-2 sm:px-10 border-r-2 border-white/10 text-center">Accuracy {isApCourse ? '%' : ''}</th>
-                                    <th className="py-4 sm:py-6 px-4 sm:px-10 text-right">{isApCourse ? 'Status' : 'Score'}</th>
+                                    <th className="py-4 sm:py-6 px-3 sm:px-6 border-r-2 border-white/10 w-[35%]">{isApCourse ? 'Unit Name' : 'Section'}</th>
+                                    <th className="py-4 sm:py-6 px-1 sm:px-4 border-r-2 border-white/10 text-center w-[15%]">{isApCourse ? 'Correct Answers' : 'Correct'}</th>
+                                    <th className="py-4 sm:py-6 px-1 sm:px-4 border-r-2 border-white/10 text-center w-[15%]">{isApCourse ? 'Total Questions' : 'Total'}</th>
+                                    <th className="py-4 sm:py-6 px-1 sm:px-4 border-r-2 border-white/10 text-center w-[15%]">Accuracy {isApCourse ? '%' : ''}</th>
+                                    <th className="py-4 sm:py-6 px-3 sm:px-6 text-right w-[20%]">{isApCourse ? 'Status' : 'Score'}</th>
                                 </tr>
                             </thead>
                             <tbody className="text-[#0a0e2a] bg-white">
@@ -1371,10 +1377,10 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                             const status = accuracy >= 50 ? 'Passed' : 'Review Needed';
                                             return (
                                                 <tr key={topicName} className="border-b-2 border-gray-100">
-                                                    <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">{topicName}</td>
-                                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{data.correct}</td>
-                                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{data.total}</td>
-                                                    <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{accuracy}%</td>
+                                                    <td className="py-4 sm:py-7 px-3 sm:px-6 font-black text-[#0a0e2a] text-xs sm:text-lg break-words">{topicName}</td>
+                                                    <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{data.correct}</td>
+                                                    <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{data.total}</td>
+                                                    <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{accuracy}%</td>
                                                     <td className={`py-4 sm:py-7 px-4 sm:px-10 text-right text-xs sm:text-lg font-black ${status === 'Passed' ? 'text-green-600' : 'text-red-600'}`}>{status}</td>
                                                 </tr>
                                             );
@@ -1384,47 +1390,47 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                     <>
                                         {allResponses.filter(r => r.section === 'english').length > 0 && (
                                             <tr className="border-b-2 border-gray-100">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">English</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english' && r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length > 0 ? Math.round((allResponses.filter(r => r.section === 'english' && r.is_correct).length / allResponses.filter(r => r.section === 'english').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.english?.scaled || 0}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 font-black text-[#0a0e2a] text-xs sm:text-lg break-words">English</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'english').length > 0 ? Math.round((allResponses.filter(r => r.section === 'english' && r.is_correct).length / allResponses.filter(r => r.section === 'english').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.english?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {allResponses.filter(r => r.section === 'math').length > 0 && (
                                             <tr className="border-b-2 border-gray-100">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Math</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math' && r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length > 0 ? Math.round((allResponses.filter(r => r.section === 'math' && r.is_correct).length / allResponses.filter(r => r.section === 'math').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.math?.scaled || 0}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 font-black text-[#0a0e2a] text-xs sm:text-lg break-words">Math</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'math').length > 0 ? Math.round((allResponses.filter(r => r.section === 'math' && r.is_correct).length / allResponses.filter(r => r.section === 'math').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.math?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {allResponses.filter(r => r.section === 'reading').length > 0 && (
                                             <tr className="border-b-2 border-gray-100">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Reading</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading' && r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length > 0 ? Math.round((allResponses.filter(r => r.section === 'reading' && r.is_correct).length / allResponses.filter(r => r.section === 'reading').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.reading?.scaled || 0}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 font-black text-[#0a0e2a] text-xs sm:text-lg break-words">Reading</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'reading').length > 0 ? Math.round((allResponses.filter(r => r.section === 'reading' && r.is_correct).length / allResponses.filter(r => r.section === 'reading').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.reading?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {allResponses.filter(r => r.section === 'science').length > 0 && (
                                             <tr className="border-b-2 border-gray-100">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Science</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science' && r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length > 0 ? Math.round((allResponses.filter(r => r.section === 'science' && r.is_correct).length / allResponses.filter(r => r.section === 'science').length) * 100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.science?.scaled || 0}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 font-black text-[#0a0e2a] text-xs sm:text-lg break-words">Science</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science' && r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{allResponses.filter(r => r.section === 'science').length > 0 ? Math.round((allResponses.filter(r => r.section === 'science' && r.is_correct).length / allResponses.filter(r => r.section === 'science').length) * 100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{actScores?.science?.scaled || 0}</td>
                                             </tr>
                                         )}
                                         {!isACTSingleSubject && (
                                             <tr className="bg-[#1a237e] text-white">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-sm sm:text-xl font-black uppercase tracking-tight text-white">Composite ACT</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.filter(r=>r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{actScores?.composite || 0}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-sm sm:text-xl font-black uppercase tracking-tight text-white break-words">Composite ACT</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-sm sm:text-xl">{allResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-sm sm:text-xl">{allResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-2xl sm:text-5xl font-black text-yellow-400">{actScores?.composite || 0}</td>
                                             </tr>
                                         )}
                                     </>
@@ -1432,29 +1438,29 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
                                     <>
                                         {hasRW && (
                                             <tr className="border-b-2 border-gray-100">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Reading & Writing</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.filter(r=>r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length > 0 ? Math.round((rwResponses.filter(r=>r.is_correct).length/rwResponses.length)*100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{rwScore}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 font-black text-[#0a0e2a] text-xs sm:text-lg break-words">Reading & Writing</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{rwResponses.length > 0 ? Math.round((rwResponses.filter(r=>r.is_correct).length/rwResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{rwScore}</td>
                                             </tr>
                                         )}
                                         {hasMath && (
                                             <tr className="border-b-2 border-gray-100">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 font-black text-[#0a0e2a] text-xs sm:text-lg">Math</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.filter(r=>r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length > 0 ? Math.round((mathResponses.filter(r=>r.is_correct).length/mathResponses.length)*100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{mathScore}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 font-black text-[#0a0e2a] text-xs sm:text-lg break-words">Math</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-[#0a0e2a] text-xs sm:text-lg">{mathResponses.length > 0 ? Math.round((mathResponses.filter(r=>r.is_correct).length/mathResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-xl sm:text-4xl font-black text-[#1a237e]">{mathScore}</td>
                                             </tr>
                                         )}
                                         {isFullLength && (
                                             <tr className="bg-[#1a237e] text-white">
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-sm sm:text-xl font-black uppercase tracking-tight text-white">Total SAT</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{rwResponses.filter(r=>r.is_correct).length + mathResponses.filter(r=>r.is_correct).length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{rwResponses.length + mathResponses.length}</td>
-                                                <td className="py-4 sm:py-7 px-2 sm:px-10 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
-                                                <td className="py-4 sm:py-7 px-4 sm:px-10 text-right text-2xl sm:text-5xl font-black text-yellow-400">{totalScore}</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-sm sm:text-xl font-black uppercase tracking-tight text-white break-words">Total SAT</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-sm sm:text-xl">{rwResponses.filter(r=>r.is_correct).length + mathResponses.filter(r=>r.is_correct).length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-sm sm:text-xl">{rwResponses.length + mathResponses.length}</td>
+                                                <td className="py-4 sm:py-7 px-1 sm:px-4 text-center text-sm sm:text-xl">{allResponses.length > 0 ? Math.round((allResponses.filter(r=>r.is_correct).length/allResponses.length)*100) : 0}%</td>
+                                                <td className="py-4 sm:py-7 px-3 sm:px-6 text-right text-2xl sm:text-5xl font-black text-yellow-400">{totalScore}</td>
                                             </tr>
                                         )}
                                     </>

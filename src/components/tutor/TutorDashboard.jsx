@@ -160,7 +160,7 @@ const TutorDashboard = () => {
                         animate={{ x: 0 }}
                         exit={{ x: -300 }}
                         transition={{ type: "spring", stiffness: 100 }}
-                        className="fixed lg:sticky top-0 left-0 h-screen w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-[9999] overflow-y-auto"
+                        className="fixed lg:sticky top-0 left-0 h-screen w-72 shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-[9999] overflow-y-auto"
                     >
                         <div className="p-6">
                             <div className="flex items-center justify-between mb-8">
@@ -241,7 +241,7 @@ const TutorDashboard = () => {
                 )}
             </AnimatePresence>
 
-            <div className="flex-1 flex flex-col min-h-screen">
+            <div className="flex-1 flex flex-col min-h-screen min-w-0">
                 <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-30">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">

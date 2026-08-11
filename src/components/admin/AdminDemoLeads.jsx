@@ -214,16 +214,16 @@ const AdminDemoLeads = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 flex-wrap">
         <div>
           <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Demo Leads</h2>
           <p className="text-gray-500 dark:text-gray-400 font-medium">View and export student submissions from demo forms</p>
         </div>
-        <div className="flex items-center gap-3 self-end sm:self-auto">
+        <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
           <button
             onClick={loadLeads}
-            className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:bg-gray-50 transition-all"
+            className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:bg-gray-50 transition-all flex-shrink-0"
             title="Refresh Data"
           >
             <SafeIcon icon={FiRefreshCw} className={`w-5 h-5 text-blue-600 ${loading ? 'animate-spin' : ''}`} />
@@ -231,14 +231,14 @@ const AdminDemoLeads = () => {
           <button
             onClick={handleExportCSV}
             disabled={loading || filteredLeads.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition-all disabled:opacity-50 flex-shrink-0"
           >
             <SafeIcon icon={FiDownload} /> CSV
           </button>
           <button
             onClick={handleExportExcel}
             disabled={loading || filteredLeads.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg shadow-green-200 dark:shadow-none"
+            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg shadow-green-200 dark:shadow-none flex-shrink-0"
           >
             <SafeIcon icon={FiDownload} /> Excel
           </button>
@@ -253,11 +253,11 @@ const AdminDemoLeads = () => {
       )}
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-[24px] shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-4 items-center mb-6">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-[24px] shadow-sm border border-gray-100 dark:border-gray-700 flex flex-wrap gap-4 items-center mb-6">
         <select 
           value={dateFilter} 
           onChange={(e) => setDateFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
         >
           <option value="all">All Dates</option>
           <option value="today">Today</option>
@@ -268,7 +268,7 @@ const AdminDemoLeads = () => {
         </select>
         
         {dateFilter === 'custom' && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input 
               type="date" 
               value={customDateRange.from} 
@@ -288,7 +288,7 @@ const AdminDemoLeads = () => {
         <select
           value={testFilter}
           onChange={(e) => setTestFilter(e.target.value)}
-          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 sm:w-64 cursor-pointer"
         >
           <option value="all">All Tests</option>
           {availableTests.map(test => (
@@ -298,7 +298,7 @@ const AdminDemoLeads = () => {
       </div>
 
       {/* Leads Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 responsive-table-container">
+      <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 overflow-x-auto w-full max-w-full responsive-table-container">
         {loading ? (
           <div className="flex flex-col justify-center items-center h-64 space-y-4">
             <SafeIcon icon={FiLoader} className="w-8 h-8 animate-spin text-blue-600" />
@@ -310,8 +310,8 @@ const AdminDemoLeads = () => {
             <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">No demo leads found.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto w-full max-w-full">
+            <table className="w-full min-w-[1160px]">
               <thead>
                 <tr className="bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
                   <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Date</th>

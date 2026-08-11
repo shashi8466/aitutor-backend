@@ -172,15 +172,15 @@ const UserManagement = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 flex-wrap">
         <div>
           <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">User Authority</h2>
           <p className="text-gray-500 dark:text-gray-400 font-medium">Manage faculty approval, student roles, and course assignments</p>
         </div>
         <button
           onClick={loadData}
-          className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:bg-gray-50 transition-all self-end sm:self-auto"
+          className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:bg-gray-50 transition-all self-end sm:self-auto flex-shrink-0"
         >
           <SafeIcon icon={FiRefreshCw} className={`w-5 h-5 text-blue-600 ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -194,9 +194,9 @@ const UserManagement = () => {
       )}
 
       {/* Control Bar */}
-      <div className="flex flex-col lg:flex-row gap-4 mb-8">
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center mb-6 flex-wrap">
           {/* Search Box */}
-          <div className="flex-1 relative group">
+          <div className="flex-1 min-w-[260px] relative group">
               <SafeIcon icon={FiSearch} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-blue-600 transition-colors w-4 h-4" />
               <input
                 type="text"
@@ -207,14 +207,14 @@ const UserManagement = () => {
               />
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap items-center gap-3">
               {/* Role Filter */}
-              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                  <SafeIcon icon={FiUsers} className="text-gray-400 w-4 h-4" />
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2.5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <SafeIcon icon={FiUsers} className="text-gray-400 w-4 h-4 flex-shrink-0" />
                   <select 
                     value={roleFilter}
                     onChange={(e) => setRoleFilter(e.target.value)}
-                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400"
+                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400 cursor-pointer"
                   >
                       <option value="All">All Classifications</option>
                       <option value="Student">Student</option>
@@ -225,12 +225,12 @@ const UserManagement = () => {
               </div>
 
               {/* Plan Filter */}
-              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                  <SafeIcon icon={FiShield} className="text-gray-400 w-4 h-4" />
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2.5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <SafeIcon icon={FiShield} className="text-gray-400 w-4 h-4 flex-shrink-0" />
                   <select 
                     value={planFilter}
                     onChange={(e) => setPlanFilter(e.target.value)}
-                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400"
+                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400 cursor-pointer"
                   >
                       <option value="All">All Plans</option>
                       <option value="Free">Free</option>
@@ -239,12 +239,12 @@ const UserManagement = () => {
               </div>
 
               {/* Status Filter */}
-              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                  <SafeIcon icon={FiCheckCircle} className="text-gray-400 w-4 h-4" />
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2.5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <SafeIcon icon={FiCheckCircle} className="text-gray-400 w-4 h-4 flex-shrink-0" />
                   <select 
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400"
+                    className="bg-transparent border-none text-xs font-black uppercase tracking-widest focus:ring-0 p-0 text-gray-600 dark:text-gray-400 cursor-pointer"
                   >
                       <option value="All">All Status</option>
                       <option value="Active">Active</option>
@@ -256,8 +256,8 @@ const UserManagement = () => {
       </div>
 
       {/* Authority Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 responsive-table-container">
-          <table className="w-full">
+      <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 overflow-x-auto w-full max-w-full responsive-table-container">
+          <table className="w-full min-w-[960px]">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
                 <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Identify</th>
