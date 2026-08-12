@@ -335,7 +335,7 @@ const App = () => {
       {showNavbar && <Navbar />}
       <AnimatePresence mode="wait">
         <Suspense fallback={<LoadingSpinner />}>
-          <Routes location={location} key={location.pathname}>
+          <Routes location={location} key={location.pathname.split('/')[1] || '/'}>
             {/* Public Routes with Auto-Redirection for Auth Users */}
             <Route path="/" element={<HomeRedirector />} />
 
