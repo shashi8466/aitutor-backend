@@ -231,7 +231,7 @@ const StudentCourseList = () => {
       try {
         const { data: dbSubs } = await supabase
           .from('test_submissions')
-          .select('id, user_id, course_id, status, level, raw_score, scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name)')
+          .select('id, user_id, course_id, level, raw_score, scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 

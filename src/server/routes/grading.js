@@ -1390,7 +1390,7 @@ router.get('/all-my-scores', async (req, res) => {
 
         const { data: submissions, error } = await supabase
             .from('test_submissions')
-            .select('id, user_id, course_id, status, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name, is_practice, tutor_type)')
+            .select('id, user_id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name, is_practice, tutor_type)')
             .eq('user_id', userId)
             .order('test_date', { ascending: false });
 
