@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { courseService, enrollmentService, planService } from '../../services/api';
+import { courseService, enrollmentService, planService, gradingService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import supabase from '../../supabase/supabase';
 
@@ -231,7 +231,7 @@ const StudentCourseList = () => {
       try {
         const { data: dbSubs } = await supabase
           .from('test_submissions')
-          .select('*, courses:courses(id, name)')
+          .select('id, user_id, course_id, status, level, raw_score, scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
 
@@ -669,14 +669,14 @@ const StudentCourseList = () => {
       </div>
 
       {/* Subcategory Pills & Sort/View Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-        <div className="flex flex-nowrap sm:flex-wrap gap-2.5 overflow-x-auto no-scrollbar scrollbar-hide px-1 py-1">
+      <div className="flex flex-col xl:flex-row justify-between items-start gap-5 mb-8 w-full">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 w-full">
           <button
             onClick={() => {
               setActiveSubcategory('All');
               setExpandedCategory(null);
             }}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+            className={`px-4 h-9 rounded-full text-xs font-bold transition-all border flex items-center justify-center cursor-pointer whitespace-nowrap ${
               activeSubcategory === 'All' 
                 ? 'bg-[#7C3AED] border-[#7C3AED] text-white shadow-[0_0_15px_rgba(124,58,237,0.35)]' 
                 : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
@@ -691,25 +691,25 @@ const StudentCourseList = () => {
                 setActiveSubcategory(sub);
                 setExpandedCategory(null);
               }}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer ${
+              className={`px-4 h-9 rounded-full text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeSubcategory === sub 
                   ? 'bg-[#181033] border-[#7C3AED] text-white shadow-[0_0_12px_rgba(124,58,237,0.25)]' 
                   : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
               }`}
             >
-              <SafeIcon icon={FiIcons.FiBookOpen} className={`w-3 h-3 ${activeSubcategory === sub ? 'text-purple-300' : 'text-slate-400'}`} />
-              {sub}
+              <SafeIcon icon={FiIcons.FiBookOpen} className={`w-3 h-3 flex-shrink-0 ${activeSubcategory === sub ? 'text-purple-300' : 'text-slate-400'}`} />
+              <span className="truncate">{sub}</span>
             </button>
           ))}
         </div>
         
-        <div className="flex items-center gap-3 text-xs font-bold text-gray-400">
+        <div className="flex items-center gap-3 text-xs font-bold text-gray-400 shrink-0">
            <div className="flex items-center gap-1.5">
              <span className="text-gray-400 hidden sm:inline">Sort by:</span>
              <select
                value={sortBy}
                onChange={(e) => setSortBy(e.target.value)}
-               className="bg-[#11131A] border border-[#1C202B] text-white text-xs font-bold py-1.5 px-3 rounded-lg focus:outline-none focus:border-purple-500 cursor-pointer hover:border-gray-700 transition-colors"
+               className="bg-[#11131A] border border-[#1C202B] text-white text-xs font-bold px-3 h-9 rounded-lg focus:outline-none focus:border-purple-500 cursor-pointer hover:border-gray-700 transition-colors"
              >
                <option value="recent">Recent</option>
                <option value="name">Name (A-Z)</option>
@@ -718,7 +718,7 @@ const StudentCourseList = () => {
              </select>
            </div>
            
-           <div className="flex gap-1.5 bg-[#11131A] p-1 rounded-lg border border-[#1C202B]">
+           <div className="flex gap-1.5 bg-[#11131A] p-1 rounded-lg border border-[#1C202B] h-9 items-center">
               <button 
                 title="Grid View"
                 onClick={() => setViewMode('grid')}
@@ -853,14 +853,14 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
       ? { bg: 'bg-blue-500/20', text: 'text-blue-400', iconBg: 'bg-[#181033]', iconText: 'text-purple-400' } 
       : isReading 
       ? { bg: 'bg-orange-500/20', text: 'text-orange-400', iconBg: 'bg-[#332210]', iconText: 'text-orange-400' }
-      : { bg: 'bg-green-500/20', text: 'text-green-400', iconBg: 'bg-[#064E3B]', iconText: 'text-green-400' };
+      : { bg: 'bg-indigo-500/20', text: 'text-indigo-400', iconBg: 'bg-[#181033]', iconText: 'text-indigo-400' };
 
   return (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: index * 0.05 }}
-    className="bg-[#11131A] rounded-2xl shadow-sm border border-[#1C202B] overflow-hidden hover:border-gray-700 transition-all group flex flex-col h-full"
+    className="bg-[#131726] rounded-2xl shadow-sm border border-[#262D42] overflow-hidden hover:border-purple-500/30 transition-all group flex flex-col h-full"
   >
     <div className="p-5 md:p-6 flex-1">
       <div className="flex justify-between items-start mb-4">
@@ -888,8 +888,8 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
           <div className="flex justify-between items-center text-[10px] font-bold">
             <span className="text-gray-300">{progressPct}% Completed</span>
             {isCompleted ? (
-              <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 text-[9px]">
-                <SafeIcon icon={FiIcons.FiCheckCircle} className="w-2.5 h-2.5 text-emerald-400" /> Completed
+              <span className="flex items-center gap-1 text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 text-[9px]">
+                <SafeIcon icon={FiIcons.FiCheckCircle} className="w-2.5 h-2.5 text-blue-400" /> Completed
               </span>
             ) : isInProgress ? (
               <span className="flex items-center gap-1 text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 text-[9px]">
@@ -904,7 +904,7 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
           <div className="h-1.5 bg-[#1C202B] rounded-full overflow-hidden">
             <div 
               className={`h-full rounded-full transition-all duration-300 ${
-                isCompleted ? 'bg-emerald-500' : isInProgress ? 'bg-blue-500' : 'bg-gray-600'
+                isCompleted ? 'bg-gradient-to-r from-blue-500 to-purple-500' : isInProgress ? 'bg-blue-500' : 'bg-gray-600'
               }`} 
               style={{ width: `${progressPct}%` }}
             ></div>
@@ -942,7 +942,7 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
                 onAction();
               }
             }}
-            className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-sm"
+            className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.3)]"
           >
             <SafeIcon icon={FiIcons.FiFileText} className="w-3.5 h-3.5" /> View Results
           </button>
@@ -956,7 +956,7 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
                 navigate(`/student/course/${course.id}?retake=true`);
               }
             }}
-            className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+            className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-purple-500/30 hover:border-purple-500/60 text-purple-300 hover:text-white hover:bg-purple-500/10 transition-all flex items-center justify-center gap-1 whitespace-nowrap"
             title="Start a new test attempt while keeping prior history"
           >
             <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3 h-3" /> Start Again
@@ -992,14 +992,14 @@ const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremi
       ? { bg: 'bg-blue-500/20', text: 'text-blue-400', iconBg: 'bg-[#181033]', iconText: 'text-purple-400' } 
       : isReading 
       ? { bg: 'bg-orange-500/20', text: 'text-orange-400', iconBg: 'bg-[#332210]', iconText: 'text-orange-400' }
-      : { bg: 'bg-green-500/20', text: 'text-green-400', iconBg: 'bg-[#064E3B]', iconText: 'text-green-400' };
+      : { bg: 'bg-indigo-500/20', text: 'text-indigo-400', iconBg: 'bg-[#181033]', iconText: 'text-indigo-400' };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
-      className="bg-[#11131A] rounded-2xl p-4 border border-[#1C202B] hover:border-gray-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+      className="bg-[#131726] rounded-2xl p-4 border border-[#262D42] hover:border-purple-500/30 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
     >
       <div className="flex items-start sm:items-center gap-4 flex-1 min-w-0">
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${tagTheme.iconBg} ${tagTheme.iconText}`}>
@@ -1028,12 +1028,12 @@ const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremi
               <div className="flex-1 h-1 bg-[#1C202B] rounded-full overflow-hidden">
                 <div 
                   className={`h-full rounded-full transition-all duration-300 ${
-                    isCompleted ? 'bg-emerald-500' : isInProgress ? 'bg-blue-500' : 'bg-gray-600'
+                    isCompleted ? 'bg-gradient-to-r from-blue-500 to-purple-500' : isInProgress ? 'bg-blue-500' : 'bg-gray-600'
                   }`} 
                   style={{ width: `${progressPct}%` }}
                 ></div>
               </div>
-              <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">
+              <span className={`text-[10px] font-bold whitespace-nowrap ${isCompleted ? 'text-blue-400' : 'text-gray-400'}`}>
                 {isCompleted ? 'Completed · 100%' : isInProgress ? `In Progress · ${progressPct}%` : 'Not Attempted · 0%'}
               </span>
             </div>
@@ -1070,7 +1070,7 @@ const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremi
                   onAction();
                 }
               }}
-              className="px-4 py-2.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap"
+              className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.3)] whitespace-nowrap"
             >
               <SafeIcon icon={FiIcons.FiFileText} className="w-3.5 h-3.5" /> View Results
             </button>
@@ -1084,7 +1084,7 @@ const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremi
                   navigate(`/student/course/${course.id}?retake=true`);
                 }
               }}
-              className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+              className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-purple-500/30 hover:border-purple-500/60 text-purple-300 hover:text-white hover:bg-purple-500/10 transition-all flex items-center justify-center gap-1 whitespace-nowrap"
               title="Start a new test attempt while keeping prior history"
             >
               <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3 h-3" /> Start Again

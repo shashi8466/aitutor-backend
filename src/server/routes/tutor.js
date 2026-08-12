@@ -336,7 +336,7 @@ router.get('/student-progress/:studentId', async (req, res) => {
         // Get test submissions (only those with scores/attempts)
         let query = supabase
             .from('test_submissions')
-            .select('*, course:courses(name)')
+            .select('id, user_id, course_id, status, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, course:courses(name)')
             .eq('user_id', studentId)
             .not('raw_score_percentage', 'is', null);
 
