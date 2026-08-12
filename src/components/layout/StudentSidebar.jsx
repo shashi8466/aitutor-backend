@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import BrandName from '../../common/BrandName';
@@ -20,6 +20,19 @@ const StudentSidebar = ({ isOpen, onClose }) => {
 
   const isPremium = user?.plan_type === 'premium' && user?.plan_status === 'active';
   const isPending = user?.plan_status === 'pending_upgrade';
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    // Restore scroll position on mount
+    const savedScroll = sessionStorage.getItem('studentSidebarScrollPos');
+    if (savedScroll && scrollRef.current) {
+      scrollRef.current.scrollTop = parseInt(savedScroll, 10);
+    }
+  }, []);
+
+  const handleScroll = (e) => {
+    sessionStorage.setItem('studentSidebarScrollPos', e.target.scrollTop);
+  };
 
   useEffect(() => {
     if (user?.plan_type) {
@@ -162,7 +175,11 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Scrollable Menu */}
-        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 custom-scrollbar scroll-smooth">
+        <div 
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto py-6 px-4 space-y-6 custom-scrollbar"
+        >
           {menuGroups.map((group, idx) => (
             <div key={idx} className="mb-6 last:mb-0">
               <p className="px-4 text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
