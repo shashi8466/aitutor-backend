@@ -227,7 +227,7 @@ const PracticeQuizUI = ({
                     onChange={(e) => handleAnswerSelect(e.target.value)}
                     disabled={submitted}
                     placeholder="Type your answer here..."
-                    className={`w-full p-4 border rounded-xl outline-none text-base transition-all ${
+                    className={`w-full p-4 border rounded-xl outline-none text-base transition-all text-slate-900 ${
                       submitted 
                         ? (isCorrect ? 'border-green-400 bg-green-50 text-green-900' : 'border-red-400 bg-red-50 text-red-900') 
                         : 'border-slate-200 focus:border-indigo-500 bg-white'
