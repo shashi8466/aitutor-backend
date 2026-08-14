@@ -525,26 +525,19 @@ router.post('/send-email', async (req, res) => {
             downloadUrl: pdfUrl
         });
 
-        console.log('📤 [DEMO] Sending student email...');
+        const actualParentEmail = lead.parent_email || emailScoreDetails.parentEmail;
+        const recipients = [lead.email];
+        if (actualParentEmail && actualParentEmail.toLowerCase().trim() !== lead.email.toLowerCase().trim()) {
+            recipients.push(actualParentEmail.trim());
+        }
+
+        console.log(`📤 [DEMO] Sending student & parent email to ${recipients.join(', ')}...`);
         const userEmailResult = await sendEmail({
-            to: lead.email,
+            to: recipients,
             subject: emailSubject,
             html: userHtml
         });
-        if (!userEmailResult.ok) console.error('❌ [DEMO] User email failed:', userEmailResult.error);
-
-        // Parent Email
-        const actualParentEmail = lead.parent_email || emailScoreDetails.parentEmail;
-        let parentEmailResult = { ok: true };
-        if (actualParentEmail) {
-            console.log(`📤 [DEMO] Sending parent email to ${actualParentEmail}...`);
-            parentEmailResult = await sendEmail({
-                to: actualParentEmail,
-                subject: emailSubject,
-                html: userHtml
-            });
-            if (!parentEmailResult.ok) console.error('❌ [DEMO] Parent email failed:', parentEmailResult.error);
-        }
+        if (!userEmailResult.ok) console.error('❌ [DEMO] User/Parent email failed:', userEmailResult.error);
 
         res.json({ success: true, message: 'Emails dispatched' });
     } catch (error) {
