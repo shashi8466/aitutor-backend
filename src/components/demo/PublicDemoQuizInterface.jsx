@@ -669,7 +669,12 @@ const PublicDemoQuizInterface = () => {
       }
 
       // Navigate to full report page
-      navigate(`/demo/${courseId}/report`);
+      const leadId = response.data?.leadId;
+      if (leadId) {
+          navigate(`/demo/${courseId}/report?id=${leadId}&finalize=true`);
+      } else {
+          navigate(`/demo/${courseId}/report`);
+      }
     } catch (err) {
       console.error("❌ [DEMO] Failed to submit final scores:", err);
       console.error("❌ [DEMO] Error response:", err?.response?.data);

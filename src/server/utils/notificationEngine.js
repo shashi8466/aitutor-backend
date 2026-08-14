@@ -619,10 +619,11 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
     </div></div></body></html>`;
 }
 
-export function buildDemoAdminEmail({ fullName, grade, email, phone, parentName, parentEmail, courseName, level, scoreDetails, submittedAt, courseId }) {
+export function buildDemoAdminEmail({ fullName, grade, email, phone, parentName, parentEmail, courseName, level, scoreDetails, submittedAt, courseId, leadId, customTitle, downloadUrl: providedDownloadUrl }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
-    const frontendUrl = process.env.FRONTEND_URL || 'https://aiprep365.com';
-    const reportUrl = `${frontendUrl}/demo/${courseId}/report`;
+    const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://aiprep365.com' : 'http://localhost:5173');
+    const reportUrl = `${frontendUrl}/demo/${courseId}/report${leadId ? `?id=${leadId}` : ''}`;
+    const downloadUrl = providedDownloadUrl || `${frontendUrl}/demo/${courseId}/report${leadId ? `?id=${leadId}&print=true` : '?print=true'}`;
     const allLevels = scoreDetails?.allLevels || {};
     const comprehensive = scoreDetails?.comprehensive || {};
     const isAdaptiveSAT = scoreDetails?.isAdaptiveSAT || 
@@ -722,12 +723,12 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, parentName,
     <!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body>
     <div class="wrapper"><div class="card">
         <div class="header">
-            <h1>NEW DEMO LEAD</h1>
+            <h1>${customTitle || 'NEW DEMO LEAD'}</h1>
             <p>${appName} ${courseName || 'Demo Course'} Submission</p>
         </div>
         <div class="body">
             <p class="intro-heading">NEW LEAD: ${fullName}</p>
-            <p class="intro-text" style="color: #ffffff !important; font-size: 16px !important; margin-bottom: 24px;">A new user has completed the demo test and submitted their details:</p>
+            <p class="intro-text" style="color: #ffffff !important; font-size: 16px !important; margin-bottom: 24px;">${customTitle ? 'You have completed the demo test. Here are your details:' : 'A new user has completed the demo test and submitted their details:'}</p>
             
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                 <tr><td style="padding: 8px 0; font-weight: 700; width: 140px;">Full Name:</td><td>${fullName || 'N/A'}</td></tr>
@@ -744,14 +745,15 @@ export function buildDemoAdminEmail({ fullName, grade, email, phone, parentName,
             <div class="section-title">Demo Results Summary</div>
             ${demoResultsHtml}
             
-            <div class="tip-box">
-                <strong>Next Steps:</strong><br/>
-                1. Contact the user within 24 hours<br/>
-                2. Provide personalized feedback on their performance<br/>
-                3. Offer full course enrollment based on their results
+            <div style="margin-top: 30px; text-align: center;">
+                <a class="cta" href="${reportUrl}" style="display: inline-block; background: #667eea; color: #ffffff !important; border: none; margin-bottom: 15px; width: 100%; max-width: 300px;">View Report</a>
+                <br/>
+                <a class="cta" href="${downloadUrl}" style="display: inline-block; background: rgba(255,255,255,0.05); color: #ffffff !important; border: 1px solid #4a5568; margin-bottom: 30px; width: 100%; max-width: 300px;">Download Report</a>
             </div>
             
-            <a class="cta" href="mailto:${email}?subject=Your AIPrep365 Demo Results & Next Steps" style="background: rgba(255,255,255,0.05); color: #818cf8 !important; border: 1px solid #818cf8; box-shadow: none; margin-top: 10px;">Contact User Now</a>
+            <div style="text-align: center; margin-top: 10px;">
+                <a href="mailto:${process.env.ADMIN_EMAIL || 'support@aiprep365.com'}?subject=Inquiry about Demo Test" style="color: #818cf8; text-decoration: underline; font-size: 14px;">Contact Us</a>
+            </div>
         </div>
         <div class="footer">${appName} · New lead notification sent automatically</div>
     </div></div></body></html>`;

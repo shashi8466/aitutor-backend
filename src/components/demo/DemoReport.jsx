@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import logoImg from '../../../public/logo.png';
 import TransparentLogo from '../common/TransparentLogo';
 import { useSettings } from '../../contexts/SettingsContext';
+import html2pdf from 'html2pdf.js';
+import axios from 'axios';
+import supabase from '../../supabase/supabase';
 
 const { FiPrinter, FiArrowLeft, FiCheck, FiX, FiMinus, FiCalendar, FiClock, FiMonitor, FiBarChart2 } = FiIcons;
 
@@ -14,30 +17,126 @@ const DemoReport = () => {
     const location = useLocation();
     const { settings } = useSettings();
     const [reportData, setReportData] = useState(null);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [isFinalizing, setIsFinalizing] = useState(false);
 
     useEffect(() => {
-        try {
-            if (location.state?.reportData) {
-                setReportData(location.state.reportData);
-                if (location.state.autoPrint) {
-                    setTimeout(() => window.print(), 1000);
+        const fetchReportData = async () => {
+            try {
+                const leadId = searchParams.get('id');
+                const shouldPrint = searchParams.get('print') === 'true';
+
+                if (leadId) {
+                    // Fetch from backend
+                    const res = await fetch(`/api/demo/report/${leadId}`);
+                    const data = await res.json();
+                    if (data.success && data.reportData) {
+                        setReportData(data.reportData);
+                        if (shouldPrint) setTimeout(() => window.print(), 1500);
+                        return;
+                    }
                 }
-            } else {
-                const savedProgress = localStorage.getItem(`demo_progress_${courseId}`);
-                if (savedProgress) {
-                    setReportData(JSON.parse(savedProgress));
+
+                if (location.state?.reportData) {
+                    setReportData(location.state.reportData);
+                    if (location.state.autoPrint || shouldPrint) {
+                        setTimeout(() => window.print(), 1500);
+                    }
                 } else {
-                    // Redirect back if no progress
-                    navigate(`/demo/${courseId}`);
+                    const savedProgress = localStorage.getItem(`demo_progress_${courseId}`);
+                    if (savedProgress) {
+                        setReportData(JSON.parse(savedProgress));
+                        if (shouldPrint) setTimeout(() => window.print(), 1500);
+                    } else {
+                        // Redirect back if no progress
+                        navigate(`/demo/${courseId}`);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load report data", e);
+                navigate(`/demo/${courseId}`);
+            }
+        };
+        
+        fetchReportData();
+    }, [courseId, navigate, location.state, searchParams]);
+
+    useEffect(() => {
+        const finalizeAndSendEmail = async () => {
+            const leadId = searchParams.get('id');
+            const shouldFinalize = searchParams.get('finalize') === 'true';
+
+            if (reportData && shouldFinalize && leadId && !isFinalizing) {
+                setIsFinalizing(true);
+                console.log('🔄 [DEMO] Generating PDF for lead:', leadId);
+
+                try {
+                    // Give DOM a moment to render charts and fonts
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    const element = document.getElementById('report-content');
+                    if (!element) throw new Error('Report content not found');
+
+                    // 1. Generate PDF Blob
+                    const pdfBlob = await html2pdf().set({
+                        margin: 10,
+                        filename: `Demo_Report_${leadId}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    }).from(element).outputPdf('blob');
+
+                    // 2. Upload to Supabase Storage
+                    const filePath = `demo_reports/${leadId}_${Date.now()}.pdf`;
+                    const { error: uploadError } = await supabase.storage
+                        .from('documents')
+                        .upload(filePath, pdfBlob, {
+                            contentType: 'application/pdf',
+                            cacheControl: '3600',
+                            upsert: false
+                        });
+
+                    if (uploadError) throw uploadError;
+
+                    // 3. Get Public URL
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('documents')
+                        .getPublicUrl(filePath);
+
+                    console.log('✅ [DEMO] PDF uploaded:', publicUrl);
+
+                    // 4. Trigger Email
+                    await axios.post('/api/demo/send-email', {
+                        leadId,
+                        pdfUrl: publicUrl
+                    });
+                    console.log('✅ [DEMO] Emails dispatched');
+
+                } catch (error) {
+                    console.error('❌ [DEMO] Finalization failed:', error);
+                } finally {
+                    // Remove finalize param from URL
+                    setSearchParams(params => {
+                        params.delete('finalize');
+                        return params;
+                    });
+                    setIsFinalizing(false);
                 }
             }
-        } catch (e) {
-            console.error("Failed to load report data", e);
-            navigate(`/demo/${courseId}`);
-        }
-    }, [courseId, navigate, location.state]);
+        };
+
+        finalizeAndSendEmail();
+    }, [reportData, searchParams, isFinalizing, setSearchParams]);
 
     if (!reportData) return <div className="min-h-screen bg-white flex items-center justify-center">Loading Report...</div>;
+
+    if (isFinalizing) return (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <h2 className="text-2xl font-bold text-gray-800 text-center mb-2">Finalizing Your Results</h2>
+            <p className="text-gray-600 text-center animate-pulse">Generating your personalized AI report and sending emails...</p>
+        </div>
+    );
 
     const { studentName, finalScores } = reportData;
     const { totalScore, rwScore, mathScore, moduleDetails, completedAt } = finalScores;
