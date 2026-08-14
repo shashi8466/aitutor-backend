@@ -5,6 +5,8 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import AITutorModal from './AITutorModal';
+import PracticeAITutorModal from './PracticeAITutorModal';
+import PracticeQuizUI from './PracticeQuizUI';
 import { questionService, progressService, enrollmentService, gradingService, planService, courseService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -146,6 +148,7 @@ const QuizInterface = () => {
       }
       await loadQuestions();
     } catch (err) {
+      console.error("❌ checkAccessAndLoad failed:", err);
       setError("Failed to verify enrollment.");
       setLoading(false);
     }
@@ -155,6 +158,13 @@ const QuizInterface = () => {
     setLoading(true);
     setQuestions([]);
     setError(null);
+    setCurrentQuestionIndex(0);
+    setUserAnswers({});
+    setShowResults(false);
+    setSelectedAnswer('');
+    setSubmitted(false);
+    setSubmissionResult(null);
+    setTimeElapsed(0);
 
     try {
       const cId = parseInt(courseId);
@@ -855,7 +865,7 @@ const QuizInterface = () => {
                 if (currentLevelName === 'Easy') {
                   return (
                     <>
-                      <Link to={`/student/course/${courseId}/level/medium`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
+                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/medium/quiz${window.location.search}` : `/student/course/${courseId}/level/medium`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
                         <SafeIcon icon={FiArrowRight} className="w-5 h-5" /> Continue to Medium Level
                       </Link>
                       <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-slate-500 text-white rounded-xl font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-100">
@@ -866,7 +876,7 @@ const QuizInterface = () => {
                 } else if (currentLevelName === 'Medium') {
                   return (
                     <>
-                      <Link to={`/student/course/${courseId}/level/hard`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
+                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/hard/quiz${window.location.search}` : `/student/course/${courseId}/level/hard`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
                         <SafeIcon icon={FiArrowRight} className="w-5 h-5" /> Continue to Hard Level
                       </Link>
                       <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-slate-500 text-white rounded-xl font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-100">
@@ -935,7 +945,138 @@ const QuizInterface = () => {
     );
   }
 
+  // Identify Regular Practice Quiz to use the new UI
+  const isRegularSATPractice = !isAdaptive && isPracticeMode && !isACTFullLengthCourse(courseInfo) && !isSequential;
 
+  if (isRegularSATPractice) {
+    return (
+      <>
+        <PracticeQuizUI
+          courseId={courseId}
+          level={level}
+          questions={questions}
+          currentQuestionIndex={currentQuestionIndex}
+          currentQuestion={currentQuestion}
+          userAnswers={userAnswers}
+          selectedAnswer={selectedAnswer}
+          submitted={submitted}
+          timeElapsed={timeElapsed}
+          isMCQ={isMCQ}
+          isShortAnswer={isShortAnswer}
+          handleAnswerSelect={handleAnswerSelect}
+          handleSubmitAnswer={handleSubmitAnswer}
+          handleNextQuestion={handleNextQuestion}
+          handlePrevQuestion={handlePrevQuestion}
+          isCorrectAnswer={isCorrectAnswer}
+          getDisplayAnswer={getDisplayAnswer}
+          getOptionLetter={getOptionLetter}
+          formatTime={formatTime}
+          setShowQuestionGrid={setShowQuestionGrid}
+          navigate={navigate}
+          courseInfo={courseInfo}
+          isSequential={isSequential}
+          isACTFullLengthCourse={isACTFullLengthCourse}
+          planSettings={planSettings}
+          setShowAITutor={setShowAITutor}
+          user={user}
+        />
+        
+        {/* Render Modals */}
+        <AnimatePresence>
+          {showAITutor && (
+            <PracticeAITutorModal
+              isOpen={showAITutor}
+              onClose={() => setShowAITutor(false)}
+              question={currentQuestion}
+              userAnswer={userAnswers[currentQuestionIndex]}
+              correctAnswer={currentQuestion.correct_answer || currentQuestion.correctAnswer}
+            />
+          )}
+          {showQuestionGrid && (
+            <React.Fragment key="navigation-sidebar-practice">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowQuestionGrid(false)}
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[90]"
+              />
+
+              {/* Sidebar */}
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="fixed top-0 right-0 h-full w-full max-w-[320px] bg-white shadow-[-10px_0_30px_rgba(0,0,0,0.1)] border-l border-slate-100 z-[100] flex flex-col"
+              >
+                <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-indigo-50 p-2 rounded-xl">
+                      <SafeIcon icon={FiGrid} className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900">Navigation</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowQuestionGrid(false)}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
+                  >
+                    <SafeIcon icon={FiX} className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-[#FAFAFA]">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Question List</p>
+                  <div className="grid grid-cols-4 gap-3">
+                    {questions.map((_, idx) => {
+                      const isAnswered = !!userAnswers[idx];
+                      const isCurrent = idx === currentQuestionIndex;
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            jumpToQuestion(idx);
+                            setShowQuestionGrid(false);
+                          }}
+                          className={`
+                          aspect-square rounded-xl font-bold text-sm transition-all flex items-center justify-center border-2
+                          ${isCurrent ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' :
+                              isAnswered ? 'bg-green-50 border-green-200 text-green-700' :
+                                'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:bg-indigo-50'}
+                        `}
+                        >
+                          {idx + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-white">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Legend</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 text-sm font-bold text-slate-600">
+                      <div className="w-4 h-4 rounded-md bg-indigo-600"></div>
+                      <span>Active Question</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm font-bold text-slate-600">
+                      <div className="w-4 h-4 rounded-md bg-green-50 border border-green-200"></div>
+                      <span>Answered</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm font-bold text-slate-600">
+                      <div className="w-4 h-4 rounded-md bg-white border border-slate-200"></div>
+                      <span>Not Attempted</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </React.Fragment>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
 
   return (
     <div className="dark">

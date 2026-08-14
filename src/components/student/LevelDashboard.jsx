@@ -125,8 +125,12 @@ const LevelDashboard = () => {
                 </div>
               ))
             ) : (
-              <div className="col-span-full p-8 text-center bg-white rounded-xl border border-dashed border-gray-300 text-gray-500 font-medium">
-                No study materials uploaded for this level yet.
+              <div className="col-span-full py-12 px-6 text-center bg-white rounded-xl border border-dashed border-indigo-200 text-gray-500 font-medium">
+                <div className="flex justify-center mb-3 text-indigo-400">
+                  <SafeIcon icon={FiIcons.FiFolder} className="w-8 h-8" />
+                </div>
+                <p className="text-gray-900 font-bold mb-1">No study materials uploaded for this level yet.</p>
+                <p className="text-sm text-gray-500">Check back later for notes, guides, and resources from your tutor.</p>
               </div>
             )}
           </div>
@@ -141,15 +145,29 @@ const LevelDashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 px-2 sm:px-0">
 
           {/* Card 1: Videos */}
-          <Link to={`${routeBase}/course/${courseId}/level/${level}/video`} className="group h-full">
-            <div className="h-full bg-[#FCF5FF] border border-[#F3E8FF] rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer group-hover:-translate-y-1 hover:shadow-md flex flex-col items-center justify-center">
-              <div className="w-14 h-14 bg-[#EFE9FE] rounded-full flex items-center justify-center mb-4 text-[#7C3AED]">
-                <SafeIcon icon={FiVideo} className="w-6 h-6" />
+          <Link to={`${routeBase}/course/${courseId}/level/${level}/video`} className="group h-full block">
+            <div className="h-full bg-[#FCF5FF] border border-[#F3E8FF] rounded-xl p-6 text-left transition-all cursor-pointer hover:shadow-lg flex flex-col relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-[#EFE9FE] rounded-full flex items-center justify-center text-[#7C3AED]">
+                  <SafeIcon icon={FiVideo} className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[#1E1B4B]">Premade Videos</h3>
+                  <span className="inline-block mt-1 px-3 py-1 bg-[#EFE9FE] text-[#7C3AED] text-[10px] font-bold rounded-full uppercase tracking-wide">Coming Soon</span>
+                </div>
               </div>
-              <h3 className="text-lg sm:text-xl font-bold text-[#1E1B4B] mb-1">Premade Videos</h3>
-              <p className="text-xs sm:text-sm text-gray-500 font-medium">Watch instructional videos</p>
-              <div className="mt-6 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm text-[#7C3AED]">
-                <SafeIcon icon={FiIcons.FiArrowRight} className="w-4 h-4" />
+              <p className="text-sm text-gray-700 font-medium mb-6">Watch expert-created videos to understand concepts step by step.</p>
+              
+              <div className="flex-1 flex items-center justify-center py-6 opacity-60">
+                 <SafeIcon icon={FiVideo} className="w-20 h-20 text-[#D8B4FE]" />
+              </div>
+              
+              <div className="mt-auto bg-[#F5EFFF] border border-[#E9D5FF] rounded-lg p-3 flex items-start gap-2">
+                <SafeIcon icon={FiIcons.FiClock} className="w-4 h-4 text-[#7C3AED] mt-0.5" />
+                <p className="text-xs text-[#7C3AED] font-medium leading-tight">
+                  <span className="font-bold block">Videos are coming soon!</span>
+                  Check back later for helpful video content.
+                </p>
               </div>
             </div>
           </Link>
@@ -160,16 +178,43 @@ const LevelDashboard = () => {
               ? `${routeBase}/course/${courseId}/level/moderate/quiz?mode=practice` 
               : `${routeBase}/course/${courseId}/level/${level}/quiz?mode=practice`
             } 
-            className="group h-full"
+            className="group h-full block"
           >
-            <div className="h-full bg-[#F4F9FF] border border-[#E0EFFF] rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer group-hover:-translate-y-1 hover:shadow-md flex flex-col items-center justify-center">
-               <div className="w-14 h-14 bg-[#3B82F6] rounded-full flex items-center justify-center mb-4 text-white">
-                <SafeIcon icon={FiZap} className="w-6 h-6" />
+            <div className="h-full bg-white border border-gray-200 shadow-sm rounded-xl p-6 text-left transition-all cursor-pointer hover:shadow-lg hover:border-blue-200 flex flex-col relative">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-[#EFF6FF] rounded-full flex items-center justify-center text-[#3B82F6]">
+                  <SafeIcon icon={FiZap} className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[#1E1B4B]">Practice Quiz</h3>
+                  <span className="inline-block mt-1 px-3 py-1 bg-[#EFF6FF] text-[#3B82F6] text-[10px] font-bold rounded-full uppercase tracking-wide">Practice & Learn</span>
+                </div>
               </div>
-              <h3 className="text-lg sm:text-xl font-bold text-[#1E1B4B] mb-1">Practice Quiz</h3>
-              <p className="text-xs sm:text-sm text-gray-500 font-medium">Build your skills with focus</p>
-              <div className="mt-6 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm text-[#3B82F6]">
-                <SafeIcon icon={FiIcons.FiArrowRight} className="w-4 h-4" />
+              
+              <div className="flex flex-col gap-4 flex-1 mt-2 mb-6">
+                <div className="flex items-start gap-2">
+                  <SafeIcon icon={FiIcons.FiCheckCircle} className="w-5 h-5 text-[#3B82F6] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900">Practice freely with help and feedback.</h4>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">Use AI assistance and get explanations to understand your mistakes.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <SafeIcon icon={FiIcons.FiCheckCircle} className="w-5 h-5 text-[#3B82F6] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900">Retry questions anytime.</h4>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">Practice again and again to improve your skills and build confidence.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-auto pt-4 relative">
+                 <div className="absolute right-0 bottom-12 opacity-50">
+                   <SafeIcon icon={FiCpu} className="w-16 h-16 text-[#BFDBFE]" />
+                 </div>
+                 <div className="w-full py-3 bg-[#3B82F6] text-white rounded-lg font-bold flex items-center justify-center gap-2 group-hover:bg-[#2563EB] transition-colors relative z-10 shadow-md shadow-blue-200">
+                   Start Practice Quiz <SafeIcon icon={FiIcons.FiArrowRight} className="w-4 h-4" />
+                 </div>
               </div>
             </div>
           </Link>
@@ -180,16 +225,43 @@ const LevelDashboard = () => {
               ? `${routeBase}/adaptive-test/${courseId}` 
               : `${routeBase}/course/${courseId}/level/${level}/quiz`
             } 
-            className="group h-full"
+            className="group h-full block"
           >
-            <div className="h-full bg-[#FEF2F2] border border-[#FEE2E2] rounded-2xl p-6 sm:p-8 text-center transition-all cursor-pointer group-hover:-translate-y-1 hover:shadow-md flex flex-col items-center justify-center">
-              <div className="w-14 h-14 bg-[#EF4444] rounded-full flex items-center justify-center mb-4 text-white">
-                <SafeIcon icon={FiAward} className="w-6 h-6" />
+            <div className="h-full bg-[#FFF5F5] border border-[#FEE2E2] rounded-xl p-6 text-left transition-all cursor-pointer hover:shadow-lg flex flex-col relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-[#FEE2E2] rounded-full flex items-center justify-center text-[#EF4444]">
+                  <SafeIcon icon={FiAward} className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[#1E1B4B]">Take the Quiz</h3>
+                  <span className="inline-block mt-1 px-3 py-1 bg-[#FEE2E2] text-[#EF4444] text-[10px] font-bold rounded-full uppercase tracking-wide">Test Your Knowledge</span>
+                </div>
               </div>
-              <h3 className="text-lg sm:text-xl font-bold text-[#1E1B4B] mb-1">Take the Quiz</h3>
-              <p className="text-xs sm:text-sm text-gray-500 font-medium">Test your knowledge</p>
-              <div className="mt-6 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm text-[#EF4444]">
-                <SafeIcon icon={FiIcons.FiArrowRight} className="w-4 h-4" />
+              
+              <div className="flex flex-col gap-4 flex-1 mt-2 mb-6">
+                <div className="flex items-start gap-2">
+                  <SafeIcon icon={FiIcons.FiCheckCircle} className="w-5 h-5 text-[#EF4444] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900">Take the original test without AI assistance.</h4>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">Answer independently just like the real exam.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <SafeIcon icon={FiIcons.FiCheckCircle} className="w-5 h-5 text-[#EF4444] shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-gray-900">Get your official score and results.</h4>
+                    <p className="text-xs text-gray-500 font-medium mt-0.5">See your performance report and track your progress accurately.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-auto pt-4 relative">
+                 <div className="absolute right-0 bottom-12 opacity-50">
+                   <SafeIcon icon={FiIcons.FiClipboard} className="w-16 h-16 text-[#FECACA]" />
+                 </div>
+                 <div className="w-full py-3 bg-[#EF4444] text-white rounded-lg font-bold flex items-center justify-center gap-2 group-hover:bg-[#DC2626] transition-colors relative z-10 shadow-md shadow-red-200">
+                   Start Quiz <SafeIcon icon={FiIcons.FiArrowRight} className="w-4 h-4" />
+                 </div>
               </div>
             </div>
           </Link>

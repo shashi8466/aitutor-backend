@@ -286,7 +286,7 @@ const QuizDispatcher = () => {
     const [searchParams] = useSearchParams();
     const isPractice = searchParams.get('mode') === 'practice';
     
-    // Practice Quiz => Old Legacy Interface (Dark Styled)
+    // Practice Quiz => Legacy Interface with AI tools (mode=practice)
     // Take the Quiz => New high-fidelity Exam Interface (Light Styled)
     return isPractice ? <LegacyQuizInterface /> : <ExamInterface />;
 };

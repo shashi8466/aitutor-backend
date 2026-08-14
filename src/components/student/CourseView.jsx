@@ -1358,18 +1358,11 @@ const CourseView = () => {
         ) : (
           <div className="space-y-6">
             {['Easy', 'Medium', 'Hard'].map((level, index) => {
-              const topics = getTopicsForLevel(level);
               const unlocked = isLevelUnlocked(level);
               const { passed, score } = getLevelStatus(level);
+              const roundedScore = Math.round(score || 0);
 
-              const styles = {
-                Easy: { bg: 'bg-white', border: 'border-green-100/60', numberBg: 'bg-[#12B76A]', iconBg: 'bg-green-100', iconColor: 'text-green-600', btn: 'bg-[#ECFDF3] text-[#027A48] hover:bg-[#D1FADF]' },
-                Medium: { bg: 'bg-white', border: 'border-gray-100', numberBg: 'bg-gray-400', iconBg: 'bg-gray-100', iconColor: 'text-gray-500', btn: 'bg-[#F2F4F7] text-gray-500 hover:bg-gray-200' },
-                Hard: { bg: 'bg-white', border: 'border-gray-100', numberBg: 'bg-gray-400', iconBg: 'bg-gray-100', iconColor: 'text-gray-500', btn: 'bg-[#F2F4F7] text-gray-500 hover:bg-gray-200' }
-              };
-              const theme = unlocked ? styles[level] : styles[level]; // If it's unlocked but say Medium, we can color it or leave it. Actually the screenshot shows Medium as grey. I'll use grey if not unlocked.
-              const activeTheme = unlocked ? styles.Easy : styles.Medium; // Active is green, locked is gray
-              const lockedClass = !unlocked ? 'opacity-80 cursor-not-allowed' : '';
+              const lockedClass = !unlocked ? 'opacity-80 cursor-not-allowed grayscale' : '';
 
               return (
                 <motion.div
@@ -1377,61 +1370,81 @@ const CourseView = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className={`rounded-[20px] border ${activeTheme.bg} ${activeTheme.border} p-4 shadow-sm transition-shadow relative ${lockedClass} flex flex-col md:flex-row md:items-center justify-between gap-4`}
+                  className={`rounded-2xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-md transition-shadow relative ${lockedClass} flex flex-col md:flex-row md:items-center justify-between gap-6`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm flex-shrink-0 ${activeTheme.numberBg}`}>
+                  {/* Left Column: Icon and Text */}
+                  <div className="flex items-center gap-4 w-64 shrink-0">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm bg-green-600 shrink-0">
                       {index + 1}
                     </div>
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${activeTheme.iconBg}`}>
-                      <SafeIcon icon={FiIcons.FiBarChart2 || FiTrendingUp} className={`w-6 h-6 ${activeTheme.iconColor}`} />
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-50 shrink-0">
+                      <SafeIcon icon={FiIcons.FiBarChart2 || FiIcons.FiTrendingUp} className="w-5 h-5 text-green-600" />
                     </div>
                     <div className="flex flex-col">
-                      <h3 className="text-lg font-bold text-[#282C4D]">
+                      <h3 className="text-lg font-extrabold text-[#282C4D]">
                         {level} Level
                       </h3>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${unlocked ? 'bg-[#12B76A]' : 'bg-gray-400'}`} />
-                        <span className="text-sm font-medium text-gray-500">General Concepts</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                        <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">General Concepts</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 w-full md:w-auto">
-                    {passed && (
-                      <div className="hidden sm:flex flex-col items-end mr-4">
-                        <span className="text-xs font-bold text-gray-500">Best: {score}%</span>
-                        <span className="text-[10px] text-green-600 font-bold flex items-center gap-1"><SafeIcon icon={FiCheckCircle} className="w-3 h-3" /> Passed</span>
+                  {/* Middle Column: Score and Progress Bar */}
+                  <div className="flex-1 flex flex-col justify-center max-w-xs md:mx-auto">
+                    {passed ? (
+                      <>
+                        <span className="text-[10px] font-bold text-gray-500 tracking-wide mb-1">Best Score</span>
+                        <span className="text-xl font-bold text-green-600 leading-none mb-2">{roundedScore}%</span>
+                        
+                        <div className="flex items-center gap-3 mb-1.5">
+                          <div className="w-full bg-green-100 rounded-full h-2">
+                            <div className="bg-green-600 h-2 rounded-full" style={{ width: `${roundedScore}%` }}></div>
+                          </div>
+                          <span className="text-xs font-bold text-gray-700">{roundedScore}%</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
+                          <SafeIcon icon={FiIcons.FiCheckCircle} className="w-3.5 h-3.5 text-green-600" />
+                          <span className="text-[10px] font-bold text-green-600">Passed</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="h-full flex items-center justify-center">
+                        {!unlocked && (
+                           <div className="bg-white p-2 rounded-full shadow-sm border border-gray-100 flex items-center justify-center">
+                             <SafeIcon icon={FiIcons.FiLock} className="w-4 h-4 text-gray-400" />
+                           </div>
+                        )}
                       </div>
                     )}
-                    {!unlocked && (
-                      <div className="bg-white p-2 rounded-full shadow-sm border border-gray-100 hidden sm:flex items-center justify-center mr-4">
-                        <SafeIcon icon={FiLock} className="w-4 h-4 text-gray-400" />
-                      </div>
-                    )}
+                  </div>
+
+                  {/* Right Column: Button */}
+                  <div className="flex items-center justify-end w-full md:w-auto shrink-0">
                     <button
                       onClick={() => unlocked && navigate(`${routeBase}/course/${courseId}/level/${level}`)}
                       disabled={!unlocked}
-                      className={`w-full md:w-auto px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold text-sm transition-all ${activeTheme.btn}`}
+                      className={`w-full md:w-auto px-6 py-2.5 rounded-xl flex items-center justify-center gap-2 font-bold text-sm transition-all border ${
+                        unlocked 
+                          ? 'bg-white text-green-700 border-green-200 hover:bg-green-50 shadow-sm' 
+                          : 'bg-gray-50 text-gray-400 border-gray-200'
+                      }`}
                     >
                       {unlocked ? (
                         <>
-                          <SafeIcon icon={FiPlay} className="w-4 h-4 fill-current" />
+                          <SafeIcon icon={FiIcons.FiPlay} className="w-4 h-4 fill-current" />
                           {passed ? `Retake ${level}` : `Start ${level}`}
                         </>
                       ) : (
                         <>
-                          <SafeIcon icon={FiLock} className="w-4 h-4" />
+                          <SafeIcon icon={FiIcons.FiLock} className="w-4 h-4" />
                           Locked
                         </>
                       )}
                     </button>
-                      {passed && (
-                        <span className="text-[10px] sm:text-xs text-gray-400 text-center font-medium">
-                          Retaking only updates score if higher than {score}%
-                        </span>
-                      )}
-                    </div>
+                  </div>
                 </motion.div>
               );
             })}
