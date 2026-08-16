@@ -209,8 +209,16 @@ const StudentCourseList = () => {
         if (s.course_id) keys.add(String(s.course_id));
         if (s.course?.id) keys.add(String(s.course.id));
         if (s.courses?.id) keys.add(String(s.courses.id));
-        const cName = (s.course?.name || s.courses?.name || s.course_name || s.test_name || '').toLowerCase().trim();
+
+        const cName = (s.course?.name || s.courses?.name || s.course_name || s.test_name || s.topic || '').toLowerCase().trim();
         if (cName) keys.add(cName);
+
+        try {
+          const meta = typeof s.metadata === 'string' ? JSON.parse(s.metadata) : (s.metadata || {});
+          if (meta.topic) keys.add(String(meta.topic).toLowerCase().trim());
+          if (meta.topicName) keys.add(String(meta.topicName).toLowerCase().trim());
+          if (meta.courseName) keys.add(String(meta.courseName).toLowerCase().trim());
+        } catch (e) { /* ignore */ }
 
         keys.forEach(k => {
           if (!subsMap[k]) subsMap[k] = [];
@@ -400,6 +408,25 @@ const StudentCourseList = () => {
   const enrolledCourses = filteredCourses.filter(c => enrolledIds.has(c.id));
   const availableCourses = filteredCourses.filter(c => !enrolledIds.has(c.id));
 
+  const getSubmissionsForCourse = (course, subsMap = {}) => {
+    if (!course) return [];
+    const idKey = String(course.id);
+    const nameKey = (course.name || '').toLowerCase().trim();
+    
+    const fromId = subsMap[idKey] || [];
+    const fromName = subsMap[nameKey] || [];
+
+    const combined = [...fromId, ...fromName];
+    const uniqueMap = new Map();
+    combined.forEach(s => {
+      if (s && s.id && !uniqueMap.has(s.id)) {
+        uniqueMap.set(s.id, s);
+      }
+    });
+
+    return Array.from(uniqueMap.values()).sort((a, b) => new Date(b.created_at || b.test_date || 0) - new Date(a.created_at || a.test_date || 0));
+  };
+
   const renderCourseGrid = (coursesList, isEnrolledFlag) => {
     const sortedList = sortCourses(coursesList);
 
@@ -470,43 +497,53 @@ const StudentCourseList = () => {
               )}
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                  {groups[cat].map((course, idx) => (
-                    <CourseCard
-                      key={course.id}
-                      course={course}
-                      index={idx}
-                      isEnrolled={isEnrolledFlag}
-                      isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
-                      isLoading={enrollLoading === course.id}
-                      onAction={() => {
-                        if (isEnrolledFlag) {
-                          navigate(`/student/course/${course.id}`);
-                        } else {
-                          handleEnroll(course.id);
-                        }
-                      }}
-                    />
-                  ))}
+                  {groups[cat].map((course, idx) => {
+                    const courseSubmissions = getSubmissionsForCourse(course, studentSubmissionsMap);
+                    const courseIsEnrolled = isEnrolledFlag || enrolledIds.has(course.id) || courseSubmissions.length > 0;
+                    return (
+                      <CourseCard
+                        key={course.id}
+                        course={course}
+                        index={idx}
+                        isEnrolled={courseIsEnrolled}
+                        submissions={courseSubmissions}
+                        isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+                        isLoading={enrollLoading === course.id}
+                        onAction={() => {
+                          if (courseIsEnrolled) {
+                            navigate(`/student/course/${course.id}`);
+                          } else {
+                            handleEnroll(course.id);
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {groups[cat].map((course, idx) => (
-                    <CourseListRow
-                      key={course.id}
-                      course={course}
-                      index={idx}
-                      isEnrolled={isEnrolledFlag}
-                      isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
-                      isLoading={enrollLoading === course.id}
-                      onAction={() => {
-                        if (isEnrolledFlag) {
-                          navigate(`/student/course/${course.id}`);
-                        } else {
-                          handleEnroll(course.id);
-                        }
-                      }}
-                    />
-                  ))}
+                  {groups[cat].map((course, idx) => {
+                    const courseSubmissions = getSubmissionsForCourse(course, studentSubmissionsMap);
+                    const courseIsEnrolled = isEnrolledFlag || enrolledIds.has(course.id) || courseSubmissions.length > 0;
+                    return (
+                      <CourseListRow
+                        key={course.id}
+                        course={course}
+                        index={idx}
+                        isEnrolled={courseIsEnrolled}
+                        submissions={courseSubmissions}
+                        isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+                        isLoading={enrollLoading === course.id}
+                        onAction={() => {
+                          if (courseIsEnrolled) {
+                            navigate(`/student/course/${course.id}`);
+                          } else {
+                            handleEnroll(course.id);
+                          }
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -515,25 +552,6 @@ const StudentCourseList = () => {
         </div>
       );
     }
-
-  const getSubmissionsForCourse = (course, subsMap = {}) => {
-    if (!course) return [];
-    const idKey = String(course.id);
-    const nameKey = (course.name || '').toLowerCase().trim();
-    
-    const fromId = subsMap[idKey] || [];
-    const fromName = subsMap[nameKey] || [];
-
-    const combined = [...fromId, ...fromName];
-    const uniqueMap = new Map();
-    combined.forEach(s => {
-      if (s && s.id && !uniqueMap.has(s.id)) {
-        uniqueMap.set(s.id, s);
-      }
-    });
-
-    return Array.from(uniqueMap.values()).sort((a, b) => new Date(b.created_at || b.test_date || 0) - new Date(a.created_at || a.test_date || 0));
-  };
 
     return viewMode === 'grid' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -762,11 +780,19 @@ const StudentCourseList = () => {
         </h2>
         {availableCourses.length > 0 ? (
           renderCourseGrid(availableCourses, false)
+        ) : filter ? (
+          <div className="text-center py-12 bg-[#11131A] rounded-2xl border border-dashed border-[#1C202B]">
+            <p className="text-gray-500">No courses match your search.</p>
+          </div>
+        ) : enrolledCourses.length > 0 ? (
+          <div className="text-center py-12 bg-[#11131A] rounded-2xl border border-dashed border-[#1C202B]">
+            <p className="text-gray-500">You're enrolled in all available courses for this category.</p>
+          </div>
         ) : (
           <div className="text-center py-12 bg-[#11131A] rounded-2xl border border-dashed border-[#1C202B]">
-            <p className="text-gray-500">
-              {filter ? 'No courses match your search.' : 'No new courses available at the moment.'}
-            </p>
+            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold bg-[#7C3AED]/15 text-[#c4b5fd] border border-[#7C3AED]/40 shadow-[0_0_15px_rgba(124,58,237,0.2)]">
+              Coming Soon
+            </span>
           </div>
         )}
       </section>
@@ -786,46 +812,67 @@ const getCourseStatusInfo = (course, submissions = []) => {
     (course.name || '').toLowerCase().includes('linear sat')
   );
 
-  const isCompleted = Boolean(
-    (latestSub && (
-      latestSub.status === 'completed' ||
-      latestSub.is_completed === true ||
-      (latestSub.raw_score_percentage !== undefined && latestSub.raw_score_percentage !== null) ||
-      (latestSub.scaled_score !== undefined && latestSub.scaled_score > 0)
-    )) ||
-    course.user_progress === 100 ||
-    course.progress === 100
-  );
-
-  const hasAttempt = Boolean(
-    latestSub ||
-    (course.user_progress !== undefined && Number(course.user_progress) > 0) ||
-    (course.progress !== undefined && Number(course.progress) > 0)
-  );
-
-  const isInProgress = !isCompleted && hasAttempt;
-  const isNotAttempted = !isCompleted && !isInProgress;
-
+  let isCompleted = false;
+  let isInProgress = false;
+  let isNotAttempted = false;
   let progressPct = 0;
-  if (isCompleted) {
-    progressPct = 100;
-  } else if (isInProgress) {
-    if (course.user_progress !== undefined && Number(course.user_progress) > 0) {
-      progressPct = Number(course.user_progress);
-    } else if (course.progress !== undefined && Number(course.progress) > 0) {
-      progressPct = Number(course.progress);
-    } else if (latestSub?.completed_modules_count) {
-      progressPct = Math.round((latestSub.completed_modules_count / 4) * 100);
-    } else if (latestSub?.raw_score_percentage !== undefined) {
-      progressPct = Number(latestSub.raw_score_percentage);
+
+  if (isTest) {
+    // Full Length SAT / Adaptive Test status logic
+    isCompleted = Boolean(
+      (latestSub && (
+        latestSub.status === 'completed' ||
+        latestSub.is_completed === true ||
+        (latestSub.raw_score_percentage !== undefined && latestSub.raw_score_percentage !== null) ||
+        (latestSub.scaled_score !== undefined && latestSub.scaled_score > 0)
+      )) ||
+      course.user_progress === 100 ||
+      course.progress === 100
+    );
+    const hasAttempt = Boolean(latestSub || Number(course.user_progress) > 0 || Number(course.progress) > 0);
+    isInProgress = !isCompleted && hasAttempt;
+    isNotAttempted = !isCompleted && !isInProgress;
+    progressPct = isCompleted ? 100 : isInProgress ? 50 : 0;
+  } else {
+    // SAT Regular Course Topic (Easy, Medium, Hard) status logic
+    const completedLevels = new Set(
+      submissions
+        .filter(s => s && (s.is_completed !== false || s.raw_score !== undefined || s.scaled_score !== undefined || s.total_questions > 0))
+        .map(s => (s.level || '').toLowerCase().trim())
+        .filter(Boolean)
+    );
+
+    const hasEasy = completedLevels.has('easy');
+    const hasMedium = completedLevels.has('medium');
+    const hasHard = completedLevels.has('hard');
+    const distinctLevelsCount = [hasEasy, hasMedium, hasHard].filter(Boolean).length;
+
+    if (
+      distinctLevelsCount >= 3 || 
+      (hasEasy && hasMedium && hasHard) || 
+      submissions.length >= 3 || 
+      course.user_progress === 100 || 
+      course.progress === 100 ||
+      submissions.some(s => s.level === 'combined' || s.is_completed === true)
+    ) {
+      isCompleted = true;
+      progressPct = 100;
+    } else if (distinctLevelsCount > 0 || submissions.length > 0 || Number(course.user_progress) > 0 || Number(course.progress) > 0) {
+      isInProgress = true;
+      if (distinctLevelsCount === 2 || submissions.length === 2) {
+        progressPct = 67;
+      } else {
+        progressPct = 33;
+      }
     } else {
-      progressPct = 25;
+      isNotAttempted = true;
+      progressPct = 0;
     }
   }
 
   let primaryBtnText = isTest ? 'Start Test' : 'Start Course';
   if (isInProgress) {
-    primaryBtnText = isTest ? 'Continue Test' : 'Continue Learning';
+    primaryBtnText = isTest ? 'Continue Test' : 'Continue Course';
   } else if (isCompleted) {
     primaryBtnText = 'View Results';
   }
@@ -936,13 +983,17 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
-              if (latestSub?.id) {
-                navigate(`/student/report/${latestSub.id}`);
+              if (isTest) {
+                if (latestSub?.id) {
+                  navigate(`/student/report/${latestSub.id}`);
+                } else {
+                  onAction();
+                }
               } else {
-                onAction();
+                navigate(`/student/topic-report/${course.id}`);
               }
             }}
-            className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.3)]"
+            className="flex-1 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.3)] cursor-pointer"
           >
             <SafeIcon icon={FiIcons.FiFileText} className="w-3.5 h-3.5" /> View Results
           </button>
@@ -956,7 +1007,7 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
                 navigate(`/student/course/${course.id}?retake=true`);
               }
             }}
-            className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-purple-500/30 hover:border-purple-500/60 text-purple-300 hover:text-white hover:bg-purple-500/10 transition-all flex items-center justify-center gap-1 whitespace-nowrap"
+            className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-purple-500/30 hover:border-purple-500/60 text-purple-300 hover:text-white hover:bg-purple-500/10 transition-all flex items-center justify-center gap-1 whitespace-nowrap cursor-pointer"
             title="Start a new test attempt while keeping prior history"
           >
             <SafeIcon icon={FiIcons.FiRefreshCw} className="w-3 h-3" /> Start Again
@@ -966,7 +1017,7 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
         <button
           onClick={onAction}
           disabled={isLoading}
-          className="w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 bg-transparent border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white"
+          className="w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 bg-transparent border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white cursor-pointer"
         >
           {isLoading ? (
             <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
@@ -1064,13 +1115,17 @@ const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremi
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               onClick={() => {
-                if (latestSub?.id) {
-                  navigate(`/student/report/${latestSub.id}`);
+                if (isTest) {
+                  if (latestSub?.id) {
+                    navigate(`/student/report/${latestSub.id}`);
+                  } else {
+                    onAction();
+                  }
                 } else {
-                  onAction();
+                  navigate(`/student/topic-report/${course.id}`);
                 }
               }}
-              className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.3)] whitespace-nowrap"
+              className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(124,58,237,0.3)] whitespace-nowrap cursor-pointer"
             >
               <SafeIcon icon={FiIcons.FiFileText} className="w-3.5 h-3.5" /> View Results
             </button>

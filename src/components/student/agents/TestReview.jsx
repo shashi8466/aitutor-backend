@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
@@ -6,7 +6,9 @@ import SafeIcon from '../../../common/SafeIcon';
 import { gradingService, tutorService } from '../../../services/api';
 import { useAuth } from '../../../contexts/AuthContext';
 
-const { FiActivity, FiClock, FiAward, FiArrowRight, FiFileText, FiTrendingUp, FiDownload, FiCheckCircle, FiXCircle } = FiIcons;
+const { FiActivity, FiClock, FiAward, FiArrowRight, FiFileText, FiTrendingUp, FiDownload, FiCheckCircle, FiXCircle, FiLayers, FiAlertCircle } = FiIcons;
+
+const REQUIRED_LEVELS = ['Easy', 'Medium', 'Hard'];
 
 // Helper to compute real attempt stats for any course/test type
 const getTestAttemptStats = (sub) => {
@@ -32,7 +34,7 @@ const getTestAttemptStats = (sub) => {
   const wrongCount = totalQuestions > 0 ? Math.max(0, totalQuestions - rawScore) : 0;
   const durationSec = sub.test_duration_seconds || sub.duration || sub.time_spent || 0;
   const durationText = durationSec > 0 
-    ? (durationSec < 60 ? `${durationSec} sec` : `${Math.floor(durationSec / 60)} min`)
+    ? (durationSec < 60 ? `${durationSec} sec` : `${Math.floor(durationSec / 60)} min ${durationSec % 60} sec`)
     : 'N/A';
 
   let displayScore = 0;
@@ -139,6 +141,92 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
     }
   };
 
+  // --- AGGREGATE COMBINED SAT REGULAR COURSE REPORTS ---
+  const combinedTopicReports = useMemo(() => {
+    if (!submissions || submissions.length === 0) return [];
+
+    const grouped = {};
+
+    submissions.forEach(sub => {
+      const cId = sub.course_id || sub.course?.id;
+      if (!cId) return;
+
+      const cName = sub.course?.name || sub.courses?.name || sub.courseName || 'SAT Topic';
+      const cNameLower = cName.toLowerCase();
+      const isSAT = cNameLower.includes('sat') || cNameLower.includes('nonlinear') || cNameLower.includes('equivalent') || cNameLower.includes('linear');
+      const isFullLength = cNameLower.includes('full length') || cNameLower.includes('full-length');
+
+      // Aggregate SAT Regular Course topics
+      if (isSAT && !isFullLength) {
+        if (!grouped[cId]) {
+          grouped[cId] = {
+            courseId: cId,
+            topicName: cName,
+            attempts: [],
+            levelsSeen: new Set(),
+            latestDate: sub.created_at
+          };
+        }
+        grouped[cId].attempts.push(sub);
+        const levelSeen = (sub.level || '').toLowerCase().trim();
+        if (levelSeen) grouped[cId].levelsSeen.add(levelSeen);
+        if (new Date(sub.created_at) > new Date(grouped[cId].latestDate)) {
+          grouped[cId].latestDate = sub.created_at;
+        }
+      }
+    });
+
+    return Object.values(grouped).map(group => {
+      let totalQuestions = 0;
+      let totalCorrect = 0;
+      let totalIncorrect = 0;
+      let totalDurationSec = 0;
+
+      group.attempts.forEach(sub => {
+        const stats = getTestAttemptStats(sub);
+        totalQuestions += stats.totalQuestions;
+        totalCorrect += stats.rawScore;
+        totalIncorrect += stats.wrongCount;
+        totalDurationSec += (sub.test_duration_seconds || sub.duration || 0);
+      });
+
+      const missingLevels = REQUIRED_LEVELS.filter(lvl => !group.levelsSeen.has(lvl.toLowerCase()));
+      const isFullyCompleted = missingLevels.length === 0;
+
+      // Don't fabricate a combined score until every required level is actually completed.
+      const overallAccuracy = isFullyCompleted && totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : null;
+      // SAT Scaled Score (200 - 800 Scale)
+      const overallScaledScore = isFullyCompleted && totalQuestions > 0 ? Math.round(200 + (totalCorrect / totalQuestions) * 600) : null;
+
+      const formatTimeText = (sec) => {
+        if (!sec || sec <= 0) return '0m 0s';
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m}m ${s}s`;
+      };
+
+      const dateObj = new Date(group.latestDate);
+      const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+      const formattedTimeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      return {
+        courseId: group.courseId,
+        topicName: group.topicName,
+        totalQuestions,
+        totalCorrect,
+        totalIncorrect,
+        overallAccuracy,
+        overallScaledScore,
+        formattedTime: formatTimeText(totalDurationSec),
+        dateStr: `${formattedDate} at ${formattedTimeStr}`,
+        attemptsCount: group.attempts.length,
+        isFullyCompleted,
+        missingLevels,
+        completedLevelsCount: REQUIRED_LEVELS.length - missingLevels.length
+      };
+    });
+  }, [submissions]);
+
   if (loading) return (
     <div className="flex justify-center items-center h-96">
       <div className="flex flex-col items-center gap-4">
@@ -173,6 +261,157 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
 
       {submissions.length > 0 ? (
         <div className="grid grid-cols-1 gap-6">
+          
+          {/* ========================================================= */}
+          {/* DEDICATED COMBINED SAT REGULAR COURSE REPORT CARDS        */}
+          {/* ========================================================= */}
+          {combinedTopicReports.map((combined) => (
+            <motion.div
+              key={`combined_${combined.courseId}`}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`bg-[#131b2e] dark:bg-[#131b2e] rounded-2xl p-6 border-2 shadow-xl text-white mb-2 ${
+                combined.isFullyCompleted ? 'border-blue-500/60' : 'border-amber-500/40'
+              }`}
+            >
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className={`p-4 rounded-2xl border ${
+                    combined.isFullyCompleted
+                      ? 'bg-blue-600/20 text-blue-400 border-blue-500/30'
+                      : 'bg-amber-600/20 text-amber-400 border-amber-500/30'
+                  }`}>
+                    <SafeIcon icon={combined.isFullyCompleted ? FiLayers : FiAlertCircle} className="w-7 h-7" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                      <h3 className="font-black text-xl text-white leading-tight">
+                        {combined.topicName}
+                      </h3>
+                      {combined.isFullyCompleted ? (
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-slate-800 text-blue-300 border border-slate-700">
+                          Easy + Medium + Hard
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                          {combined.completedLevelsCount} of {REQUIRED_LEVELS.length} Levels Completed
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-6 text-xs font-bold text-slate-400">
+                      <span className="flex items-center gap-2">
+                        <SafeIcon icon={FiClock} className="w-4 h-4 text-blue-400" />
+                        {combined.dateStr}
+                      </span>
+                      {combined.isFullyCompleted && (
+                        <span className="flex items-center gap-2">
+                          <SafeIcon icon={FiTrendingUp} className="w-4 h-4 text-blue-400" />
+                          Accuracy: {combined.overallAccuracy}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Score Header Display */}
+                <div className="text-left lg:text-right flex-1 lg:flex-none">
+                  {combined.isFullyCompleted ? (
+                    <>
+                      <p className="text-[10px] text-blue-300 font-black uppercase tracking-widest mb-1">Overall Scaled Score</p>
+                      <p className="text-3xl font-black text-white tracking-tight">
+                        {combined.overallScaledScore} <span className="text-sm font-bold text-slate-400">/ 800</span>
+                      </p>
+                      <p className="text-[10px] font-bold text-blue-400 mt-1 uppercase">
+                        {combined.overallAccuracy}% Overall Accuracy
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest mb-1">Test In Progress</p>
+                      <p className="text-xs font-bold text-slate-400 max-w-[220px]">
+                        Missing: <span className="text-white">{combined.missingLevels.join(', ')}</span>
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Combined Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#0a0e20] rounded-xl border border-slate-800 mb-6 text-center">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Questions</p>
+                  <p className="text-lg font-black text-white">{combined.totalQuestions}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Correct</p>
+                  <p className="text-lg font-black text-emerald-400">{combined.totalCorrect}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Incorrect</p>
+                  <p className="text-lg font-black text-rose-400">{combined.totalIncorrect}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Time</p>
+                  <p className="text-lg font-black text-white">{combined.formattedTime}</p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                {combined.isFullyCompleted ? (
+                  <>
+                    <button
+                      onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}`)}
+                      className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    >
+                      <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
+                    </button>
+                    <button
+                      onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?view=question-wise`)}
+                      className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                    >
+                      <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
+                    </button>
+                    <button
+                      onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?download=true`)}
+                      className="py-3 px-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      disabled
+                      title="Complete all levels to view the combined report"
+                      className="flex-1 py-3 px-4 bg-slate-800 text-slate-500 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
+                    >
+                      <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
+                    </button>
+                    <button
+                      disabled
+                      title="Complete all levels to view question-wise analysis"
+                      className="flex-1 py-3 px-4 bg-slate-800 text-slate-500 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
+                    >
+                      <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
+                    </button>
+                    <button
+                      disabled
+                      title="Complete all levels to download the PDF report"
+                      className="py-3 px-6 bg-slate-800 text-slate-500 border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
+                    >
+                      <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          ))}
+
+          {/* ========================================================= */}
+          {/* INDIVIDUAL ATTEMPT CARDS (EASY, MEDIUM, HARD)             */}
+          {/* ========================================================= */}
           {submissions.map((sub, idx) => {
             const stats = getTestAttemptStats(sub);
 

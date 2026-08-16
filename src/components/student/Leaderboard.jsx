@@ -1,236 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { leaderboardService, courseService } from '../../services/api';
-import { useAuth } from '../../contexts/AuthContext';
+import UniversalLeaderboard from '../common/UniversalLeaderboard';
 
-
-const { FiAward, FiArrowLeft, FiTrendingUp, FiUser, FiStar, FiFilter } = FiIcons;
+const { FiArrowLeft } = FiIcons;
 
 const Leaderboard = () => {
-  const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [myRank, setMyRank] = useState(null);
-  const [isSAT, setIsSAT] = useState(false);
-  const { user } = useAuth();
-
-
-
-  useEffect(() => {
-    loadCourses();
-  }, []);
-
-  useEffect(() => {
-    if (courses.length > 0 || selectedCourseId === '') {
-      loadLeaderboard();
-    }
-  }, [selectedCourseId]);
-
-  const loadCourses = async () => {
-    try {
-      const { data } = await courseService.getAll();
-      // Only show official courses (not practice) that are active
-      const officialCourses = (data || []).filter(c => !c.is_practice && (c.status === 'active' || !c.status));
-      setCourses(officialCourses);
-    } catch (error) {
-      console.error("Failed to load courses", error);
-    }
-  };
-
-  const loadLeaderboard = async () => {
-    setLoading(true);
-    setMyRank(null);
-    setIsSAT(false);
-    try {
-      if (selectedCourseId) {
-        // Find if selected course is SAT
-        const course = courses.find(c => c.id.toString() === selectedCourseId.toString());
-        const sat = course?.name?.toUpperCase().includes('SAT');
-        setIsSAT(sat);
-
-        // Fetch specific course rankings
-        const res = await leaderboardService.getCourseRankings(selectedCourseId);
-        setStudents(res.data.leaderboard || []);
-        setMyRank(res.data.myRank);
-      } else {
-        // Fetch global rankings (Total Points/XP)
-        const res = await leaderboardService.getTopStudents();
-        setStudents(res.data.leaderboard || []);
-        setMyRank(res.data.myRank);
-      }
-    } catch (error) {
-      console.error("Failed to load leaderboard", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getScoreLabel = () => {
-    if (!selectedCourseId) return 'Total SAT';
-    return isSAT ? 'SAT Score' : 'Scaled Score';
-  };
-
-  const getRankBadge = (rank) => {
-    if (rank === 1) return <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-white font-bold shadow-lg">1</div>;
-    if (rank === 2) return <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-white font-bold shadow-lg">2</div>;
-    if (rank === 3) return <div className="w-8 h-8 bg-orange-400 rounded-full flex items-center justify-center text-white font-bold shadow-lg">3</div>;
-    return <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-bold">{rank}</div>;
-  };
-
-  return (
-    <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 transition-colors duration-200">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-
-        {/* Header */}
-        <div className="mb-8 flex flex-col md:flex-row items-center justify-between gap-6 px-4 sm:px-0">
-          <Link to="/student" className="flex items-center gap-2 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white font-black uppercase tracking-widest text-[10px] transition-all self-start md:self-auto bg-white dark:bg-gray-800 px-4 py-2 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm">
-            <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back
-          </Link>
-
-          <div className="text-center md:text-right">
-            <h1 className="text-2xl sm:text-4xl font-black text-gray-900 dark:text-white flex items-center gap-2 justify-center md:justify-end tracking-tight">
-              <SafeIcon icon={FiAward} className="text-[#E53935]" /> Leaderboard
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-bold uppercase tracking-widest">Top performing students</p>
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 mb-8 flex items-center gap-4 mx-4 sm:mx-0">
-          <SafeIcon icon={FiFilter} className="text-gray-400 w-5 h-5 flex-shrink-0" />
-          <select
-            value={selectedCourseId}
-            onChange={(e) => setSelectedCourseId(e.target.value)}
-            className="flex-1 bg-transparent border-none focus:ring-0 text-gray-900 dark:text-white font-black text-[10px] sm:text-sm cursor-pointer outline-none !bg-opacity-100 uppercase tracking-widest truncate min-w-0"
-          >
-            <option value="" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Global Leaderboard (Total SAT)</option>
-            {courses.map(course => (
-              <option key={course.id} value={course.id} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-                {course.name.length > 25 ? course.name.substring(0, 25) + '...' : course.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Podium (Top 3) */}
-        {!loading && students.length >= 3 && (
-          <div className="flex flex-col sm:flex-row justify-center items-center sm:items-end gap-6 sm:gap-4 mb-12">
-            {[students[1], students[0], students[2]].map((student, idx) => {
-              if (!student) return null;
-              const isFirst = idx === 1;
-              const rank = isFirst ? 1 : (idx === 0 ? 2 : 3);
-              const display = student.scoreDisplay || student.score;
-
-              return (
-                <motion.div
-                  key={student.user_id}
-                  initial={{ y: 50, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: idx * 0.2 }}
-                  className={`flex flex-col items-center w-full sm:w-auto ${isFirst ? 'sm:order-2 sm:-mt-8' : idx === 0 ? 'sm:order-1' : 'sm:order-3'}`}
-                >
-                  <div className={`relative mb-3 ${isFirst ? 'w-24 h-24' : 'w-16 h-16 sm:w-20 sm:h-20'}`}>
-                    <div className={`w-full h-full rounded-full border-4 flex items-center justify-center overflow-hidden bg-white dark:bg-gray-800 ${isFirst ? 'border-yellow-400' : rank === 2 ? 'border-gray-300' : 'border-orange-400'}`}>
-                      <SafeIcon icon={FiUser} className={`text-gray-300 ${isFirst ? 'w-10 h-10' : 'w-6 h-6 sm:w-8 sm:h-8'}`} />
-                    </div>
-                    <div className={`absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${isFirst ? 'bg-yellow-400' : rank === 2 ? 'bg-gray-400' : 'bg-orange-400'}`}>
-                      {rank}
-                    </div>
-                  </div>
-                  <p className="font-bold text-gray-900 dark:text-white text-sm mb-1">{student.name}</p>
-                  <p className="text-[#E53935] font-extrabold text-xs">
-                    {display}
-                  </p>
-                  <p className="text-[8px] text-gray-400 uppercase font-black tracking-tighter">
-                    {getScoreLabel()}
-                  </p>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* List View */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden mx-4 sm:mx-0">
-          <div className="p-6 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex justify-between items-center">
-            <h2 className="font-black text-gray-900 dark:text-white flex items-center gap-2 uppercase tracking-widest text-xs">
-              <SafeIcon icon={FiTrendingUp} className="text-blue-500" />
-              {selectedCourseId ? 'Course Rankings' : 'Global Rankings'}
-            </h2>
-            <span className="text-[10px] font-black bg-black text-white px-3 py-1 rounded-full uppercase tracking-tighter">{students.length} Students</span>
-          </div>
-
-          {/* Your Standing (Pinned at top if exists) */}
-          {!loading && myRank && (
-            <div className="bg-blue-50/50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800 p-4">
-              <div className="max-w-4xl mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold shadow-sm">
-                    {myRank.rank}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Your Standing</p>
-                    <h3 className="font-bold text-gray-900 dark:text-white text-sm">{myRank.name} (You)</h3>
-                  </div>
+    return (
+        <div className="min-h-screen bg-[#0B0D14] text-white p-4 sm:p-8">
+            <div className="max-w-6xl mx-auto">
+                <div className="mb-6">
+                    <Link
+                        to="/student"
+                        className="inline-flex items-center gap-2 text-slate-400 hover:text-white font-black uppercase tracking-widest text-[10px] transition-all bg-[#141824] px-4 py-2 rounded-xl border border-slate-800 shadow-sm"
+                    >
+                        <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Dashboard
+                    </Link>
                 </div>
-                <div className="text-right">
-                  <span className="block font-extrabold text-blue-600 dark:text-blue-400 text-lg">{myRank.scoreDisplay || myRank.score}</span>
-                  <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">
-                    {getScoreLabel()}
-                  </span>
-                </div>
-              </div>
+
+                <UniversalLeaderboard role="student" />
             </div>
-          )}
-
-          {loading ? (
-            <div className="p-12 text-center text-gray-400">Loading rankings...</div>
-          ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {students.map((student, index) => {
-                const scoreDisplay = student.scoreDisplay || student.score;
-                const label = getScoreLabel();
-
-                return (
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    key={student.user_id}
-                    className={`p-4 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${user?.id === student.user_id ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}
-                  >
-                    <div className="w-12 text-center mr-4">
-                      {getRankBadge(index + 1)}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate max-w-[150px] sm:max-w-none">{student.name}</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                        Level {student.levels_completed || 0} Achiever
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="block font-extrabold text-[#E53935] text-lg">{scoreDisplay}</span>
-                      <span className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">{label}</span>
-                    </div>
-                  </motion.div>
-                );
-              })}
-
-              {students.length === 0 && (
-                <div className="p-8 text-center text-gray-500">
-                  No rankings available yet. Start solving quizzes!
-                </div>
-              )}
-            </div>
-          )}
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default Leaderboard;

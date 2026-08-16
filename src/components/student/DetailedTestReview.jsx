@@ -6,6 +6,7 @@ import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import { gradingService } from '../../services/api';
 import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
+import PdfExportWrapper from '../analytics/PdfExportWrapper';
 
 const {
     FiArrowLeft, FiCalendar, FiClock, FiBook, FiCheckCircle,
@@ -226,6 +227,36 @@ const DetailedTestReview = () => {
                         <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white leading-tight">{reviewTitle}</h1>
                         <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Detailed question-wise analysis</p>
                     </div>
+                </div>
+                
+                <div className="flex gap-2">
+                    <PdfExportWrapper
+                        type="Attempt"
+                        data={{
+                            attempt: {
+                                courseName: courseNameVal || 'SAT Test',
+                                score: accuracy,
+                                correct: correctCount,
+                                incorrect: incorrectCount,
+                                totalQuestions: totalQuestions,
+                                date: submission.created_at,
+                                timeSpent: submission.duration || 0,
+                            },
+                            questions: uniqueResponses.map((r, idx) => ({
+                                questionId: r.question?.id || r.question_id || r.id,
+                                displayIndex: idx + 1,
+                                questionText: r.question?.question_text || r.question_text || '',
+                                difficulty: r.question?.difficulty || r.difficulty || 'Medium',
+                                isCorrect: r.is_correct,
+                                studentAnswer: r.student_answer || '',
+                                correctAnswer: r.question?.correct_answer || r.correct_answer || '',
+                                explanation: r.question?.explanation || r.explanation || ''
+                            }))
+                        }}
+                        studentName="Student"
+                        filename={`Test_Report_${new Date().getTime()}`}
+                        buttonText="Download PDF Report"
+                    />
                 </div>
             </div>
 

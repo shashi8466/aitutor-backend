@@ -809,10 +809,11 @@ router.post('/quiz-from-content', async (req, res) => {
     
     STANDARDS:
     1. DIFFICULTY: Match Digital SAT levels (Easy, Medium, or Hard depending on context).
-    2. MATH: Use precise LaTeX for ALL mathematical expressions (e.g., \\\\( ax^2 + bx + c = 0 \\\\)).
-    3. OPTIONS: Provide exactly 4 distinct options (A, B, C, D).
-    4. EXPLANATION: Include a structured, logical explanation for why the correct answer is right.
-    5. STYLE: ${concise ? 'Extremely CONCISE and direct.' : 'Detailed and thorough.'}
+    2. MATH: Use precise LaTeX for ALL mathematical expressions (e.g., \\( ax^2 + bx + c = 0 \\)).
+    3. FORMATTING: Retain all visual formatting elements using standard HTML tags: <u>underlined text</u>, <b>bold</b>, <i>italic</i>, <sup>superscript</sup>, <sub>subscript</sub>, and line breaks <br/>. NEVER strip underlines or formatting tags.
+    4. OPTIONS: Provide exactly 4 distinct options (A, B, C, D).
+    5. EXPLANATION: Include a structured, logical explanation for why the correct answer is right.
+    6. STYLE: ${concise ? 'Extremely CONCISE and direct.' : 'Detailed and thorough.'}
 
     Return JSON ONLY: {"quiz": [{
       "question": "...",

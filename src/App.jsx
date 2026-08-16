@@ -47,6 +47,7 @@ const ParentConnect = lazy(() => import('./components/student/agents/ParentConne
 const PaymentSuccess = lazy(() => import('./components/student/PaymentSuccess'));
 const PracticeTests = lazy(() => import('./components/student/PracticeTests'));
 const DetailedTestReview = lazy(() => import('./components/student/DetailedTestReview'));
+const TopicReportReview = lazy(() => import('./components/student/TopicReportReview'));
 const WeeklyReport = lazy(() => import('./components/common/WeeklyReport'));
 const SalesBot = lazy(() => import('./components/common/SalesBot'));
 const UpgradePlan = lazy(() => import('./components/student/UpgradePlan'));
@@ -397,6 +398,7 @@ const App = () => {
               <Route path="drills" element={<FeatureGate featureKey="feature_weakness_drills"><WeaknessDrills /></FeatureGate>} />
               <Route path="test-review" element={<FeatureGate featureKey="feature_test_review"><TestReview /></FeatureGate>} />
               <Route path="detailed-review/:submissionId" element={<FeatureGate featureKey="feature_test_review"><DetailedTestReview /></FeatureGate>} />
+              <Route path="topic-report/:courseId" element={<FeatureGate featureKey="feature_test_review"><TopicReportReview /></FeatureGate>} />
               <Route path="score-predictor" element={<FeatureGate featureKey="feature_score_predictor"><ScorePredictor /></FeatureGate>} />
               <Route path="leaderboard" element={<FeatureGate featureKey="feature_leaderboard"><Leaderboard /></FeatureGate>} />
               <Route path="college" element={<FeatureGate featureKey="feature_college_advisor"><CollegeAdvisor /></FeatureGate>} />

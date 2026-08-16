@@ -8,6 +8,7 @@ import supabase from '../../supabase/supabaseAdmin.js';
 import { calculateSessionScore, getCategory, calculateTotalSATScore, calculateSatScore } from '../utils/scoreCalculator.js';
 import { enqueueNotification, processOutboxOnce } from '../utils/notificationOutbox.js';
 import notificationMiddleware from '../middleware/notificationMiddleware.js';
+import { analyticsService } from '../services/analyticsService.js';
 
 const router = express.Router();
 
@@ -1998,6 +1999,508 @@ router.get('/global-leaderboard', async (req, res) => {
 });
 
 /**
+ * GET /api/grading/universal-leaderboard
+ * Shared Leaderboard backend calculation for Student, Tutor, Admin, and Parent
+ */
+router.get('/universal-leaderboard', async (req, res) => {
+    try {
+        const currentUserId = req.user?.id;
+        const {
+            category = 'SAT',
+            apCourseId,
+            testCourseId,
+            groupId,
+            tutorId,
+            targetStudentId,
+            topicName,
+            subtopicName
+        } = req.query;
+
+        // 1. Fetch available options for AP Courses & Full-Length Tests
+        const { data: allCourses } = await supabase
+            .from('courses')
+            .select('id, name, category, tutor_type, main_category, is_adaptive');
+
+        let apCourses = (allCourses || []).filter(c => {
+            const name = (c.name || '').toUpperCase();
+            const cat = (c.category || '').toUpperCase();
+            const mainCat = (c.main_category || '').toUpperCase();
+            return name.includes('AP') || cat.includes('AP') || mainCat === 'AP';
+        });
+
+        // Resolve candidate Full-Length Test courses using the same convention as
+        // CourseManagement.jsx / HierarchicalContentSelector.jsx (main_category / is_adaptive),
+        // with a narrow name-based fallback for legacy rows only.
+        let candidateTests = (allCourses || []).filter(c => {
+            const name = (c.name || '').toLowerCase();
+            const mainCat = (c.main_category || '').toUpperCase();
+            return mainCat === 'FULL LENGTH TESTS' || c.is_adaptive === true || name.includes('full length test');
+        });
+
+        // Role-based assignment scoping (Step A: Assignment controls dropdown)
+        // req.user is the raw Supabase Auth user (no .role) - the real role lives in `profiles`.
+        let fullLengthTests = candidateTests;
+        const requestingUser = req.user || {};
+        let requestingRole = 'student';
+        if (requestingUser.id) {
+            const { data: requestingProfile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', requestingUser.id)
+                .single();
+            requestingRole = requestingProfile?.role || 'student';
+        }
+        const effectiveStudentUserId = targetStudentId || requestingUser.id;
+
+        if (requestingRole === 'student' && effectiveStudentUserId) {
+            const { data: userGroupMembers } = await supabase
+                .from('group_members')
+                .select('group_id, student_groups(assigned_course_ids)')
+                .eq('student_id', effectiveStudentUserId);
+
+            const assignedTestIds = new Set();
+            (userGroupMembers || []).forEach(gm => {
+                const ids = gm.student_groups?.assigned_course_ids;
+                if (Array.isArray(ids)) ids.forEach(cId => assignedTestIds.add(String(cId)));
+            });
+
+            const { data: userSubmissions } = await supabase
+                .from('test_submissions')
+                .select('course_id')
+                .eq('user_id', effectiveStudentUserId);
+            (userSubmissions || []).forEach(s => {
+                if (s.course_id) assignedTestIds.add(String(s.course_id));
+            });
+
+            if (assignedTestIds.size > 0) {
+                const scopedTests = candidateTests.filter(c => assignedTestIds.has(String(c.id)));
+                if (scopedTests.length > 0) {
+                    fullLengthTests = scopedTests;
+                }
+            }
+        } else if (requestingRole === 'tutor' && tutorId && tutorId !== 'all') {
+            const { data: tutorGroupData } = await supabase
+                .from('student_groups')
+                .select('id, assigned_course_ids')
+                .eq('created_by', tutorId);
+
+            const tutorTestIds = new Set();
+            (tutorGroupData || []).forEach(g => {
+                if (Array.isArray(g.assigned_course_ids)) {
+                    g.assigned_course_ids.forEach(cId => tutorTestIds.add(String(cId)));
+                }
+            });
+
+            if (tutorTestIds.size > 0) {
+                const scopedTests = candidateTests.filter(c => tutorTestIds.has(String(c.id)));
+                if (scopedTests.length > 0) {
+                    fullLengthTests = scopedTests;
+                }
+            }
+        }
+
+        // Further scope the Full-Length Test / AP Course dropdowns to a specific selected group's assignments
+        if (groupId && groupId !== 'all') {
+            const { data: selectedGroupRow } = await supabase
+                .from('student_groups')
+                .select('assigned_course_ids')
+                .eq('id', groupId)
+                .single();
+            const groupCourseIds = new Set((selectedGroupRow?.assigned_course_ids || []).map(String));
+            if (groupCourseIds.size > 0) {
+                const scopedByGroup = candidateTests.filter(c => groupCourseIds.has(String(c.id)));
+                if (scopedByGroup.length > 0) fullLengthTests = scopedByGroup;
+
+                const apScopedByGroup = apCourses.filter(c => groupCourseIds.has(String(c.id)));
+                if (apScopedByGroup.length > 0) apCourses = apScopedByGroup;
+            }
+        }
+
+        // 2. Determine allowed student ids based on Group / Tutor scope
+        let allowedStudentIds = null;
+
+        if (groupId && groupId !== 'all') {
+            const { data: members } = await supabase
+                .from('group_members')
+                .select('student_id')
+                .eq('group_id', groupId);
+            allowedStudentIds = members?.map(m => m.student_id) || [];
+        } else if (tutorId && tutorId !== 'all') {
+            const { data: tutorGroups } = await supabase
+                .from('student_groups')
+                .select('id')
+                .eq('created_by', tutorId);
+            const groupIds = tutorGroups?.map(g => g.id) || [];
+            if (groupIds.length > 0) {
+                const { data: members } = await supabase
+                    .from('group_members')
+                    .select('student_id')
+                    .in('group_id', groupIds);
+                allowedStudentIds = members?.map(m => m.student_id) || [];
+            } else {
+                allowedStudentIds = [];
+            }
+        }
+
+        // 2b. Assigned vs Attempted stats for a specifically selected test/course
+        const selectedCourseIdForStats = (category === 'Full-Length Test' && testCourseId && testCourseId !== 'all')
+            ? testCourseId
+            : (category === 'AP' && apCourseId && apCourseId !== 'all')
+                ? apCourseId
+                : null;
+
+        let assignedCount = null;
+        if (selectedCourseIdForStats) {
+            let statGroupsQuery = supabase.from('student_groups').select('id, assigned_course_ids');
+            if (groupId && groupId !== 'all') {
+                statGroupsQuery = statGroupsQuery.eq('id', groupId);
+            } else if (tutorId && tutorId !== 'all') {
+                statGroupsQuery = statGroupsQuery.eq('created_by', tutorId);
+            } else if (requestingRole === 'tutor') {
+                statGroupsQuery = statGroupsQuery.eq('created_by', requestingUser.id);
+            }
+            const { data: statGroups } = await statGroupsQuery;
+            const relevantGroupIds = (statGroups || [])
+                .filter(g => Array.isArray(g.assigned_course_ids) && g.assigned_course_ids.some(id => String(id) === String(selectedCourseIdForStats)))
+                .map(g => g.id);
+
+            if (relevantGroupIds.length > 0) {
+                const { data: assignedMembers } = await supabase
+                    .from('group_members')
+                    .select('student_id')
+                    .in('group_id', relevantGroupIds);
+                assignedCount = new Set((assignedMembers || []).map(m => m.student_id)).size;
+            } else {
+                assignedCount = 0;
+            }
+        }
+
+        // 3. Fetch submissions (completed attempts only)
+        let submissionsQuery = supabase
+            .from('test_submissions')
+            .select(`
+                id,
+                user_id,
+                course_id,
+                scaled_score,
+                math_scaled_score,
+                reading_scaled_score,
+                writing_scaled_score,
+                raw_score_percentage,
+                total_questions,
+                correct_questions,
+                test_duration_seconds,
+                created_at,
+                courses(id, name, category, tutor_type, main_category),
+                profiles:user_id(id, name, email, role)
+            `)
+            .eq('is_completed', true);
+
+        if (allowedStudentIds !== null) {
+            if (allowedStudentIds.length === 0) {
+                return res.json({
+                    rankings: [],
+                    top5: [],
+                    featuredRank: null,
+                    apCourses,
+                    fullLengthTests,
+                    assignedCount,
+                    completedCount: selectedCourseIdForStats ? 0 : null,
+                    highestScore: null,
+                    averageScore: null
+                });
+            }
+            submissionsQuery = submissionsQuery.in('user_id', allowedStudentIds);
+        }
+
+        const { data: submissions } = await submissionsQuery;
+
+        // Determine if this is a Topic or Subtopic category request
+        const isTopicCategory = category.includes('Topic');
+        const isSubtopicCategory = category.includes('Subtopic');
+
+        // Group submissions by student
+        const studentMap = {};
+
+        (submissions || []).forEach(sub => {
+            const uid = sub.user_id;
+            const profile = sub.profiles;
+            if (!profile || profile.role !== 'student') return;
+
+            const courseObj = sub.courses || {};
+            const cleanCourseName = (courseObj.name || '').toLowerCase().trim();
+            const cleanCourseCat = (courseObj.category || '').toLowerCase().trim();
+            const cleanMainCat = (courseObj.main_category || '').toLowerCase().trim();
+
+            // Filters for Topic / Subtopic matching against historical attempt data
+            if (isSubtopicCategory && subtopicName) {
+                const searchSub = subtopicName.toLowerCase().trim();
+                const searchTop = topicName ? topicName.toLowerCase().trim() : '';
+
+                let isMatch = false;
+
+                // 1. Direct match: Course name or category matches subtopic or topic name
+                if (cleanCourseName.includes(searchSub) || searchSub.includes(cleanCourseName) ||
+                    cleanCourseCat.includes(searchSub) || searchSub.includes(cleanCourseCat) ||
+                    (searchTop && (cleanCourseName.includes(searchTop) || cleanCourseCat.includes(searchTop)))) {
+                    isMatch = true;
+                }
+                // 2. General subject match: If category is SAT Math and course is an SAT Math / SAT course
+                else if (category.startsWith('SAT Math')) {
+                    const isMathCourse = cleanCourseName.includes('math') || cleanCourseCat.includes('math') || 
+                                         cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
+                                         cleanCourseName.includes('sat') || cleanCourseName.includes('test') ||
+                                         cleanCourseName.includes('practice') || cleanCourseName.includes('regular');
+                    
+                    const otherDomains = ['reading', 'writing', 'english', 'craft', 'ideas'];
+                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
+                    
+                    if (isMathCourse && !isOtherDomain) {
+                        isMatch = true;
+                    }
+                }
+                // 3. SAT Reading & Writing match
+                else if (category.includes('Reading & Writing')) {
+                    const isRWCourse = cleanCourseName.includes('reading') || cleanCourseName.includes('writing') || 
+                                       cleanCourseCat.includes('reading') || cleanCourseCat.includes('writing') ||
+                                       cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
+                                       cleanCourseName.includes('sat') || cleanCourseName.includes('test');
+                    
+                    const otherDomains = ['math', 'algebra', 'geometry', 'trigonometry'];
+                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
+                    
+                    if (isRWCourse && !isOtherDomain) {
+                        isMatch = true;
+                    }
+                }
+                // 4. AP / Full Length Test general match
+                else if (category.startsWith('AP') || category.startsWith('Full-Length Test')) {
+                    isMatch = true;
+                }
+
+                if (!isMatch) return;
+            } else if (isTopicCategory && topicName) {
+                const searchTop = topicName.toLowerCase().trim();
+
+                let isMatch = false;
+
+                if (cleanCourseName.includes(searchTop) || searchTop.includes(cleanCourseName) ||
+                    cleanCourseCat.includes(searchTop) || searchTop.includes(cleanCourseCat)) {
+                    isMatch = true;
+                } else if (category.startsWith('SAT Math')) {
+                    const isMathCourse = cleanCourseName.includes('math') || cleanCourseCat.includes('math') || 
+                                         cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
+                                         cleanCourseName.includes('sat') || cleanCourseName.includes('test') ||
+                                         cleanCourseName.includes('practice') || cleanCourseName.includes('regular');
+                    
+                    const otherDomains = ['reading', 'writing', 'english', 'craft', 'ideas'];
+                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
+                    
+                    if (isMathCourse && !isOtherDomain) {
+                        isMatch = true;
+                    }
+                } else if (category.includes('Reading & Writing')) {
+                    const isRWCourse = cleanCourseName.includes('reading') || cleanCourseName.includes('writing') || 
+                                       cleanCourseCat.includes('reading') || cleanCourseCat.includes('writing') ||
+                                       cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
+                                       cleanCourseName.includes('sat') || cleanCourseName.includes('test');
+                    
+                    const otherDomains = ['math', 'algebra', 'geometry', 'trigonometry'];
+                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
+                    
+                    if (isRWCourse && !isOtherDomain) {
+                        isMatch = true;
+                    }
+                } else {
+                    isMatch = true;
+                }
+
+                if (!isMatch) return;
+            }
+
+            if (!studentMap[uid]) {
+                studentMap[uid] = {
+                    student_id: uid,
+                    name: profile.name || 'Student',
+                    email: profile.email || '',
+                    mathScores: [],
+                    rwScores: [],
+                    courseSubmissions: {},
+                    totalQuestions: 0,
+                    totalCorrect: 0,
+                    completedTests: 0
+                };
+            }
+
+            const st = studentMap[uid];
+
+            const pct = Number(sub.raw_score_percentage || 0);
+            const qCount = Number(sub.total_questions || 0);
+            const cCount = Array.isArray(sub.correct_questions) ? sub.correct_questions.length : Math.round((pct / 100) * qCount);
+
+            st.totalQuestions += qCount;
+            st.totalCorrect += cCount;
+            st.completedTests++;
+
+            const mathVal = sub.math_scaled_score || (cleanCourseName.includes('math') ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
+            const rwVal = sub.reading_scaled_score || (!cleanCourseName.includes('math') ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
+
+            if (mathVal && mathVal >= 200 && mathVal <= 800) st.mathScores.push(mathVal);
+            if (rwVal && rwVal >= 200 && rwVal <= 800) st.rwScores.push(rwVal);
+
+            const courseIdKey = String(sub.course_id);
+            if (!st.courseSubmissions[courseIdKey]) {
+                st.courseSubmissions[courseIdKey] = [];
+            }
+            const rawScaled = sub.scaled_score || ((sub.math_scaled_score || 0) + (sub.reading_scaled_score || 0)) || Math.round(400 + (pct / 100) * 1200);
+            st.courseSubmissions[courseIdKey].push({
+                pct,
+                scaledScore: rawScaled > 0 ? rawScaled : Math.round(400 + (pct / 100) * 1200),
+                qCount,
+                cCount
+            });
+        });
+
+        // 4. Calculate score & metric per category for each student
+        const studentList = Object.values(studentMap).map(st => {
+            let primaryScore = 0;
+            let scoreDisplay = '0';
+            let accuracy = st.totalQuestions > 0 ? Math.round((st.totalCorrect / st.totalQuestions) * 100) : 0;
+            // Display totals default to the student's global activity; categories scoped to a
+            // specific test/course (AP, Full-Length Test) override these below so unrelated
+            // attempts never leak into that test's stats.
+            let displayTotalQuestions = st.totalQuestions;
+            let displayTotalCorrect = st.totalCorrect;
+            let displayCompletedTests = st.completedTests;
+
+            const bestMath = st.mathScores.length > 0 ? Math.max(...st.mathScores) : 0;
+            const bestRw = st.rwScores.length > 0 ? Math.max(...st.rwScores) : 0;
+
+            if (isSubtopicCategory || isTopicCategory) {
+                primaryScore = accuracy;
+                scoreDisplay = `${accuracy}%`;
+            } else if (category === 'SAT') {
+                const totalSAT = (bestMath > 0 || bestRw > 0) ? (bestMath || 400) + (bestRw || 400) : 0;
+                primaryScore = totalSAT;
+                scoreDisplay = totalSAT > 0 ? `${totalSAT} / 1600` : '--';
+            } else if (category === 'SAT Math') {
+                primaryScore = bestMath;
+                scoreDisplay = bestMath > 0 ? `${bestMath} / 800` : '--';
+            } else if (category === 'SAT Reading & Writing') {
+                primaryScore = bestRw;
+                scoreDisplay = bestRw > 0 ? `${bestRw} / 800` : '--';
+            } else if (category === 'AP') {
+                let targetCourseSubs = [];
+                if (apCourseId && apCourseId !== 'all') {
+                    targetCourseSubs = st.courseSubmissions[String(apCourseId)] || [];
+                } else {
+                    apCourses.forEach(c => {
+                        const subs = st.courseSubmissions[String(c.id)];
+                        if (subs) targetCourseSubs.push(...subs);
+                    });
+                }
+
+                displayTotalQuestions = targetCourseSubs.reduce((s, x) => s + x.qCount, 0);
+                displayTotalCorrect = targetCourseSubs.reduce((s, x) => s + x.cCount, 0);
+                displayCompletedTests = targetCourseSubs.length;
+                accuracy = displayTotalQuestions > 0 ? Math.round((displayTotalCorrect / displayTotalQuestions) * 100) : 0;
+
+                const bestPct = targetCourseSubs.length > 0 ? Math.max(...targetCourseSubs.map(s => s.pct)) : 0;
+                primaryScore = bestPct;
+                scoreDisplay = targetCourseSubs.length > 0 ? `${bestPct}%` : '--';
+            } else if (category === 'Full-Length Test') {
+                let targetCourseSubs = [];
+
+                if (testCourseId && testCourseId !== 'all') {
+                    targetCourseSubs = st.courseSubmissions[String(testCourseId)] || [];
+                } else {
+                    fullLengthTests.forEach(c => {
+                        const subs = st.courseSubmissions[String(c.id)];
+                        if (subs) targetCourseSubs.push(...subs);
+                    });
+                }
+
+                displayTotalQuestions = targetCourseSubs.reduce((s, x) => s + x.qCount, 0);
+                displayTotalCorrect = targetCourseSubs.reduce((s, x) => s + x.cCount, 0);
+                displayCompletedTests = targetCourseSubs.length;
+
+                if (targetCourseSubs.length > 0) {
+                    const bestScaled = Math.max(...targetCourseSubs.map(s => s.scaledScore));
+                    const bestAttempt = targetCourseSubs.find(s => s.scaledScore === bestScaled) || targetCourseSubs[0];
+
+                    primaryScore = bestScaled;
+                    scoreDisplay = `${bestScaled} / 1600`;
+                    accuracy = bestAttempt.qCount > 0 ? Math.round((bestAttempt.cCount / bestAttempt.qCount) * 100) : 0;
+                } else {
+                    primaryScore = 0;
+                    scoreDisplay = '--';
+                    accuracy = 0;
+                }
+            }
+
+            return {
+                student_id: st.student_id,
+                name: st.name,
+                email: st.email,
+                primaryScore,
+                scoreDisplay,
+                accuracy,
+                totalCorrect: displayTotalCorrect,
+                totalQuestions: displayTotalQuestions,
+                completedTests: displayCompletedTests
+            };
+        }).filter(st => st.totalQuestions > 0 || st.primaryScore > 0);
+
+        // Sort descending by primaryScore, then totalCorrect
+        studentList.sort((a, b) => {
+            if (b.primaryScore !== a.primaryScore) return b.primaryScore - a.primaryScore;
+            if (b.totalCorrect !== a.totalCorrect) return b.totalCorrect - a.totalCorrect;
+            return b.totalQuestions - a.totalQuestions;
+        });
+
+        // 5. Apply Competition Tie-Ranking Algorithm (1, 2, 2, 4)
+        let currentRank = 1;
+        const rankings = studentList.map((st, index) => {
+            if (index > 0 && st.primaryScore < studentList[index - 1].primaryScore) {
+                currentRank = index + 1;
+            }
+            return {
+                ...st,
+                rank: currentRank
+            };
+        });
+
+        // 6. Top 5 Podium
+        const top5 = rankings.slice(0, 5);
+
+        // 7. Featured Rank (for studentId or targetStudentId)
+        const checkStudentId = targetStudentId || currentUserId;
+        const featuredRank = rankings.find(r => r.student_id === checkStudentId) || null;
+
+        // 8. Highest / Average score across all ranked students
+        const highestScoreDisplay = rankings.length > 0 ? rankings[0].scoreDisplay : null;
+        const averageScore = rankings.length > 0
+            ? Math.round(rankings.reduce((sum, r) => sum + r.primaryScore, 0) / rankings.length)
+            : null;
+
+        res.json({
+            rankings,
+            top5,
+            featuredRank,
+            apCourses,
+            fullLengthTests,
+            assignedCount,
+            completedCount: selectedCourseIdForStats ? rankings.length : null,
+            highestScore: highestScoreDisplay,
+            averageScore
+        });
+    } catch (err) {
+        console.error('Universal Leaderboard error:', err);
+        res.status(500).json({ error: 'Failed to calculate leaderboard' });
+    }
+});
+
+/**
  * GET /api/grading/scales/:courseId
  * Get grade scales for a course
  */
@@ -2202,7 +2705,26 @@ function classifySubject(section, topic, courseName) {
     return 'Other Subjects';
 }
 
+/**
+ * GET /api/grading/topic-report/:courseId
+ * Get a combined Topic Report (Easy + Medium + Hard) for the authenticated student.
+ */
+router.get('/topic-report/:courseId', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { courseId } = req.params;
 
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const data = await analyticsService.getTopicCombinedReport(null, userId, parseInt(courseId));
+        res.json(data);
+    } catch (error) {
+        console.error('Topic report error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
 
 export default router;
 

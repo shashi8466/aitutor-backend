@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { adminService, authService, tutorService, gradingService, enrollmentService } from '../../services/api';
+import { adminService, authService, tutorService, gradingService, enrollmentService, courseService } from '../../services/api';
 import GroupAnalytics from '../tutor/GroupAnalytics';
+import HierarchicalContentSelector from '../common/HierarchicalContentSelector';
 
 const {
     FiUsers, FiUserCheck, FiRefreshCw, FiTrash2,
@@ -20,6 +21,7 @@ const AdminGroupManagement = () => {
     const [viewMode, setViewMode] = useState('list'); // 'list', 'detail', or 'analytics'
     const [groups, setGroups] = useState([]);
     const [tutors, setTutors] = useState([]);
+    const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +31,15 @@ const AdminGroupManagement = () => {
     const [activeGroupData, setActiveGroupData] = useState(null);
     const [newTutorId, setNewTutorId] = useState('');
 
+    // Create Group States
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+    const [assignedContent, setAssignedContent] = useState({});
+    const [assignedCourseIds, setAssignedCourseIds] = useState([]);
+    const [groupDescription, setGroupDescription] = useState('');
+    const [selectedTutorId, setSelectedTutorId] = useState('');
+    const [creatingGroup, setCreatingGroup] = useState(false);
+
     useEffect(() => {
         loadData();
     }, []);
@@ -36,18 +47,51 @@ const AdminGroupManagement = () => {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [groupsRes, tutorsRes] = await Promise.all([
+            const [groupsRes, tutorsRes, coursesRes] = await Promise.all([
                 adminService.getAllGroups(),
-                adminService.getAllTutors()
+                adminService.getAllTutors(),
+                courseService.getAll().catch(() => ({ data: [] }))
             ]);
 
             setGroups(groupsRes.data.groups || []);
             setTutors(tutorsRes.data.tutors || []);
+            setCourses(coursesRes.data || []);
         } catch (err) {
             console.error('Error loading data:', err);
             setError('Failed to load groups');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCreateGroup = async (e) => {
+        e.preventDefault();
+        if (!newGroupName.trim()) {
+            alert('Please enter a group name.');
+            return;
+        }
+
+        setCreatingGroup(true);
+        try {
+            await adminService.createGroup({
+                name: newGroupName,
+                assigned_content: assignedContent,
+                assigned_course_ids: assignedCourseIds,
+                description: groupDescription,
+                tutor_id: selectedTutorId || (tutors.length > 0 ? tutors[0].id : null)
+            });
+            setShowCreateModal(false);
+            setNewGroupName('');
+            setAssignedContent({});
+            setAssignedCourseIds([]);
+            setGroupDescription('');
+            setSelectedTutorId('');
+            loadData();
+        } catch (err) {
+            console.error('Error creating group:', err);
+            alert(err.response?.data?.details || err.response?.data?.error || 'Failed to create group');
+        } finally {
+            setCreatingGroup(false);
         }
     };
 
@@ -87,8 +131,8 @@ const AdminGroupManagement = () => {
         const search = searchQuery.toLowerCase();
         const matchesSearch =
             (group.name?.toLowerCase() || '').includes(search) ||
-            (group.tutor_name?.toLowerCase() || '').includes(search) ||
-            (group.course?.name?.toLowerCase() || '').includes(search);
+            (group.tutor_name?.toLowerCase() || '').includes(search);
+            // Search is limited without full text, we can skip course matching for now since it's an array
 
         const matchesTutor = filterTutor === 'all' || group.created_by === filterTutor;
 
@@ -155,9 +199,17 @@ const AdminGroupManagement = () => {
                     </h2>
                     <p className="text-gray-400 mt-2 ml-[3.75rem] font-medium text-sm">Manage all student groups across tutors</p>
                 </div>
-                <button className="flex items-center gap-2 px-5 py-2.5 bg-[#11131A] text-gray-300 rounded-xl border border-[#1C202B] hover:bg-gray-800 transition-colors text-sm font-bold shadow-sm">
-                    <SafeIcon icon={FiDownload} className="w-4 h-4" /> Export Report
-                </button>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setShowCreateModal(true)}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all text-sm font-bold shadow-lg shadow-indigo-500/20 cursor-pointer"
+                    >
+                        <SafeIcon icon={FiPlus} className="w-4 h-4" /> Create Student Group
+                    </button>
+                    <button className="flex items-center gap-2 px-5 py-2.5 bg-[#11131A] text-gray-300 rounded-xl border border-[#1C202B] hover:bg-gray-800 transition-colors text-sm font-bold shadow-sm">
+                        <SafeIcon icon={FiDownload} className="w-4 h-4" /> Export Report
+                    </button>
+                </div>
             </div>
 
             {/* Statistics Cards */}
@@ -309,7 +361,7 @@ const AdminGroupManagement = () => {
                                 <div className="space-y-3 mb-6">
                                     <div className="flex items-center gap-2">
                                         <span className={`px-2.5 py-1 ${theme.bg} ${theme.main} text-[10px] font-black uppercase tracking-widest rounded-md border ${theme.border}`}>
-                                            {group.course?.name || 'No Course'}
+                                            {(group.assigned_course_ids?.length || 0)} areas assigned
                                         </span>
                                     </div>
                                     <h3 className="text-xl font-bold text-white uppercase tracking-tight leading-none mt-2">
@@ -424,6 +476,107 @@ const AdminGroupManagement = () => {
                     </motion.div>
                 </div>
             )}
+
+            {/* Create Group Modal */}
+            <AnimatePresence>
+                {showCreateModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowCreateModal(false)}
+                            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                        />
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="relative bg-[#11131A] border border-[#1C202B] rounded-3xl p-8 max-w-xl w-full shadow-2xl z-10 text-white max-h-[90vh] overflow-y-auto"
+                        >
+                            <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
+                                <div>
+                                    <h3 className="text-2xl font-black text-white">Create Student Group</h3>
+                                    <p className="text-xs text-gray-400 mt-1">Assign subtopics and tutors for SAT preparation.</p>
+                                </div>
+                                <button onClick={() => setShowCreateModal(false)} className="p-2 text-gray-400 hover:text-white rounded-xl">
+                                    <SafeIcon icon={FiX} className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCreateGroup} className="space-y-5">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Group Name</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={newGroupName}
+                                        onChange={(e) => setNewGroupName(e.target.value)}
+                                        className="w-full px-4 py-3 bg-[#181B26] border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white text-sm"
+                                        placeholder="e.g. SAT Math Batch A, Summer Intensive"
+                                    />
+                                </div>
+
+                                {tutors.length > 0 && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Assigned Tutor</label>
+                                        <select
+                                            value={selectedTutorId}
+                                            onChange={(e) => setSelectedTutorId(e.target.value)}
+                                            className="w-full px-4 py-3 bg-[#181B26] border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white text-sm"
+                                        >
+                                            <option value="">Select Tutor</option>
+                                            {tutors.map(t => (
+                                                <option key={t.id} value={t.id}>{t.name} ({t.email})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Assign SAT Content</label>
+                                    <HierarchicalContentSelector 
+                                        courses={courses}
+                                        initialContent={assignedContent}
+                                        onChange={({ assigned_content, assigned_course_ids }) => {
+                                            setAssignedContent(assigned_content);
+                                            setAssignedCourseIds(assigned_course_ids);
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Description (Optional)</label>
+                                    <textarea
+                                        value={groupDescription}
+                                        onChange={(e) => setGroupDescription(e.target.value)}
+                                        className="w-full px-4 py-3 bg-[#181B26] border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white text-sm"
+                                        rows="3"
+                                        placeholder="Description or notes for this group..."
+                                    ></textarea>
+                                </div>
+
+                                <div className="flex gap-3 pt-4 border-t border-gray-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateModal(false)}
+                                        className="flex-1 px-5 py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={creatingGroup}
+                                        className="flex-1 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        {creatingGroup ? 'Creating...' : 'Create Group'}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
@@ -443,16 +596,18 @@ const GroupDetailView = ({ group, onBack }) => {
     const [selectedSubmissionForAnalysis, setSelectedSubmissionForAnalysis] = useState(null);
     const [analysisData, setAnalysisData] = useState(null);
     const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+    const [inviteLink, setInviteLink] = useState('');
+    const [localGroup, setLocalGroup] = useState(group);
 
     const fetchDetailData = async () => {
         setLoading(true);
         try {
             const [membersRes, analyticsRes] = await Promise.all([
                 adminService.getGroupMembers(group.id),
-                adminService.getGroupAnalytics(group.id)
+                adminService.getGroupDashboard(group.id)
             ]);
-            setMembers(membersRes.data.members || []);
-            setAnalytics(analyticsRes.data);
+            setMembers(membersRes.data || []);
+            setAnalytics(analyticsRes.data.overview || {});
         } catch (err) {
             console.error('Error fetching group details:', err);
         } finally {
@@ -462,16 +617,42 @@ const GroupDetailView = ({ group, onBack }) => {
 
     useEffect(() => {
         fetchDetailData();
+        if (group.invite_token) {
+            const baseUrl = window.location.origin;
+            setInviteLink(`${baseUrl}/join-group/${group.invite_token}`);
+        } else {
+            setInviteLink('');
+        }
     }, [group.id]);
+
+    const handleGenerateInviteLink = async () => {
+        try {
+            const res = await adminService.generateGroupInviteToken(localGroup.id);
+            if (res.data.token) {
+                const baseUrl = window.location.origin;
+                setInviteLink(`${baseUrl}/join-group/${res.data.token}`);
+                setLocalGroup({...localGroup, invite_token: res.data.token});
+            }
+        } catch (error) {
+            console.error('Failed to generate invite token:', error);
+            alert('Failed to generate invite token');
+        }
+    };
+
+    const handleCopyInviteLink = () => {
+        if (inviteLink) {
+            navigator.clipboard.writeText(inviteLink);
+            alert('Invite link copied to clipboard!');
+        }
+    };
 
     const handleOpenMemberModal = async () => {
         setShowMemberModal(true);
         setLoadingStudents(true);
         setSelectedStudents([]); // Initialize empty selection for NEW members
         try {
-            // Fetch ALL students enrolled in this course
-            const res = await enrollmentService.getCourseStudents(group.course_id);
-            const candidates = res.data || [];
+            const res = await adminService.getAvailableStudents(localGroup.id);
+            const candidates = res.data.students || [];
             setAvailableStudents(candidates);
         } catch (err) {
             console.error('Error fetching course students:', err);
@@ -484,7 +665,7 @@ const GroupDetailView = ({ group, onBack }) => {
         if (selectedStudents.length === 0) return;
         try {
             setLoadingStudents(true);
-            await adminService.bulkAssignStudents(group.id, selectedStudents);
+            await adminService.bulkAssignStudents(localGroup.id, selectedStudents);
             setSelectedStudents([]);
             // Refresh counts and lists
             await fetchDetailData();
@@ -500,7 +681,7 @@ const GroupDetailView = ({ group, onBack }) => {
         if (!window.confirm('Are you sure you want to remove this student from the group?')) return;
         try {
             setLoadingStudents(true);
-            await tutorService.removeGroupMember(group.id, studentId);
+            await tutorService.removeGroupMember(localGroup.id, studentId);
             // Refresh counts and lists
             await fetchDetailData();
         } catch (err) {
@@ -520,7 +701,7 @@ const GroupDetailView = ({ group, onBack }) => {
             // But tutorService.deleteGroupMember is usually fine if we fix the 403 on tutor side too.
             // I'll stick to adminService if I can.
             // Wait, I didn't add removeMember to adminService. I'll stick with tutorService but I already fixed the 403 authorization in tutor.js for members.
-            await tutorService.removeGroupMember(group.id, studentId);
+            await tutorService.removeGroupMember(localGroup.id, studentId);
             fetchDetailData();
         } catch (err) {
             console.error('Error removing member:', err);
@@ -532,7 +713,7 @@ const GroupDetailView = ({ group, onBack }) => {
         setLoadingScores(true);
         try {
             // Re-use tutor progress endpoint which returns submissions
-            const res = await tutorService.getGroupMembers(group.id); // This already has performance
+            const res = await tutorService.getGroupMembers(localGroup.id); // This already has performance
             // Actually, we want ALL scores for this student in this course
             const response = await tutorService.getStudentProgress(student.id);
             // Filter submissions by current course
@@ -583,15 +764,15 @@ const GroupDetailView = ({ group, onBack }) => {
                     </button>
                     <div>
                         <div className="flex items-center gap-3">
-                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{group.name}</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{localGroup.name}</h2>
                             <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-full uppercase tracking-wider">
-                                {group.course?.name}
+                                {(localGroup.assigned_course_ids?.length || 0)} Content Areas
                             </span>
                         </div>
                         <div className="flex items-center gap-4 mt-1">
-                            <p className="text-gray-500">Assigned Tutor: <span className="font-bold text-gray-700 dark:text-gray-300">{group.tutor_name}</span></p>
+                            <p className="text-gray-500">Assigned Tutor: <span className="font-bold text-gray-700 dark:text-gray-300">{localGroup.tutor_name}</span></p>
                             <span className="text-gray-300">|</span>
-                            <p className="text-gray-500">{group.tutor_email}</p>
+                            <p className="text-gray-500">{localGroup.tutor_email}</p>
                         </div>
                     </div>
                 </div>
@@ -608,52 +789,35 @@ const GroupDetailView = ({ group, onBack }) => {
             </div>
 
             {/* Analytics Overview */}
-            {
-                analytics && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600">
-                                    <SafeIcon icon={FiUsers} className="w-5 h-5" />
-                                </div>
-                                <h4 className="font-bold text-gray-700 dark:text-gray-300">Total Students</h4>
+            <div className="mt-8 border-t border-gray-100 dark:border-gray-800 pt-8">
+                {analytics && (
+                    <>
+                        <h4 className="text-xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2">
+                            <SafeIcon icon={FiTrendingUp} /> Performance Overview
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800">
+                                <div className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Total Students</div>
+                                <p className="text-3xl font-black text-gray-900 dark:text-white">{analytics.totalStudents || 0}</p>
                             </div>
-                            <p className="text-3xl font-black text-gray-900 dark:text-white">{analytics.total_students || 0}</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-indigo-600">
-                                    <SafeIcon icon={FiTarget} className="w-5 h-5" />
-                                </div>
-                                <h4 className="font-bold text-gray-700 dark:text-gray-300">Average Score</h4>
+                            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6 border border-blue-100 dark:border-blue-800">
+                                <div className="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Average Score</div>
+                                <p className="text-3xl font-black text-blue-600">{analytics.averageScore || 0}%</p>
                             </div>
-                            <p className="text-3xl font-black text-indigo-600">{analytics.average_score || 0}%</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-purple-600">
-                                    <SafeIcon icon={FiActivity} className="w-5 h-5" />
-                                </div>
-                                <h4 className="font-bold text-gray-700 dark:text-gray-300">Tests Taken</h4>
+                            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-6 border border-green-100 dark:border-green-800">
+                                <div className="text-sm font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-2">Total Tests</div>
+                                <p className="text-3xl font-black text-green-600">{analytics.totalTestsCompleted || 0}</p>
                             </div>
-                            <p className="text-3xl font-black text-purple-600">{analytics.total_tests || 0}</p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg text-orange-600">
-                                    <SafeIcon icon={FiBarChart2} className="w-5 h-5" />
-                                </div>
-                                <h4 className="font-bold text-gray-700 dark:text-gray-300">Performance</h4>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-3xl font-black text-orange-600">
-                                    {analytics.average_score > 80 ? 'Elite' : analytics.average_score > 60 ? 'Stable' : 'Improving'}
-                                </span>
+                            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-6 border border-purple-100 dark:border-purple-800">
+                                <div className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-2">Group Status</div>
+                                <p className="text-2xl font-black text-purple-600">
+                                    {analytics.averageScore > 80 ? 'Elite' : analytics.averageScore > 60 ? 'Stable' : 'Needs Support'}
+                                </p>
                             </div>
                         </div>
-                    </div>
-                )
-            }
+                    </>
+                )}
+            </div>
 
             {/* Member List */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
@@ -772,14 +936,33 @@ const GroupDetailView = ({ group, onBack }) => {
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
                             className="bg-white dark:bg-gray-800 rounded-[32px] p-8 max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
                         >
-                            <div className="flex justify-between items-start mb-6">
+                            <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Manage Group Members</h3>
-                                    <p className="text-gray-500">Add students enrolled in <span className="text-blue-600 font-bold">{group.course?.name}</span></p>
+                                    <p className="text-gray-500">Add students to this group</p>
                                 </div>
                                 <button onClick={() => setShowMemberModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
                                     <SafeIcon icon={FiX} className="w-6 h-6 text-gray-400" />
                                 </button>
+                            </div>
+
+                            <div className="mb-4 p-4 border rounded-2xl bg-gray-50 dark:bg-gray-900/50">
+                                <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-2">Group Invitation</h4>
+                                {inviteLink ? (
+                                    <div className="space-y-3">
+                                        <p className="text-sm text-gray-500">Students can use this link to join this group automatically.</p>
+                                        <div className="flex items-center gap-2">
+                                            <input type="text" readOnly value={inviteLink} className="flex-1 px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none" />
+                                            <button onClick={handleCopyInviteLink} className="px-3 py-2 bg-blue-100 text-blue-600 rounded-lg font-bold text-sm hover:bg-blue-200">Copy</button>
+                                            <button onClick={handleGenerateInviteLink} className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300">Regenerate</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-sm text-gray-500">Generate an invitation link for students to join.</p>
+                                        <button onClick={handleGenerateInviteLink} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Generate Invite Link</button>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
@@ -862,20 +1045,50 @@ const GroupDetailView = ({ group, onBack }) => {
                                 )}
                             </div>
 
-                            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex gap-3">
-                                <button
-                                    onClick={() => setShowMemberModal(false)}
-                                    className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-black rounded-2xl hover:bg-gray-200 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleAddMembers}
-                                    disabled={selectedStudents.length === 0}
-                                    className="flex-[2] py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-200 dark:shadow-none hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:shadow-none"
-                                >
-                                    Add {selectedStudents.length} {selectedStudents.length === 1 ? 'Student' : 'Students'}
-                                </button>
+                            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
+                                <div className="flex justify-between items-center mb-4">
+                                    <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                                        {selectedStudents.length} students selected
+                                    </p>
+                                    <div className="flex items-center gap-4">
+                                        <button
+                                            onClick={() => {
+                                                const available = availableStudents.filter(s => !members.some(m => m.id === s.id));
+                                                if (selectedStudents.length === available.length && available.length > 0) {
+                                                    setSelectedStudents([]); // Deselect all
+                                                } else {
+                                                    setSelectedStudents(available.map(s => s.id)); // Select all
+                                                }
+                                            }}
+                                            className="text-xs font-bold text-blue-600 hover:underline"
+                                        >
+                                            {selectedStudents.length > 0 && selectedStudents.length === availableStudents.filter(s => !members.some(m => m.id === s.id)).length ? 'Deselect All' : 'Select All'}
+                                        </button>
+                                        {selectedStudents.length > 0 && (
+                                            <button
+                                                onClick={() => setSelectedStudents([])}
+                                                className="text-xs font-bold text-red-600 hover:underline"
+                                            >
+                                                Clear All
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowMemberModal(false)}
+                                        className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-black rounded-2xl hover:bg-gray-200 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleAddMembers}
+                                        disabled={selectedStudents.length === 0}
+                                        className="flex-[2] py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-200 dark:shadow-none hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:shadow-none"
+                                    >
+                                        Add {selectedStudents.length} {selectedStudents.length === 1 ? 'Student' : 'Students'}
+                                    </button>
+                                </div>
                             </div>
                         </motion.div>
                     </div>
@@ -895,7 +1108,7 @@ const GroupDetailView = ({ group, onBack }) => {
                             <div className="flex justify-between items-start mb-6">
                                 <div>
                                     <h3 className="text-2xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Student Test History</h3>
-                                    <p className="text-gray-500">All submissions for <span className="text-indigo-600 font-bold">{selectedStudentForHistory.name}</span> in <span className="font-bold">{group.course?.name}</span></p>
+                                    <p className="text-gray-500">All submissions for <span className="text-indigo-600 font-bold">{selectedStudentForHistory.name}</span> in this group</p>
                                 </div>
                                 <button onClick={() => setSelectedStudentForHistory(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
                                     <SafeIcon icon={FiX} className="w-6 h-6 text-gray-400" />
@@ -920,7 +1133,7 @@ const GroupDetailView = ({ group, onBack }) => {
                                                     </div>
                                                     <div>
                                                         <p className="font-black text-gray-900 dark:text-white flex items-center gap-2">
-                                                            {score.course?.name || group.course?.name}
+                                                            {score.course?.name || 'Group Content'}
                                                             <span className={`px-2 py-0.5 text-[10px] rounded-full uppercase ${score.level === 'Hard' ? 'bg-red-100 text-red-700' :
                                                                 score.level === 'Medium' ? 'bg-orange-100 text-orange-700' :
                                                                     'bg-green-100 text-green-700'

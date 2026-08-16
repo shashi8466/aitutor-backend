@@ -171,7 +171,7 @@ const AIQuestionCard = ({ data, onComplete }) => {
   );
 };
 
-const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fallbackQuestions = [] }) => {
+const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fallbackQuestions = [], courseTopic }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [featureEnabled, setFeatureEnabled] = useState(true);
@@ -249,8 +249,8 @@ const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, is
         const questionPayload = {
           question: question.question,
           level: question.level || "Medium",
-          concept: question.concept || question.topic || "",
-          topic: question.topic || question.concept || "",
+          concept: question.concept || question.topic || courseTopic || "",
+          topic: question.topic || question.concept || courseTopic || "",
           options: question.options || [],
           correctAnswer: question.correctAnswer || "",
           explanation: question.explanation || "",
@@ -268,6 +268,7 @@ const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, is
 
         let newQuestion = null;
         let isFallback = false;
+        let kbError = null;
         try {
           const response = await aiService.generateSimilarQuestion(
             questionPayload,
@@ -276,12 +277,13 @@ const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, is
           );
           newQuestion = response.data;
         } catch (e) {
+          kbError = e;
           console.warn("[AI Tutor] KB fallback error:", e);
         }
-        
+
         if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
           if (fallbackQuestions && fallbackQuestions.length > 0) {
-            const availableFallbacks = fallbackQuestions.filter(fq => 
+            const availableFallbacks = fallbackQuestions.filter(fq =>
               !previousQuestions.includes(fq.question || fq.text)
             );
             if (availableFallbacks.length > 0) {
@@ -293,7 +295,8 @@ const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, is
         }
 
         if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
-          throw new Error("Failed to fetch a practice question.");
+          // Surface the real backend/network error instead of a generic message when one exists.
+          throw kbError || new Error("Failed to fetch a practice question.");
         }
 
         const mappedQuestion = {

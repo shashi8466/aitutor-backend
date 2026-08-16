@@ -28,6 +28,7 @@ const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
 const FullTestReport = lazy(() => import('../common/FullTestReport'));
 const AdminEnrollmentKeys = lazy(() => import('./AdminEnrollmentKeys'));
 const AdminDemoLeads = lazy(() => import('./AdminDemoLeads'));
+const UniversalLeaderboard = lazy(() => import('../common/UniversalLeaderboard'));
 
 import { courseService, uploadService, adminService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -136,6 +137,7 @@ const AdminDashboard = () => {
       label: 'LEADS & REPORTS',
       links: [
         { name: 'Demo Leads', path: '/admin/demo-leads', icon: FiUsers },
+        { name: 'Leaderboard', path: '/admin/leaderboard', icon: FiIcons.FiAward },
         { name: 'Plan Management', path: '/admin/plans', icon: FiShield },
       ]
     },
@@ -307,6 +309,7 @@ const AdminDashboard = () => {
               <Route path="/upload" element={<FileUpload />} />
               <Route path="/uploads" element={<UploadManagement />} />
               <Route path="/demo-leads" element={<AdminDemoLeads />} />
+              <Route path="/leaderboard" element={<UniversalLeaderboard role="admin" title="Global Admin Leaderboard" subtitle="Platform-wide rankings across all students, groups, and courses" />} />
               <Route path="/plans" element={<AdminPlanManagement />} />
               <Route path="/settings" element={<AdminSettings />} />
             </Routes>

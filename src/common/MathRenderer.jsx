@@ -61,10 +61,12 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
     processedText = processedText.replace(/\\\\(\(|\)|\[|\])/g, '\\$1');
 
     // ---------------------------------------------------------
-    // 1. Basic Markdown Parsing (Bold, Italic, Tables)
+    // 1. Basic Markdown Parsing (Underline, Bold, Italic, Strikethrough, Tables)
     // ---------------------------------------------------------
+    processedText = processedText.replace(/\+\+(.*?)\+\+/g, '<u>$1</u>');
+    processedText = processedText.replace(/__(.*?)__/g, '<u>$1</u>');
     processedText = processedText.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    processedText = processedText.replace(/__(.*?)__/g, '<i>$1</i>');
+    processedText = processedText.replace(/~~(.*?)~~/g, '<s>$1</s>');
 
     const tableRegex = /(\|[^\n]+\|\n\|[\s:|-]+\|(?:\n\|[^\n]+\|)+)/g;
     processedText = processedText.replace(tableRegex, (match) => {

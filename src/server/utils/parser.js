@@ -207,41 +207,143 @@ const extractDocxWithMath = async (buffer, options = {}) => {
       return null;
     };
 
-    const processParagraph = (pNode) => {
-      const walk = (node) => {
-        if (!node) return "";
-        if (node.nodeType === 3) return node.nodeValue || "";
-        const tagName = node.nodeName.split(':').pop();
-        if (tagName === 'drawing' || tagName === 'pict') {
-          const embedId = findEmbedId(node);
+    const processRunNode = (rNode) => {
+      if (!rNode) return "";
+
+      let isUnderline = false;
+      let isBold = false;
+      let isItalic = false;
+      let isStrike = false;
+      let isSuper = false;
+      let isSub = false;
+      let isHighlight = false;
+
+      const rPrNodes = rNode.getElementsByTagName ? (rNode.getElementsByTagName("w:rPr")[0] || rNode.getElementsByTagName("rPr")[0]) : null;
+      if (rPrNodes) {
+        const children = rPrNodes.childNodes || [];
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          if (child.nodeType !== 1) continue;
+          const name = child.localName || child.nodeName.split(':').pop();
+          const val = child.getAttribute ? (child.getAttribute("w:val") || child.getAttribute("val")) : null;
+
+          if (name === 'u' && val !== 'none') {
+            isUnderline = true;
+          } else if (name === 'b' || name === 'bCs') {
+            if (val !== '0' && val !== 'false') isBold = true;
+          } else if (name === 'i' || name === 'iCs') {
+            if (val !== '0' && val !== 'false') isItalic = true;
+          } else if (name === 'strike') {
+            if (val !== '0' && val !== 'false') isStrike = true;
+          } else if (name === 'vertAlign') {
+            if (val === 'superscript') isSuper = true;
+            if (val === 'subscript') isSub = true;
+          } else if (name === 'highlight') {
+            isHighlight = true;
+          }
+        }
+      }
+
+      let runContent = "";
+      const children = rNode.childNodes || [];
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (child.nodeType === 3) {
+          runContent += child.nodeValue || "";
+          continue;
+        }
+        if (child.nodeType !== 1) continue;
+        const tagName = child.nodeName.split(':').pop();
+
+        if (tagName === 't') {
+          runContent += child.textContent || "";
+        } else if (tagName === 'br' || tagName === 'cr') {
+          runContent += "\n";
+        } else if (tagName === 'tab') {
+          runContent += "\t";
+        } else if (tagName === 'drawing' || tagName === 'pict') {
+          const embedId = findEmbedId(child);
           if (embedId && relMap[embedId]) {
             try {
               const imgEntry = zip.getEntry(relMap[embedId]);
               if (imgEntry) {
                 const imageBuffer = imgEntry.getData();
                 const imageExt = path.extname(imgEntry.entryName).substring(1);
-                // Use a stable name for the image based on its embedId to allow predictable resolution
                 const prefix = options.imagePrefix || '';
                 const stableName = `${prefix}${embedId}.${imageExt}`;
                 extractedImages.push({ id: embedId, extension: imageExt, buffer: imageBuffer, name: stableName });
-                return `[IMAGE: ${stableName}]`;
+                runContent += `[IMAGE: ${stableName}]`;
               }
             } catch (e) { }
           }
-          return "";
+        } else if (tagName === 'oMath' || tagName === 'oMathPara') {
+          try { runContent += convertToLatex(child); } catch (e) { runContent += " [Equation] "; }
         }
-        if (tagName === 'oMath' || tagName === 'oMathPara') {
-          try { return convertToLatex(node); } catch (e) { return " [Equation] "; }
+      }
+
+      if (!runContent) return "";
+
+      if (isUnderline) runContent = `<u>${runContent}</u>`;
+      if (isBold) runContent = `<b>${runContent}</b>`;
+      if (isItalic) runContent = `<i>${runContent}</i>`;
+      if (isStrike) runContent = `<s>${runContent}</s>`;
+      if (isSuper) runContent = `<sup>${runContent}</sup>`;
+      if (isSub) runContent = `<sub>${runContent}</sub>`;
+      if (isHighlight) runContent = `<mark>${runContent}</mark>`;
+
+      return runContent;
+    };
+
+    const processParagraph = (pNode) => {
+      if (!pNode) return "";
+      let pText = "";
+      const children = pNode.childNodes || [];
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (child.nodeType === 3) {
+          pText += child.nodeValue || "";
+          continue;
         }
-        if (tagName === 't') return node.textContent || "";
-        if (tagName === 'br') return "\n";
-        let res = "";
-        if (node.childNodes) {
-          for (let i = 0; i < node.childNodes.length; i++) res += walk(node.childNodes[i]);
+        if (child.nodeType !== 1) continue;
+        const tagName = child.nodeName.split(':').pop();
+
+        if (tagName === 'r') {
+          pText += processRunNode(child);
+        } else if (tagName === 'hyperlink') {
+          const linkRuns = child.getElementsByTagName ? child.getElementsByTagName("w:r") : [];
+          for (let r = 0; r < linkRuns.length; r++) {
+            pText += processRunNode(linkRuns[r]);
+          }
+        } else if (tagName === 'oMath' || tagName === 'oMathPara') {
+          try { pText += convertToLatex(child); } catch (e) { pText += " [Equation] "; }
+        } else if (tagName === 'drawing' || tagName === 'pict') {
+          const embedId = findEmbedId(child);
+          if (embedId && relMap[embedId]) {
+            try {
+              const imgEntry = zip.getEntry(relMap[embedId]);
+              if (imgEntry) {
+                const imageBuffer = imgEntry.getData();
+                const imageExt = path.extname(imgEntry.entryName).substring(1);
+                const prefix = options.imagePrefix || '';
+                const stableName = `${prefix}${embedId}.${imageExt}`;
+                extractedImages.push({ id: embedId, extension: imageExt, buffer: imageBuffer, name: stableName });
+                pText += `[IMAGE: ${stableName}]`;
+              }
+            } catch (e) { }
+          }
+        } else if (tagName === 'br') {
+          pText += "\n";
         }
-        return res;
-      };
-      return walk(pNode);
+      }
+
+      // Merge adjacent identical tags for clean HTML output
+      pText = pText
+        .replace(/<\/u>(\s*)<u>/gi, '$1')
+        .replace(/<\/b>(\s*)<b>/gi, '$1')
+        .replace(/<\/i>(\s*)<i>/gi, '$1')
+        .replace(/<\/s>(\s*)<s>/gi, '$1');
+
+      return pText;
     };
 
     let fullText = "";

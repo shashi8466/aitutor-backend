@@ -4,7 +4,9 @@
  */
 
 import express from 'express';
+import crypto from 'crypto';
 import supabase from '../../supabase/supabaseAdmin.js';
+import { analyticsService } from '../services/analyticsService.js';
 
 const router = express.Router();
 
@@ -125,7 +127,8 @@ router.get('/groups', async (req, res) => {
                 ...g,
                 member_count: Number(count),
                 tutor_name: g.creator?.name || 'Unknown',
-                tutor_email: g.creator?.email
+                tutor_email: g.creator?.email,
+                invite_token: g.invite_token || g.assigned_content?.invite_token
             };
         });
 
@@ -134,6 +137,55 @@ router.get('/groups', async (req, res) => {
     } catch (error) {
         console.error('Get all groups error:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * POST /api/admin/groups
+ * Create a new student group (admin endpoint)
+ */
+router.post('/groups', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { name, assigned_content, assigned_course_ids, description, student_ids, tutor_id } = req.body;
+
+        if (!name) {
+            return res.status(400).json({ error: 'Group name is required' });
+        }
+
+        const creatorId = tutor_id || userId;
+        const inviteToken = crypto.randomBytes(16).toString('hex');
+
+        const { data: group, error } = await supabase
+            .from('student_groups')
+            .insert({
+                name,
+                created_by: creatorId,
+                assigned_content: assigned_content || {},
+                assigned_course_ids: assigned_course_ids || [],
+                description: description || '',
+                invite_token: inviteToken
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Database error creating group:', error);
+            return res.status(500).json({ error: 'Database error creating group', details: error.message });
+        }
+
+        if (student_ids && Array.isArray(student_ids) && student_ids.length > 0) {
+            const memberInserts = student_ids.map(sid => ({
+                group_id: group.id,
+                student_id: sid
+            }));
+            await supabase.from('group_members').insert(memberInserts);
+        }
+
+        res.json({ group });
+    } catch (error) {
+        console.error('Create group error:', error);
+        res.status(500).json({ error: 'Failed to create group' });
     }
 });
 
@@ -310,7 +362,7 @@ router.get('/groups/:groupId/members', async (req, res) => {
         const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
         if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-        const { data: group } = await supabase.from('student_groups').select('course_id').eq('id', groupId).single();
+        const { data: group } = await supabase.from('student_groups').select('assigned_course_ids').eq('id', groupId).single();
         if (!group) return res.status(404).json({ error: 'Group not found' });
 
         const { data: members, error: membersError } = await supabase
@@ -333,7 +385,7 @@ router.get('/groups/:groupId/members', async (req, res) => {
         const { data: submissions } = await supabase
             .from('test_submissions')
             .select('user_id, raw_score_percentage, scaled_score, created_at')
-            .eq('course_id', group.course_id)
+            .in('course_id', group.assigned_course_ids || [])
             .in('user_id', memberIds)
             .order('created_at', { ascending: false });
 
@@ -378,7 +430,7 @@ router.get('/groups/:groupId/analytics', async (req, res) => {
         const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
         if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-        const { data: group } = await supabase.from('student_groups').select('course_id, name').eq('id', groupId).single();
+        const { data: group } = await supabase.from('student_groups').select('assigned_course_ids, name').eq('id', groupId).single();
         if (!group) return res.status(404).json({ error: 'Group not found' });
 
         const { data: membersRes } = await supabase.from('group_members').select('student_id').eq('group_id', groupId);
@@ -398,7 +450,7 @@ router.get('/groups/:groupId/analytics', async (req, res) => {
         }
 
         // Submissions query
-        let q = supabase.from('test_submissions').select('*').eq('course_id', group.course_id).in('user_id', memberIds);
+        let q = supabase.from('test_submissions').select('*').in('course_id', group.assigned_course_ids || []).in('user_id', memberIds);
         if (startDate) q = q.gte('created_at', startDate);
         if (endDate) q = q.lte('created_at', endDate);
         const { data: submissions } = await q.order('created_at', { ascending: false });
@@ -468,7 +520,7 @@ router.get('/groups/:groupId/analytics', async (req, res) => {
 
         res.json({
             group_name: group.name,
-            course_id: group.course_id,
+            assigned_course_ids: group.assigned_course_ids,
             total_students: memberIds.length,
             average_score: Math.round(avgScore),
             total_tests: totalTests,
@@ -484,13 +536,13 @@ router.get('/groups/:groupId/analytics', async (req, res) => {
 });
 
 /**
- * GET /api/admin/unassigned-students
- * Get students not assigned to any group for a specific course
+ * GET /api/admin/groups/:groupId/available-students
+ * Get all students not assigned to this specific group
  */
-router.get('/unassigned-students', async (req, res) => {
+router.get('/groups/:groupId/available-students', async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { courseId } = req.query;
+        const { groupId } = req.params;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -507,53 +559,29 @@ router.get('/unassigned-students', async (req, res) => {
             return res.status(403).json({ error: 'Admin access required' });
         }
 
-        if (!courseId) {
-            return res.status(400).json({ error: 'Course ID required' });
-        }
+        // 1. Get IDs of students already in this group
+        const { data: members } = await supabase
+            .from('group_members')
+            .select('student_id')
+            .eq('group_id', groupId);
+        
+        const assignedStudentIds = members?.map(m => m.student_id) || [];
 
-        // Use a more robust query: Find all students enrolled in this course
-        // then filter out those who are already in ANY group for this course
-
-        // 1. Get IDs of all students already in groups for this course
-        const { data: groupIds } = await supabase
-            .from('student_groups')
-            .select('id')
-            .eq('course_id', courseId);
-
-        const ids = groupIds?.map(g => g.id) || [];
-        let assignedStudentIds = [];
-        if (ids.length > 0) {
-            const { data: members } = await supabase
-                .from('group_members')
-                .select('student_id')
-                .in('group_id', ids);
-            assignedStudentIds = members?.map(m => m.student_id) || [];
-        }
-
-        // 2. Get profiles of students enrolled in this course who aren't in those groups
+        // 2. Get all student profiles
         const { data: students, error: sError } = await supabase
             .from('profiles')
-            .select(`
-                id, name, email,
-                enrollments!inner(course_id)
-            `)
-            .eq('role', 'student')
-            .eq('enrollments.course_id', courseId);
+            .select('id, name, email')
+            .eq('role', 'student');
 
         if (sError) throw sError;
 
-        const unassignedStudents = (students || [])
-            .filter(s => !assignedStudentIds.includes(s.id))
-            .map(s => ({
-                id: s.id,
-                name: s.name,
-                email: s.email
-            }));
+        const availableStudents = (students || [])
+            .filter(s => !assignedStudentIds.includes(s.id));
 
-        res.json({ students: unassignedStudents });
+        res.json({ students: availableStudents });
 
     } catch (error) {
-        console.error('Get unassigned students error:', error);
+        console.error('Get available students error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -596,6 +624,62 @@ router.delete('/groups/:groupId', async (req, res) => {
 
     } catch (error) {
         console.error('Admin delete group error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+/**
+ * POST /api/admin/groups/:groupId/invite-token
+ * Generate or regenerate an invitation token for a group
+ */
+router.post('/groups/:groupId/invite-token', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        // Verify admin role
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        if (!profile || profile.role !== 'admin') {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        const newToken = crypto.randomUUID();
+
+        // Fetch current group to preserve assigned_content
+        const { data: group } = await supabase
+            .from('student_groups')
+            .select('assigned_content')
+            .eq('id', groupId)
+            .single();
+            
+        const newAssignedContent = { ...(group?.assigned_content || {}), invite_token: newToken };
+
+        const { data: updatedGroup, error } = await supabase
+            .from('student_groups')
+            .update({ assigned_content: newAssignedContent })
+            .eq('id', groupId)
+            .select('assigned_content')
+            .single();
+
+        if (error) {
+            console.error('Error generating invite token:', error);
+            return res.status(500).json({ error: 'Failed to generate token' });
+        }
+
+        res.json({ token: newToken });
+
+    } catch (error) {
+        console.error('Admin generate token error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -946,6 +1030,90 @@ router.delete('/parents/:id', requireAdmin, async (req, res) => {
     } catch (error) {
         console.error('💥 [AdminDelete] Fatal error:', error);
         res.status(500).json({ error: 'Internal server error', details: error.message });
+    }
+});
+
+/**
+ * --- HIERARCHICAL ANALYTICS ROUTES ---
+ */
+
+const verifyAdminAccess = async (req, res, next) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (profile?.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+        
+        next();
+    } catch (err) {
+        res.status(500).json({ error: 'Internal error validating access' });
+    }
+};
+
+// 1. Group Level
+router.get('/groups/:groupId/analytics/dashboard', verifyAdminAccess, async (req, res) => {
+    try {
+        const data = await analyticsService.getGroupDashboard(req.params.groupId);
+        res.json(data);
+    } catch (error) {
+        console.error('Admin Group Dashboard error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 2. Student Level
+router.get('/groups/:groupId/analytics/students/:studentId', verifyAdminAccess, async (req, res) => {
+    try {
+        const data = await analyticsService.getStudentDashboard(req.params.groupId, req.params.studentId);
+        res.json(data);
+    } catch (error) {
+        console.error('Admin Student Dashboard error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 3. Course Level
+router.get('/groups/:groupId/analytics/students/:studentId/courses/:courseName', verifyAdminAccess, async (req, res) => {
+    try {
+        const data = await analyticsService.getCourseAnalytics(req.params.groupId, req.params.studentId, req.params.courseName);
+        res.json(data);
+    } catch (error) {
+        console.error('Admin Course Analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 3.5 Topic Combined Level
+router.get('/groups/:groupId/analytics/students/:studentId/topic-report/:courseId', verifyAdminAccess, async (req, res) => {
+    try {
+        const data = await analyticsService.getTopicCombinedReport(req.params.groupId, req.params.studentId, req.params.courseId);
+        res.json(data);
+    } catch (error) {
+        console.error('Admin Topic Combined Report error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 4. Attempt Level
+router.get('/groups/:groupId/analytics/attempts/:submissionId', verifyAdminAccess, async (req, res) => {
+    try {
+        const data = await analyticsService.getAttemptAnalytics(req.params.submissionId);
+        res.json(data);
+    } catch (error) {
+        console.error('Admin Attempt Analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 5. Question-Wise Level
+router.get('/groups/:groupId/analytics/attempts/:submissionId/questions', verifyAdminAccess, async (req, res) => {
+    try {
+        const data = await analyticsService.getAttemptQuestions(req.params.submissionId);
+        res.json(data);
+    } catch (error) {
+        console.error('Admin Question Analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 

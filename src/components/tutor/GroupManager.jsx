@@ -5,6 +5,7 @@ import SafeIcon from '../../common/SafeIcon';
 import { tutorService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import GroupAnalytics from './GroupAnalytics';
+import HierarchicalContentSelector from '../common/HierarchicalContentSelector';
 
 const {
     FiPlus, FiUsers, FiTrash2, FiEdit2, FiX, FiCheck,
@@ -22,6 +23,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [currentMembers, setCurrentMembers] = useState([]);
+    const [availableStudents, setAvailableStudents] = useState([]);
     const [loadingMembers, setLoadingMembers] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [error, setError] = useState('');
@@ -31,17 +33,19 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
 
     // Form States
     const [newGroupName, setNewGroupName] = useState('');
-    const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [assignedContent, setAssignedContent] = useState({});
+    const [assignedCourseIds, setAssignedCourseIds] = useState([]);
     const [groupDescription, setGroupDescription] = useState('');
     const [selectedStudentIds, setSelectedStudentIds] = useState([]);
     
     // Edit Form States
     const [editGroupName, setEditGroupName] = useState('');
-    const [editCourseId, setEditCourseId] = useState('');
+    const [editAssignedContent, setEditAssignedContent] = useState({});
+    const [editAssignedCourseIds, setEditAssignedCourseIds] = useState([]);
     const [editGroupDescription, setEditGroupDescription] = useState('');
     const [editGroupStatus, setEditGroupStatus] = useState('active');
     const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' or 'students'
-
+    const [inviteLink, setInviteLink] = useState('');
     useEffect(() => {
         if (dashboardData?.courses) {
             setCourses(dashboardData.courses);
@@ -93,12 +97,14 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         try {
             await tutorService.createGroup({
                 name: newGroupName,
-                courseId: selectedCourseId,
+                assigned_content: assignedContent,
+                assigned_course_ids: assignedCourseIds,
                 description: groupDescription
             });
             setShowCreateModal(false);
             setNewGroupName('');
-            setSelectedCourseId('');
+            setAssignedContent({});
+            setAssignedCourseIds([]);
             setGroupDescription('');
             loadData();
         } catch (error) {
@@ -137,8 +143,12 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const fetchGroupMembers = async (groupId) => {
         setLoadingMembers(true);
         try {
-            const res = await tutorService.getGroupMembers(groupId);
-            setCurrentMembers(res.data.members || []);
+            const [membersRes, availableRes] = await Promise.all([
+                tutorService.getGroupMembers(groupId),
+                tutorService.getAvailableStudents(groupId)
+            ]);
+            setCurrentMembers(membersRes.data.members || []);
+            setAvailableStudents(availableRes.data.students || []);
         } catch (err) {
             console.error('Error fetching group members:', err);
         } finally {
@@ -146,15 +156,44 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         }
     };
 
+    const handleGenerateInviteLink = async () => {
+        if (!selectedGroup) return;
+        try {
+            const res = await tutorService.generateGroupInviteToken(selectedGroup.id);
+            if (res.data.token) {
+                const baseUrl = window.location.origin;
+                setInviteLink(`${baseUrl}/join-group/${res.data.token}`);
+                setSelectedGroup({...selectedGroup, invite_token: res.data.token});
+            }
+        } catch (error) {
+            console.error('Failed to generate invite token:', error);
+            alert('Failed to generate invite token');
+        }
+    };
+
+    const handleCopyInviteLink = () => {
+        if (inviteLink) {
+            navigator.clipboard.writeText(inviteLink);
+            alert('Invite link copied to clipboard!');
+        }
+    };
+
     const handleOpenEditGroup = async (group) => {
         setSelectedGroup(group);
         setEditGroupName(group.name);
-        setEditCourseId(group.course_id || '');
+        setEditAssignedContent(group.assigned_content || {});
+        setEditAssignedCourseIds(group.assigned_course_ids || []);
         setEditGroupDescription(group.description || '');
         setEditGroupStatus(group.status || 'active');
         setActiveEditTab('settings');
         setSelectedStudentIds([]);
         setShowAddMemberModal(true);
+        if (group.invite_token) {
+            const baseUrl = window.location.origin;
+            setInviteLink(`${baseUrl}/join-group/${group.invite_token}`);
+        } else {
+            setInviteLink('');
+        }
         fetchGroupMembers(group.id);
     };
 
@@ -163,7 +202,8 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         try {
             await tutorService.updateGroup(selectedGroup.id, {
                 name: editGroupName,
-                courseId: editCourseId,
+                assigned_content: editAssignedContent,
+                assigned_course_ids: editAssignedCourseIds,
                 description: editGroupDescription,
                 status: editGroupStatus
             });
@@ -182,6 +222,12 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         setActiveEditTab('students');
         setSelectedStudentIds([]);
         setShowAddMemberModal(true);
+        if (group.invite_token) {
+            const baseUrl = window.location.origin;
+            setInviteLink(`${baseUrl}/join-group/${group.invite_token}`);
+        } else {
+            setInviteLink('');
+        }
         fetchGroupMembers(group.id);
     };
 
@@ -196,16 +242,11 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         }
     };
 
-    const filteredStudents = students.filter(s => {
+    const filteredStudents = availableStudents.filter(s => {
         const matchesSearch = s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             s.email?.toLowerCase().includes(searchQuery.toLowerCase());
 
-        // Only show students enrolled in the same course as the group
-        const groupCourseId = selectedGroup?.course_id;
-        const studentCourseId = s.enrolled_course_id;
-        const isSameCourse = String(groupCourseId) === String(studentCourseId);
-
-        return matchesSearch && isSameCourse;
+        return matchesSearch;
     });
 
     // Show analytics view if selected
@@ -283,7 +324,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                 </div>
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{group.name}</h3>
                                 <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-3">
-                                    Course: {group.course?.name || 'Assigned Course'}
+                                    Content: {(group.assigned_course_ids?.length || 0)} areas assigned
                                 </p>
                                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 line-clamp-2">
                                     {group.description || 'No description provided.'}
@@ -363,18 +404,15 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Associate Course</label>
-                                    <select
-                                        required
-                                        value={selectedCourseId}
-                                        onChange={(e) => setSelectedCourseId(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">Select a course</option>
-                                        {courses.map(course => (
-                                            <option key={course.id} value={course.id}>{course.name}</option>
-                                        ))}
-                                    </select>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Content</label>
+                                    <HierarchicalContentSelector 
+                                        courses={courses}
+                                        initialContent={assignedContent}
+                                        onChange={({ assigned_content, assigned_course_ids }) => {
+                                            setAssignedContent(assigned_content);
+                                            setAssignedCourseIds(assigned_course_ids);
+                                        }}
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description (Optional)</label>
@@ -463,18 +501,15 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Course</label>
-                                            <select
-                                                required
-                                                value={editCourseId}
-                                                onChange={(e) => setEditCourseId(e.target.value)}
-                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
-                                            >
-                                                <option value="">Select a course</option>
-                                                {courses.map(course => (
-                                                    <option key={course.id} value={course.id}>{course.name}</option>
-                                                ))}
-                                            </select>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Content</label>
+                                            <HierarchicalContentSelector 
+                                                courses={courses}
+                                                initialContent={editAssignedContent}
+                                                onChange={({ assigned_content, assigned_course_ids }) => {
+                                                    setEditAssignedContent(assigned_content);
+                                                    setEditAssignedCourseIds(assigned_course_ids);
+                                                }}
+                                            />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description</label>
@@ -495,9 +530,27 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                         </div>
                                     </form>
                                 ) : (
-                                    <div>
+                                    <div className="flex flex-col h-[calc(100vh-250px)]">
+                                        <div className="mb-6 p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                                            <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-2">Group Invitation</h4>
+                                            {inviteLink ? (
+                                                <div className="space-y-3">
+                                                    <p className="text-sm text-gray-500">Students can use this link to join this group automatically.</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <input type="text" readOnly value={inviteLink} className="flex-1 px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg outline-none" />
+                                                        <button onClick={handleCopyInviteLink} className="px-3 py-2 bg-blue-100 text-blue-600 rounded-lg font-bold text-sm hover:bg-blue-200">Copy</button>
+                                                        <button onClick={handleGenerateInviteLink} className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-300">Regenerate</button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-sm text-gray-500">Generate an invitation link for students to join.</p>
+                                                    <button onClick={handleGenerateInviteLink} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700">Generate Invite Link</button>
+                                                </div>
+                                            )}
+                                        </div>
                                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Available Students</h4>
-                                    <div className="relative mb-4">
+                                    <div className="relative mb-4 shrink-0">
                                         <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                         <input
                                             type="text"
@@ -507,7 +560,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                             className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl"
                                         />
                                     </div>
-                                    <div className="grid gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                    <div className="grid gap-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
                                         {loadingMembers ? (
                                             <div className="text-center py-8 text-blue-600 font-bold">Loading members...</div>
                                         ) : (
@@ -593,33 +646,48 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                             </div>
 
                             {activeEditTab === 'students' && (
-                                <div className="pt-6 border-t border-gray-100 dark:border-gray-700 mt-6 bg-white dark:bg-gray-800">
+                                <div className="pt-6 border-t border-gray-100 dark:border-gray-700 mt-6 bg-white dark:bg-gray-800 shrink-0">
                                     <div className="flex justify-between items-center mb-4">
                                         <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
                                             {selectedStudentIds.length} students selected
                                         </p>
-                                        {selectedStudentIds.length > 0 && (
+                                        <div className="flex items-center gap-4">
                                             <button
-                                                onClick={() => setSelectedStudentIds([])}
-                                                className="text-xs font-bold text-red-600 hover:underline"
+                                                onClick={() => {
+                                                    const available = filteredStudents.filter(s => !currentMembers.some(m => m.student_id === s.id));
+                                                    if (selectedStudentIds.length === available.length && available.length > 0) {
+                                                        setSelectedStudentIds([]); // Deselect all
+                                                    } else {
+                                                        setSelectedStudentIds(available.map(s => s.id)); // Select all
+                                                    }
+                                                }}
+                                                className="text-xs font-bold text-blue-600 hover:underline"
                                             >
-                                                Clear All
+                                                {selectedStudentIds.length > 0 && selectedStudentIds.length === filteredStudents.filter(s => !currentMembers.some(m => m.student_id === s.id)).length ? 'Deselect All' : 'Select All'}
                                             </button>
-                                        )}
+                                            {selectedStudentIds.length > 0 && (
+                                                <button
+                                                    onClick={() => setSelectedStudentIds([])}
+                                                    className="text-xs font-bold text-red-600 hover:underline"
+                                                >
+                                                    Clear All
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex gap-3">
                                         <button
                                             onClick={() => setShowAddMemberModal(false)}
-                                            className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl"
+                                            className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             onClick={handleAddMembers}
-                                            disabled={selectedStudentIds.length === 0}
-                                            className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none"
+                                            disabled={selectedStudentIds.length === 0 || loadingMembers}
+                                            className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none hover:bg-blue-700 transition-all"
                                         >
-                                            Add to Group
+                                            {loadingMembers ? 'Adding...' : 'Add to Group'}
                                         </button>
                                     </div>
                                 </div>

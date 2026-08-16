@@ -11,6 +11,7 @@ import { calculateStudentScore, calculateSessionScore, getCategory, calculateSat
 import CircularProgress from '../common/CircularProgress';
 import DashboardNotifications from '../common/DashboardNotifications';
 import WeeklyReport from '../common/WeeklyReport';
+import UniversalLeaderboard from '../common/UniversalLeaderboard';
 
 const { FiUsers, FiLogOut, FiHome, FiChevronRight, FiFileText, FiBarChart2, FiPieChart, FiActivity, FiArrowLeft, FiCheckCircle, FiXCircle, FiMinusCircle, FiBook, FiCheckSquare, FiPlay } = FiIcons;
 
@@ -487,6 +488,16 @@ const ChildCoursesReport = () => {
                             })}
                         </div>
                     )}
+                </div>
+
+                {/* Leaderboard Section for Child */}
+                <div className="mt-12">
+                    <UniversalLeaderboard 
+                        role="parent" 
+                        targetStudentId={studentId} 
+                        title={`${childName}'s Leaderboard Rank`}
+                        subtitle={`Compare ${childName}'s performance with peer rankings across SAT, AP, and Full-Length Tests.`}
+                    />
                 </div>
             </div>
         </div>

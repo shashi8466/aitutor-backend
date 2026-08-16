@@ -7,6 +7,8 @@ import MathRenderer from '../../common/MathRenderer';
 import AITutorModal from './AITutorModal';
 import PracticeAITutorModal from './PracticeAITutorModal';
 import PracticeQuizUI from './PracticeQuizUI';
+import PdfExportWrapper from '../analytics/PdfExportWrapper';
+import CombinedRegularCourseReport from '../common/CombinedRegularCourseReport';
 import { questionService, progressService, enrollmentService, gradingService, planService, courseService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,7 +16,8 @@ import { useAuth } from '../../contexts/AuthContext';
 const {
   FiArrowLeft, FiArrowRight, FiCheck, FiX, FiMessageCircle, FiClock, FiTarget,
   FiSkipForward, FiInfo, FiImage, FiAward, FiRefreshCw, FiShield,
-  FiTrendingUp, FiChevronLeft, FiChevronRight, FiGrid, FiZap
+  FiTrendingUp, FiChevronLeft, FiChevronRight, FiGrid, FiZap,
+  FiBarChart2, FiCheckCircle, FiXCircle, FiFileText, FiDownload
 } = FiIcons;
 
 // Helper to get clean question text (removes duplicate images already in the image column)
@@ -71,6 +74,25 @@ const QuizInterface = () => {
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
   const [planSettings, setPlanSettings] = useState(null);
+  const [viewingCombinedReport, setViewingCombinedReport] = useState(false);
+  const [combinedReportData, setCombinedReportData] = useState(null);
+  const [loadingCombinedReport, setLoadingCombinedReport] = useState(false);
+
+  const handleOpenCombinedReport = async () => {
+    try {
+      setLoadingCombinedReport(true);
+      const res = await gradingService.getTopicReport(courseId);
+      if (res && res.data) {
+        setCombinedReportData(res.data);
+      }
+      setViewingCombinedReport(true);
+    } catch (err) {
+      console.error("Failed to load topic report data:", err);
+      setViewingCombinedReport(true);
+    } finally {
+      setLoadingCombinedReport(false);
+    }
+  };
 
   // Adaptive State
   const [isAdaptive, setIsAdaptive] = useState(false);
@@ -139,7 +161,42 @@ const QuizInterface = () => {
 
   const checkAccessAndLoad = async () => {
     try {
-      const isEnrolled = await enrollmentService.isEnrolled(user.id, parseInt(courseId));
+      const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
+      const isEnrolledRes = await enrollmentService.isEnrolled(user.id, parseInt(courseId)).catch(() => false);
+      
+      let isEnrolled = isEnrolledRes || isTutorUser;
+      
+      if (!isEnrolled) {
+        try {
+          const planAccessRes = await planService.getContentAccess(user?.plan_type || 'free');
+          const accessData = planAccessRes.data || [];
+          const userPlan = (user?.plan_type || 'free').toLowerCase();
+          
+          let hasTopicAccess = false;
+          if (userPlan !== 'premium') {
+            const assignedTopics = accessData
+              .filter(a => a.content_type === 'topic' && a.plan_type === 'free')
+              .map(a => a.content_id);
+            if (assignedTopics.length > 0) {
+              const { data: topicMaps } = await supabase
+                .from('questions')
+                .select('course_id')
+                .in('topic', assignedTopics)
+                .eq('course_id', parseInt(courseId));
+              if (topicMaps && topicMaps.length > 0) {
+                hasTopicAccess = true;
+              }
+            }
+          }
+          
+          const hasDirectAccess = accessData.some(a => a.content_type === 'course' && String(a.content_id) === String(courseId) && a.plan_type === userPlan);
+          
+          isEnrolled = hasDirectAccess || hasTopicAccess || userPlan === 'premium';
+        } catch (e) {
+          console.warn("Plan access check failed in quiz", e);
+        }
+      }
+
       if (!isEnrolled) {
         setAccessDenied(true);
         setLoading(false);
@@ -731,15 +788,146 @@ const QuizInterface = () => {
       }
     }
 
+    const isSATRegular = isSAT && !isAdaptive && !isSequential && !isACTFullLengthCourse(courseInfo);
+
+    if (isSATRegular) {
+        if (viewingCombinedReport) {
+            return (
+                <CombinedRegularCourseReport 
+                    topicReportData={combinedReportData}
+                    studentName={user?.name || user?.user_metadata?.name || 'Student'}
+                    onExit={() => setViewingCombinedReport(false)}
+                />
+            );
+        }
+
+        const correctCount = questions.filter((q, idx) => isCorrectAnswer(idx)).length;
+        const answeredCount = questions.filter((q, idx) => userAnswers[idx]).length;
+        const incorrectCount = answeredCount - correctCount;
+        const timeSpent = Math.floor((Date.now() - quizStartTime) / 1000);
+        const currentLevelName = level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Easy';
+        const displayScore = res?.scaledScore || scaledScore || percentage;
+
+        return (
+            <div className="min-h-screen bg-slate-100/70 dark:bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 transition-colors">
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[32px] shadow-xl max-w-[620px] w-full text-center border border-slate-100 dark:border-slate-800 relative overflow-hidden">
+                    
+                    {/* Celebration / Medal Icon Badge */}
+                    <div className="mb-4 relative">
+                        <div className="w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-center mx-auto shadow-xs text-emerald-600 dark:text-emerald-400">
+                            <SafeIcon icon={FiAward} className="w-10 h-10 text-emerald-500" />
+                        </div>
+                    </div>
+
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-1.5">Great Job!</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8 text-xs sm:text-sm font-medium">Test session completed successfully</p>
+
+                    {/* Overall, Correct, Incorrect, Time Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-7">
+                        <div className="bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2 shadow-xs">
+                                <SafeIcon icon={FiBarChart2} className="w-4 h-4" />
+                            </div>
+                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-wider mb-1">OVERALL</p>
+                            <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400">{displayScore}</p>
+                            <p className="text-[10px] font-bold text-blue-600/80 dark:text-blue-400/80 uppercase tracking-tight mt-0.5">{percentage}% ACCURACY</p>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2 shadow-xs">
+                                <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
+                            </div>
+                            <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase tracking-wider mb-1">CORRECT</p>
+                            <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{correctCount}</p>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-500 dark:text-rose-400 flex items-center justify-center mb-2 shadow-xs">
+                                <SafeIcon icon={FiXCircle} className="w-4 h-4" />
+                            </div>
+                            <p className="text-[10px] text-rose-500 dark:text-rose-400 font-extrabold uppercase tracking-wider mb-1">INCORRECT</p>
+                            <p className="text-2xl sm:text-3xl font-extrabold text-rose-500 dark:text-rose-400">{incorrectCount}</p>
+                        </div>
+
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl text-center flex flex-col items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2 shadow-xs">
+                                <SafeIcon icon={FiClock} className="w-4 h-4" />
+                            </div>
+                            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-extrabold uppercase tracking-wider mb-1">TIME</p>
+                            <p className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-slate-100">{formatTime(timeSpent)}</p>
+                        </div>
+                    </div>
+
+                    {/* Scoring Insights Card */}
+                    <div className="mb-7 p-4 sm:p-5 bg-blue-50/50 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/40 text-left flex gap-3.5 items-start">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                            <SafeIcon icon={FiInfo} className="w-4.5 h-4.5" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-extrabold text-blue-700 dark:text-blue-300 mb-0.5">Scoring Insights</h4>
+                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
+                                Your score is calculated based on the {currentLevelName.toLowerCase()} difficulty. In the SAT, higher level modules unlock higher score ceilings.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex flex-col gap-3.5">
+                        {/* Primary Button: Return to Course */}
+                        <Link 
+                            to={`/student/course/${courseId}`} 
+                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 transition-all"
+                        >
+                            <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
+                        </Link>
+
+                        {/* Secondary Action Buttons Row */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button
+                                onClick={handleOpenCombinedReport}
+                                disabled={loadingCombinedReport}
+                                className="py-4 px-4 bg-blue-50/70 hover:bg-blue-100/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-slate-700 rounded-2xl font-bold transition-all text-xs flex items-center gap-3 shadow-xs text-left group"
+                            >
+                                <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                    <SafeIcon icon={FiFileText} className="w-4.5 h-4.5" />
+                                </div>
+                                <div>
+                                    <span className="font-extrabold text-xs text-blue-700 dark:text-blue-300 block">{loadingCombinedReport ? 'Loading...' : 'View Detailed Report'}</span>
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal block mt-0.5">See full analysis of your performance</span>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={handleOpenCombinedReport}
+                                disabled={loadingCombinedReport}
+                                className="py-4 px-4 bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-slate-700 rounded-2xl font-bold transition-all text-xs flex items-center gap-3 shadow-xs text-left group"
+                            >
+                                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                                    <SafeIcon icon={FiDownload} className="w-4.5 h-4.5" />
+                                </div>
+                                <div>
+                                    <span className="font-extrabold text-xs text-emerald-700 dark:text-emerald-300 block">Download PDF Report</span>
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal block mt-0.5">Save your results as PDF</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    }
+
     return (
-      <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-950 flex flex-col items-center justify-center p-4 transition-colors">
-        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-xl max-w-2xl w-full text-center border border-gray-100 dark:border-gray-800">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg ${isPassed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
-            <SafeIcon icon={isPassed ? FiAward : FiX} className={`w-10 h-10 ${isPassed ? 'text-green-600' : 'text-[#E53935]'}`} />
+      <div className="min-h-screen bg-slate-100/70 dark:bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 transition-colors">
+        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white dark:bg-slate-900 p-8 sm:p-10 rounded-[32px] shadow-xl max-w-[620px] w-full text-center border border-slate-100 dark:border-slate-800 relative overflow-hidden">
+          <div className="mb-4 relative">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-xs border ${isPassed ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60 text-rose-500'}`}>
+              <SafeIcon icon={isPassed ? FiAward : FiXCircle} className="w-10 h-10" />
+            </div>
           </div>
 
-          <h2 className="text-3xl font-extrabold text-black dark:text-white mb-2">{isPassed ? "Great Job!" : "Keep Practicing"}</h2>
-          <p className="text-gray-500 mb-6 font-medium">Test session completed successfully</p>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-1.5">{isPassed ? "Great Job!" : "Keep Practicing"}</h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-8 text-xs sm:text-sm font-medium">Test session completed successfully</p>
 
           {/* Section Scores Grid */}
           {(() => {
@@ -808,97 +996,181 @@ const QuizInterface = () => {
               );
             }
 
+            const correctCount = questions.filter((q, idx) => isCorrectAnswer(idx)).length;
+            const answeredCount = questions.filter((q, idx) => userAnswers[idx]).length;
+            const incorrectCount = answeredCount - correctCount;
+            const timeSpent = Math.floor((Date.now() - quizStartTime) / 1000);
+
             return (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 transition-all hover:shadow-md">
-                  <p className="text-[10px] text-blue-800 dark:text-blue-400 font-black uppercase tracking-widest mb-1">Overall</p>
-                  <p className="text-2xl sm:text-3xl font-black text-blue-900 dark:text-blue-200">{res?.totalScore || res?.scaledScore || scaledScore}</p>
-                  <p className="text-[10px] font-bold text-blue-700/60 uppercase tracking-tighter">{percentage}% Accuracy</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-7">
+                <div className="bg-blue-50/60 dark:bg-blue-950/30 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/40 text-center flex flex-col items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2 shadow-xs">
+                    <SafeIcon icon={FiBarChart2} className="w-4 h-4" />
+                  </div>
+                  <p className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-wider mb-1">OVERALL</p>
+                  <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400">{res?.totalScore || res?.scaledScore || scaledScore}</p>
+                  <p className="text-[10px] font-bold text-blue-600/80 dark:text-blue-400/80 uppercase tracking-tight mt-0.5">{percentage}% ACCURACY</p>
                 </div>
                 
                 {isAdaptive ? (
                     <>
-                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">R&W Section</p>
-                            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.rwScore || 0}</p>
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider mb-1">R&W Section</p>
+                            <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">{res?.rwScore || 0}</p>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">Math Section</p>
-                            <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">{res?.mathScore || 0}</p>
+                        <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider mb-1">Math Section</p>
+                            <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">{res?.mathScore || 0}</p>
                         </div>
                     </>
-                ) : (
+                ) : processedSectionScores.length > 0 ? (
                   processedSectionScores.map((data) => (
-                    <div key={data.name} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-100 transition-all hover:shadow-md">
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase tracking-widest mb-1">{data.name}</p>
-                      <p className="text-3xl font-black text-gray-900 dark:text-white">{data.scaled_score || 0}</p>
-                      <p className="text-xs font-bold text-gray-400">{data.correct}/{data.total} Correct</p>
+                    <div key={data.name} className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider mb-1">{data.name}</p>
+                      <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{data.scaled_score || 0}</p>
+                      <p className="text-xs font-bold text-slate-400">{data.correct}/{data.total} Correct</p>
                     </div>
                   ))
+                ) : (
+                  <>
+                    <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2 shadow-xs">
+                        <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
+                      </div>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold uppercase tracking-wider mb-1">CORRECT</p>
+                      <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">{correctCount}</p>
+                    </div>
+                    <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-500 dark:text-rose-400 flex items-center justify-center mb-2 shadow-xs">
+                        <SafeIcon icon={FiXCircle} className="w-4 h-4" />
+                      </div>
+                      <p className="text-[10px] text-rose-500 dark:text-rose-400 font-extrabold uppercase tracking-wider mb-1">INCORRECT</p>
+                      <p className="text-2xl sm:text-3xl font-extrabold text-rose-500 dark:text-rose-400">{incorrectCount}</p>
+                    </div>
+                    <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-2 shadow-xs">
+                        <SafeIcon icon={FiClock} className="w-4 h-4" />
+                      </div>
+                      <p className="text-[10px] text-purple-600 dark:text-purple-400 font-extrabold uppercase tracking-wider mb-1">TIME</p>
+                      <p className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-slate-100">{formatTime(timeSpent)}</p>
+                    </div>
+                  </>
                 )}
               </div>
             );
           })()}
 
           {/* Scoring Info Card */}
-          <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 text-left">
-            <h4 className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white mb-2">
-              <SafeIcon icon={FiInfo} className="w-4 h-4 text-blue-500" /> Scoring Insights
-            </h4>
-            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-              {isACTFullLengthCourse(courseInfo) ? (
-                "Your ACT Full-Length Practice Test results are recorded. Review your performance in each section to identify areas for improvement."
-              ) : isSequential ? (
-                `Your progress has been recorded for ${unitId}. Complete all unit quizzes with at least 5% accuracy to master the course!`
-              ) : isAdaptive ? (
-                `Your score of ${res?.totalScore} reflects the FULL LENGTH TEST model. Students on the Easy path are capped at 1400 total, while the Hard path allows scores up to 1600.`
-              ) : (
-                `Your score is calculated based on the ${level} difficulty. In the SAT, higher level modules unlock higher score ceilings.`
-              )}
-            </p>
+          <div className="mb-7 p-4 sm:p-5 bg-blue-50/50 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/40 text-left flex gap-3.5 items-start">
+            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+              <SafeIcon icon={FiInfo} className="w-4.5 h-4.5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-extrabold text-blue-700 dark:text-blue-300 mb-0.5">Scoring Insights</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
+                {isACTFullLengthCourse(courseInfo) ? (
+                  "Your ACT Full-Length Practice Test results are recorded. Review your performance in each section to identify areas for improvement."
+                ) : isSequential ? (
+                  `Your progress has been recorded for ${unitId}. Complete all unit quizzes with at least 5% accuracy to master the course!`
+                ) : isAdaptive ? (
+                  `Your score of ${res?.totalScore} reflects the FULL LENGTH TEST model. Students on the Easy path are capped at 1400 total, while the Hard path allows scores up to 1600.`
+                ) : (
+                  `Your score is calculated based on the ${level} difficulty. In the SAT, higher level modules unlock higher score ceilings.`
+                )}
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3.5">
             {(() => {
               const currentLevelName = level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Easy';
               if (isPassed) {
                 if (currentLevelName === 'Easy') {
                   return (
                     <>
-                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/medium/quiz${window.location.search}` : `/student/course/${courseId}/level/medium`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
-                        <SafeIcon icon={FiArrowRight} className="w-5 h-5" /> Continue to Medium Level
+                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/medium/quiz${window.location.search}` : `/student/course/${courseId}/level/medium`} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm">
+                        <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Continue to Medium Level
                       </Link>
-                      <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-slate-500 text-white rounded-xl font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-100">
-                        <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
+                      <Link to={`/student/course/${courseId}`} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                        <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
                       </Link>
                     </>
                   );
                 } else if (currentLevelName === 'Medium') {
                   return (
                     <>
-                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/hard/quiz${window.location.search}` : `/student/course/${courseId}/level/hard`} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100">
-                        <SafeIcon icon={FiArrowRight} className="w-5 h-5" /> Continue to Hard Level
+                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/hard/quiz${window.location.search}` : `/student/course/${courseId}/level/hard`} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm">
+                        <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Continue to Hard Level
                       </Link>
-                      <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-slate-500 text-white rounded-xl font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-slate-100">
-                        <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
+                      <Link to={`/student/course/${courseId}`} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                        <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
                       </Link>
                     </>
                   );
                 } else {
                   return (
-                    <Link to={`/student/course/${courseId}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
-                      <SafeIcon icon={FiArrowLeft} className="w-5 h-5" /> Return to Course
+                    <Link to={`/student/course/${courseId}`} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                      <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
                     </Link>
                   );
                 }
-              } else {
-                return (
-                  <Link to={isACTFullLengthCourse(courseInfo) ? `/student/course/${courseId}` : `/student/course/${courseId}/level/${currentLevelName.toLowerCase()}`} className="w-full py-3 bg-[#E53935] text-white rounded-xl font-bold hover:bg-[#d32f2f] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100">
-                    <SafeIcon icon={FiRefreshCw} className="w-5 h-5" /> Retry {isACTFullLengthCourse(courseInfo) ? 'Practice Quiz' : `${currentLevelName} Level`}
-                  </Link>
-                );
               }
             })()}
+            
+            {/* New Action Buttons */}
+            {res?.submissionId && (!level || level.toLowerCase() === 'hard') && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Link 
+                  to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/topic-report/${courseId}` : `/student/detailed-review/${res.submissionId}`} 
+                  className="py-4 px-4 bg-blue-50/70 hover:bg-blue-100/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-slate-700 rounded-2xl font-bold transition-all text-xs flex items-center gap-3 shadow-xs text-left group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <SafeIcon icon={FiFileText} className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <span className="font-extrabold text-xs text-blue-700 dark:text-blue-300 block">View Detailed Report</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal block mt-0.5">See full analysis of your performance</span>
+                  </div>
+                </Link>
+                <div className="w-full">
+                  <PdfExportWrapper
+                    type="Attempt"
+                    data={{
+                      attempt: {
+                        courseName: courseInfo?.name || 'Quiz',
+                        score: Math.round(res?.percentage || 0),
+                        correct: Math.round((res?.percentage || 0) / 100 * questions.length),
+                        incorrect: questions.length - Math.round((res?.percentage || 0) / 100 * questions.length),
+                        totalQuestions: questions.length,
+                        date: new Date().toISOString(),
+                        timeSpent: Math.floor((Date.now() - quizStartTime) / 1000)
+                      },
+                      questions: questions.map((q, idx) => ({
+                        questionId: q.id,
+                        displayIndex: idx + 1,
+                        questionText: q.question_text,
+                        difficulty: q.difficulty || 'Medium',
+                        isCorrect: isCorrectAnswer(idx),
+                        studentAnswer: userAnswers[idx],
+                        correctAnswer: q.correct_answer,
+                        explanation: q.explanation
+                      }))
+                    }}
+                    studentName={user?.name || user?.user_metadata?.name || 'Student'}
+                    filename={`Test_Report_${new Date().getTime()}`}
+                    className="w-full py-4 px-4 bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-slate-700 rounded-2xl font-bold transition-all text-xs flex items-center gap-3 shadow-xs text-left group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <SafeIcon icon={FiDownload} className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-xs text-emerald-700 dark:text-emerald-300 block">Download PDF Report</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal block mt-0.5">Save your results as PDF</span>
+                    </div>
+                  </PdfExportWrapper>
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>
@@ -990,6 +1262,7 @@ const QuizInterface = () => {
               question={currentQuestion}
               userAnswer={userAnswers[currentQuestionIndex]}
               correctAnswer={currentQuestion.correct_answer || currentQuestion.correctAnswer}
+              courseTopic={courseInfo?.name}
             />
           )}
           {showQuestionGrid && (
@@ -1412,10 +1685,84 @@ const QuizInterface = () => {
           </React.Fragment>
         )}
       </AnimatePresence>
-      {showAITutor && <AITutorModal question={currentQuestion} userAnswer={selectedAnswer} correctAnswer={currentQuestion.correct_answer} onClose={() => setShowAITutor(false)} />}
+      {showAITutor && <AITutorModal question={currentQuestion} userAnswer={selectedAnswer} correctAnswer={currentQuestion.correct_answer} onClose={() => setShowAITutor(false)} courseTopic={courseInfo?.name} />}
     </div>
     </div>
   );
+};
+
+const CombinedSATRegularPdfButton = ({ courseId, studentName }) => {
+    const [syntheticSubmission, setSyntheticSubmission] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        gradingService.getTopicReport(courseId).then(response => {
+            const data = response.data;
+            if (!data || !data.overall) return;
+            const combinedResponses = [];
+            ['Easy', 'Medium', 'Hard'].forEach(levelName => {
+                const levelData = data.levels[levelName];
+                const responses = levelData?.latest?.responses || levelData?.responses || [];
+                responses.forEach(r => {
+                    combinedResponses.push({
+                        ...r,
+                        section: levelName,
+                        difficulty: r.difficulty || r.question?.difficulty || levelName
+                    });
+                });
+            });
+            setSyntheticSubmission({
+                courseName: data.topicName || 'SAT Regular Course',
+                scaled_score: data.overall.accuracy,
+                created_at: data.date || new Date().toISOString(),
+                test_duration_seconds: data.overall.totalTime,
+                responses: combinedResponses
+            });
+        }).catch(err => {
+            console.error('Error fetching combined report for PDF:', err);
+        }).finally(() => setLoading(false));
+    }, [courseId]);
+
+    if (loading) {
+        return (
+            <button disabled className="flex-1 py-3 bg-slate-800 text-slate-400 rounded-xl font-bold border border-slate-600 flex items-center justify-center gap-2 text-sm opacity-50">
+                <SafeIcon icon={FiRefreshCw} className="w-4 h-4 animate-spin" /> Preparing PDF...
+            </button>
+        );
+    }
+
+    if (!syntheticSubmission) return null;
+
+    return (
+        <PdfExportWrapper
+            type="Attempt"
+            data={{ 
+              attempt: {
+                courseName: syntheticSubmission.courseName,
+                score: syntheticSubmission.scaled_score,
+                correct: syntheticSubmission.responses.filter(r => r.is_correct || r.score === 1 || r.isCorrect).length,
+                incorrect: syntheticSubmission.responses.filter(r => (!r.is_correct && r.score !== 1 && !r.isCorrect)).length,
+                totalQuestions: syntheticSubmission.responses.length,
+                date: syntheticSubmission.created_at,
+                timeSpent: syntheticSubmission.test_duration_seconds
+              },
+              questions: syntheticSubmission.responses.map((r, idx) => ({
+                questionId: r.question_id || r.question?.id || idx,
+                displayIndex: idx + 1,
+                questionText: r.question?.question_text || '',
+                difficulty: r.difficulty || r.question?.difficulty || 'Medium',
+                isCorrect: r.is_correct || r.score === 1 || r.isCorrect,
+                studentAnswer: r.student_answer || r.studentAnswer,
+                correctAnswer: r.question?.correct_answer || r.correctAnswer,
+                explanation: r.question?.explanation
+              }))
+            }}
+            studentName={studentName}
+            filename={`Combined_SAT_Regular_Report_${new Date().getTime()}`}
+            buttonText="Download PDF Report"
+            className="flex-1 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-700 transition-all border border-slate-600 flex items-center justify-center gap-2 text-sm"
+        />
+    );
 };
 
 export default QuizInterface;

@@ -206,6 +206,25 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
   border-bottom-width: 1px !important;
 }
 
+/* Rich Text Formatting Rules */
+u {
+  text-decoration: underline !important;
+  text-decoration-thickness: 2px !important;
+  text-underline-offset: 3px !important;
+}
+
+mark {
+  background-color: #fef08a !important;
+  color: #1e293b !important;
+  padding: 0.1em 0.3em !important;
+  border-radius: 0.25rem !important;
+}
+
+.dark mark {
+  background-color: #854d0e !important;
+  color: #fef08a !important;
+}
+
 @media (max-width: 767px) {
   body {
     -webkit-text-size-adjust: 100%;
@@ -333,3 +352,49 @@ mjx-lin, .mjx-frac-line, .katex .frac-line {
 .math-content > .docx-image-wrapper:only-child {
   margin: 0 !important;
 }
+
+/* Clean Standalone A4 PDF Print Styles */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all app chrome, sidebars, mobile headers, layout navbars, chat widgets, and top bars */
+  header, nav, aside, footer, .no-print, [class*="sidebar"], [class*="navbar"], [class*="Header"], [class*="SalesBot"], button.no-print {
+    display: none !important;
+  }
+
+  /* Ensure the report container spans 100% full width from top-left */
+  #report-container {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  .print-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+  }
+}
+

@@ -186,7 +186,7 @@ const AIQuestionCard = ({ data, onComplete }) => {
   );
 };
 
-const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fallbackQuestions = [] }) => {
+const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fallbackQuestions = [], courseTopic }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [featureEnabled, setFeatureEnabled] = useState(true);
@@ -265,8 +265,8 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
         const questionPayload = {
           question: question.question,
           level: question.level || "Medium",
-          concept: question.concept || question.topic || "",
-          topic: question.topic || question.concept || "",
+          concept: question.concept || question.topic || courseTopic || "",
+          topic: question.topic || question.concept || courseTopic || "",
           // Pass original answer choices & correct answer so AI can infer the triangle's actual values
           options: question.options || [],
           correctAnswer: question.correctAnswer || "",
@@ -288,6 +288,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
         
         let newQuestion = null;
         let isFallback = false;
+        let kbError = null;
         try {
           const response = await aiService.generateSimilarQuestion(
             questionPayload,
@@ -296,14 +297,15 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
           );
           newQuestion = response.data;
         } catch (e) {
+          kbError = e;
           console.warn("[AI Tutor] KB fallback error:", e);
         }
-        
+
         if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
           if (fallbackQuestions && fallbackQuestions.length > 0) {
             console.log('🎯 [AI Tutor] Using fallback question from unattempted test set');
             // Filter out any fallback questions that we've already shown in this chat
-            const availableFallbacks = fallbackQuestions.filter(fq => 
+            const availableFallbacks = fallbackQuestions.filter(fq =>
               !previousQuestions.includes(fq.question || fq.text)
             );
             if (availableFallbacks.length > 0) {
@@ -315,7 +317,8 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
         }
 
         if (!newQuestion || (!newQuestion.question && !newQuestion.text)) {
-          throw new Error("Failed to fetch a practice question from the Knowledge Base and no test-set fallback questions are available.");
+          // Surface the real backend/network error instead of a generic message when one exists.
+          throw kbError || new Error("Failed to fetch a practice question from the Knowledge Base and no test-set fallback questions are available.");
         }
 
         const mappedQuestion = {
@@ -413,7 +416,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
 
       if (isQuestionRequest) {
         // Use AI generation with KB reference for question requests
-        const topic = question?.topic || question?.concept || "this topic";
+        const topic = question?.topic || question?.concept || courseTopic || "this topic";
         console.log(`🎯 [AI Tutor] Manual question request for topic: "${topic}"`);
         
         let newQuestion = null;

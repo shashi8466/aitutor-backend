@@ -352,14 +352,15 @@ const CourseView = () => {
       const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
 
       // 1. Fetch course details and check enrollment in parallel
-      const [courseRes, isEnrolledRes] = await Promise.all([
+      const [courseRes, isEnrolledRes, planAccessRes] = await Promise.all([
         courseService.getById(courseId),
         isTutorUser
           ? Promise.resolve(true)
           : enrollmentService.isEnrolled(user.id, parseInt(courseId)).catch(err => {
               console.warn('Enrollment check failed:', err);
               return false;
-            })
+            }),
+        planService.getContentAccess(user?.plan_type || 'free').catch(() => ({ data: [] }))
       ]);
 
       const courseData = courseRes.data;
@@ -376,7 +377,36 @@ const CourseView = () => {
         return;
       }
 
-      let isEnrolled = isEnrolledRes;
+      const accessData = planAccessRes.data || [];
+      setPlanAccess(accessData);
+
+      const userPlan = (user?.plan_type || 'free').toLowerCase();
+      let hasTopicAccess = false;
+      
+      if (userPlan !== 'premium') {
+        const assignedTopics = accessData
+          .filter(a => a.content_type === 'topic' && a.plan_type === 'free')
+          .map(a => a.content_id);
+
+        if (assignedTopics.length > 0) {
+          try {
+            const { data: topicMaps } = await supabase
+              .from('questions')
+              .select('course_id')
+              .in('topic', assignedTopics)
+              .eq('course_id', parseInt(courseId)); // Optimize by just checking this course
+            
+            if (topicMaps && topicMaps.length > 0) {
+              hasTopicAccess = true;
+            }
+          } catch (e) { console.warn("Topic check failed"); }
+        }
+      }
+
+      const hasDirectAccess = accessData.some(a => a.content_type === 'course' && String(a.content_id) === String(courseId) && a.plan_type === userPlan);
+      const isPremiumUser = userPlan === 'premium';
+
+      let isEnrolled = isEnrolledRes || hasDirectAccess || hasTopicAccess || isPremiumUser;
 
       if (!isEnrolled && courseData?.is_demo) isEnrolled = true;
 
@@ -440,16 +470,12 @@ const CourseView = () => {
       }
 
       // 4. Load course content (since access is granted)
-      const [uploadsResponse, courseProgressRes, planRes, submissionsRes, planAccessRes] = await Promise.all([
+      const [uploadsResponse, courseProgressRes, planRes, submissionsRes] = await Promise.all([
         uploadService.getAll({ courseId }),
         progressService.getUserProgress(user.id, courseId),
         planService.getPlan(user.id),
-        gradingService.getMyScores(courseId),
-        planService.getContentAccess(user?.plan_type || 'free')
+        gradingService.getMyScores(courseId)
       ]);
-
-      const accessData = planAccessRes.data || [];
-      setPlanAccess(accessData);
 
       if (courseData?.start_date) {
         const startDate = new Date(courseData.start_date);

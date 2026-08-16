@@ -1286,6 +1286,9 @@ export const gradingService = {
   },
   getWeakTopics: async () => {
     return axios.get('/api/grading/weak-topics');
+  },
+  getTopicReport: async (courseId) => {
+    return axios.get(`/api/grading/topic-report/${courseId}`);
   }
 };
 
@@ -1342,6 +1345,12 @@ export const tutorService = {
     const url = courseId ? `/api/tutor/students?courseId=${courseId}` : '/api/tutor/students';
     return cachedTutorGet(`students_${courseId}`, url);
   },
+  getAvailableStudents: async (groupId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/available-students`);
+  },
+  generateGroupInviteToken: async (groupId) => {
+    return axios.post(`/api/tutor/groups/${groupId}/invite-token`);
+  },
   // New analytics endpoints
   getGroupMembers: async (groupId) => {
     return cachedTutorGet(`groupMembers_${groupId}`, `/api/tutor/groups/${groupId}/members`);
@@ -1361,6 +1370,25 @@ export const tutorService = {
   },
   getStudentProgress: async (studentId) => {
     return cachedTutorGet(`studentProgress_${studentId}`, `/api/tutor/student-progress/${studentId}`);
+  },
+  // Advanced Analytics
+  getGroupDashboard: async (groupId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/dashboard`);
+  },
+  getStudentDashboard: async (groupId, studentId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/students/${studentId}`);
+  },
+  getCourseAnalytics: async (groupId, studentId, courseName) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/students/${studentId}/courses/${encodeURIComponent(courseName)}`);
+  },
+  getAttemptAnalytics: async (groupId, submissionId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/attempts/${submissionId}`);
+  },
+  getAttemptQuestions: async (groupId, submissionId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/attempts/${submissionId}/questions`);
+  },
+  getTopicReport: async (groupId, studentId, courseId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/students/${studentId}/topic-report/${courseId}`);
   }
 };
 
@@ -1493,6 +1521,9 @@ export const adminService = {
   getAllGroups: async () => {
     return axios.get('/api/admin/groups');
   },
+  createGroup: async (groupData) => {
+    return axios.post('/api/admin/groups', groupData);
+  },
   getTutorGroups: async (tutorId) => {
     return axios.get(`/api/admin/tutors/${tutorId}/groups`);
   },
@@ -1502,8 +1533,11 @@ export const adminService = {
   bulkAssignStudents: async (groupId, studentIds) => {
     return axios.post(`/api/admin/groups/${groupId}/assign-students`, { studentIds });
   },
-  getUnassignedStudents: async (courseId) => {
-    return axios.get(`/api/admin/unassigned-students?courseId=${courseId}`);
+  getAvailableStudents: async (groupId) => {
+    return axios.get(`/api/admin/groups/${groupId}/available-students`);
+  },
+  generateGroupInviteToken: async (groupId) => {
+    return axios.post(`/api/admin/groups/${groupId}/invite-token`);
   },
   deleteGroup: async (groupId) => {
     return axios.delete(`/api/admin/groups/${groupId}`);
@@ -1528,6 +1562,25 @@ export const adminService = {
   },
   updateUserStatus: async (userId, status) => {
     return axios.put(`/api/admin/users/${userId}/status`, { status });
+  },
+  // Advanced Analytics
+  getGroupDashboard: async (groupId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/dashboard`);
+  },
+  getStudentDashboard: async (groupId, studentId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}`);
+  },
+  getCourseAnalytics: async (groupId, studentId, courseName) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}/courses/${encodeURIComponent(courseName)}`);
+  },
+  getAttemptAnalytics: async (groupId, submissionId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/attempts/${submissionId}`);
+  },
+  getAttemptQuestions: async (groupId, submissionId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/attempts/${submissionId}/questions`);
+  },
+  getTopicReport: async (groupId, studentId, courseId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}/topic-report/${courseId}`);
   }
 };
 
@@ -1537,6 +1590,29 @@ export const leaderboardService = {
   },
   getCourseRankings: async (courseId) => {
     return await axios.get(`/api/grading/leaderboard/${courseId}`);
+  },
+  getUniversalLeaderboard: async (params = {}) => {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') searchParams.append(key, val);
+    });
+    return await axios.get(`/api/grading/universal-leaderboard?${searchParams.toString()}`);
+  },
+  // Advanced Analytics
+  getGroupDashboard: async (groupId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/dashboard`);
+  },
+  getStudentDashboard: async (groupId, studentId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}`);
+  },
+  getCourseAnalytics: async (groupId, studentId, courseName) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}/courses/${encodeURIComponent(courseName)}`);
+  },
+  getAttemptAnalytics: async (groupId, submissionId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/attempts/${submissionId}`);
+  },
+  getAttemptQuestions: async (groupId, submissionId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/attempts/${submissionId}/questions`);
   }
 };
 

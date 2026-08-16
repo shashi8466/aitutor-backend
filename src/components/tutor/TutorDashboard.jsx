@@ -36,6 +36,7 @@ const StudentAdaptivePreTest = lazy(() => import('../student/AdaptivePreTest'));
 const TestReview = lazy(() => import('../student/agents/TestReview'));
 const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
 const FullTestReport = lazy(() => import('../common/FullTestReport'));
+const UniversalLeaderboard = lazy(() => import('../common/UniversalLeaderboard'));
 
 import Skeleton from '../common/Skeleton';
 
@@ -141,6 +142,7 @@ const TutorDashboard = () => {
         { path: '/tutor/enrollment-keys', icon: FiKey, label: 'Enrollment Keys' },
         { path: '/tutor/invitations', icon: FiMail, label: 'Invitations' },
         { path: '/tutor/grades', icon: FiBarChart2, label: 'Grade Reports' },
+        { path: '/tutor/leaderboard', icon: FiAward, label: 'Leaderboard' },
         { path: '/tutor/settings', icon: FiSettings, label: 'Settings' },
     ];
 
@@ -311,6 +313,7 @@ const TutorDashboard = () => {
                             <Route path="enrollment-keys" element={<TutorEnrollmentKeys dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="invitations" element={<TutorInvitations dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="grades" element={<TutorGrades dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="leaderboard" element={<UniversalLeaderboard role="tutor" title="Tutor Leaderboard" subtitle="Track performance of students in your assigned groups" />} />
                             <Route path="student-analysis/:studentId" element={<TestReview basePath="/tutor" />} />
                             <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
                             <Route path="report/:submissionId" element={<FullTestReport adminMode={true} />} />

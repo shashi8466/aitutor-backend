@@ -93,19 +93,45 @@ const TOPIC_ALIASES = {
  * Matches user topic to KB topics following multiple strategies
  * RETURNS AN ARRAY of matched topics to allow broad alias matching (e.g. Algebra -> multiple sub-topics)
  */
+// Supabase caps unpaginated selects at 1000 rows - the `questions` table has thousands of
+// topic-bearing rows, so a single query silently sees only a fraction of real topics
+// (order-dependent, which topics go missing is effectively random). Page through all of them.
+// Cached briefly since the topic universe rarely changes but this runs on every KB lookup.
+let topicsCache = { topics: null, fetchedAt: 0 };
+const TOPICS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const getAllDistinctTopics = async () => {
+    if (topicsCache.topics && (Date.now() - topicsCache.fetchedAt) < TOPICS_CACHE_TTL_MS) {
+        return topicsCache.topics;
+    }
+
+    const uniqueTopics = new Set();
+    const pageSize = 1000;
+    let from = 0;
+    while (true) {
+        const { data, error } = await supabase
+            .from('questions')
+            .select('topic')
+            .not('topic', 'is', null)
+            .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        data.forEach(item => uniqueTopics.add(item.topic));
+        if (data.length < pageSize) break;
+        from += pageSize;
+    }
+
+    topicsCache = { topics: Array.from(uniqueTopics), fetchedAt: Date.now() };
+    return topicsCache.topics;
+};
+
 const matchTopicToKB = async (userTopic) => {
     const topicNorm = normalizeTopic(userTopic);
     console.log(`🧠 [KB Match] Normalizing "${userTopic}" -> "${topicNorm}"`);
-    
-    try {
-        const { data: allTopics, error: topicsError } = await supabase
-            .from('questions')
-            .select('topic')
-            .not('topic', 'is', null);
 
-        if (topicsError) throw topicsError;
-        const uniqueTopics = [...new Set(allTopics.map(item => item.topic))];
-        
+    try {
+        const uniqueTopics = await getAllDistinctTopics();
+
         // --- PRIORITY 1: PRECISE TOPIC MATCHES ---
         let preciseMatches = new Set();
         for (const topic of uniqueTopics) {
