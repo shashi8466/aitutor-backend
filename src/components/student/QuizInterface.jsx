@@ -1355,7 +1355,7 @@ const QuizInterface = () => {
     <div className="dark">
     <div className="min-h-screen bg-white dark:bg-gray-950 py-8 px-4 transition-colors duration-200">
       <div className="w-full max-w-7xl mx-auto relative">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-wrap justify-between items-center gap-y-2 mb-6">
           <div className="flex items-center gap-4">
             <Link to={(isSequential || isACTFullLengthCourse(courseInfo)) ? `/student/course/${courseId}` : `/student/course/${courseId}/level/${level}`} className="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white flex items-center gap-2 font-bold transition-colors">
               <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Exit
@@ -1367,7 +1367,7 @@ const QuizInterface = () => {
               <SafeIcon icon={FiGrid} className="w-4 h-4" /> Questions
             </button>
           </div>
-          <div className="flex gap-4 text-sm font-bold text-gray-600 dark:text-gray-400">
+          <div className="flex flex-wrap gap-4 text-sm font-bold text-gray-600 dark:text-gray-400">
             {isAdaptive && <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded text-[10px] uppercase tracking-widest">Module {moduleHistory.length}</span>}
             <span className="flex items-center gap-1"><SafeIcon icon={FiClock} className="text-[#E53935]" /> {formatTime(timeElapsed)}</span>
             <span className="flex items-center gap-1"><SafeIcon icon={FiTarget} className="text-[#E53935]" /> {currentQuestionIndex + 1}/{questions.length}</span>

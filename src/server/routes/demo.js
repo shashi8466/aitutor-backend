@@ -269,19 +269,29 @@ router.post('/submit-lead', async (req, res) => {
         return res.status(400).json({ success: false, error: 'Missing required fields' });
     }
 
+    // Normalize before matching/storing so a retake with different email casing/whitespace
+    // always finds the same lead record instead of spawning a duplicate row for the same
+    // student+test.
+    const normalizedEmail = String(email).toLowerCase().trim();
+
     try {
-        // 1. Check if user already exists for this course
-        console.log(`🔍 [DEMO] Step 1: Checking for existing lead... (email=${email}, course=${courseId})`);
-        const { data: existingLead, error: fetchError } = await supabaseAdmin
+        // 1. Check if a lead already exists for this student+course. Ordered desc so that if
+        // duplicate rows already exist (from before this fix), we update the most recent one
+        // instead of erroring or silently creating yet another duplicate.
+        console.log(`🔍 [DEMO] Step 1: Checking for existing lead... (email=${normalizedEmail}, course=${courseId})`);
+        const { data: existingLeads, error: fetchError } = await supabaseAdmin
             .from('demo_leads')
             .select('*')
-            .eq('email', email)
+            .eq('email', normalizedEmail)
             .eq('course_id', parseInt(courseId))
-            .maybeSingle(); // Changed from single() to maybeSingle() to avoid 406 errors
+            .order('created_at', { ascending: false });
 
         if (fetchError) {
             console.error('❌ [DEMO] Error fetching existing lead:', fetchError);
+            throw fetchError;
         }
+
+        const existingLead = (existingLeads && existingLeads[0]) || null;
 
         let leadRecord;
         const existingDetails = existingLead?.score_details || {};
@@ -311,7 +321,10 @@ router.post('/submit-lead', async (req, res) => {
             hard_score_details: allLevels.hard || {},
             levels_completed: JSON.stringify(completedLevels),
             final_email_sent: isFinal,
-            final_combined_score: isFinal ? (newScoreDetails.comprehensive?.finalPredictedScore || 0) : 0
+            final_combined_score: isFinal ? (newScoreDetails.comprehensive?.finalPredictedScore || 0) : 0,
+            // Refresh so the admin table/date filters/exports always reflect the latest
+            // attempt's activity, not the original signup date.
+            created_at: new Date().toISOString()
         };
 
         if (existingLead) {
@@ -331,7 +344,7 @@ router.post('/submit-lead', async (req, res) => {
             console.log('🔍 [DEMO] Step 2: Creating new lead record...');
             const insertData = {
                 course_id: parseInt(courseId),
-                email,
+                email: normalizedEmail,
                 ...updateData
             };
             const { error: insertError } = await supabaseAdmin

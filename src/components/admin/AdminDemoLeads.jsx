@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
@@ -7,17 +7,37 @@ import supabase from '../../supabase/supabase';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
 
-const { FiDownload, FiRefreshCw, FiAlertCircle, FiLoader, FiCheckCircle, FiXCircle, FiTrash2, FiFileText } = FiIcons;
+const { FiDownload, FiRefreshCw, FiAlertCircle, FiLoader, FiCheckCircle, FiXCircle, FiTrash2, FiFileText, FiSearch } = FiIcons;
+
+// Classifies a lead's course into a Test Type, mirroring the main_category/is_adaptive
+// convention used everywhere else in the app (StudentCourseList.jsx, the universal
+// leaderboard) rather than inventing a new one.
+const classifyLeadCourse = (lead) => {
+  const courseObj = lead.courses || {};
+  const name = (courseObj.name || '').toLowerCase();
+  const mainCategoryField = (courseObj.main_category || '').toUpperCase();
+  const isAdaptive = courseObj.is_adaptive === true;
+
+  if (mainCategoryField === 'FULL LENGTH TESTS' || isAdaptive || name.includes('full length') || name.includes('full-length') || name.includes('linear sat')) {
+    return 'FULL LENGTH TESTS';
+  }
+  if (mainCategoryField === 'AP' || /\bap\b/.test(name)) return 'AP';
+  if (mainCategoryField === 'ACT' || name.includes('act')) return 'ACT';
+  return 'SAT';
+};
 
 const AdminDemoLeads = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Filtering state
   const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'yesterday', '7days', '30days', 'custom'
   const [customDateRange, setCustomDateRange] = useState({ from: '', to: '' });
-  const [testFilter, setTestFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'SAT' | 'ACT' | 'AP' | 'FULL LENGTH TESTS'
+  const [testFilter, setTestFilter] = useState('all'); // specific course name within the selected type
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'completed' | 'in_progress'
+  const [searchQuery, setSearchQuery] = useState('');
 
   const navigate = useNavigate();
 
@@ -57,10 +77,10 @@ const AdminDemoLeads = () => {
     try {
       setLoading(true);
       setError('');
-      // Fetch demo leads and join with courses to get course name
+      // Fetch demo leads and join with courses to get course name + classification fields
       const { data, error: fetchError } = await supabase
         .from('demo_leads')
-        .select('*, courses(name)')
+        .select('*, courses(name, main_category, category, is_adaptive)')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
@@ -114,11 +134,58 @@ const AdminDemoLeads = () => {
     }
   };
 
-  const filteredLeads = leads.filter(lead => {
+  // Defensive de-duplication: keep only the latest row per (email, course_id). The backend
+  // upsert now normalizes email + refreshes created_at on every update, so this mainly
+  // guards against legacy duplicate rows created before that fix.
+  const dedupedLeads = useMemo(() => {
+    const byKey = new Map();
+    leads.forEach(lead => {
+      const key = `${(lead.email || '').toLowerCase().trim()}::${lead.course_id}`;
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, lead);
+        return;
+      }
+      const existingTime = new Date(existing.created_at).getTime();
+      const leadTime = new Date(lead.created_at).getTime();
+      if (leadTime > existingTime || (leadTime === existingTime && lead.id > existing.id)) {
+        byKey.set(key, lead);
+      }
+    });
+    return Array.from(byKey.values());
+  }, [leads]);
+
+  const availableTests = useMemo(() => {
+    const scoped = typeFilter === 'all' ? dedupedLeads : dedupedLeads.filter(l => classifyLeadCourse(l) === typeFilter);
+    return Array.from(new Set(scoped.map(l => l.courses?.name).filter(Boolean))).sort();
+  }, [dedupedLeads, typeFilter]);
+
+  const filteredLeads = dedupedLeads.filter(lead => {
+    if (typeFilter !== 'all' && classifyLeadCourse(lead) !== typeFilter) {
+      return false;
+    }
+
     if (testFilter !== 'all' && lead.courses?.name !== testFilter) {
       return false;
     }
-    
+
+    if (statusFilter !== 'all') {
+      const isCompleted = !!lead.final_email_sent;
+      if (statusFilter === 'completed' && !isCompleted) return false;
+      if (statusFilter === 'in_progress' && isCompleted) return false;
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const haystack = [
+        lead.full_name,
+        lead.email,
+        lead.score_details?.parentName,
+        lead.score_details?.parentEmail
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+
     if (dateFilter !== 'all') {
       const leadDate = new Date(lead.created_at);
       const today = new Date();
@@ -151,11 +218,9 @@ const AdminDemoLeads = () => {
         }
       }
     }
-    
+
     return true;
   });
-
-  const availableTests = Array.from(new Set(leads.map(l => l.courses?.name).filter(Boolean)));
 
   const processDataForExport = () => {
     return filteredLeads.map(lead => ({
@@ -286,15 +351,48 @@ const AdminDemoLeads = () => {
         )}
 
         <select
+          value={typeFilter}
+          onChange={(e) => { setTypeFilter(e.target.value); setTestFilter('all'); }}
+          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+        >
+          <option value="all">All Test Types</option>
+          <option value="SAT">SAT</option>
+          <option value="ACT">ACT</option>
+          <option value="AP">AP</option>
+          <option value="FULL LENGTH TESTS">Full-Length Test</option>
+        </select>
+
+        <select
           value={testFilter}
           onChange={(e) => setTestFilter(e.target.value)}
           className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 sm:w-64 cursor-pointer"
         >
-          <option value="all">All Tests</option>
+          <option value="all">{typeFilter === 'all' ? 'All Tests' : 'All ' + (typeFilter === 'FULL LENGTH TESTS' ? 'Full-Length Tests' : typeFilter)}</option>
           {availableTests.map(test => (
             <option key={test} value={test}>{test}</option>
           ))}
         </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+        >
+          <option value="all">All Statuses</option>
+          <option value="completed">Completed</option>
+          <option value="in_progress">In Progress</option>
+        </select>
+
+        <div className="relative flex-1 min-w-[220px]">
+          <SafeIcon icon={FiSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search student, email, or parent email..."
+            className="w-full pl-10 pr-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
       </div>
 
       {/* Leads Table */}

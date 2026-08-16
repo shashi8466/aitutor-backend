@@ -514,6 +514,7 @@ const UniversalLeaderboard = ({
                                             <th className="py-4 px-6 font-black">Student</th>
                                             {isTopicOrSubtopic ? (
                                                 <>
+                                                    <th className="py-4 px-6 font-black">Scaled Score</th>
                                                     <th className="py-4 px-6 font-black">Accuracy</th>
                                                     <th className="py-4 px-6 font-black">Correct</th>
                                                     <th className="py-4 px-6 font-black">Questions</th>
@@ -557,6 +558,7 @@ const UniversalLeaderboard = ({
                                                     </td>
                                                     {isTopicOrSubtopic ? (
                                                         <>
+                                                            <td className="py-4 px-6 font-black text-white">{st.scoreDisplay}</td>
                                                             <td className="py-4 px-6 font-black text-green-400">{st.accuracy}%</td>
                                                             <td className="py-4 px-6 font-semibold text-slate-300">{st.totalCorrect || 0}</td>
                                                             <td className="py-4 px-6 font-semibold text-slate-400">{st.totalQuestions || 0}</td>

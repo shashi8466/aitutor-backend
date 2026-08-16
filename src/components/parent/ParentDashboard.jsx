@@ -130,7 +130,7 @@ const ChildrenOverview = () => {
 
     return (
         <div className="px-6 pb-6 pt-6 max-w-5xl mx-auto min-h-screen bg-[#FAFAFA] dark:bg-gray-900">
-            <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-6">Parent Dashboard</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-6">Parent Dashboard</h2>
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
                     <SafeIcon icon={FiUsers} className="text-amber-500" />
@@ -353,7 +353,7 @@ const ChildCoursesReport = () => {
 
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
-                        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-1 capitalize">
+                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 capitalize">
                             Report: <span className="text-amber-500">{childName}</span>
                         </h2>
                         <p className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Real-time Performance Metrics & Diagnostic View</p>
@@ -525,7 +525,7 @@ const ChildDifficultyReport = () => {
                 <Link to={`/parent/child/${studentId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 mb-6 transition-colors font-bold uppercase tracking-wider">
                     <SafeIcon icon={FiArrowLeft} /> Back to Report
                 </Link>
-                <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-1">{courseName} Analytics</h2>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-1">{courseName} Analytics</h2>
                 <p className="text-sm text-gray-500 font-medium mb-8">Select a difficulty level to view detailed performance.</p>
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 pb-2 border-b border-gray-100">Difficulty Levels</h3>
@@ -580,7 +580,7 @@ const ChildPerformanceReport = () => {
                 <Link to={`/parent/child/${studentId}/course/${courseId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 mb-6 transition-colors">
                     <SafeIcon icon={FiArrowLeft} /> Back to Difficulty
                 </Link>
-                <h2 className="text-3xl font-extrabold text-gray-900 mb-6">Performance Report</h2>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-6">Performance Report</h2>
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm responsive-table-container">
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
@@ -812,7 +812,7 @@ const ChildTestHistory = () => {
                 </Link>
 
                 <div>
-                    <h2 className="text-3xl font-extrabold text-gray-900 mb-1">Test History</h2>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">Test History</h2>
                     <p className="text-gray-500 font-medium">Analyze past performance and learn from mistakes.</p>
                 </div>
 

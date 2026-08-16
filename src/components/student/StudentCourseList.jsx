@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
@@ -193,7 +193,7 @@ const StudentCourseList = () => {
       const [coursesData, enrollmentsData, accessData] = await Promise.all([
         safeFetch(courseService.getAll()),
         safeFetch(enrollmentService.getStudentEnrollments(user.id)),
-        safeFetch(planService.getContentAccess())
+        safeFetch(planService.getContentAccess(user?.plan_type || 'free'))
       ]);
 
       setAllCourses(coursesData);
@@ -228,24 +228,15 @@ const StudentCourseList = () => {
         });
       };
 
+      // Note: this is the only submissions fetch needed - it already returns everything
+      // addSubToMap uses (including the courses join), so a second raw query against
+      // test_submissions for the same user was pure redundant round-trip work.
       try {
         const scoresRes = await gradingService.getAllMyScores(user.id);
         const apiSubs = scoresRes.data?.submissions || scoresRes.submissions || [];
         apiSubs.forEach(s => addSubToMap(s));
       } catch (e) {
         console.warn("API scores fetch warning:", e.message);
-      }
-
-      try {
-        const { data: dbSubs } = await supabase
-          .from('test_submissions')
-          .select('id, user_id, course_id, level, raw_score, scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name)')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        (dbSubs || []).forEach(s => addSubToMap(s));
-      } catch (subErr) {
-        console.warn("Submissions fetch warning:", subErr);
       }
 
       setStudentSubmissionsMap(subsMap);
@@ -318,9 +309,9 @@ const StudentCourseList = () => {
     }
   };
 
-  const filteredCourses = allCourses.filter(c => {
+  const filteredCourses = useMemo(() => allCourses.filter(c => {
     const userPlan = (user?.plan_type || 'free').toLowerCase();
-    
+
     // 0. Access Filter:
     const hasDirectAccess = planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan);
     const hasTopicAccess = topicCourseIds.has(c.id);
@@ -379,7 +370,7 @@ const StudentCourseList = () => {
       courseCat.includes(searchTerm) ||
       courseTutor.includes(searchTerm)
     );
-  });
+  }), [allCourses, planAccess, topicCourseIds, user?.plan_type, activeCategory, activeSubcategory, filter]);
 
   const sortCourses = (coursesList) => {
     return [...coursesList].sort((a, b) => {
@@ -405,8 +396,8 @@ const StudentCourseList = () => {
     });
   };
 
-  const enrolledCourses = filteredCourses.filter(c => enrolledIds.has(c.id));
-  const availableCourses = filteredCourses.filter(c => !enrolledIds.has(c.id));
+  const enrolledCourses = useMemo(() => filteredCourses.filter(c => enrolledIds.has(c.id)), [filteredCourses, enrolledIds]);
+  const availableCourses = useMemo(() => filteredCourses.filter(c => !enrolledIds.has(c.id)), [filteredCourses, enrolledIds]);
 
   const getSubmissionsForCourse = (course, subsMap = {}) => {
     if (!course) return [];
@@ -736,24 +727,24 @@ const StudentCourseList = () => {
              </select>
            </div>
            
-           <div className="flex gap-1.5 bg-[#11131A] p-1 rounded-lg border border-[#1C202B] h-9 items-center">
-              <button 
+           <div className="flex gap-1.5 bg-[#11131A] p-1 rounded-lg border border-[#1C202B] h-10 items-center">
+              <button
                 title="Grid View"
                 onClick={() => setViewMode('grid')}
-                className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
-                  viewMode === 'grid' 
-                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]' 
+                className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]'
                     : 'bg-transparent text-gray-400 hover:text-white'
                 }`}
               >
                  <SafeIcon icon={FiIcons.FiGrid} className="w-3.5 h-3.5" />
               </button>
-              <button 
+              <button
                 title="List View"
                 onClick={() => setViewMode('list')}
-                className={`w-7 h-7 rounded-md flex items-center justify-center transition-all ${
-                  viewMode === 'list' 
-                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]' 
+                className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]'
                     : 'bg-transparent text-gray-400 hover:text-white'
                 }`}
               >

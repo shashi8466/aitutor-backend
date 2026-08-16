@@ -10,6 +10,61 @@ const { FiActivity, FiClock, FiAward, FiArrowRight, FiFileText, FiTrendingUp, Fi
 
 const REQUIRED_LEVELS = ['Easy', 'Medium', 'Hard'];
 
+const PRIMARY_CATEGORIES = [
+  { id: 'SAT', title: 'SAT', subtitle: 'Digital SAT Prep', icon: 'FiBookOpen', bg: 'bg-[#181033]', border: 'border-[#7C3AED]', text: 'text-[#c4b5fd]' },
+  { id: 'ACT', title: 'ACT', subtitle: 'ACT Prep', icon: 'FiActivity', bg: 'bg-[#064E3B]', border: 'border-green-500', text: 'text-green-300' },
+  { id: 'AP', title: 'AP', subtitle: 'AP Courses', icon: 'FiGrid', bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' },
+  { id: 'FULL LENGTH TESTS', title: 'FULL LENGTH TESTS', subtitle: 'Real Exam Simulation', icon: 'FiClipboard', bg: 'bg-[#0F172A]', border: 'border-blue-500', text: 'text-blue-300' }
+];
+
+// Classifies a submission into a primary category (SAT/ACT/AP/FULL LENGTH TESTS) and a
+// subcategory, mirroring the same main_category/is_adaptive convention used across the app
+// (StudentCourseList.jsx, the universal leaderboard) rather than inventing a new one.
+const classifySubmission = (sub) => {
+  const courseObj = sub.course || sub.courses || {};
+  const name = (courseObj.name || sub.courseName || sub.test_name || '').toLowerCase();
+  const mainCategoryField = (courseObj.main_category || '').toUpperCase();
+  const tutorType = courseObj.tutor_type || '';
+  const tutorTypeUpper = tutorType.toUpperCase();
+  const isAdaptive = courseObj.is_adaptive === true;
+
+  let mainCat;
+  if (mainCategoryField === 'FULL LENGTH TESTS' || isAdaptive || name.includes('full length') || name.includes('full-length') || name.includes('linear sat')) {
+    mainCat = 'FULL LENGTH TESTS';
+  } else if (mainCategoryField === 'AP' || tutorTypeUpper.startsWith('AP') || /\bap\b/.test(name)) {
+    mainCat = 'AP';
+  } else if (mainCategoryField === 'ACT' || tutorTypeUpper.includes('ACT') || name.includes('act')) {
+    mainCat = 'ACT';
+  } else {
+    mainCat = 'SAT';
+  }
+
+  let subCat;
+  if (mainCat === 'SAT') {
+    if (tutorType === 'SAT Math' || tutorType === 'SAT Reading & Writing') {
+      subCat = tutorType;
+    } else {
+      const mathKeywords = ['math', 'algebra', 'linear', 'nonlinear', 'equivalent', 'geometry', 'triangle', 'circle', 'trigonometry', 'data', 'ratio', 'percentage', 'probability', 'statistic'];
+      subCat = mathKeywords.some(k => name.includes(k)) ? 'SAT Math' : 'SAT Reading & Writing';
+    }
+  } else if (mainCat === 'ACT') {
+    if (['ACT Math', 'ACT English', 'ACT Reading', 'ACT Science'].includes(tutorType)) {
+      subCat = tutorType;
+    } else if (name.includes('math')) subCat = 'ACT Math';
+    else if (name.includes('english')) subCat = 'ACT English';
+    else if (name.includes('science')) subCat = 'ACT Science';
+    else subCat = 'ACT Reading';
+  } else if (mainCat === 'AP') {
+    // Dynamic: the actual AP course name, not a hardcoded list.
+    subCat = courseObj.name || 'AP Course';
+  } else {
+    // Dynamic: the actual full-length test name, not a hardcoded list.
+    subCat = courseObj.name || 'Full-Length Test';
+  }
+
+  return { mainCat, subCat };
+};
+
 // Helper to compute real attempt stats for any course/test type
 const getTestAttemptStats = (sub) => {
   const courseName = sub.course?.name || sub.courses?.name || sub.courseName || sub.test_name || 'Practice Test';
@@ -117,6 +172,9 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
   const studentId = propStudentId || paramStudentId;
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [activeSubcategory, setActiveSubcategory] = useState('All');
+  const [viewMode, setViewMode] = useState('grid');
 
   useEffect(() => {
     if (user) loadScores();
@@ -141,13 +199,39 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
     }
   };
 
+  // Dynamic secondary-filter options for the active primary category. AP and Full-Length
+  // Tests are built from whichever courses the student actually has submissions for -
+  // never a hardcoded list.
+  const subcategoryOptions = useMemo(() => {
+    if (activeCategory === 'All') return [];
+    if (activeCategory === 'SAT') return ['SAT Math', 'SAT Reading & Writing'];
+    if (activeCategory === 'ACT') return ['ACT Math', 'ACT English', 'ACT Reading', 'ACT Science'];
+
+    const names = new Set();
+    submissions.forEach(sub => {
+      const { mainCat, subCat } = classifySubmission(sub);
+      if (mainCat === activeCategory) names.add(subCat);
+    });
+    return Array.from(names).sort();
+  }, [submissions, activeCategory]);
+
+  const filteredSubmissions = useMemo(() => {
+    if (activeCategory === 'All') return submissions;
+    return submissions.filter(sub => {
+      const { mainCat, subCat } = classifySubmission(sub);
+      if (mainCat !== activeCategory) return false;
+      if (activeSubcategory !== 'All' && subCat !== activeSubcategory) return false;
+      return true;
+    });
+  }, [submissions, activeCategory, activeSubcategory]);
+
   // --- AGGREGATE COMBINED SAT REGULAR COURSE REPORTS ---
   const combinedTopicReports = useMemo(() => {
-    if (!submissions || submissions.length === 0) return [];
+    if (!filteredSubmissions || filteredSubmissions.length === 0) return [];
 
     const grouped = {};
 
-    submissions.forEach(sub => {
+    filteredSubmissions.forEach(sub => {
       const cId = sub.course_id || sub.course?.id;
       if (!cId) return;
 
@@ -225,7 +309,7 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
         completedLevelsCount: REQUIRED_LEVELS.length - missingLevels.length
       };
     });
-  }, [submissions]);
+  }, [filteredSubmissions]);
 
   if (loading) return (
     <div className="flex justify-center items-center h-96">
@@ -259,9 +343,116 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
         </div>
       </div>
 
-      {submissions.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6">
-          
+      {submissions.length > 0 && (
+        <>
+          {/* Primary Category Filter Bar */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
+            {PRIMARY_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setActiveCategory(activeCategory === cat.id ? 'All' : cat.id);
+                  setActiveSubcategory('All');
+                }}
+                className={`px-4 py-3 rounded-2xl border flex items-center gap-3.5 transition-all duration-200 ${
+                  activeCategory === cat.id
+                    ? `${cat.bg} ${cat.border} shadow-[0_0_18px_rgba(124,58,237,0.25)] ring-1 ring-purple-500/30`
+                    : 'bg-[#131622] border-[#252A3C] hover:border-purple-500/40 hover:bg-[#1A1F30]'
+                } cursor-pointer group`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center border flex-shrink-0 transition-colors ${
+                  activeCategory === cat.id
+                    ? `border-purple-400/30 bg-purple-500/10 ${cat.text}`
+                    : 'border-[#2D3448] bg-[#1B2030] text-slate-400 group-hover:text-slate-200 group-hover:border-purple-500/40'
+                }`}>
+                  <SafeIcon icon={FiIcons[cat.icon]} className="w-4 h-4" />
+                </div>
+                <div className="text-left min-w-0">
+                  <h3 className={`font-bold text-xs sm:text-sm truncate tracking-tight ${activeCategory === cat.id ? 'text-white' : 'text-slate-200 group-hover:text-white'}`}>{cat.title}</h3>
+                  <p className={`text-[10px] truncate ${activeCategory === cat.id ? 'text-purple-200/80' : 'text-slate-400'}`}>{cat.subtitle}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Subcategory Pills & View Toggle */}
+          <div className="flex flex-col xl:flex-row justify-between items-start gap-4 mb-8 w-full">
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 w-full">
+              <button
+                onClick={() => setActiveSubcategory('All')}
+                className={`px-4 h-9 rounded-full text-xs font-bold transition-all border flex items-center justify-center cursor-pointer whitespace-nowrap ${
+                  activeSubcategory === 'All'
+                    ? 'bg-[#7C3AED] border-[#7C3AED] text-white shadow-[0_0_15px_rgba(124,58,237,0.35)]'
+                    : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
+                }`}
+              >
+                All
+              </button>
+              {subcategoryOptions.map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => setActiveSubcategory(sub)}
+                  className={`px-4 h-9 rounded-full text-xs font-bold transition-all border flex items-center gap-2 justify-center cursor-pointer whitespace-nowrap ${
+                    activeSubcategory === sub
+                      ? 'bg-[#181033] border-[#7C3AED] text-white shadow-[0_0_12px_rgba(124,58,237,0.25)]'
+                      : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
+                  }`}
+                >
+                  <SafeIcon icon={FiIcons.FiBookOpen} className={`w-3 h-3 flex-shrink-0 ${activeSubcategory === sub ? 'text-purple-300' : 'text-slate-400'}`} />
+                  <span className="truncate">{sub}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-1.5 bg-[#11131A] p-1 rounded-lg border border-[#1C202B] h-10 items-center shrink-0">
+              <button
+                title="Grid View"
+                onClick={() => setViewMode('grid')}
+                className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]'
+                    : 'bg-transparent text-gray-400 hover:text-white'
+                }`}
+              >
+                <SafeIcon icon={FiIcons.FiGrid} className="w-3.5 h-3.5" />
+              </button>
+              <button
+                title="List View"
+                onClick={() => setViewMode('list')}
+                className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-[#181033] border border-[#7C3AED] text-[#c4b5fd]'
+                    : 'bg-transparent text-gray-400 hover:text-white'
+                }`}
+              >
+                <SafeIcon icon={FiIcons.FiList} className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {submissions.length === 0 ? (
+        <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+          <SafeIcon icon={FiAward} className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white">No Test Data Found</h3>
+          <p className="text-gray-500 mt-2 max-w-sm mx-auto">Take a practice quiz to see your detailed breakdown here.</p>
+          <button
+            onClick={() => navigate('/student/practice-tests')}
+            className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold cursor-pointer"
+          >
+            Start Practice
+          </button>
+        </div>
+      ) : filteredSubmissions.length === 0 ? (
+        <div className="text-center py-20 bg-[#11131A] rounded-3xl border-2 border-dashed border-[#1C202B]">
+          <SafeIcon icon={FiAward} className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-white">No tests in this category yet</h3>
+          <p className="text-gray-400 mt-2 max-w-sm mx-auto">Try a different category or clear the filter to see all your test history.</p>
+        </div>
+      ) : (
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'grid grid-cols-1 gap-6'}>
+
           {/* ========================================================= */}
           {/* DEDICATED COMBINED SAT REGULAR COURSE REPORT CARDS        */}
           {/* ========================================================= */}
@@ -412,7 +603,7 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
           {/* ========================================================= */}
           {/* INDIVIDUAL ATTEMPT CARDS (EASY, MEDIUM, HARD)             */}
           {/* ========================================================= */}
-          {submissions.map((sub, idx) => {
+          {filteredSubmissions.map((sub, idx) => {
             const stats = getTestAttemptStats(sub);
 
             return (
@@ -553,18 +744,6 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
               </motion.div>
             );
           })}
-        </div>
-      ) : (
-        <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-          <SafeIcon icon={FiAward} className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">No Test Data Found</h3>
-          <p className="text-gray-500 mt-2 max-w-sm mx-auto">Take a practice quiz to see your detailed breakdown here.</p>
-          <button
-            onClick={() => navigate('/student/practice-tests')}
-            className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold cursor-pointer"
-          >
-            Start Practice
-          </button>
         </div>
       )}
     </div>

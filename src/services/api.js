@@ -520,14 +520,17 @@ export const profileService = {
 // --- COURSE SERVICE ---
 export const courseService = {
   getAll: async (filters = {}) => {
-    let query = supabase.from('courses').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('courses').select('*').eq('status', 'active').order('created_at', { ascending: false });
     if (filters.isPractice !== undefined) {
       query = query.eq('is_practice', filters.isPractice);
     }
     const { data: courses, error } = await query;
     if (error) return { data: [], error };
 
-    // Fetch live data for mapping (only active status uploads)
+    // Fetch live data for mapping (only active status uploads).
+    // The questions query is scoped to upload_id IS NULL because manualCount below only
+    // ever counts those rows - fetching the whole (10k+ row) questions table here was both
+    // wasted work and silently truncated at Supabase's default 1000-row cap.
     const [uploadsRes, questionsRes] = await Promise.all([
       supabase.from('uploads')
         .select('id, course_id, level, category, questions_count, status, created_at')
@@ -535,6 +538,7 @@ export const courseService = {
         .in('status', ['completed', 'warning']),
       supabase.from('questions')
         .select('course_id, upload_id')
+        .is('upload_id', null)
     ]);
 
     const uploadToCourseMap = {};

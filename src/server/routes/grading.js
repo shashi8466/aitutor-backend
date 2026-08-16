@@ -1391,7 +1391,7 @@ router.get('/all-my-scores', async (req, res) => {
 
         const { data: submissions, error } = await supabase
             .from('test_submissions')
-            .select('id, user_id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name, is_practice, tutor_type)')
+            .select('id, user_id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, courses:courses(id, name, is_practice, tutor_type, main_category, category, is_adaptive)')
             .eq('user_id', userId)
             .order('test_date', { ascending: false });
 
@@ -2377,8 +2377,22 @@ router.get('/universal-leaderboard', async (req, res) => {
             const bestRw = st.rwScores.length > 0 ? Math.max(...st.rwScores) : 0;
 
             if (isSubtopicCategory || isTopicCategory) {
-                primaryScore = accuracy;
-                scoreDisplay = `${accuracy}%`;
+                // Rank by the real per-topic scaled score already computed and stored by
+                // calculate_scaled_score at submission time (not a fabricated percent->scale
+                // conversion). Accuracy is kept as the secondary metric, tied to the same
+                // best-scoring attempt.
+                const allMatchingSubs = Object.values(st.courseSubmissions).flat();
+                if (allMatchingSubs.length > 0) {
+                    const bestScaled = Math.max(...allMatchingSubs.map(s => s.scaledScore));
+                    const bestAttempt = allMatchingSubs.find(s => s.scaledScore === bestScaled) || allMatchingSubs[0];
+                    primaryScore = bestScaled;
+                    scoreDisplay = `${bestScaled} / 800`;
+                    accuracy = bestAttempt.qCount > 0 ? Math.round((bestAttempt.cCount / bestAttempt.qCount) * 100) : 0;
+                } else {
+                    primaryScore = 0;
+                    scoreDisplay = '--';
+                    accuracy = 0;
+                }
             } else if (category === 'SAT') {
                 const totalSAT = (bestMath > 0 || bestRw > 0) ? (bestMath || 400) + (bestRw || 400) : 0;
                 primaryScore = totalSAT;
