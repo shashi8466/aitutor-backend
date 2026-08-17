@@ -72,7 +72,7 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
           
           if (!isMounted) return;
           setFormData({
-            courseId: question.courseId || '',
+            courseId: question.course_id || '',
             level: question.level || 'Medium',
             type: question.type || 'mcq',
             section: question.section || 'math',
@@ -249,11 +249,15 @@ const mathButton = {
 
       const submitData = {
         ...latestData,
+        // The DB column is course_id (snake_case); formData uses courseId internally to match
+        // the <select name="courseId"> field, so translate it at the submission boundary.
+        course_id: latestData.courseId ? Number(latestData.courseId) : null,
         question: cleanedQuestion,
         passage: cleanedPassage,
         explanation: cleanedExplanation,
         options: latestData.type === 'mcq' ? cleanedOptions : []
       };
+      delete submitData.courseId;
 
       let savedQuestion;
       if (question) {

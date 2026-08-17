@@ -7,7 +7,7 @@ import MathRenderer from '../../common/MathRenderer';
 const { FiEdit, FiTrash2, FiImage } = FiIcons;
 
 const QuestionCard = ({ question, courses, index, onEdit, onDelete }) => {
-  const course = courses.find(c => c.id === question.courseId);
+  const course = courses.find(c => c.id === question.course_id);
   const getTypeColor = (type) => type === 'mcq' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
   const getLevelColor = (level) => {
     switch (level) {
@@ -40,8 +40,8 @@ const QuestionCard = ({ question, courses, index, onEdit, onDelete }) => {
             <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
               {course?.name || 'Unknown Course'}
             </span>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${question.uploadId ? 'bg-indigo-100 text-indigo-800' : 'bg-orange-100 text-orange-800'}`}>
-              {question.uploadId ? 'File Import' : 'Manual Entry'}
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${question.upload_id ? 'bg-indigo-100 text-indigo-800' : 'bg-orange-100 text-orange-800'}`}>
+              {question.upload_id ? 'File Import' : 'Manual Entry'}
             </span>
             {question.image && (
               <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium flex items-center gap-1">
