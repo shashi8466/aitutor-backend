@@ -244,7 +244,7 @@ router.post('/', upload.single('file'), async (req, res) => {
           }
 
           if (parsedQuestions.length > 0) {
-            const questionsToInsert = parsedQuestions.map(q => {
+            const questionsToInsert = parsedQuestions.map((q, questionIndex) => {
               // 6b. Replace image placeholders with actual <img> tags or URLs
               let finalQuestionText = q.question || '';
               let finalExplanationText = q.explanation || '';
@@ -286,7 +286,12 @@ router.post('/', upload.single('file'), async (req, res) => {
                 upload_id: uploadId,
                 topic: q.topic || null,
                 difficulty_weight: 1.0,
-                passage: finalPassageText
+                passage: finalPassageText,
+                // Prefer the literal number printed in the source document (e.g. "Q.26)" -> 26);
+                // fall back to the question's position in parse order so every question always
+                // has a stable, source-order-derived number, even for documents with no explicit
+                // numbering or non-numeric labels.
+                question_number: (typeof q.questionNumber === 'number') ? q.questionNumber : (questionIndex + 1)
               };
             });
 

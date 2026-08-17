@@ -28,6 +28,9 @@ const QuestionCard = ({ question, courses, index, onEdit, onDelete }) => {
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
           <div className="flex items-center space-x-2 mb-2">
+            <span className="px-2 py-1 bg-slate-800 text-white rounded-full text-xs font-bold">
+              Q{question.question_number || (index + 1)}
+            </span>
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(question.type)}`}>
               {question.type === 'mcq' ? 'Multiple Choice' : 'Short Answer'}
             </span>

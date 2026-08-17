@@ -758,7 +758,16 @@ const parseTextToQuestions = (text) => {
           qText = topicEndIndex !== -1 ? line.substring(topicEndIndex).replace(/^[,\s.:-]+/, '').trim() : line.substring(foundTopicStart.length).replace(/^[,\s.:-]+/, '').trim();
         }
 
-        currentQuestion = { question: qText, topic: detectedTopic || null, options: [], correctAnswer: '', explanation: null, level: null, passage: currentPassage ? currentPassage.trim() : null };
+        // Capture the literal question number as printed in the source document (e.g. "Q.26)" -> 26),
+        // so the admin UI can display and order by the original source-file sequence rather than
+        // database insertion order.
+        let questionNumber = null;
+        if (questionMatch) {
+          const numMatch = questionMatch[1].match(/\d+/);
+          if (numMatch) questionNumber = parseInt(numMatch[0], 10);
+        }
+
+        currentQuestion = { question: qText, topic: detectedTopic || null, options: [], correctAnswer: '', explanation: null, level: null, passage: currentPassage ? currentPassage.trim() : null, questionNumber };
         if (line.toLowerCase().includes('[easy]')) currentQuestion.level = 'Easy';
         if (line.toLowerCase().includes('[hard]')) currentQuestion.level = 'Hard';
         continue;

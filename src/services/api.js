@@ -742,7 +742,7 @@ export const uploadService = {
 // --- QUESTION SERVICE ---
 export const questionService = {
   getAll: async (filters = {}) => {
-    let query = supabase.from('questions').select('*').order('id', { ascending: true });
+    let query = supabase.from('questions').select('*').order('upload_id', { ascending: true, nullsFirst: false }).order('id', { ascending: true });
     if (filters.courseId) query = query.eq('course_id', filters.courseId);
     if (filters.level) query = query.eq('level', filters.level);
     if (filters.type) query = query.eq('type', filters.type);
@@ -752,7 +752,30 @@ export const questionService = {
     } else if (!filters.courseId) {
       return { data: [], error: null };
     }
-    return await query;
+    const result = await query;
+
+    // question_number is stored as text (it may contain non-numeric labels like "1A"), so a
+    // plain DB-level ORDER BY sorts it lexicographically ("10" before "2"). Re-sort numerically
+    // here, grouped by upload so each source file's questions stay in their original document
+    // sequence; rows without a usable number fall back to id order (their pre-existing behavior).
+    if (Array.isArray(result.data)) {
+      result.data = [...result.data].sort((a, b) => {
+        const uploadA = a.upload_id || 0;
+        const uploadB = b.upload_id || 0;
+        if (uploadA !== uploadB) return uploadA - uploadB;
+
+        const numA = parseInt(a.question_number, 10);
+        const numB = parseInt(b.question_number, 10);
+        const hasA = !isNaN(numA);
+        const hasB = !isNaN(numB);
+        if (hasA && hasB && numA !== numB) return numA - numB;
+        if (hasA && !hasB) return -1;
+        if (!hasA && hasB) return 1;
+        return a.id - b.id;
+      });
+    }
+
+    return result;
   },
   getTopics: async () => {
     return await supabase.from('questions').select('topic').not('topic', 'is', null);

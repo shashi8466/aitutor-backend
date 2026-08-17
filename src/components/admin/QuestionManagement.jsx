@@ -144,6 +144,20 @@ const QuestionManagement = () => {
     }
   };
 
+  // Applies the freshly-saved row to local state immediately (no wait for a re-fetch), so
+  // reopening the same question right after saving always shows the just-saved content.
+  const handleQuestionSaved = async (savedQuestion) => {
+    if (savedQuestion) {
+      setQuestions(prev => {
+        const exists = prev.some(q => q.id === savedQuestion.id);
+        return exists
+          ? prev.map(q => (q.id === savedQuestion.id ? savedQuestion : q))
+          : [savedQuestion, ...prev];
+      });
+    }
+    await loadQuestions();
+  };
+
   const handleEditQuestion = (question) => {
     setEditingQuestion(question);
     setShowForm(true);
@@ -410,7 +424,7 @@ const QuestionManagement = () => {
           question={editingQuestion}
           courses={courses}
           onClose={() => setShowForm(false)}
-          onSave={loadQuestions}
+          onSave={handleQuestionSaved}
         />
       )}
     </div>

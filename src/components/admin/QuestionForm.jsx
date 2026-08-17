@@ -123,6 +123,29 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
   const [activeTab, setActiveTab] = useState('edit'); // 'edit' or 'preview'
   const fileInputRef = useRef(null);
 
+  // Direct handles to the live Jodit instances. onBlur only commits content to formData when
+  // focus actually leaves an editor - relying on that alone for "switch to Preview" or "Save"
+  // is timing-sensitive (e.g. an unmount racing the blur). Reading .value directly from these
+  // refs guarantees the latest keystrokes are always captured, regardless of blur timing.
+  const questionEditorRef = useRef(null);
+  const passageEditorRef = useRef(null);
+  const explanationEditorRef = useRef(null);
+  const optionEditorRefs = useRef([]);
+
+  // Merges the live editor content into formData and returns the merged object synchronously,
+  // so callers don't have to wait for a re-render to use the freshest values.
+  const syncEditorsToFormData = () => {
+    const merged = { ...formData };
+    if (questionEditorRef.current) merged.question = questionEditorRef.current.value;
+    if (passageEditorRef.current) merged.passage = passageEditorRef.current.value;
+    if (explanationEditorRef.current) merged.explanation = explanationEditorRef.current.value;
+    if (merged.type === 'mcq' && Array.isArray(merged.options)) {
+      merged.options = merged.options.map((opt, i) => optionEditorRefs.current[i]?.value ?? opt);
+    }
+    setFormData(merged);
+    return merged;
+  };
+
 const mathButton = {
     name: 'insertMath',
     iconURL: 'data:image/svg+xml;utf8,<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M2 13h12v1H2v-1zm10.7-3.3l-3.4-3.4 1.4-1.4 3.4 3.4-1.4 1.4zM3 11l4-8h2l4 8h-1.5L8 4.5 4.5 11H3z" fill="currentColor"/></svg>',
@@ -218,25 +241,34 @@ const mathButton = {
     setError('');
 
     try {
-      const cleanedQuestion = restoreMathFromEditor(formData.question);
-      const cleanedPassage = restoreMathFromEditor(formData.passage);
-      const cleanedExplanation = restoreMathFromEditor(formData.explanation);
-      const cleanedOptions = formData.options.map(opt => restoreMathFromEditor(opt));
+      const latestData = syncEditorsToFormData();
+      const cleanedQuestion = restoreMathFromEditor(latestData.question);
+      const cleanedPassage = restoreMathFromEditor(latestData.passage);
+      const cleanedExplanation = restoreMathFromEditor(latestData.explanation);
+      const cleanedOptions = latestData.options.map(opt => restoreMathFromEditor(opt));
 
       const submitData = {
-        ...formData,
+        ...latestData,
         question: cleanedQuestion,
         passage: cleanedPassage,
         explanation: cleanedExplanation,
-        options: formData.type === 'mcq' ? cleanedOptions : []
+        options: latestData.type === 'mcq' ? cleanedOptions : []
       };
 
+      let savedQuestion;
       if (question) {
-        await questionService.update(question.id, submitData);
+        const { data, error: updateError } = await questionService.update(question.id, submitData);
+        if (updateError) throw updateError;
+        savedQuestion = data;
       } else {
-        await questionService.create(submitData);
+        const { data, error: createError } = await questionService.create(submitData);
+        if (createError) throw createError;
+        savedQuestion = data;
       }
-      onSave();
+      // Pass the freshly-saved row straight to the parent so the list reflects the new content
+      // immediately, instead of racing a background refetch that might not have landed yet if
+      // the admin reopens the same question right away.
+      await onSave(savedQuestion);
       onClose();
     } catch (err) {
       console.error('Error saving question:', err);
@@ -365,7 +397,7 @@ const mathButton = {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('preview')}
+                onClick={() => { syncEditorsToFormData(); setActiveTab('preview'); }}
                 className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all flex items-center gap-2 ${activeTab === 'preview' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 <SafeIcon icon={FiEye} className="w-4 h-4" /> Preview
@@ -470,6 +502,7 @@ const mathButton = {
                         value={formData.passage}
                         config={{...editorConfig, placeholder: "Enter the linked passage or context for this question (supports LaTeX with $$ or $)..."}}
                         onBlur={(newContent) => setFormData(prev => ({ ...prev, passage: newContent }))}
+                        editorRef={(instance) => { passageEditorRef.current = instance; }}
                       />
                     </div>
                   </div>
@@ -484,6 +517,7 @@ const mathButton = {
                         value={formData.question}
                         config={{...editorConfig, placeholder: "Enter your question here..."}}
                         onBlur={(newContent) => setFormData(prev => ({ ...prev, question: newContent }))}
+                        editorRef={(instance) => { questionEditorRef.current = instance; }}
                       />
                     </div>
                   </div>
@@ -568,6 +602,7 @@ const mathButton = {
                               value={option}
                               config={{...minimalEditorConfig, placeholder: `Enter Option ${String.fromCharCode(65 + index)}...`, minHeight: 100}}
                               onBlur={(newContent) => handleOptionChange(index, newContent)}
+                              editorRef={(instance) => { optionEditorRefs.current[index] = instance; }}
                             />
                           </div>
                           {formData.options.length > 2 && (
@@ -631,6 +666,7 @@ const mathButton = {
                       value={formData.explanation}
                       config={{...editorConfig, placeholder: "Provide detailed steps, hints, or reasons why the answer is correct..."}}
                       onBlur={(newContent) => setFormData(prev => ({ ...prev, explanation: newContent }))}
+                      editorRef={(instance) => { explanationEditorRef.current = instance; }}
                     />
                   </div>
                 </div>
