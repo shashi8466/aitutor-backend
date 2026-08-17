@@ -163,6 +163,70 @@ export const parseDocument = async (file, rawTextOnly = false, options = {}) => 
 /**
  * DOCX Extraction
  */
+/**
+ * Reads word/numbering.xml (if present) and builds a lookup of
+ * `${numId}:${ilvl}` -> Word's raw numFmt string (e.g. "bullet", "decimal",
+ * "lowerLetter", "upperRoman"...) so list paragraphs can be rendered with the
+ * same bullet/number style and nesting as the original document.
+ */
+const buildNumFormatMap = (zip) => {
+  const numFormatMap = {};
+  try {
+    const numEntry = zip.getEntry("word/numbering.xml");
+    if (!numEntry) return numFormatMap;
+
+    const numXml = zip.readAsText("word/numbering.xml");
+    const numDoc = new DOMParser().parseFromString(numXml, "text/xml");
+
+    const getAttr = (node, name) => node.getAttribute(`w:${name}`) || node.getAttribute(name);
+    const getChild = (node, tag) => node.getElementsByTagName(`w:${tag}`)[0] || node.getElementsByTagName(tag)[0];
+
+    const numIdToAbstract = {};
+    const numNodes = numDoc.getElementsByTagName("w:num");
+    for (let i = 0; i < numNodes.length; i++) {
+      const n = numNodes[i];
+      const id = getAttr(n, "numId");
+      const abstractNode = getChild(n, "abstractNumId");
+      const abstractId = abstractNode ? getAttr(abstractNode, "val") : null;
+      if (id && abstractId !== null) numIdToAbstract[id] = abstractId;
+    }
+
+    const abstractFormats = {};
+    const abstractNodes = numDoc.getElementsByTagName("w:abstractNum");
+    for (let i = 0; i < abstractNodes.length; i++) {
+      const an = abstractNodes[i];
+      const abstractId = getAttr(an, "abstractNumId");
+      const lvlNodes = an.getElementsByTagName("w:lvl");
+      const lvlMap = {};
+      for (let l = 0; l < lvlNodes.length; l++) {
+        const lvlNode = lvlNodes[l];
+        const ilvl = getAttr(lvlNode, "ilvl");
+        const fmtNode = getChild(lvlNode, "numFmt");
+        const fmt = fmtNode ? (getAttr(fmtNode, "val") || "bullet") : "bullet";
+        if (ilvl !== null) lvlMap[ilvl] = fmt;
+      }
+      abstractFormats[abstractId] = lvlMap;
+    }
+
+    Object.entries(numIdToAbstract).forEach(([numId, abstractId]) => {
+      const lvlMap = abstractFormats[abstractId] || {};
+      Object.entries(lvlMap).forEach(([ilvl, fmt]) => {
+        numFormatMap[`${numId}:${ilvl}`] = fmt;
+      });
+    });
+  } catch (e) { /* Numbering info is best-effort; fall back to plain paragraphs on failure */ }
+  return numFormatMap;
+};
+
+// Maps Word's numFmt values to valid CSS list-style-type keywords. Most Word
+// formats (decimal, lowerLetter, upperLetter, lowerRoman, upperRoman) already
+// match CSS keywords exactly.
+const numFmtToCssListStyle = (fmt) => {
+  const known = ['decimal', 'lowerLetter', 'upperLetter', 'lowerRoman', 'upperRoman'];
+  if (known.includes(fmt)) return fmt;
+  return null; // bullet or unknown -> caller decides (disc/circle/square)
+};
+
 const extractDocxWithMath = async (buffer, options = {}) => {
   try {
     const zip = new AdmZip(buffer);
@@ -171,6 +235,21 @@ const extractDocxWithMath = async (buffer, options = {}) => {
 
     const xmlContent = zip.readAsText("word/document.xml");
     const doc = new DOMParser().parseFromString(xmlContent, "text/xml");
+    const numFormatMap = buildNumFormatMap(zip);
+
+    const getListInfo = (pNode) => {
+      const pPr = pNode.getElementsByTagName ? (pNode.getElementsByTagName("w:pPr")[0] || pNode.getElementsByTagName("pPr")[0]) : null;
+      if (!pPr) return null;
+      const numPr = pPr.getElementsByTagName("w:numPr")[0] || pPr.getElementsByTagName("numPr")[0];
+      if (!numPr) return null;
+      const numIdNode = numPr.getElementsByTagName("w:numId")[0] || numPr.getElementsByTagName("numId")[0];
+      const ilvlNode = numPr.getElementsByTagName("w:ilvl")[0] || numPr.getElementsByTagName("ilvl")[0];
+      const numId = numIdNode ? (numIdNode.getAttribute("w:val") || numIdNode.getAttribute("val")) : null;
+      if (numId === null || numId === "0") return null; // numId 0 = explicitly no numbering
+      const ilvl = ilvlNode ? parseInt(ilvlNode.getAttribute("w:val") || ilvlNode.getAttribute("val") || "0", 10) : 0;
+      const numFmt = numFormatMap[`${numId}:${ilvl}`] || 'bullet';
+      return { ilvl, numFmt };
+    };
 
     const relMap = {};
     const relEntry = zip.getEntry("word/_rels/document.xml.rels");
@@ -351,14 +430,78 @@ const extractDocxWithMath = async (buffer, options = {}) => {
     };
 
     let fullText = "";
+
+    // Stack of currently-open <ul>/<ol> elements (by nesting level), used to
+    // rebuild Word's list hierarchy as real HTML so bullets/numbering/nesting
+    // survive storage and render natively in the admin editor and student exam.
+    let openListStack = [];
+    let listBuffer = "";
+
+    const listStyleFor = (ilvl, numFmt) => {
+      const cssStyle = numFmtToCssListStyle(numFmt);
+      if (cssStyle) return { tag: 'ol', listStyleType: cssStyle };
+      const bulletCycle = ['disc', 'circle', 'square'];
+      return { tag: 'ul', listStyleType: bulletCycle[ilvl % bulletCycle.length] };
+    };
+
+    const pushListItem = (ilvl, numFmt, itemHtml) => {
+      const { tag, listStyleType } = listStyleFor(ilvl, numFmt);
+      const openTag = `<${tag} style="list-style-type:${listStyleType}; padding-left:1.5em; margin:0.4em 0;">`;
+
+      if (openListStack.length === 0) {
+        openListStack.push({ ilvl, tag });
+        listBuffer += `${openTag}<li style="margin:0.3em 0;">${itemHtml}`;
+        return;
+      }
+
+      const top = openListStack[openListStack.length - 1];
+      if (ilvl > top.ilvl) {
+        openListStack.push({ ilvl, tag });
+        listBuffer += `${openTag}<li style="margin:0.3em 0;">${itemHtml}`;
+      } else if (ilvl === top.ilvl) {
+        listBuffer += `</li><li style="margin:0.3em 0;">${itemHtml}`;
+      } else {
+        while (openListStack.length > 1 && openListStack[openListStack.length - 1].ilvl > ilvl) {
+          const popped = openListStack.pop();
+          listBuffer += `</li></${popped.tag}>`;
+        }
+        const newTop = openListStack[openListStack.length - 1];
+        if (newTop.ilvl === ilvl) {
+          listBuffer += `</li><li style="margin:0.3em 0;">${itemHtml}`;
+        } else {
+          const popped = openListStack.pop();
+          listBuffer += `</li></${popped.tag}>`;
+          openListStack.push({ ilvl, tag });
+          listBuffer += `${openTag}<li style="margin:0.3em 0;">${itemHtml}`;
+        }
+      }
+    };
+
+    const closeAllLists = () => {
+      if (openListStack.length === 0) return;
+      for (let i = openListStack.length - 1; i >= 0; i--) {
+        listBuffer += `</li></${openListStack[i].tag}>`;
+      }
+      fullText += listBuffer + "\n\n";
+      listBuffer = "";
+      openListStack = [];
+    };
+
     const bodyContainer = doc.getElementsByTagName("w:body")[0];
     const topLevelNodes = bodyContainer.childNodes;
     for (let i = 0; i < topLevelNodes.length; i++) {
       const node = topLevelNodes[i];
       if (node.nodeName === "w:p") {
+        const listInfo = getListInfo(node);
         const pText = processParagraph(node);
+        if (listInfo && pText.trim()) {
+          pushListItem(listInfo.ilvl, listInfo.numFmt, pText);
+          continue;
+        }
+        closeAllLists();
         if (pText.trim()) fullText += pText + "\n\n";
       } else if (node.nodeName === "w:tbl") {
+        closeAllLists();
         const rows = node.getElementsByTagName("w:tr");
         let tableHtml = '<table class="docx-table" style="width:100%; border-collapse:collapse; margin:15px 0; border:1px solid #ddd;">';
         for (let r = 0; r < rows.length; r++) {
@@ -375,6 +518,7 @@ const extractDocxWithMath = async (buffer, options = {}) => {
         fullText += tableHtml + '</table>\n\n';
       }
     }
+    closeAllLists();
     return { text: fullText, images: extractedImages };
   } catch (err) {
     throw new Error(`DOCX extraction failed: ${err.message}`);

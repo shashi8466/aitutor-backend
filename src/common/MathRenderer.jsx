@@ -44,12 +44,16 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
     processedText = processedText.replace(/(\\?[\t\v\f\r])frac(?=[{[])/g, '\\frac');
     processedText = processedText.replace(/(\\?[\t\v\f\r])text(?=\{)/g, '\\text');
     processedText = processedText.replace(/(\\?[\t\v\f\r])sqrt(?=[{[])/g, '\\sqrt');
-    processedText = processedText.replace(/(\\?[\t\v\f\r])times(?=\s)/g, '\\times');
 
-    // Recovery for lost backslashes in front of common commands
-    const mathCommands = ['frac', 'sqrt', 'times', 'tau', 'tan', 'theta', 'alpha', 'beta', 'gamma'];
+    // Recovery for lost backslashes in front of structural commands, but ONLY when
+    // immediately followed by an argument bracket (e.g. "frac{1}{2}", "sqrt[3]{x}").
+    // Deliberately excludes word-shaped commands like "gamma", "times", "alpha", "theta",
+    // "tau", "tan", "beta" — these are common English words (e.g. "gamma ray", "3 times",
+    // "beta version") and a plain-word/whitespace match here would silently rewrite
+    // ordinary DOCX-imported text into Greek letters or math symbols on render.
+    const mathCommands = ['frac', 'sqrt', 'text'];
     mathCommands.forEach(cmd => {
-      const regex = new RegExp('(^|[^a-zA-Z\\\\])' + cmd + '(?=[\\{\\[\\s])', 'g');
+      const regex = new RegExp('(^|[^a-zA-Z\\\\])' + cmd + '(?=[\\{\\[])', 'g');
       processedText = processedText.replace(regex, '$1\\' + cmd);
     });
 

@@ -469,7 +469,7 @@ const mathButton = {
                       <JoditEditor
                         value={formData.passage}
                         config={{...editorConfig, placeholder: "Enter the linked passage or context for this question (supports LaTeX with $$ or $)..."}}
-                        onChange={(newContent) => setFormData(prev => ({ ...prev, passage: newContent }))}
+                        onBlur={(newContent) => setFormData(prev => ({ ...prev, passage: newContent }))}
                       />
                     </div>
                   </div>
@@ -483,7 +483,7 @@ const mathButton = {
                       <JoditEditor
                         value={formData.question}
                         config={{...editorConfig, placeholder: "Enter your question here..."}}
-                        onChange={(newContent) => setFormData(prev => ({ ...prev, question: newContent }))}
+                        onBlur={(newContent) => setFormData(prev => ({ ...prev, question: newContent }))}
                       />
                     </div>
                   </div>
@@ -567,7 +567,7 @@ const mathButton = {
                             <JoditEditor
                               value={option}
                               config={{...minimalEditorConfig, placeholder: `Enter Option ${String.fromCharCode(65 + index)}...`, minHeight: 100}}
-                              onChange={(newContent) => handleOptionChange(index, newContent)}
+                              onBlur={(newContent) => handleOptionChange(index, newContent)}
                             />
                           </div>
                           {formData.options.length > 2 && (
@@ -630,7 +630,7 @@ const mathButton = {
                     <JoditEditor
                       value={formData.explanation}
                       config={{...editorConfig, placeholder: "Provide detailed steps, hints, or reasons why the answer is correct..."}}
-                      onChange={(newContent) => setFormData(prev => ({ ...prev, explanation: newContent }))}
+                      onBlur={(newContent) => setFormData(prev => ({ ...prev, explanation: newContent }))}
                     />
                   </div>
                 </div>
