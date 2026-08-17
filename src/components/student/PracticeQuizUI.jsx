@@ -127,12 +127,12 @@ const PracticeQuizUI = ({
 
             {/* Passage if exists */}
             {currentQuestion.passage && (
-              <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 prose max-w-none text-slate-700 text-sm md:text-base whitespace-pre-wrap">
+              <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 prose max-w-none text-slate-800 text-base md:text-lg font-normal leading-loose whitespace-pre-wrap">
                 <MathRenderer text={currentQuestion.passage} courseId={courseId} />
               </div>
             )}
 
-            <div className="text-slate-800 text-base md:text-lg leading-relaxed mb-8 flex-1">
+            <div className="text-slate-900 text-lg md:text-xl font-medium leading-relaxed mb-8 flex-1">
               <MathRenderer text={getCleanQuestionText(currentQuestion.question || '', currentQuestion.image)} courseId={courseId} />
             </div>
 
@@ -167,7 +167,7 @@ const PracticeQuizUI = ({
                     
                     let containerClass = "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30";
                     let circleClass = "bg-white border-slate-300 text-slate-600";
-                    let textClass = "text-slate-700";
+                    let textClass = "text-slate-800 font-medium";
 
                     if (submitted) {
                       if (isActuallyCorrect) {
@@ -208,7 +208,7 @@ const PracticeQuizUI = ({
                         <span className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm font-bold shrink-0 shadow-sm ${circleClass}`}>
                           {letter}
                         </span>
-                        <div className={`flex-1 text-[15px] ${textClass}`}>
+                        <div className={`flex-1 text-base ${textClass}`}>
                           <MathRenderer text={option || ''} courseId={courseId} />
                         </div>
                         {submitted && isActuallyCorrect && <SafeIcon icon={FiCheck} className="w-5 h-5 text-green-500 shrink-0" />}
@@ -349,7 +349,7 @@ const PracticeQuizUI = ({
                 </div>
                 <span>Explanation</span>
               </div>
-              <div className="text-slate-700 text-sm md:text-base leading-relaxed prose max-w-none bg-white p-2 rounded-xl">
+              <div className="text-slate-800 text-base md:text-lg font-normal leading-loose prose max-w-none bg-white p-2 rounded-xl">
                 {currentQuestion.explanation && currentQuestion.explanation.trim() !== '' ? (
                   <MathRenderer text={currentQuestion.explanation} courseId={courseId} />
                 ) : (

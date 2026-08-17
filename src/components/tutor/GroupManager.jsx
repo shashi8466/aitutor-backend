@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -30,6 +30,12 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [analyticsGroupId, setAnalyticsGroupId] = useState(null);
     const [analyticsGroupName, setAnalyticsGroupName] = useState('');
+
+    // Groups list display state (search/sort/view are purely presentational over the
+    // already-loaded `groups` data - no new backend calls).
+    const [groupSearchQuery, setGroupSearchQuery] = useState('');
+    const [groupSortBy, setGroupSortBy] = useState('recent');
+    const [groupViewMode, setGroupViewMode] = useState('grid');
 
     // Form States
     const [newGroupName, setNewGroupName] = useState('');
@@ -242,6 +248,30 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         }
     };
 
+    const getStudentCount = (group) => (typeof group.member_count === 'object' ? (group.member_count.count || 0) : (group.member_count || 0));
+
+    const formatShortDate = (dateStr) => {
+        if (!dateStr) return '—';
+        return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    const totalStudentsAcrossGroups = groups.reduce((sum, g) => sum + getStudentCount(g), 0);
+    const groupsCreatedThisMonth = groups.filter(g => {
+        if (!g.created_at) return false;
+        const d = new Date(g.created_at);
+        const now = new Date();
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+
+    const displayedGroups = useMemo(() => {
+        const list = groups.filter(g => (g.name || '').toLowerCase().includes(groupSearchQuery.trim().toLowerCase()));
+        return [...list].sort((a, b) => {
+            if (groupSortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+            if (groupSortBy === 'students') return getStudentCount(b) - getStudentCount(a);
+            return new Date(b.created_at || 0) - new Date(a.created_at || 0); // 'recent'
+        });
+    }, [groups, groupSearchQuery, groupSortBy]);
+
     const filteredStudents = availableStudents.filter(s => {
         const matchesSearch = s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             s.email?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -275,95 +305,192 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Student Groups</h2>
-                    <p className="text-gray-500 dark:text-gray-400">Manage batches and class sessions</p>
+                    <h2 className="text-2xl font-bold text-white">Student Groups</h2>
+                    <p className="text-slate-400">Manage batches and class sessions</p>
                 </div>
                 <button
                     onClick={() => setShowCreateModal(true)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-2 font-bold shadow-lg shadow-blue-200 dark:shadow-none transition-all"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-2 font-bold shadow-lg shadow-blue-900/30 transition-all"
                 >
                     <SafeIcon icon={FiPlus} /> Create New Group
                 </button>
             </div>
 
-            {/* Groups Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {groups.length === 0 ? (
-                    <div className="col-span-full bg-white dark:bg-gray-800 p-12 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-center">
-                        <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <SafeIcon icon={FiUsers} className="w-8 h-8 text-gray-400" />
+            {/* Stat Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                    { label: 'Total Groups', sub: 'Active batches', value: groups.length, icon: FiUsers, bg: 'bg-blue-500/10 border-blue-500/30', text: 'text-blue-400' },
+                    { label: 'Total Students', sub: 'Across all groups', value: totalStudentsAcrossGroups, icon: FiUserPlus, bg: 'bg-green-500/10 border-green-500/30', text: 'text-green-400' },
+                    { label: 'Active Sessions', sub: 'Ongoing classes', value: 0, icon: FiBarChart2, bg: 'bg-purple-500/10 border-purple-500/30', text: 'text-purple-400' },
+                    { label: 'Groups Created', sub: 'This month', value: groupsCreatedThisMonth, icon: FiIcons.FiCalendar, bg: 'bg-amber-500/10 border-amber-500/30', text: 'text-amber-400' }
+                ].map(stat => (
+                    <div key={stat.label} className="bg-[#131622] border border-[#252A3C] rounded-2xl p-4 flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${stat.bg} ${stat.text}`}>
+                            <SafeIcon icon={stat.icon} className="w-5 h-5" />
                         </div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">No Groups Created</h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-6">Create your first student group to manage batches easily.</p>
-                        <button
-                            onClick={() => setShowCreateModal(true)}
-                            className="text-blue-600 font-bold hover:underline"
+                        <div className="min-w-0">
+                            <p className="text-xl font-black text-white leading-tight">{stat.value}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide truncate">{stat.label}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{stat.sub}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Search / Sort / View Controls */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-sm">
+                    <SafeIcon icon={FiSearch} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4" />
+                    <input
+                        type="text"
+                        value={groupSearchQuery}
+                        onChange={(e) => setGroupSearchQuery(e.target.value)}
+                        placeholder="Search groups by name..."
+                        className="w-full pl-10 pr-4 py-2.5 bg-[#131622] border border-[#252A3C] rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                        <span className="hidden sm:inline">Sort by:</span>
+                        <select
+                            value={groupSortBy}
+                            onChange={(e) => setGroupSortBy(e.target.value)}
+                            className="bg-[#131622] border border-[#252A3C] text-white text-xs font-bold px-3 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
-                            + Create New Group
+                            <option value="recent">Recently Created</option>
+                            <option value="name">Name (A-Z)</option>
+                            <option value="students">Most Students</option>
+                        </select>
+                    </div>
+                    <div className="flex gap-1.5 bg-[#131622] p-1 rounded-lg border border-[#252A3C]">
+                        <button
+                            title="Grid View"
+                            onClick={() => setGroupViewMode('grid')}
+                            className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${groupViewMode === 'grid' ? 'bg-[#1E2A55] border border-indigo-500 text-indigo-300' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            <SafeIcon icon={FiIcons.FiGrid} className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                            title="List View"
+                            onClick={() => setGroupViewMode('list')}
+                            className={`w-8 h-8 rounded-md flex items-center justify-center transition-all ${groupViewMode === 'list' ? 'bg-[#1E2A55] border border-indigo-500 text-indigo-300' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            <SafeIcon icon={FiIcons.FiList} className="w-3.5 h-3.5" />
                         </button>
                     </div>
-                ) : (
-                    groups.map(group => (
-                        <motion.div
-                            key={group.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden group hover:border-blue-300 dark:hover:border-blue-800 transition-all"
-                        >
-                            <div className="p-6">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-                                        <SafeIcon icon={FiUsers} className="w-6 h-6 text-blue-600" />
-                                    </div>
-                                    <button
-                                        onClick={() => handleDeleteGroup(group.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                                    >
-                                        <SafeIcon icon={FiTrash2} />
-                                    </button>
-                                </div>
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">{group.name}</h3>
-                                <p className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-3">
-                                    Content: {(group.assigned_course_ids?.length || 0)} areas assigned
-                                </p>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 line-clamp-2">
-                                    {group.description || 'No description provided.'}
-                                </p>
+                </div>
+            </div>
 
-                                <div className="flex items-center justify-between pt-4 border-t border-gray-50 dark:border-gray-700">
-                                    <div className="flex items-center gap-1 text-gray-500">
-                                        <SafeIcon icon={FiUsers} className="w-4 h-4" />
-                                        <span className="text-sm font-bold">{typeof group.member_count === 'object' ? (group.member_count.count || 0) : (group.member_count || 0)} Students</span>
+            {/* Groups Grid */}
+            {groups.length > 0 && (
+                displayedGroups.length === 0 ? (
+                    <div className="text-center py-12 text-slate-500 text-sm font-bold">No groups match your search.</div>
+                ) : (
+                    <div className={groupViewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'grid grid-cols-1 gap-4'}>
+                        {displayedGroups.map(group => {
+                            const isActive = (group.status || 'active') === 'active';
+                            const studentCount = getStudentCount(group);
+                            return (
+                                <motion.div
+                                    key={group.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="bg-[#131622] rounded-2xl border border-[#252A3C] shadow-sm overflow-hidden hover:border-indigo-500/40 transition-all"
+                                >
+                                    <div className="p-6">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/30 rounded-xl flex items-center justify-center">
+                                                <SafeIcon icon={FiUsers} className="w-6 h-6 text-indigo-400" />
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteGroup(group.id)}
+                                                title="Delete group"
+                                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                                            >
+                                                <SafeIcon icon={FiTrash2} />
+                                            </button>
+                                        </div>
+                                        <h3 className="text-lg font-bold text-white mb-1">{group.name}</h3>
+                                        <div className="flex items-center gap-1.5 mb-3">
+                                            <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-400' : 'bg-slate-500'}`} />
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-green-400' : 'text-slate-500'}`}>
+                                                {isActive ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-slate-400 mb-4 line-clamp-2">
+                                            {group.description || 'No description provided.'}
+                                        </p>
+
+                                        <div className="grid grid-cols-2 gap-3 mb-4 pb-4 border-b border-[#1C202B]">
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Content Areas</p>
+                                                <p className="text-xs font-bold text-indigo-400">{(group.assigned_course_ids?.length || 0)} Areas Assigned</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Created On</p>
+                                                <p className="text-xs font-bold text-slate-300">{formatShortDate(group.created_at)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Students</p>
+                                                <p className="text-xs font-bold text-slate-300">{studentCount} Students</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Group Type</p>
+                                                <p className="text-xs font-bold text-slate-300">Class Group</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setAnalyticsGroupId(group.id);
+                                                    setAnalyticsGroupName(group.name);
+                                                    setShowAnalytics(true);
+                                                }}
+                                                className="flex-1 min-w-[110px] px-3 py-2 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-purple-500/20 transition-all"
+                                            >
+                                                <SafeIcon icon={FiBarChart2} className="w-3.5 h-3.5" /> Analytics
+                                            </button>
+                                            <button
+                                                onClick={() => handleOpenManageMembers(group)}
+                                                className="flex-1 min-w-[110px] px-3 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-blue-500/20 transition-all"
+                                            >
+                                                <SafeIcon icon={FiUserPlus} className="w-3.5 h-3.5" /> Manage Students
+                                            </button>
+                                            <button
+                                                onClick={() => handleOpenEditGroup(group)}
+                                                className="flex-1 min-w-[110px] px-3 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-amber-500/20 transition-all"
+                                            >
+                                                <SafeIcon icon={FiEdit2} className="w-3.5 h-3.5" /> Edit Group
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteGroup(group.id)}
+                                                className="flex-1 min-w-[110px] px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-red-500/20 transition-all"
+                                            >
+                                                <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" /> Delete
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                setAnalyticsGroupId(group.id);
-                                                setAnalyticsGroupName(group.name);
-                                                setShowAnalytics(true);
-                                            }}
-                                            className="text-sm font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
-                                        >
-                                            <SafeIcon icon={FiBarChart2} /> Analytics
-                                        </button>
-                                        <button
-                                            onClick={() => handleOpenManageMembers(group)}
-                                            className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                                        >
-                                            <SafeIcon icon={FiUserPlus} /> Manage
-                                        </button>
-                                        <button
-                                            onClick={() => handleOpenEditGroup(group)}
-                                            className="text-sm font-bold text-green-600 hover:text-green-700 flex items-center gap-1"
-                                        >
-                                            <SafeIcon icon={FiEdit2} /> Edit
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))
-                )}
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                )
+            )}
+
+            {/* Persistent CTA footer */}
+            <div className="bg-[#131622] border border-dashed border-[#2D3448] rounded-2xl p-8 text-center">
+                <div className="w-14 h-14 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <SafeIcon icon={FiUserPlus} className="w-6 h-6 text-indigo-400" />
+                </div>
+                <h3 className="text-white font-bold mb-1">Create a new group to get started</h3>
+                <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">Organize students into groups and assign content areas to track progress effectively.</p>
+                <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm inline-flex items-center gap-2 transition-all shadow-lg shadow-blue-900/30"
+                >
+                    <SafeIcon icon={FiPlus} className="w-4 h-4" /> Create New Group
+                </button>
             </div>
 
             {/* Create Group Modal */}

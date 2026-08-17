@@ -1115,6 +1115,14 @@ const QuizInterface = () => {
                   );
                 }
               }
+
+              // Not passed (e.g. after a failed Hard-level attempt) - previously this screen
+              // had no way back at all besides the report/PDF buttons below.
+              return (
+                <Link to="/student/courses" className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                  <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to My Courses
+                </Link>
+              );
             })()}
             
             {/* New Action Buttons */}

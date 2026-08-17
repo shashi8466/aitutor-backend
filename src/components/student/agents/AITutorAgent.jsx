@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../../common/SafeIcon';
 import MathRenderer from '../../../common/MathRenderer';
-import { aiService, planService } from '../../../services/api';
+import { aiService } from '../../../services/api';
 import supabase from '../../../supabase/supabase';
-import { useAuth } from '../../../contexts/AuthContext';
+import { TAXONOMY } from '../../../utils/taxonomy';
 
 const {
   FiCpu, FiSend, FiUser, FiZap, FiLoader,
@@ -15,14 +16,6 @@ const {
 import BrandName from '../../../common/BrandName';
 
 const PAGE_TYPE = "KB_ONLY";
-
-// Quick-action suggestion chips shown in the welcome state
-const QUICK_ACTIONS = [
-  { label: '🎯 Two-variable data: models and scatterplots', msg: 'Give me 10 quiz questions on Two-variable data: models and scatterplots' },
-  { label: '🎯 Words in Context', msg: 'Give me 10 quiz questions on Words in Context' },
-  { label: '🎯 Math', msg: 'Give me 10 quiz questions on Math' },
-  { label: '🎯 Reading & Writing', msg: 'Give me 10 quiz questions on Reading & Writing' },
-];
 
 /**
  * ROBUST KB TOPIC EXTRACTOR
@@ -271,53 +264,49 @@ const DIFFICULTY_CONFIG = {
   Hard: { emoji: '🔴', color: 'text-red-400', bg: 'bg-red-500/20 border-red-500/40', active: 'bg-red-500 text-white' },
 };
 
-// ── Premium Welcome Card (rendered instead of plain markdown for msg id=1) ──
+// ── AI Companion intro card (rendered instead of plain markdown for msg id=1) ──
 const WelcomeCard = () => (
-  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden w-full max-w-[420px] shadow-xl transition-all duration-300">
-    {/* Card header */}
-    <div className="bg-gradient-to-r from-red-600 to-red-800 p-4 flex items-center gap-3">
-      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">🤖</div>
-      <div>
-        <div className="text-white font-bold text-sm leading-tight">Personal AI SAT Tutor</div>
-        <div className="text-white/70 text-[10px] mt-0.5">Digital SAT Specialist • Online</div>
-      </div>
+  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-5 w-full max-w-[520px] shadow-xl transition-all duration-300 flex items-center gap-4">
+    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xl flex-shrink-0 shadow-lg shadow-indigo-900/30">
+      ✨
     </div>
-
-    {/* Card body */}
-    <div className="p-5">
-      <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">I can help you with</p>
-
-      {[
-        { icon: '🎯', label: 'Practice Quizzes', example: 'Quiz me on Algebra' },
-      ].map((item, i) => (
-        <div key={i} className="flex items-center gap-3 p-3 mb-2 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl transition-colors">
-          <span className="text-xl flex-shrink-0">{item.icon}</span>
-          <div>
-            <div className="text-slate-900 dark:text-white font-bold text-xs">{item.label}</div>
-            <div className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 italic">"{item.example}"</div>
-          </div>
-        </div>
-      ))}
-
-      <div className="mt-4 p-3 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-xl text-center">
-        <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
-          Difficulty is set to <span className="text-red-600 dark:text-red-400">Medium</span> — change it anytime above
-        </p>
-      </div>
+    <div>
+      <div className="text-slate-900 dark:text-white font-bold text-base leading-tight">Hi! I'm your AI Companion</div>
+      <div className="text-slate-400 dark:text-slate-500 text-xs mt-1">Select a section and topic to get started. I'll generate personalized practice questions just for you.</div>
     </div>
   </div>
 );
 
+// Static per-category styling for the topic browser - kept as literal Tailwind class
+// strings (not composed via template literals) so the JIT compiler can see them.
+const MATH_CATEGORY_META = {
+  'Algebra': { icon: 'FiHash', iconBg: 'bg-purple-100 dark:bg-purple-500/20', iconText: 'text-purple-600 dark:text-purple-400' },
+  'Advanced Math': { icon: 'FiTrendingUp', iconBg: 'bg-blue-100 dark:bg-blue-500/20', iconText: 'text-blue-600 dark:text-blue-400' },
+  'Problem-Solving and Data Analysis': { icon: 'FiBarChart2', iconBg: 'bg-teal-100 dark:bg-teal-500/20', iconText: 'text-teal-600 dark:text-teal-400' },
+  'Geometry and Trigonometry': { icon: 'FiAlertTriangle', iconBg: 'bg-amber-100 dark:bg-amber-500/20', iconText: 'text-amber-600 dark:text-amber-400' }
+};
+const RW_CATEGORY_META = {
+  'Craft and Structure': { icon: 'FiBookOpen', iconBg: 'bg-rose-100 dark:bg-rose-500/20', iconText: 'text-rose-600 dark:text-rose-400' },
+  'Information and Ideas': { icon: 'FiMapPin', iconBg: 'bg-rose-100 dark:bg-rose-500/20', iconText: 'text-rose-600 dark:text-rose-400' },
+  'Standard English Conventions': { icon: 'FiType', iconBg: 'bg-rose-100 dark:bg-rose-500/20', iconText: 'text-rose-600 dark:text-rose-400' },
+  'Expression of Ideas': { icon: 'FiEdit3', iconBg: 'bg-rose-100 dark:bg-rose-500/20', iconText: 'text-rose-600 dark:text-rose-400' }
+};
+const DEFAULT_CATEGORY_META = { icon: 'FiBookOpen', iconBg: 'bg-slate-100 dark:bg-slate-500/20', iconText: 'text-slate-600 dark:text-slate-400' };
+
 const AITutorAgent = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([
     { id: 1, sender: 'ai', isWelcome: true }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [difficulty, setDifficulty] = useState('Medium');
+  const [activeSubjectTab, setActiveSubjectTab] = useState('SAT Math');
+  const [expandedCategories, setExpandedCategories] = useState({});
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   // Track shown question IDs to prevent duplicates across session
   const [shownQuestionIds, setShownQuestionIds] = useState(new Set());
@@ -368,21 +357,8 @@ const AITutorAgent = () => {
   useEffect(() => { scrollToBottom(); }, [messages]);
 
   useEffect(() => {
-    fetchAvailableTopics();
+    return () => { recognitionRef.current?.stop(); };
   }, []);
-
-  const [availableTopics, setAvailableTopics] = useState([]);
-
-  const fetchAvailableTopics = async () => {
-    // Hardcoding specific user requested topics to ensure they always appear as chips
-    const hardcodedTopics = [
-      { label: '🎯 Two-variable data: models and scatterplots', msg: 'Give me 10 quiz questions on Two-variable data: models and scatterplots' },
-      { label: '🎯 Words in Context', msg: 'Give me 10 quiz questions on Words in Context' },
-      { label: '🎯 Math', msg: 'Give me 10 quiz questions on Math' },
-      { label: '🎯 Reading & Writing', msg: 'Give me 10 quiz questions on Reading & Writing' },
-    ];
-    setAvailableTopics(hardcodedTopics);
-  };
 
   const fetchQuizBatch = async (topic, level, count, excludeIds) => {
     const normalizeLevel = (lvl) =>
@@ -539,36 +515,8 @@ const AITutorAgent = () => {
         const topic = extractKBTopic(msgText);
         const requestedCount = extractQuizCount(msgText);
 
-        // 1. Topic Gating Check
-        const hasAccess = await planService.checkAccess(user.id, 'topic', topic, user.plan_type);
-        if (!hasAccess) {
-          setMessages(prev => [...prev, {
-            id: Date.now() + 1,
-            sender: 'ai',
-            text: `🔒 **Topic Restricted:** The topic **"${topic}"** is only available in our **Premium Plan**. \n\nPlease upgrade to unlock this and over 10,000+ targeted practice questions!`
-          }]);
-          setLoading(false);
-          return;
-        }
-
-        // 2. Question Limit Check
-        const usage = await planService.getUsageStats(user.id);
-        const { data: settings } = await planService.getSettings();
-        const userPlan = (user?.plan_type || 'free').toLowerCase();
-        const planSettings = (settings || []).find(s => s.plan_type === userPlan);
-
-        // For Math/RW specific limits, we'd need more complex logic, but for simplicity:
-        const totalLimit = (planSettings?.max_questions_math || 250) + (planSettings?.max_questions_rw || 250);
-
-        if (userPlan !== 'premium' && usage.totalQuestions >= totalLimit) {
-          setMessages(prev => [...prev, {
-            id: Date.now() + 1,
-            sender: 'ai',
-            text: `⚠️ **Question Limit Reached:** You've completed your **${userPlan.toUpperCase()}** plan limit of ${totalLimit} questions. \n\nUpgrade to **Premium** for unlimited practice!`
-          }]);
-          setLoading(false);
-          return;
-        }
+        // SAT Math / SAT Reading & Writing topic practice is available to Free and Premium
+        // students alike - no plan gating or question-count limit here.
 
         const normalizedShownIdSet = new Set(Array.from(shownQuestionIds).map(normalizeQuestionId));
         const shownKeySet = new Set(shownQuestionKeys);
@@ -721,10 +669,78 @@ const AITutorAgent = () => {
     setMessages([{ id: Date.now(), sender: 'ai', isWelcome: true }]);
     setShownQuestionIds(new Set()); // Reset session history
     setShownQuestionKeys(new Set()); // Reset client dedupe keys
+    setInput('');
+    setActiveSubjectTab('SAT Math');
+    setExpandedCategories({});
+    setLoading(false);
     try { localStorage.removeItem(SEEN_IDS_STORAGE_KEY); } catch { /* noop */ }
     if (PAGE_TYPE !== "KB_ONLY") {
       aiService.tutorChat("reset", difficulty).catch(() => { });
     }
+  };
+
+  // Two-stage back: from an active conversation, Back returns to the fresh topic-selection
+  // screen (in-place reset, no page reload). From the fresh screen itself, Back leaves the
+  // AI Tutor and returns to the previous student page.
+  const handleBack = () => {
+    const isFreshScreen = messages.length <= 1;
+    if (isFreshScreen) {
+      navigate(-1);
+    } else {
+      handleReset();
+    }
+  };
+
+  // Speech-to-text: fills the chat input so the student can review/edit before sending,
+  // rather than auto-submitting.
+  const handleMicClick = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        sender: 'ai',
+        text: '🎙 Voice input isn\'t supported in this browser. Please type your question instead.'
+      }]);
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+
+    // Some browsers fire `onresult` more than once for a single utterance (each call
+    // carrying the growing transcript-so-far in event.results). Snapshot whatever was
+    // already typed once, then on every onresult REPLACE the spoken portion by rebuilding
+    // it from all of event.results - never append onto the live input state, or repeated
+    // callbacks stack duplicated fragments (e.g. "Give Give me Give me 5...").
+    const baseInput = input.trim();
+
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      transcript = transcript.trim();
+      if (transcript) {
+        setInput(baseInput ? `${baseInput} ${transcript}` : transcript);
+      }
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => {
+      setIsListening(false);
+      inputRef.current?.focus();
+    };
+
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
   };
 
   const DifficultyButton = ({ level }) => {
@@ -750,6 +766,13 @@ const AITutorAgent = () => {
       {/* ── Header ── */}
       <div className="bg-black p-4 flex justify-between items-center text-white flex-shrink-0">
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleBack}
+            title="Back"
+            className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+          >
+            <SafeIcon icon={FiIcons.FiArrowLeft} className="w-4 h-4 text-white/80" />
+          </button>
           <div className="w-12 h-12 bg-gradient-to-br from-[#E53935] to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-red-900/50 flex-shrink-0">
             <SafeIcon icon={FiCpu} className="w-6 h-6 text-white" />
           </div>
@@ -846,23 +869,76 @@ const AITutorAgent = () => {
           </motion.div>
         )}
 
-        {/* Quick action chips */}
+        {/* Subject tabs + category/topic browser */}
         {messages.length <= 2 && !loading && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="flex flex-wrap gap-2 pt-2"
+            className="space-y-4 pt-2"
           >
-            {(availableTopics.length > 0 ? availableTopics : QUICK_ACTIONS).map((action, i) => (
-              <button
-                key={i}
-                onClick={() => handleSend(action.msg)}
-                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-xs text-slate-700 dark:text-slate-300 hover:border-[#E53935] hover:text-[#E53935] transition-all duration-150 shadow-sm hover:shadow-md"
-              >
-                {action.label}
-              </button>
-            ))}
+            <div className="flex flex-wrap items-center gap-2">
+              {['SAT Math', 'SAT Reading & Writing'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveSubjectTab(tab)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${activeSubjectTab === tab
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-indigo-300'
+                    }`}
+                >
+                  <SafeIcon icon={tab === 'SAT Math' ? FiIcons.FiHash : FiIcons.FiEdit3} className="w-3.5 h-3.5" />
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {Object.entries(TAXONOMY['SAT'][activeSubjectTab] || {}).map(([category, topics], idx) => {
+                const meta = (activeSubjectTab === 'SAT Math' ? MATH_CATEGORY_META : RW_CATEGORY_META)[category] || DEFAULT_CATEGORY_META;
+                const isExpanded = !!expandedCategories[category];
+                const visibleTopics = isExpanded ? topics : topics.slice(0, 4);
+                const remaining = topics.length - visibleTopics.length;
+                return (
+                  <div key={category} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${meta.iconBg} ${meta.iconText}`}>
+                        <SafeIcon icon={FiIcons[meta.icon]} className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-slate-900 dark:text-white leading-tight truncate">{idx + 1}. {category}</p>
+                        <p className="text-[10px] text-slate-400">{topics.length} Topics</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {visibleTopics.map(topic => (
+                        <button
+                          key={topic}
+                          onClick={() => {
+                            // Prefill with an editable count instead of sending immediately,
+                            // so the student can change 5 to 10 (etc.) before submitting.
+                            setInput(`Give me 5 quiz questions on ${topic}`);
+                            inputRef.current?.focus();
+                          }}
+                          className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-[#E53935] transition-colors"
+                        >
+                          <span className="truncate">{topic}</span>
+                          <SafeIcon icon={FiIcons.FiChevronRight} className="w-3 h-3 flex-shrink-0" />
+                        </button>
+                      ))}
+                      {(remaining > 0 || isExpanded) && (
+                        <button
+                          onClick={() => setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }))}
+                          className="text-[10px] font-bold text-indigo-500 hover:underline pl-2"
+                        >
+                          {isExpanded ? 'Show less' : `+${remaining} more topics`}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </motion.div>
         )}
 
@@ -871,27 +947,39 @@ const AITutorAgent = () => {
 
       {/* ── Input ── */}
       <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <div className="relative max-w-4xl mx-auto">
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder="Ask a doubt, paste a question, or say 'Quiz me on Algebra'…"
-            disabled={loading}
-            className="w-full pl-5 pr-14 py-3.5 bg-gray-100 dark:bg-gray-900 border border-transparent focus:bg-white dark:focus:bg-gray-900 focus:border-gray-300 dark:focus:border-gray-600 rounded-full outline-none transition-all text-gray-900 dark:text-white text-sm font-medium disabled:opacity-60"
-          />
+        <div className="flex items-center gap-2 max-w-4xl mx-auto">
           <button
-            onClick={() => handleSend()}
-            disabled={!input.trim() || loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-[#E53935] text-white rounded-full flex items-center justify-center hover:bg-red-700 disabled:opacity-40 transition-all shadow-md hover:shadow-red-500/30 hover:scale-105 active:scale-95"
+            onClick={handleMicClick}
+            title={isListening ? 'Stop listening' : 'Speak your question'}
+            className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${isListening
+              ? 'bg-red-600 text-white animate-pulse shadow-lg shadow-red-500/40'
+              : 'bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
           >
-            {loading ? (
-              <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" />
-            ) : (
-              <SafeIcon icon={FiSend} className="w-4 h-4 ml-0.5" />
-            )}
+            <SafeIcon icon={FiIcons.FiMic} className="w-4 h-4" />
           </button>
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+              placeholder={isListening ? 'Listening…' : "Ask a doubt, paste a question, or say 'Quiz me on Algebra'…"}
+              disabled={loading}
+              className="w-full pl-5 pr-14 py-3.5 bg-gray-100 dark:bg-gray-900 border border-transparent focus:bg-white dark:focus:bg-gray-900 focus:border-gray-300 dark:focus:border-gray-600 rounded-full outline-none transition-all text-gray-900 dark:text-white text-sm font-medium disabled:opacity-60"
+            />
+            <button
+              onClick={() => handleSend()}
+              disabled={!input.trim() || loading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-[#E53935] text-white rounded-full flex items-center justify-center hover:bg-red-700 disabled:opacity-40 transition-all shadow-md hover:shadow-red-500/30 hover:scale-105 active:scale-95"
+            >
+              {loading ? (
+                <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" />
+              ) : (
+                <SafeIcon icon={FiSend} className="w-4 h-4 ml-0.5" />
+              )}
+            </button>
+          </div>
         </div>
         <p className="mt-2 text-center text-[10px] text-gray-400">
           AI can make mistakes. Review important concepts. &nbsp;•&nbsp; Difficulty: <strong>{DIFFICULTY_CONFIG[difficulty]?.emoji} {difficulty}</strong>

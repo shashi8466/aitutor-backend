@@ -63,7 +63,7 @@ const TopicReportReview = () => {
                         </div>
                     </div>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={() => navigate('/student/courses')}
                         className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold shadow-sm"
                     >
                         Go Back
@@ -74,10 +74,10 @@ const TopicReportReview = () => {
     }
 
     return (
-        <CombinedRegularCourseReport 
+        <CombinedRegularCourseReport
             topicReportData={topicReportData}
             studentName={user?.name || user?.user_metadata?.name || topicReportData?.studentName}
-            onExit={() => navigate(-1)} 
+            onExit={() => navigate('/student/courses')}
         />
     );
 };

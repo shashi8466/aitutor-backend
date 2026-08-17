@@ -52,10 +52,14 @@ const extractOptionsFromLine = (text, currentOptionsCount = 0) => {
   let remainingText = text;
 
   // Stricter regex for SAT: Only A-E
-  // Must be Uppercase. 
+  // Must be Uppercase.
   // We now allow it anywhere in the line as long as it follows our sequence (A, B, C...)
   // Support A), A., (A)
-  const optRegex = /(?:^|[\s\t>\](])([A-E])[\s]*[).][\s]*/g;
+  // The preceding-character class also allows sentence punctuation (.?!,;:) since a DOCX
+  // question stem ending in "?" is often typed with no space directly before the first
+  // option letter (e.g. "...phrase?A)theory") - without this, the whole A-D run was never
+  // matched and stayed glued onto the question text instead of becoming separate options.
+  const optRegex = /(?:^|[\s\t>\](.?!,;:])([A-E])[\s]*[).][\s]*/g;
   const matches = [...text.matchAll(optRegex)];
 
   if (matches.length > 0) {
