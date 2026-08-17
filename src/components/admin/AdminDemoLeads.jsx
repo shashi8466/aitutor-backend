@@ -36,6 +36,7 @@ const AdminDemoLeads = () => {
   const [customDateRange, setCustomDateRange] = useState({ from: '', to: '' });
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'SAT' | 'ACT' | 'AP' | 'FULL LENGTH TESTS'
   const [testFilter, setTestFilter] = useState('all'); // specific course name within the selected type
+  const [gradeFilter, setGradeFilter] = useState('all'); // specific grade, or 'all'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'completed' | 'in_progress'
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -160,12 +161,22 @@ const AdminDemoLeads = () => {
     return Array.from(new Set(scoped.map(l => l.courses?.name).filter(Boolean))).sort();
   }, [dedupedLeads, typeFilter]);
 
+  // Built dynamically from whatever grades actually appear in the data, never hardcoded.
+  const availableGrades = useMemo(() => {
+    return Array.from(new Set(dedupedLeads.map(l => l.grade).filter(Boolean)))
+      .sort((a, b) => Number(a) - Number(b) || String(a).localeCompare(String(b)));
+  }, [dedupedLeads]);
+
   const filteredLeads = dedupedLeads.filter(lead => {
     if (typeFilter !== 'all' && classifyLeadCourse(lead) !== typeFilter) {
       return false;
     }
 
     if (testFilter !== 'all' && lead.courses?.name !== testFilter) {
+      return false;
+    }
+
+    if (gradeFilter !== 'all' && String(lead.grade || '') !== String(gradeFilter)) {
       return false;
     }
 
@@ -221,6 +232,37 @@ const AdminDemoLeads = () => {
 
     return true;
   });
+
+  // Reactive summary counts, derived from filteredLeads so they always reflect the
+  // currently active filters (date/type/test/grade/status/search) and update as soon
+  // as leads are added, removed, or the filters change.
+  const summary = useMemo(() => {
+    const byTest = new Map();
+    const byGrade = new Map();
+    let completed = 0;
+    let inProgress = 0;
+
+    filteredLeads.forEach(lead => {
+      const testName = lead.courses?.name || 'Unknown Test';
+      byTest.set(testName, (byTest.get(testName) || 0) + 1);
+
+      const grade = lead.grade ? `Gr ${lead.grade}` : 'Unspecified';
+      byGrade.set(grade, (byGrade.get(grade) || 0) + 1);
+
+      if (lead.final_email_sent) completed++;
+      else inProgress++;
+    });
+
+    const sortByCountDesc = (map) => Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+
+    return {
+      total: filteredLeads.length,
+      byTest: sortByCountDesc(byTest),
+      byGrade: sortByCountDesc(byGrade),
+      completed,
+      inProgress
+    };
+  }, [filteredLeads]);
 
   const processDataForExport = () => {
     return filteredLeads.map(lead => ({
@@ -317,6 +359,60 @@ const AdminDemoLeads = () => {
         </div>
       )}
 
+      {/* Summary Cards - reactive to the active filters below */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Total Students</div>
+          <div className="text-3xl font-black text-gray-900 dark:text-white leading-none">{summary.total}</div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Students by Test</div>
+          <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1">
+            {summary.byTest.length === 0 ? (
+              <div className="text-sm text-gray-400 font-medium">No data</div>
+            ) : summary.byTest.map(([name, count]) => (
+              <div key={name} className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-gray-700 dark:text-gray-300 truncate">{name}</span>
+                <span className="font-black text-indigo-600 dark:text-indigo-400 flex-shrink-0">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Students by Grade</div>
+          <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar pr-1">
+            {summary.byGrade.length === 0 ? (
+              <div className="text-sm text-gray-400 font-medium">No data</div>
+            ) : summary.byGrade.map(([grade, count]) => (
+              <div key={grade} className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-gray-700 dark:text-gray-300">{grade}</span>
+                <span className="font-black text-blue-600 dark:text-blue-400">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Students by Status</div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="inline-flex items-center gap-1.5 font-bold text-green-700 dark:text-green-400">
+                <SafeIcon icon={FiCheckCircle} className="w-3 h-3" /> Completed
+              </span>
+              <span className="font-black text-green-700 dark:text-green-400">{summary.completed}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="inline-flex items-center gap-1.5 font-bold text-gray-600 dark:text-gray-400">
+                <SafeIcon icon={FiAlertCircle} className="w-3 h-3" /> In Progress
+              </span>
+              <span className="font-black text-gray-600 dark:text-gray-400">{summary.inProgress}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 p-4 rounded-[24px] shadow-sm border border-gray-100 dark:border-gray-700 flex flex-wrap gap-4 items-center mb-6">
         <select 
@@ -374,6 +470,17 @@ const AdminDemoLeads = () => {
         </select>
 
         <select
+          value={gradeFilter}
+          onChange={(e) => setGradeFilter(e.target.value)}
+          className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+        >
+          <option value="all">All Grades</option>
+          {availableGrades.map(grade => (
+            <option key={grade} value={grade}>Grade {grade}</option>
+          ))}
+        </select>
+
+        <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
@@ -409,21 +516,21 @@ const AdminDemoLeads = () => {
           </div>
         ) : (
           <div className="overflow-x-auto w-full max-w-full">
-            <table className="w-full min-w-[1160px]">
+            <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
-                  <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Date</th>
-                  <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Student Details</th>
-                  <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Parent Details</th>
-                  <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Course & Progress</th>
-                  <th className="px-6 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Status</th>
+                  <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Date</th>
+                  <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Student Details</th>
+                  <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Parent Details</th>
+                  <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">Course & Progress</th>
+                  <th className="sticky right-0 z-10 bg-gray-50/50 dark:bg-gray-900/50 px-4 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap border-l border-gray-100 dark:border-gray-700 min-w-[180px]">Status &amp; Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
                 {filteredLeads.map((lead) => (
                   <tr key={lead.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-all">
                     {/* Date */}
-                    <td className="px-6 py-5 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-gray-900 dark:text-white">
                         {new Date(lead.created_at).toLocaleDateString()}
                       </div>
@@ -433,7 +540,7 @@ const AdminDemoLeads = () => {
                     </td>
 
                     {/* Student */}
-                    <td className="px-6 py-5 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <div className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tighter">
                         {lead.full_name} <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded ml-2 normal-case tracking-normal">Gr {lead.grade}</span>
                       </div>
@@ -442,7 +549,7 @@ const AdminDemoLeads = () => {
                     </td>
 
                     {/* Parent */}
-                    <td className="px-6 py-5 whitespace-nowrap">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-gray-700 dark:text-gray-300">
                         {lead.score_details?.parentName || '-'}
                       </div>
@@ -452,7 +559,7 @@ const AdminDemoLeads = () => {
                     </td>
 
                     {/* Course & Progress */}
-                    <td className="px-6 py-5">
+                    <td className="px-4 py-4">
                       <div className="text-sm font-bold text-gray-900 dark:text-white">
                         {lead.courses?.name || 'Unknown Course'}
                       </div>
@@ -466,15 +573,15 @@ const AdminDemoLeads = () => {
                       )}
                     </td>
 
-                    {/* Status */}
-                    <td className="px-6 py-5 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-3">
+                    {/* Status & Actions */}
+                    <td className="sticky right-0 z-10 bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-900/50 px-4 py-4 text-right border-l border-gray-100 dark:border-gray-700 transition-all">
+                      <div className="flex flex-col items-end gap-2">
                         {lead.final_email_sent ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-green-100 text-green-700 whitespace-nowrap">
                             <SafeIcon icon={FiCheckCircle} className="w-3 h-3" /> Email Sent
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-600 whitespace-nowrap">
                             <SafeIcon icon={FiAlertCircle} className="w-3 h-3" /> In Progress
                           </span>
                         )}
@@ -482,14 +589,14 @@ const AdminDemoLeads = () => {
                           <>
                             <button
                               onClick={() => handleViewReport(lead)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 whitespace-nowrap"
                               title="View Report"
                             >
                               <SafeIcon icon={FiFileText} className="w-3.5 h-3.5" /> View Report
                             </button>
                             <button
                               onClick={() => handleDownloadReport(lead)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors border border-green-200"
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors border border-green-200 whitespace-nowrap"
                               title="Download PDF"
                             >
                               <SafeIcon icon={FiDownload} className="w-3.5 h-3.5" /> Download PDF

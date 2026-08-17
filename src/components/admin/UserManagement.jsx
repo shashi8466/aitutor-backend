@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -160,6 +160,30 @@ const UserManagement = () => {
     return matchesSearch && matchesRole && matchesPlan && matchesStatus;
   });
 
+  // Overall classification totals (independent of the table's own search/filter state)
+  const roleCounts = useMemo(() => {
+    const counts = { student: 0, tutor: 0, parent: 0, admin: 0 };
+    users.forEach(user => {
+      const role = (user.role || '').toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(counts, role)) counts[role]++;
+    });
+    return counts;
+  }, [users]);
+
+  const roleSummaryCards = [
+    { label: 'Students', count: roleCounts.student, icon: FiUser, color: 'blue' },
+    { label: 'Tutors', count: roleCounts.tutor, icon: FiShield, color: 'amber' },
+    { label: 'Parents', count: roleCounts.parent, icon: FiUsers, color: 'indigo' },
+    { label: 'Admins', count: roleCounts.admin, icon: FiCheckCircle, color: 'red' }
+  ];
+
+  const roleCardColorClasses = {
+    blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
+    amber: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400',
+    indigo: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400',
+    red: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+  };
+
   if (loading && users.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -192,6 +216,24 @@ const UserManagement = () => {
           <p className="text-sm font-bold">{error}</p>
         </div>
       )}
+
+      {/* Role Summary Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {roleSummaryCards.map(card => (
+          <div
+            key={card.label}
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex items-center gap-3"
+          >
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${roleCardColorClasses[card.color]}`}>
+              <SafeIcon icon={card.icon} className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-2xl font-black text-gray-900 dark:text-white leading-none">{card.count}</div>
+              <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">{card.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Control Bar */}
       <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center mb-6 flex-wrap">
@@ -257,15 +299,15 @@ const UserManagement = () => {
 
       {/* Authority Table */}
       <div className="bg-white dark:bg-gray-800 rounded-[32px] shadow-xl shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-700 overflow-x-auto w-full max-w-full responsive-table-container">
-          <table className="w-full min-w-[960px]">
+          <table className="w-full min-w-[820px]">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Identify</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Classification</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Plan</th>
-                <th className="px-6 py-5 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Verification Status</th>
-                <th className="px-6 py-5 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Execution</th>
+                <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Identify</th>
+                <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact</th>
+                <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Classification</th>
+                <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Plan</th>
+                <th className="px-4 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Verification Status</th>
+                <th className="sticky right-0 z-10 bg-gray-50/50 dark:bg-gray-900/50 px-4 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest border-l border-gray-100 dark:border-gray-700">Execution</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
@@ -279,9 +321,9 @@ const UserManagement = () => {
               )}
               {filteredUsers.map((user) => (
                 <tr key={user.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-900/30 transition-all">
-                  <td className="px-6 py-5 whitespace-nowrap">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center text-gray-900 dark:text-white font-black text-lg group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center text-gray-900 dark:text-white font-black text-base group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm flex-shrink-0">
                         {user.name?.charAt(0)?.toUpperCase()}
                       </div>
                       <div>
@@ -290,7 +332,7 @@ const UserManagement = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-5 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex flex-col">
                       <div className="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
                         <SafeIcon icon={FiMail} className="text-gray-400 w-3 h-3" /> {user.email}
@@ -298,7 +340,7 @@ const UserManagement = () => {
                       {user.mobile && <div className="text-[10px] font-black text-blue-500 uppercase mt-1">{user.mobile}</div>}
                     </div>
                   </td>
-                  <td className="px-6 py-5 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <select
                         value={user.role}
@@ -316,12 +358,12 @@ const UserManagement = () => {
                       </select>
                     </div>
                   </td>
-                  <td className="px-6 py-5 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${user.plan_type === 'premium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
                       {user.plan_type || 'free'}
                     </span>
                   </td>
-                  <td className="px-6 py-5 whitespace-nowrap">
+                  <td className="px-4 py-4 whitespace-nowrap">
                     <button
                       onClick={() => {
                         const newStatus = user.status === 'active' ? 'pending' : 'active';
@@ -341,7 +383,7 @@ const UserManagement = () => {
                       {user.status === 'active' ? 'Active' : 'Pending Approval'}
                     </button>
                   </td>
-                  <td className="px-6 py-5 whitespace-nowrap text-right">
+                  <td className="sticky right-0 z-10 bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-900/50 px-4 py-4 whitespace-nowrap text-right border-l border-gray-100 dark:border-gray-700 transition-all">
                     <button
                       onClick={() => openManageModal(user)}
                       className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
