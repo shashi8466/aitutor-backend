@@ -702,7 +702,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                         {/* QUESTION-WISE ANALYTICS SCREEN TABLE */}
                         <div className="mb-12">
                             <div className="bg-[#0f1738] text-white p-4 rounded-xl flex justify-between items-center mb-6 shadow-md">
-                                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider">Math — Question-Wise Analytics</h2>
+                                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider">{aggregated.topic} — Question-Wise Analytics</h2>
                                 <span className="text-xs font-bold text-blue-300 uppercase tracking-widest">{aggregated.totalQuestions} TOTAL QUESTIONS</span>
                             </div>
 

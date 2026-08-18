@@ -583,6 +583,7 @@ const QuizInterface = () => {
   };
 
   const handleFinishQuiz = async () => {
+    if (savingResult) return; // guard against double-submission from a repeated/rapid Finish click
     setSavingResult(true);
 
     try {
@@ -1259,8 +1260,9 @@ const QuizInterface = () => {
           planSettings={planSettings}
           setShowAITutor={setShowAITutor}
           user={user}
+          savingResult={savingResult}
         />
-        
+
         {/* Render Modals */}
         <AnimatePresence>
           {showAITutor && (

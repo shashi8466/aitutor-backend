@@ -6,7 +6,7 @@ import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 
 const {
-  FiArrowLeft, FiGrid, FiClock, FiTarget, FiFlag, FiCheck, FiX, FiMessageCircle, FiArrowRight
+  FiArrowLeft, FiGrid, FiClock, FiTarget, FiFlag, FiCheck, FiX, FiMessageCircle, FiArrowRight, FiLoader
 } = FiIcons;
 
 // Helper to get clean question text
@@ -56,7 +56,8 @@ const PracticeQuizUI = ({
   isACTFullLengthCourse,
   planSettings,
   setShowAITutor,
-  user
+  user,
+  savingResult
 }) => {
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
   const isCorrect = isCorrectAnswer();
@@ -127,7 +128,7 @@ const PracticeQuizUI = ({
 
             {/* Passage if exists */}
             {currentQuestion.passage && (
-              <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 prose max-w-none text-slate-800 text-base md:text-lg font-normal leading-loose whitespace-pre-wrap">
+              <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 text-base md:text-lg font-normal leading-loose">
                 <MathRenderer text={currentQuestion.passage} courseId={courseId} />
               </div>
             )}
@@ -274,9 +275,14 @@ const PracticeQuizUI = ({
                   ) : (
                     <button
                       onClick={handleNextQuestion}
-                      className="px-6 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors"
+                      disabled={isLastQuestion && savingResult}
+                      className="px-6 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl flex items-center gap-2 hover:bg-indigo-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {isLastQuestion ? 'Finish' : 'Next'} <SafeIcon icon={FiArrowRight} className="w-4 h-4" />
+                      {isLastQuestion && savingResult ? (
+                        <><SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" /> Finishing...</>
+                      ) : (
+                        <>{isLastQuestion ? 'Finish' : 'Next'} <SafeIcon icon={FiArrowRight} className="w-4 h-4" /></>
+                      )}
                     </button>
                   )}
                 </div>
@@ -349,7 +355,7 @@ const PracticeQuizUI = ({
                 </div>
                 <span>Explanation</span>
               </div>
-              <div className="text-slate-800 text-base md:text-lg font-normal leading-loose prose max-w-none bg-white p-2 rounded-xl">
+              <div className="text-slate-800 text-base md:text-lg font-normal leading-loose bg-white p-2 rounded-xl">
                 {currentQuestion.explanation && currentQuestion.explanation.trim() !== '' ? (
                   <MathRenderer text={currentQuestion.explanation} courseId={courseId} />
                 ) : (

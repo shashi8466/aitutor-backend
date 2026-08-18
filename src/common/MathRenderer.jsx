@@ -85,8 +85,11 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
       return `<table class="min-w-full border-collapse border border-gray-300 my-4 text-sm">${htmlRows}</table>`;
     });
 
-    // Handle line breaks before math wrapping
-    processedText = processedText.replace(/\r?\n/g, '<br />');
+    // Handle line breaks before math wrapping. A blank line in the source (double+ newline)
+    // is a real paragraph break and gets a bigger visual gap; a lone newline is just a soft
+    // wrap within the same paragraph. Without this distinction both looked identical, so
+    // multi-paragraph passages (e.g. "Text 1 ... \n\n Text 2 ...") read as one cramped block.
+    processedText = processedText.replace(/\r?\n\s*\r?\n+/g, '<br /><br />').replace(/\r?\n/g, '<br />');
 
     // ---------------------------------------------------------
     // 1a. Automatic Image Tag Parsing ([IMAGE: filename.ext])

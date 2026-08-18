@@ -236,12 +236,17 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
       if (!cId) return;
 
       const cName = sub.course?.name || sub.courses?.name || sub.courseName || 'SAT Topic';
-      const cNameLower = cName.toLowerCase();
-      const isSAT = cNameLower.includes('sat') || cNameLower.includes('nonlinear') || cNameLower.includes('equivalent') || cNameLower.includes('linear');
-      const isFullLength = cNameLower.includes('full length') || cNameLower.includes('full-length');
+
+      // Reuse the same main_category/is_adaptive classification used for the category filter
+      // bar above, rather than re-guessing subject from the course name. The previous check
+      // only matched Math-specific keywords ("linear", "nonlinear", "equivalent"), so Reading &
+      // Writing topics (e.g. "Cross-Text Connections") never qualified for combining - this
+      // works for every SAT regular course (Math and Reading & Writing alike) since
+      // classifySubmission already excludes Full-Length Tests via its own mainCat logic.
+      const { mainCat } = classifySubmission(sub);
 
       // Aggregate SAT Regular Course topics
-      if (isSAT && !isFullLength) {
+      if (mainCat === 'SAT') {
         if (!grouped[cId]) {
           grouped[cId] = {
             courseId: cId,
@@ -303,13 +308,288 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
         overallScaledScore,
         formattedTime: formatTimeText(totalDurationSec),
         dateStr: `${formattedDate} at ${formattedTimeStr}`,
+        // Raw timestamp of the group's most recent attempt, used for sorting - the actual
+        // attempt/submission completion time, never course/upload metadata.
+        latestDateRaw: group.latestDate,
         attemptsCount: group.attempts.length,
         isFullyCompleted,
         missingLevels,
         completedLevelsCount: REQUIRED_LEVELS.length - missingLevels.length
       };
-    });
+      // Latest-attempt-first: whenever a new attempt completes for this topic, its timestamp
+      // becomes group.latestDate above, so this card naturally sorts back to the top.
+    }).sort((a, b) => new Date(b.latestDateRaw) - new Date(a.latestDateRaw));
   }, [filteredSubmissions]);
+
+  // Single, unified latest-first list: combined SAT topic cards and individual attempt cards
+  // (ACT/AP/Full-Length, plus each level's own attempt) are merged and sorted together by their
+  // actual completion timestamp, so a newly finished attempt of ANY kind always lands at the
+  // top of the page instead of being stuck behind a fixed "combined cards first" block.
+  const displayItems = useMemo(() => {
+    const combinedItems = combinedTopicReports.map(combined => ({
+      key: `combined_${combined.courseId}`,
+      type: 'combined',
+      data: combined,
+      sortDate: new Date(combined.latestDateRaw)
+    }));
+
+    // Every SAT regular-course topic already has its own combined card above - either the
+    // "fully completed" version or the "X of 3 levels" in-progress version - so its individual
+    // per-level attempts shouldn't also render as separate, differently-styled duplicate cards.
+    // Only submissions that can't be grouped at all (ACT/AP/Full-Length attempts) still need
+    // their own individual card.
+    const groupedCourseIds = new Set(combinedTopicReports.map(c => c.courseId));
+    const individualItems = filteredSubmissions
+      .filter(sub => !groupedCourseIds.has(sub.course_id || sub.course?.id))
+      .map(sub => ({
+        key: `sub_${sub.id}`,
+        type: 'individual',
+        data: sub,
+        sortDate: new Date(sub.test_date || sub.created_at)
+      }));
+
+    return [...combinedItems, ...individualItems].sort((a, b) => b.sortDate - a.sortDate);
+  }, [combinedTopicReports, filteredSubmissions]);
+
+  const renderCombinedCard = (combined) => (
+    <motion.div
+      key={`combined_${combined.courseId}`}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`bg-[#131b2e] dark:bg-[#131b2e] rounded-2xl p-6 border-2 shadow-xl text-white mb-2 ${
+        combined.isFullyCompleted ? 'border-blue-500/60' : 'border-amber-500/40'
+      }`}
+    >
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
+        <div className="flex items-center gap-4 flex-1">
+          <div className={`p-4 rounded-2xl border ${
+            combined.isFullyCompleted
+              ? 'bg-blue-600/20 text-blue-400 border-blue-500/30'
+              : 'bg-amber-600/20 text-amber-400 border-amber-500/30'
+          }`}>
+            <SafeIcon icon={combined.isFullyCompleted ? FiLayers : FiAlertCircle} className="w-7 h-7" />
+          </div>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+              <h3 className="font-black text-xl text-white leading-tight">
+                {combined.topicName}
+              </h3>
+              {combined.isFullyCompleted ? (
+                <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-slate-800 text-blue-300 border border-slate-700">
+                  Easy + Medium + Hard
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                  {combined.completedLevelsCount} of {REQUIRED_LEVELS.length} Levels Completed
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-6 text-xs font-bold text-slate-400">
+              <span className="flex items-center gap-2">
+                <SafeIcon icon={FiClock} className="w-4 h-4 text-blue-400" />
+                {combined.dateStr}
+              </span>
+              {combined.isFullyCompleted && (
+                <span className="flex items-center gap-2">
+                  <SafeIcon icon={FiTrendingUp} className="w-4 h-4 text-blue-400" />
+                  Accuracy: {combined.overallAccuracy}%
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Score Header Display */}
+        <div className="text-left lg:text-right flex-1 lg:flex-none">
+          {combined.isFullyCompleted ? (
+            <>
+              <p className="text-[10px] text-blue-300 font-black uppercase tracking-widest mb-1">Overall Scaled Score</p>
+              <p className="text-3xl font-black text-white tracking-tight">
+                {combined.overallScaledScore} <span className="text-sm font-bold text-slate-400">/ 800</span>
+              </p>
+              <p className="text-[10px] font-bold text-blue-400 mt-1 uppercase">
+                {combined.overallAccuracy}% Overall Accuracy
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest mb-1">Test In Progress</p>
+              <p className="text-xs font-bold text-slate-400 max-w-[220px]">
+                Missing: <span className="text-white">{combined.missingLevels.join(', ')}</span>
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Combined Metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#0a0e20] rounded-xl border border-slate-800 mb-6 text-center">
+        <div>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Questions</p>
+          <p className="text-lg font-black text-white">{combined.totalQuestions}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Correct</p>
+          <p className="text-lg font-black text-emerald-400">{combined.totalCorrect}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Incorrect</p>
+          <p className="text-lg font-black text-rose-400">{combined.totalIncorrect}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Time</p>
+          <p className="text-lg font-black text-white">{combined.formattedTime}</p>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {combined.isFullyCompleted ? (
+          <>
+            <button
+              onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}`)}
+              className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+            >
+              <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
+            </button>
+            <button
+              onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?view=question-wise`)}
+              className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+            >
+              <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
+            </button>
+            <button
+              onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?download=true`)}
+              className="py-3 px-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
+            >
+              <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              disabled
+              title="Complete all levels to view the combined report"
+              className="flex-1 py-3 px-4 bg-slate-800 text-slate-500 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
+            >
+              <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
+            </button>
+            <button
+              disabled
+              title="Complete all levels to view question-wise analysis"
+              className="flex-1 py-3 px-4 bg-slate-800 text-slate-500 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
+            >
+              <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
+            </button>
+            <button
+              disabled
+              title="Complete all levels to download the PDF report"
+              className="py-3 px-6 bg-slate-800 text-slate-500 border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
+            >
+              <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
+            </button>
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+
+  const renderIndividualCard = (sub, idx) => {
+    const stats = getTestAttemptStats(sub);
+
+    return (
+      <motion.div
+        key={sub.id}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: idx * 0.05 }}
+        className="bg-[#131b2e] dark:bg-[#131b2e] rounded-2xl p-6 border-2 border-blue-500/60 shadow-xl text-white mb-2"
+      >
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="p-4 rounded-2xl border bg-blue-600/20 text-blue-400 border-blue-500/30">
+              <SafeIcon icon={FiFileText} className="w-7 h-7" />
+            </div>
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                <h3 className="font-black text-xl text-white leading-tight">
+                  {stats.courseName}
+                </h3>
+                <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-slate-800 text-blue-300 border border-slate-700">
+                  {sub.level || 'Practice'}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-6 text-xs font-bold text-slate-400">
+                <span className="flex items-center gap-2">
+                  <SafeIcon icon={FiClock} className="w-4 h-4 text-blue-400" />
+                  {stats.testDate.toLocaleDateString()} at {stats.testDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="flex items-center gap-2">
+                  <SafeIcon icon={FiTrendingUp} className="w-4 h-4 text-blue-400" />
+                  Accuracy: {stats.accuracy}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Score Header Display - matches the combined card's header exactly */}
+          <div className="text-left lg:text-right flex-shrink-0">
+            <p className="text-[10px] text-blue-300 font-black uppercase tracking-widest mb-1">{stats.scoreLabel}</p>
+            <p className="text-3xl font-black text-white tracking-tight">
+              {stats.displayScore}
+            </p>
+            <p className="text-[10px] font-bold text-blue-400 mt-1 uppercase">
+              {stats.performanceLevel}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#0a0e20] rounded-xl border border-slate-800 mb-6 text-center">
+          <div>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Test ID</p>
+            <p className="text-lg font-black text-white">#{sub.id}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Questions</p>
+            <p className="text-lg font-black text-white">{stats.totalQuestions || 'N/A'}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Performance</p>
+            <p className="text-lg font-black text-white">{stats.performanceLevel}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Duration</p>
+            <p className="text-lg font-black text-white">{stats.durationText}</p>
+          </div>
+        </div>
+
+        {/* Action Buttons - identical structure/classes to the combined card */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={() => navigate(`${basePath}/report/${sub.id}`)}
+            className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+          >
+            <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
+          </button>
+          <button
+            onClick={() => navigate(`${basePath}/detailed-review/${sub.id}`)}
+            className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+          >
+            <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
+          </button>
+          <button
+            onClick={() => navigate(`${basePath}/report/${sub.id}?download=true`)}
+            className="py-3 px-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
+          >
+            <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
 
   if (loading) return (
     <div className="flex justify-center items-center h-96">
@@ -453,297 +733,15 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-1 lg:grid-cols-2 gap-6' : 'grid grid-cols-1 gap-6'}>
 
-          {/* ========================================================= */}
-          {/* DEDICATED COMBINED SAT REGULAR COURSE REPORT CARDS        */}
-          {/* ========================================================= */}
-          {combinedTopicReports.map((combined) => (
-            <motion.div
-              key={`combined_${combined.courseId}`}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`bg-[#131b2e] dark:bg-[#131b2e] rounded-2xl p-6 border-2 shadow-xl text-white mb-2 ${
-                combined.isFullyCompleted ? 'border-blue-500/60' : 'border-amber-500/40'
-              }`}
-            >
-              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
-                <div className="flex items-center gap-4 flex-1">
-                  <div className={`p-4 rounded-2xl border ${
-                    combined.isFullyCompleted
-                      ? 'bg-blue-600/20 text-blue-400 border-blue-500/30'
-                      : 'bg-amber-600/20 text-amber-400 border-amber-500/30'
-                  }`}>
-                    <SafeIcon icon={combined.isFullyCompleted ? FiLayers : FiAlertCircle} className="w-7 h-7" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                      <h3 className="font-black text-xl text-white leading-tight">
-                        {combined.topicName}
-                      </h3>
-                      {combined.isFullyCompleted ? (
-                        <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-slate-800 text-blue-300 border border-slate-700">
-                          Easy + Medium + Hard
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                          {combined.completedLevelsCount} of {REQUIRED_LEVELS.length} Levels Completed
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-6 text-xs font-bold text-slate-400">
-                      <span className="flex items-center gap-2">
-                        <SafeIcon icon={FiClock} className="w-4 h-4 text-blue-400" />
-                        {combined.dateStr}
-                      </span>
-                      {combined.isFullyCompleted && (
-                        <span className="flex items-center gap-2">
-                          <SafeIcon icon={FiTrendingUp} className="w-4 h-4 text-blue-400" />
-                          Accuracy: {combined.overallAccuracy}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Score Header Display */}
-                <div className="text-left lg:text-right flex-1 lg:flex-none">
-                  {combined.isFullyCompleted ? (
-                    <>
-                      <p className="text-[10px] text-blue-300 font-black uppercase tracking-widest mb-1">Overall Scaled Score</p>
-                      <p className="text-3xl font-black text-white tracking-tight">
-                        {combined.overallScaledScore} <span className="text-sm font-bold text-slate-400">/ 800</span>
-                      </p>
-                      <p className="text-[10px] font-bold text-blue-400 mt-1 uppercase">
-                        {combined.overallAccuracy}% Overall Accuracy
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest mb-1">Test In Progress</p>
-                      <p className="text-xs font-bold text-slate-400 max-w-[220px]">
-                        Missing: <span className="text-white">{combined.missingLevels.join(', ')}</span>
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Quick Combined Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-[#0a0e20] rounded-xl border border-slate-800 mb-6 text-center">
-                <div>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Questions</p>
-                  <p className="text-lg font-black text-white">{combined.totalQuestions}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Correct</p>
-                  <p className="text-lg font-black text-emerald-400">{combined.totalCorrect}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Incorrect</p>
-                  <p className="text-lg font-black text-rose-400">{combined.totalIncorrect}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">Total Time</p>
-                  <p className="text-lg font-black text-white">{combined.formattedTime}</p>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                {combined.isFullyCompleted ? (
-                  <>
-                    <button
-                      onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}`)}
-                      className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
-                    >
-                      <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
-                    </button>
-                    <button
-                      onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?view=question-wise`)}
-                      className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
-                    >
-                      <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
-                    </button>
-                    <button
-                      onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?download=true`)}
-                      className="py-3 px-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
-                    >
-                      <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      disabled
-                      title="Complete all levels to view the combined report"
-                      className="flex-1 py-3 px-4 bg-slate-800 text-slate-500 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
-                    >
-                      <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
-                    </button>
-                    <button
-                      disabled
-                      title="Complete all levels to view question-wise analysis"
-                      className="flex-1 py-3 px-4 bg-slate-800 text-slate-500 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
-                    >
-                      <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
-                    </button>
-                    <button
-                      disabled
-                      title="Complete all levels to download the PDF report"
-                      className="py-3 px-6 bg-slate-800 text-slate-500 border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-not-allowed"
-                    >
-                      <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
-                    </button>
-                  </>
-                )}
-              </div>
-            </motion.div>
+          {/* Latest-attempt-first: combined SAT topic cards and individual attempt cards
+              (ACT/AP/Full-Length, plus each level's own attempt) are rendered from one unified,
+              date-sorted list so a newly completed attempt of any kind always lands at the top -
+              never a fixed "combined cards first, then individual cards" block. */}
+          {displayItems.map((item, idx) => (
+            item.type === 'combined'
+              ? renderCombinedCard(item.data)
+              : renderIndividualCard(item.data, idx)
           ))}
-
-          {/* ========================================================= */}
-          {/* INDIVIDUAL ATTEMPT CARDS (EASY, MEDIUM, HARD)             */}
-          {/* ========================================================= */}
-          {filteredSubmissions.map((sub, idx) => {
-            const stats = getTestAttemptStats(sub);
-
-            return (
-              <motion.div
-                key={sub.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all"
-              >
-                {/* Header */}
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 mb-6">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className={`p-4 rounded-2xl flex-shrink-0 ${
-                      stats.performanceColor === 'green' ? 'bg-green-50 text-green-600' :
-                      stats.performanceColor === 'blue' ? 'bg-blue-50 text-blue-600' :
-                      stats.performanceColor === 'yellow' ? 'bg-yellow-50 text-yellow-600' :
-                      stats.performanceColor === 'orange' ? 'bg-orange-50 text-orange-600' :
-                      'bg-red-50 text-red-600'
-                    }`}>
-                      <SafeIcon icon={FiFileText} className="w-6 h-6" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                        <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white leading-tight">
-                          {stats.courseName}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap ${
-                            stats.performanceColor === 'green' ? 'bg-green-100 text-green-700' :
-                            stats.performanceColor === 'blue' ? 'bg-blue-100 text-blue-700' :
-                            stats.performanceColor === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
-                            stats.performanceColor === 'orange' ? 'bg-orange-100 text-orange-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.performanceLevel}
-                          </span>
-                          <span className={`px-2 py-0.5 sm:py-1 rounded text-[9px] sm:text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${
-                            sub.level === 'Hard' ? 'bg-red-100 text-red-700' :
-                            sub.level === 'Medium' ? 'bg-orange-100 text-orange-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {sub.level || 'Practice'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-2">
-                          <SafeIcon icon={FiClock} className="w-4 h-4" />
-                          {stats.testDate.toLocaleDateString()} at {stats.testDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        <span className="flex items-center gap-2">
-                          <SafeIcon icon={FiTrendingUp} className="w-4 h-4" />
-                          Accuracy: {stats.accuracy}%
-                        </span>
-                        <span className="flex items-center gap-2">
-                          <SafeIcon icon={FiAward} className="w-4 h-4" />
-                          {stats.durationText}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Score Display */}
-                  <div className="flex flex-col items-center lg:flex-row gap-4 w-full lg:w-auto pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100 dark:border-gray-700">
-                    <div className="text-center lg:text-right flex-1 lg:flex-none">
-                      <p className="text-[10px] text-gray-400 font-black uppercase mb-1 tracking-widest">Score</p>
-                      <p className={`text-2xl sm:text-3xl font-black ${
-                        stats.performanceColor === 'green' ? 'text-green-600' :
-                        stats.performanceColor === 'blue' ? 'text-blue-600' :
-                        stats.performanceColor === 'yellow' ? 'text-yellow-600' :
-                        stats.performanceColor === 'orange' ? 'text-orange-600' :
-                        'text-red-600'
-                      }`}>
-                        {stats.displayScore}
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-1 font-bold">
-                        {stats.scoreLabel}
-                      </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 mt-4 lg:mt-0 w-full lg:w-auto">
-                      <button
-                        onClick={() => navigate(`${basePath}/report/${sub.id}`)}
-                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-white hover:bg-gray-50 text-blue-600 border-2 border-blue-600 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base cursor-pointer"
-                      >
-                        <SafeIcon icon={FiFileText} />
-                        View Report
-                      </button>
-                      <button
-                        onClick={() => navigate(`${basePath}/detailed-review/${sub.id}`)}
-                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-sm sm:text-base cursor-pointer"
-                      >
-                        <SafeIcon icon={FiArrowRight} />
-                        Question-wise Analysis
-                      </button>
-                      <button
-                        onClick={() => navigate(`${basePath}/report/${sub.id}?download=true`)}
-                        className="flex-1 lg:flex-none px-4 py-2.5 sm:px-6 sm:py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-sm sm:text-base cursor-pointer"
-                        title="Download PDF"
-                      >
-                        <SafeIcon icon={FiDownload} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Stats Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400 font-black uppercase">Performance</p>
-                    <p className={`text-sm font-bold ${
-                      stats.performanceColor === 'green' ? 'text-green-600' :
-                      stats.performanceColor === 'blue' ? 'text-blue-600' :
-                      stats.performanceColor === 'yellow' ? 'text-yellow-600' :
-                      stats.performanceColor === 'orange' ? 'text-orange-600' :
-                      'text-red-600'
-                    }`}>
-                      {stats.performanceLevel}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400 font-black uppercase">Test ID</p>
-                    <p className="text-sm font-bold text-gray-600 dark:text-gray-400">#{sub.id}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400 font-black uppercase">Questions</p>
-                    <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                      {stats.totalQuestions || 'N/A'}
-                    </p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-400 font-black uppercase">Duration</p>
-                    <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                      {stats.durationText}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
         </div>
       )}
     </div>

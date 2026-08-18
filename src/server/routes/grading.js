@@ -9,8 +9,65 @@ import { calculateSessionScore, getCategory, calculateTotalSATScore, calculateSa
 import { enqueueNotification, processOutboxOnce } from '../utils/notificationOutbox.js';
 import notificationMiddleware from '../middleware/notificationMiddleware.js';
 import { analyticsService } from '../services/analyticsService.js';
+import { TAXONOMY } from '../../utils/taxonomy.js';
 
 const router = express.Router();
+
+// Reliable course classification for the leaderboard, mirroring the main_category/tutor_type/
+// is_adaptive convention already used by classifySubmission (TestReview.jsx),
+// StudentCourseList.jsx, and CourseManagement.jsx - NOT the old crude "does the course name
+// contain the word 'math'" substring check, which silently let Full-Length Test, ACT, and AP
+// scores leak into "SAT Math" / "SAT Reading & Writing" / "SAT Overall" calculations whenever a
+// course's name happened to match or not match that one keyword.
+const classifyCourseForLeaderboard = (courseObj = {}) => {
+    const name = (courseObj.name || '').toLowerCase();
+    const category = (courseObj.category || '').toLowerCase().trim();
+    const tutorType = courseObj.tutor_type || '';
+    const tutorTypeUpper = tutorType.toUpperCase();
+    const mainCategoryField = (courseObj.main_category || '').toUpperCase();
+    const isAdaptive = courseObj.is_adaptive === true;
+
+    let mainCat;
+    if (mainCategoryField === 'FULL LENGTH TESTS' || isAdaptive ||
+        name.includes('full length') || name.includes('full-length') || name.includes('linear sat')) {
+        mainCat = 'FULL_LENGTH';
+    } else if (mainCategoryField === 'AP' || tutorTypeUpper.startsWith('AP') || /\bap\b/.test(name)) {
+        mainCat = 'AP';
+    } else if (mainCategoryField === 'ACT' || tutorTypeUpper.includes('ACT') || name.includes('act')) {
+        mainCat = 'ACT';
+    } else {
+        mainCat = 'SAT';
+    }
+
+    let subCat = null;
+    if (mainCat === 'SAT') {
+        if (tutorType === 'SAT Math' || tutorType === 'SAT Reading & Writing') {
+            subCat = tutorType;
+        } else {
+            // Legacy fallback for rows without a proper tutor_type: match the course's Topic
+            // (category column) against the canonical taxonomy before falling back to keywords.
+            const mathTopics = Object.keys(TAXONOMY.SAT['SAT Math']).map(t => t.toLowerCase());
+            const rwTopics = Object.keys(TAXONOMY.SAT['SAT Reading & Writing']).map(t => t.toLowerCase());
+            if (mathTopics.includes(category)) {
+                subCat = 'SAT Math';
+            } else if (rwTopics.includes(category)) {
+                subCat = 'SAT Reading & Writing';
+            } else {
+                const mathKeywords = ['math', 'algebra', 'linear', 'nonlinear', 'equivalent', 'geometry', 'triangle', 'circle', 'trigonometry', 'data', 'ratio', 'percentage', 'probability', 'statistic'];
+                subCat = mathKeywords.some(k => name.includes(k) || category.includes(k)) ? 'SAT Math' : 'SAT Reading & Writing';
+            }
+        }
+    }
+
+    // For regular SAT/AP courses, category = Topic/Domain/Unit and name = Subtopic (each
+    // subtopic is its own courses row - see CourseForm.jsx).
+    return {
+        mainCat,
+        subCat,
+        topic: courseObj.category || null,
+        subtopic: courseObj.name || null
+    };
+};
 
 /**
  * GET /api/grading/parent/student/:studentId/submissions
@@ -2021,21 +2078,11 @@ router.get('/universal-leaderboard', async (req, res) => {
             .from('courses')
             .select('id, name, category, tutor_type, main_category, is_adaptive');
 
-        let apCourses = (allCourses || []).filter(c => {
-            const name = (c.name || '').toUpperCase();
-            const cat = (c.category || '').toUpperCase();
-            const mainCat = (c.main_category || '').toUpperCase();
-            return name.includes('AP') || cat.includes('AP') || mainCat === 'AP';
-        });
+        let apCourses = (allCourses || []).filter(c => classifyCourseForLeaderboard(c).mainCat === 'AP');
 
-        // Resolve candidate Full-Length Test courses using the same convention as
-        // CourseManagement.jsx / HierarchicalContentSelector.jsx (main_category / is_adaptive),
-        // with a narrow name-based fallback for legacy rows only.
-        let candidateTests = (allCourses || []).filter(c => {
-            const name = (c.name || '').toLowerCase();
-            const mainCat = (c.main_category || '').toUpperCase();
-            return mainCat === 'FULL LENGTH TESTS' || c.is_adaptive === true || name.includes('full length test');
-        });
+        // Resolve candidate Full-Length Test courses using the same reliable classification as
+        // everywhere else in this endpoint.
+        let candidateTests = (allCourses || []).filter(c => classifyCourseForLeaderboard(c).mainCat === 'FULL_LENGTH');
 
         // Role-based assignment scoping (Step A: Assignment controls dropdown)
         // req.user is the raw Supabase Auth user (no .role) - the real role lives in `profiles`.
@@ -2228,91 +2275,39 @@ router.get('/universal-leaderboard', async (req, res) => {
             if (!profile || profile.role !== 'student') return;
 
             const courseObj = sub.courses || {};
-            const cleanCourseName = (courseObj.name || '').toLowerCase().trim();
-            const cleanCourseCat = (courseObj.category || '').toLowerCase().trim();
-            const cleanMainCat = (courseObj.main_category || '').toLowerCase().trim();
+            const classification = classifyCourseForLeaderboard(courseObj);
+            const cleanTopic = (classification.topic || '').toLowerCase().trim();
+            const cleanSubtopic = (classification.subtopic || '').toLowerCase().trim();
 
-            // Filters for Topic / Subtopic matching against historical attempt data
+            // Filters for Topic / Subtopic matching against historical attempt data. Matched by
+            // exact Topic (courses.category) / Subtopic (courses.name) string, scoped to the
+            // correct subject via classifyCourseForLeaderboard - never a loose substring guess
+            // that could pull in Full-Length/ACT/other-subject attempts.
             if (isSubtopicCategory && subtopicName) {
                 const searchSub = subtopicName.toLowerCase().trim();
-                const searchTop = topicName ? topicName.toLowerCase().trim() : '';
-
                 let isMatch = false;
 
-                // 1. Direct match: Course name or category matches subtopic or topic name
-                if (cleanCourseName.includes(searchSub) || searchSub.includes(cleanCourseName) ||
-                    cleanCourseCat.includes(searchSub) || searchSub.includes(cleanCourseCat) ||
-                    (searchTop && (cleanCourseName.includes(searchTop) || cleanCourseCat.includes(searchTop)))) {
-                    isMatch = true;
-                }
-                // 2. General subject match: If category is SAT Math and course is an SAT Math / SAT course
-                else if (category.startsWith('SAT Math')) {
-                    const isMathCourse = cleanCourseName.includes('math') || cleanCourseCat.includes('math') || 
-                                         cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
-                                         cleanCourseName.includes('sat') || cleanCourseName.includes('test') ||
-                                         cleanCourseName.includes('practice') || cleanCourseName.includes('regular');
-                    
-                    const otherDomains = ['reading', 'writing', 'english', 'craft', 'ideas'];
-                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
-                    
-                    if (isMathCourse && !isOtherDomain) {
-                        isMatch = true;
-                    }
-                }
-                // 3. SAT Reading & Writing match
-                else if (category.includes('Reading & Writing')) {
-                    const isRWCourse = cleanCourseName.includes('reading') || cleanCourseName.includes('writing') || 
-                                       cleanCourseCat.includes('reading') || cleanCourseCat.includes('writing') ||
-                                       cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
-                                       cleanCourseName.includes('sat') || cleanCourseName.includes('test');
-                    
-                    const otherDomains = ['math', 'algebra', 'geometry', 'trigonometry'];
-                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
-                    
-                    if (isRWCourse && !isOtherDomain) {
-                        isMatch = true;
-                    }
-                }
-                // 4. AP / Full Length Test general match
-                else if (category.startsWith('AP') || category.startsWith('Full-Length Test')) {
-                    isMatch = true;
+                if (category.startsWith('SAT Math')) {
+                    isMatch = classification.mainCat === 'SAT' && classification.subCat === 'SAT Math' && cleanSubtopic === searchSub;
+                } else if (category.includes('Reading & Writing')) {
+                    isMatch = classification.mainCat === 'SAT' && classification.subCat === 'SAT Reading & Writing' && cleanSubtopic === searchSub;
+                } else if (category.startsWith('AP')) {
+                    isMatch = classification.mainCat === 'AP' && cleanSubtopic === searchSub &&
+                        (!apCourseId || apCourseId === 'all' || String(courseObj.id) === String(apCourseId));
                 }
 
                 if (!isMatch) return;
             } else if (isTopicCategory && topicName) {
                 const searchTop = topicName.toLowerCase().trim();
-
                 let isMatch = false;
 
-                if (cleanCourseName.includes(searchTop) || searchTop.includes(cleanCourseName) ||
-                    cleanCourseCat.includes(searchTop) || searchTop.includes(cleanCourseCat)) {
-                    isMatch = true;
-                } else if (category.startsWith('SAT Math')) {
-                    const isMathCourse = cleanCourseName.includes('math') || cleanCourseCat.includes('math') || 
-                                         cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
-                                         cleanCourseName.includes('sat') || cleanCourseName.includes('test') ||
-                                         cleanCourseName.includes('practice') || cleanCourseName.includes('regular');
-                    
-                    const otherDomains = ['reading', 'writing', 'english', 'craft', 'ideas'];
-                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
-                    
-                    if (isMathCourse && !isOtherDomain) {
-                        isMatch = true;
-                    }
+                if (category.startsWith('SAT Math')) {
+                    isMatch = classification.mainCat === 'SAT' && classification.subCat === 'SAT Math' && cleanTopic === searchTop;
                 } else if (category.includes('Reading & Writing')) {
-                    const isRWCourse = cleanCourseName.includes('reading') || cleanCourseName.includes('writing') || 
-                                       cleanCourseCat.includes('reading') || cleanCourseCat.includes('writing') ||
-                                       cleanMainCat.includes('sat') || cleanCourseCat.includes('sat') ||
-                                       cleanCourseName.includes('sat') || cleanCourseName.includes('test');
-                    
-                    const otherDomains = ['math', 'algebra', 'geometry', 'trigonometry'];
-                    const isOtherDomain = otherDomains.some(d => cleanCourseName.includes(d));
-                    
-                    if (isRWCourse && !isOtherDomain) {
-                        isMatch = true;
-                    }
-                } else {
-                    isMatch = true;
+                    isMatch = classification.mainCat === 'SAT' && classification.subCat === 'SAT Reading & Writing' && cleanTopic === searchTop;
+                } else if (category.startsWith('AP')) {
+                    isMatch = classification.mainCat === 'AP' && cleanTopic === searchTop &&
+                        (!apCourseId || apCourseId === 'all' || String(courseObj.id) === String(apCourseId));
                 }
 
                 if (!isMatch) return;
@@ -2325,6 +2320,8 @@ router.get('/universal-leaderboard', async (req, res) => {
                     email: profile.email || '',
                     mathScores: [],
                     rwScores: [],
+                    mathQuestions: 0, mathCorrect: 0, mathAttempts: 0,
+                    rwQuestions: 0, rwCorrect: 0, rwAttempts: 0,
                     courseSubmissions: {},
                     totalQuestions: 0,
                     totalCorrect: 0,
@@ -2342,11 +2339,22 @@ router.get('/universal-leaderboard', async (req, res) => {
             st.totalCorrect += cCount;
             st.completedTests++;
 
-            const mathVal = sub.math_scaled_score || (cleanCourseName.includes('math') ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
-            const rwVal = sub.reading_scaled_score || (!cleanCourseName.includes('math') ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
-
-            if (mathVal && mathVal >= 200 && mathVal <= 800) st.mathScores.push(mathVal);
-            if (rwVal && rwVal >= 200 && rwVal <= 800) st.rwScores.push(rwVal);
+            // SAT Math / SAT Reading & Writing scores are only ever built from regular SAT Math /
+            // SAT Reading & Writing attempts - Full-Length Tests, ACT, and AP submissions never
+            // contribute here, regardless of course naming.
+            if (classification.mainCat === 'SAT' && classification.subCat === 'SAT Math') {
+                const mathVal = sub.math_scaled_score || sub.scaled_score || Math.round(200 + (pct / 100) * 600);
+                if (mathVal >= 200 && mathVal <= 800) st.mathScores.push(mathVal);
+                st.mathQuestions += qCount;
+                st.mathCorrect += cCount;
+                st.mathAttempts++;
+            } else if (classification.mainCat === 'SAT' && classification.subCat === 'SAT Reading & Writing') {
+                const rwVal = sub.reading_scaled_score || sub.scaled_score || Math.round(200 + (pct / 100) * 600);
+                if (rwVal >= 200 && rwVal <= 800) st.rwScores.push(rwVal);
+                st.rwQuestions += qCount;
+                st.rwCorrect += cCount;
+                st.rwAttempts++;
+            }
 
             const courseIdKey = String(sub.course_id);
             if (!st.courseSubmissions[courseIdKey]) {
@@ -2394,15 +2402,39 @@ router.get('/universal-leaderboard', async (req, res) => {
                     accuracy = 0;
                 }
             } else if (category === 'SAT') {
-                const totalSAT = (bestMath > 0 || bestRw > 0) ? (bestMath || 400) + (bestRw || 400) : 0;
-                primaryScore = totalSAT;
-                scoreDisplay = totalSAT > 0 ? `${totalSAT} / 1600` : '--';
+                // SAT Overall = regular SAT Math + regular SAT Reading & Writing ONLY. Never
+                // substitute a Full-Length Test score for a missing component - if either half
+                // isn't done yet, this student isn't rankable for "SAT Overall" yet (matches the
+                // same "don't fabricate an incomplete combined score" rule used for the
+                // student-facing combined topic report).
+                if (bestMath > 0 && bestRw > 0) {
+                    primaryScore = bestMath + bestRw;
+                    scoreDisplay = `${primaryScore} / 1600`;
+                    displayTotalQuestions = st.mathQuestions + st.rwQuestions;
+                    displayTotalCorrect = st.mathCorrect + st.rwCorrect;
+                    displayCompletedTests = st.mathAttempts + st.rwAttempts;
+                    accuracy = displayTotalQuestions > 0 ? Math.round((displayTotalCorrect / displayTotalQuestions) * 100) : 0;
+                } else {
+                    primaryScore = 0;
+                    scoreDisplay = '--';
+                    displayTotalQuestions = 0;
+                    displayTotalCorrect = 0;
+                    displayCompletedTests = 0;
+                }
             } else if (category === 'SAT Math') {
                 primaryScore = bestMath;
                 scoreDisplay = bestMath > 0 ? `${bestMath} / 800` : '--';
+                displayTotalQuestions = st.mathQuestions;
+                displayTotalCorrect = st.mathCorrect;
+                displayCompletedTests = st.mathAttempts;
+                accuracy = displayTotalQuestions > 0 ? Math.round((displayTotalCorrect / displayTotalQuestions) * 100) : 0;
             } else if (category === 'SAT Reading & Writing') {
                 primaryScore = bestRw;
                 scoreDisplay = bestRw > 0 ? `${bestRw} / 800` : '--';
+                displayTotalQuestions = st.rwQuestions;
+                displayTotalCorrect = st.rwCorrect;
+                displayCompletedTests = st.rwAttempts;
+                accuracy = displayTotalQuestions > 0 ? Math.round((displayTotalCorrect / displayTotalQuestions) * 100) : 0;
             } else if (category === 'AP') {
                 let targetCourseSubs = [];
                 if (apCourseId && apCourseId !== 'all') {
