@@ -398,81 +398,81 @@ const UniversalLeaderboard = ({
                 <>
                     {/* Top 5 Podium Section */}
                     {top5.length > 0 && (
-                        <div className="mb-12">
-                            <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest text-center mb-6">
+                        <div className="mb-6">
+                            <h3 className="text-[11px] font-black text-amber-400 uppercase tracking-widest text-center mb-3">
                                 Top 5 Performers
                             </h3>
 
-                            {/* Top 3 Elevated Podium */}
-                            <div className="grid grid-cols-3 gap-3 sm:gap-6 items-end max-w-2xl mx-auto mb-6">
-                                {/* Rank 2 (Silver - Left) */}
+                            {/* Top 3 - flat, equal-height cards (no artificial podium-elevation
+                                height stagger, which was the main reason this looked oversized).
+                                Rank is communicated purely through solid, clearly distinct color
+                                coding: gold > silver > bronze, in decreasing border weight/glow. */}
+                            <div className="grid grid-cols-3 gap-2 max-w-lg mx-auto mb-3">
+                                {/* Rank 2 (Silver) */}
                                 {podiumRank2 ? (
                                     <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
+                                        initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="bg-[#141824] border border-slate-700/80 rounded-2xl p-4 text-center shadow-lg relative flex flex-col items-center h-44 justify-between"
+                                        className="bg-zinc-400/15 border border-zinc-300 rounded-xl p-2.5 text-center shadow-md flex flex-col items-center gap-1"
                                     >
-                                        <div className="w-8 h-8 rounded-full bg-slate-700/60 border border-slate-500 flex items-center justify-center text-sm shadow-md -mt-7">
+                                        <div className="w-8 h-8 rounded-full bg-zinc-300/25 border border-zinc-200 flex items-center justify-center text-base leading-none">
                                             🥈
                                         </div>
-                                        <div>
-                                            <p className="text-xs sm:text-sm font-black text-white truncate max-w-[110px]">{podiumRank2.name}</p>
-                                            <p className="text-lg font-black text-slate-200 mt-1">{podiumRank2.scoreDisplay}</p>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 font-bold">Accuracy {podiumRank2.accuracy}%</div>
+                                        <p className="text-[11px] font-black text-white truncate max-w-[95px]">{podiumRank2.name}</p>
+                                        <p className="text-base font-black text-zinc-100">{podiumRank2.scoreDisplay}</p>
+                                        <p className="text-[9px] text-zinc-300 font-bold">Accuracy {podiumRank2.accuracy}%</p>
                                     </motion.div>
-                                ) : <div className="h-44" />}
+                                ) : <div />}
 
-                                {/* Rank 1 (Gold - Center Elevated) */}
+                                {/* Rank 1 (Gold) */}
                                 {podiumRank1 ? (
                                     <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
+                                        initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="bg-gradient-to-b from-amber-500/20 via-[#181C2B] to-[#141824] border-2 border-amber-500/60 rounded-2xl p-5 text-center shadow-[0_0_30px_rgba(245,158,11,0.2)] relative flex flex-col items-center h-52 justify-between"
+                                        className="bg-amber-500/20 border-2 border-amber-400 rounded-xl p-2.5 text-center shadow-[0_0_18px_rgba(245,158,11,0.35)] flex flex-col items-center gap-1"
                                     >
-                                        <div className="w-10 h-10 rounded-full bg-amber-500/30 border border-amber-400 flex items-center justify-center text-xl shadow-lg -mt-8">
+                                        <div className="w-9 h-9 rounded-full bg-amber-400/30 border border-amber-300 flex items-center justify-center text-lg leading-none">
                                             🥇
                                         </div>
-                                        <div>
-                                            <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">#1 CHAMPION</span>
-                                            <p className="text-sm sm:text-base font-black text-white truncate max-w-[130px] mt-0.5">{podiumRank1.name}</p>
-                                            <p className="text-2xl font-black text-amber-300 mt-1">{podiumRank1.scoreDisplay}</p>
-                                        </div>
-                                        <div className="text-[10px] text-amber-200/80 font-bold">Accuracy {podiumRank1.accuracy}%</div>
+                                        <span className="text-[9px] font-black text-amber-300 uppercase tracking-widest">#1 Champion</span>
+                                        <p className="text-xs font-black text-white truncate max-w-[110px]">{podiumRank1.name}</p>
+                                        <p className="text-lg font-black text-amber-300">{podiumRank1.scoreDisplay}</p>
+                                        <p className="text-[9px] text-amber-200 font-bold">Accuracy {podiumRank1.accuracy}%</p>
                                     </motion.div>
-                                ) : <div className="h-52" />}
+                                ) : <div />}
 
-                                {/* Rank 3 (Bronze - Right) */}
+                                {/* Rank 3 (Bronze) */}
                                 {podiumRank3 ? (
                                     <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
+                                        initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="bg-[#141824] border border-amber-900/40 rounded-2xl p-4 text-center shadow-lg relative flex flex-col items-center h-40 justify-between"
+                                        className="bg-orange-600/15 border border-orange-500 rounded-xl p-2.5 text-center shadow-md flex flex-col items-center gap-1"
                                     >
-                                        <div className="w-8 h-8 rounded-full bg-amber-900/40 border border-amber-700 flex items-center justify-center text-sm shadow-md -mt-7">
+                                        <div className="w-8 h-8 rounded-full bg-orange-500/25 border border-orange-400 flex items-center justify-center text-base leading-none">
                                             🥉
                                         </div>
-                                        <div>
-                                            <p className="text-xs sm:text-sm font-black text-white truncate max-w-[110px]">{podiumRank3.name}</p>
-                                            <p className="text-lg font-black text-amber-400 mt-1">{podiumRank3.scoreDisplay}</p>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 font-bold">Accuracy {podiumRank3.accuracy}%</div>
+                                        <p className="text-[11px] font-black text-white truncate max-w-[95px]">{podiumRank3.name}</p>
+                                        <p className="text-base font-black text-orange-300">{podiumRank3.scoreDisplay}</p>
+                                        <p className="text-[9px] text-orange-200 font-bold">Accuracy {podiumRank3.accuracy}%</p>
                                     </motion.div>
-                                ) : <div className="h-40" />}
+                                ) : <div />}
                             </div>
 
-                            {/* Rank 4 & 5 Cards */}
+                            {/* Rank 4 & 5 - visibly colored but clearly a step down from the
+                                podium above. */}
                             {top5.length > 3 && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto">
-                                    {top5.slice(3, 5).map(st => (
-                                        <div key={st.student_id} className="bg-[#141824] border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <span className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center font-extrabold text-xs text-slate-400">
-                                                    #{st.rank}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg mx-auto">
+                                    {top5.slice(3, 5).map((st, idx) => (
+                                        <div key={st.student_id} className="bg-indigo-500/10 border border-indigo-400/40 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span className="w-6 h-6 flex-shrink-0 rounded-full bg-indigo-400/25 border border-indigo-300/60 flex items-center justify-center font-extrabold text-[11px] text-indigo-100">
+                                                    {/* Position in this Top 5 list (4th, 5th) - not st.rank, which can tie
+                                                        with a neighbor on equal scores and would show "#4" twice. */}
+                                                    #{idx + 4}
                                                 </span>
-                                                <span className="font-bold text-sm text-white truncate max-w-[120px]">{st.name}</span>
+                                                <span className="font-bold text-sm text-white truncate min-w-0">{st.name}</span>
                                             </div>
-                                            <span className="font-extrabold text-sm text-slate-200">{st.scoreDisplay}</span>
+                                            <span className="font-extrabold text-sm text-slate-100 whitespace-nowrap flex-shrink-0">{st.scoreDisplay}</span>
                                         </div>
                                     ))}
                                 </div>
