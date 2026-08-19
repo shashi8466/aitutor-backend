@@ -6,7 +6,7 @@ import axios from 'axios';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
-import { authService, enrollmentService } from '../../services/api';
+import { authService, enrollmentService, groupInviteService } from '../../services/api';
 
 const { FiUser, FiLock, FiMail, FiBook, FiEye, FiEyeOff, FiArrowRight, FiAlertCircle, FiLoader, FiRefreshCw, FiCheckCircle, FiPhone, FiUsers, FiArrowLeft, FiLink, FiX } = FiIcons;
 
@@ -66,6 +66,7 @@ const Signup = () => {
   const navigate = useNavigate();
   const [enrollmentKey, setEnrollmentKey] = useState(null);
   const [enrolling, setEnrolling] = useState(false);
+  const [groupToken, setGroupToken] = useState(null);
 
   useEffect(() => {
     authService.wakeUp();
@@ -74,22 +75,37 @@ const Signup = () => {
     if (key) {
       setEnrollmentKey(key.trim().toUpperCase());
     }
+    const token = localStorage.getItem('pendingGroupInviteToken');
+    if (token) {
+      setGroupToken(token);
+    }
   }, []);
 
   // Handle already-logged-in student visiting an invitation link
   useEffect(() => {
-    if (!user || !enrollmentKey) return;
+    if (!user || (!enrollmentKey && !groupToken)) return;
     if (user.role !== 'student') return;
-    // Auto-enroll and redirect to course
+    // Auto-enroll/join and redirect to course
     (async () => {
-      const courseId = await handleAutoEnroll(enrollmentKey);
+      const courseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
+      if (groupToken) await handleAutoJoinGroup(groupToken);
       if (courseId) {
         navigate(`/student/course/${courseId}`, { replace: true });
       } else {
         navigate('/student', { replace: true });
       }
     })();
-  }, [user, enrollmentKey]);
+  }, [user, enrollmentKey, groupToken]);
+
+  const handleAutoJoinGroup = async (token) => {
+    if (!token) return;
+    try {
+      await groupInviteService.join(token);
+      localStorage.removeItem('pendingGroupInviteToken');
+    } catch (err) {
+      console.warn('⚠️ [AutoJoinGroup] Failed to join group via invite:', err?.response?.data?.error || err?.message);
+    }
+  };
 
   const handleAutoEnroll = async (key) => {
     if (!key) return null;
@@ -315,6 +331,7 @@ const Signup = () => {
                 if (loginResult.success) {
                   // Session established — enroll NOW with valid token
                   const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
+                  if (groupToken && formData.role === 'student') await handleAutoJoinGroup(groupToken);
                   setRedirecting(true);
                   await finalizeRegistration(formData.role, enrolledCourseId);
                   return;
@@ -324,6 +341,7 @@ const Signup = () => {
             if (result.session) {
               // Session already present — enroll with valid token
               const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
+              if (groupToken && formData.role === 'student') await handleAutoJoinGroup(groupToken);
               setRedirecting(true);
               await finalizeRegistration(formData.role, enrolledCourseId);
             } else {
@@ -336,6 +354,7 @@ const Signup = () => {
                 const loginResult = await login({ email: formData.email, password: formData.password });
                 if (loginResult.success) {
                   const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
+                  if (groupToken && formData.role === 'student') await handleAutoJoinGroup(groupToken);
                   setRedirecting(true);
                   await finalizeRegistration(formData.role, enrolledCourseId);
                   return;
@@ -469,6 +488,7 @@ const Signup = () => {
             if (loginResult.success) {
               // Session established — enroll NOW with valid token
               const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
+              if (groupToken && formData.role === 'student') await handleAutoJoinGroup(groupToken);
               setRedirecting(true);
               await finalizeRegistration(formData.role, enrolledCourseId);
               return;
@@ -478,6 +498,7 @@ const Signup = () => {
         if (result.session) {
           // Session already present — enroll with valid token
           const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
+          if (groupToken && formData.role === 'student') await handleAutoJoinGroup(groupToken);
           setRedirecting(true);
           await finalizeRegistration(formData.role, enrolledCourseId);
         } else {
@@ -491,6 +512,7 @@ const Signup = () => {
             if (loginResult.success) {
               // Auto-enroll via invitation key for returning user
               const enrolledCourseId = enrollmentKey ? await handleAutoEnroll(enrollmentKey) : null;
+              if (groupToken && formData.role === 'student') await handleAutoJoinGroup(groupToken);
               setRedirecting(true);
               await finalizeRegistration(formData.role, enrolledCourseId);
               return;

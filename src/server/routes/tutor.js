@@ -442,11 +442,13 @@ router.post('/groups', async (req, res) => {
             return res.status(400).json({ error: 'Name is required' });
         }
 
+        const inviteToken = crypto.randomUUID();
+
         const { data: group, error } = await supabase
             .from('student_groups')
             .insert({
                 name,
-                assigned_content: assigned_content || {},
+                assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
                 assigned_course_ids: assigned_course_ids || [],
                 course_id: assigned_course_ids?.[0] || 1, // Bypass NOT NULL constraint until schema is updated
                 description,

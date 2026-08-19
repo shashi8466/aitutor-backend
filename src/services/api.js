@@ -977,6 +977,16 @@ export const enrollmentService = {
   }
 };
 
+// --- GROUP INVITE SERVICE (self-join via /join-group/:token links) ---
+export const groupInviteService = {
+  getInfo: async (token) => {
+    return axios.get(`/api/groups/invite/${token}`);
+  },
+  join: async (token) => {
+    return axios.post(`/api/groups/invite/${token}/join`);
+  }
+};
+
 // --- PROGRESS SERVICE ---
 export const progressService = {
   saveProgress: async (userId, courseId, level, score, passed) => {

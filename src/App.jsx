@@ -14,6 +14,7 @@ import PreviewBanner from './components/common/PreviewBanner';
 const HomePage = lazy(() => import('./components/layout/HomePage'));
 const UnifiedLogin = lazy(() => import('./components/auth/UnifiedLogin'));
 const Signup = lazy(() => import('./components/auth/Signup'));
+const JoinGroupInvite = lazy(() => import('./components/auth/JoinGroupInvite'));
 const ContactPage = lazy(() => import('./components/layout/ContactPage'));
 const ForgotPassword = lazy(() => import('./components/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('./components/auth/ResetPassword'));
@@ -322,10 +323,11 @@ const App = () => {
   const isStudentRoute = location.pathname.startsWith('/student');
   const isTutorRoute = location.pathname.startsWith('/tutor');
   const isDemoRoute = location.pathname.startsWith('/demo');
-  const isAuthRoute = location.pathname.startsWith('/login') || 
-                      location.pathname.startsWith('/signup') || 
-                      location.pathname.startsWith('/forgot-password') || 
-                      location.pathname.startsWith('/reset-password');
+  const isAuthRoute = location.pathname.startsWith('/login') ||
+                      location.pathname.startsWith('/signup') ||
+                      location.pathname.startsWith('/forgot-password') ||
+                      location.pathname.startsWith('/reset-password') ||
+                      location.pathname.startsWith('/join-group');
   const isHomeRoute = location.pathname === '/';
   const isParentRoute = location.pathname.startsWith('/parent');
   const showNavbar = !isAdminRoute && !isStudentRoute && !isTutorRoute && !isParentRoute && !isAuthRoute && !isHomeRoute && !isDemoRoute;
@@ -355,6 +357,7 @@ const App = () => {
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-conditions" element={<TermsConditions />} />
+            <Route path="/join-group/:token" element={<JoinGroupInvite />} />
 
             {/* Public Demo Routes */}
             <Route path="/demo/:courseId" element={<PublicDemoCourseView />} />

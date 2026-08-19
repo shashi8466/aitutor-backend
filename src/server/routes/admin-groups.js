@@ -156,15 +156,18 @@ router.post('/groups', async (req, res) => {
         const creatorId = tutor_id || userId;
         const inviteToken = crypto.randomBytes(16).toString('hex');
 
+        // Note: `student_groups` has no plain `invite_token` column on the live schema
+        // (confirmed - referencing it throws "column does not exist"). The invite token
+        // is stored exclusively inside the `assigned_content` jsonb, matching the
+        // regenerate-token endpoint below and the tutor equivalent in tutor.js.
         const { data: group, error } = await supabase
             .from('student_groups')
             .insert({
                 name,
                 created_by: creatorId,
-                assigned_content: assigned_content || {},
+                assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
                 assigned_course_ids: assigned_course_ids || [],
-                description: description || '',
-                invite_token: inviteToken
+                description: description || ''
             })
             .select()
             .single();

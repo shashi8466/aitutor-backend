@@ -5,7 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
-import { enrollmentService } from '../../services/api';
+import { enrollmentService, groupInviteService } from '../../services/api';
 
 const { FiUser, FiLock, FiMail, FiEye, FiEyeOff, FiAlertCircle, FiLoader, FiCheckCircle, FiArrowLeft, FiLogOut, FiBarChart2, FiShield, FiUsers } = FiIcons;
 
@@ -24,6 +24,17 @@ const UnifiedLogin = () => {
     const [searchParams] = useSearchParams();
     const redirectPath = searchParams.get('redirect');
     const invitationKey = searchParams.get('key') || localStorage.getItem('pendingInvitationKey');
+    const groupToken = localStorage.getItem('pendingGroupInviteToken');
+
+    const handleAutoJoinGroup = async (token) => {
+        if (!token) return;
+        try {
+            await groupInviteService.join(token);
+            localStorage.removeItem('pendingGroupInviteToken');
+        } catch (err) {
+            console.warn('Auto-join group via invite failed:', err?.response?.data?.error || err.message);
+        }
+    };
 
     // After login, this handles the specific redirection
     const handleRoleRedirection = async (role, courseId = null) => {
@@ -66,22 +77,25 @@ const UnifiedLogin = () => {
             // This prevents loops where a pending user lands on /admin, gets redirected here,
             // and then this effect tries to send them back to /admin.
             if (userStatus === 'active') {
-                // If there's an invitation key and user is a student, auto-enroll first
-                if (invitationKey && user.role === 'student') {
+                // If there's an invitation key and/or a group invite token and user is a student, process them first
+                if ((invitationKey || groupToken) && user.role === 'student') {
                     (async () => {
                         let courseId = null;
-                        try {
-                            const enrollRes = await enrollmentService.useKey(invitationKey.trim().toUpperCase());
-                            courseId = enrollRes?.data?.courseId || null;
-                            if (courseId) localStorage.removeItem('pendingInvitationKey');
-                        } catch (err) {
-                            console.warn('Auto-enrollment for logged-in user failed:', err?.response?.data?.error || err.message);
+                        if (invitationKey) {
                             try {
-                                const valRes = await enrollmentService.validateKey(invitationKey.trim().toUpperCase());
-                                courseId = valRes?.data?.courseId || null;
+                                const enrollRes = await enrollmentService.useKey(invitationKey.trim().toUpperCase());
+                                courseId = enrollRes?.data?.courseId || null;
                                 if (courseId) localStorage.removeItem('pendingInvitationKey');
-                            } catch (ve) {}
+                            } catch (err) {
+                                console.warn('Auto-enrollment for logged-in user failed:', err?.response?.data?.error || err.message);
+                                try {
+                                    const valRes = await enrollmentService.validateKey(invitationKey.trim().toUpperCase());
+                                    courseId = valRes?.data?.courseId || null;
+                                    if (courseId) localStorage.removeItem('pendingInvitationKey');
+                                } catch (ve) {}
+                            }
                         }
+                        if (groupToken) await handleAutoJoinGroup(groupToken);
                         handleRoleRedirection(user.role, courseId);
                     })();
                 } else {
@@ -148,6 +162,11 @@ const UnifiedLogin = () => {
                             if (enrolledCourseId) localStorage.removeItem('pendingInvitationKey');
                         } catch (ve) {}
                     }
+                }
+
+                // Handle group invite token: auto-join the group
+                if (groupToken && result.user.role === 'student') {
+                    await handleAutoJoinGroup(groupToken);
                 }
 
                 await handleRoleRedirection(result.user.role, enrolledCourseId);
