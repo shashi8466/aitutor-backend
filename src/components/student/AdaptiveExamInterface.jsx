@@ -10,6 +10,7 @@ import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
+import { isAnswerCorrect } from '../../utils/answerGrading';
 
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -326,10 +327,7 @@ const AdaptiveExamInterface = () => {
     const threshold = courseInfo?.threshold_percentage || 60;
     
     // Calculate current module score
-    const correctCount = questions.filter(q => {
-      const ans = userAnswers[q.id];
-      return ans && q.correctAnswer && ans.toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
-    }).length;
+    const correctCount = questions.filter(q => isAnswerCorrect(userAnswers[q.id], q.correctAnswer)).length;
     const percentage = (correctCount / questions.length) * 100;
 
     let nextKey = '';
@@ -417,8 +415,7 @@ const AdaptiveExamInterface = () => {
             moduleAnswers[mKey] = mQs.map(q => ({
               ...q,
               userAnswer: userAnswers[q.id] || '',
-              isCorrect: userAnswers[q.id] && q.correctAnswer && 
-                         userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase()
+              isCorrect: isAnswerCorrect(userAnswers[q.id], q.correctAnswer)
             }));
             
             const isLinear = courseInfo?.tutor_type === 'Linear SAT';
@@ -440,7 +437,7 @@ const AdaptiveExamInterface = () => {
 
             mQs.forEach(q => {
                 const ans = userAnswers[q.id];
-                const isCorrect = ans && q.correctAnswer && ans.toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
+                const isCorrect = isAnswerCorrect(ans, q.correctAnswer);
                 const isUnanswered = !ans;
 
                 if (isCorrect) {
@@ -502,10 +499,7 @@ const AdaptiveExamInterface = () => {
 
         const finalTotalScore = finalRwScore + finalMathScore;
 
-        const totalCorrect = pathQuestions.filter(q => {
-            const ans = userAnswers[q.id];
-            return ans && q.correctAnswer && ans.toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
-        }).length;
+        const totalCorrect = pathQuestions.filter(q => isAnswerCorrect(userAnswers[q.id], q.correctAnswer)).length;
         const accuracyVal = Math.round((totalCorrect / pathQuestions.length) * 100);
 
         // Update State for UI
@@ -539,8 +533,7 @@ const AdaptiveExamInterface = () => {
                 section: isRW ? 'Reading & Writing' : 'Math',
                 question_text: q.text,
                 selected_answer: userAnswers[q.id] || '',
-                is_correct: userAnswers[q.id] && q.correctAnswer &&
-                            userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
+                is_correct: isAnswerCorrect(userAnswers[q.id], q.correctAnswer),
                 is_unattempted: !userAnswers[q.id],
                 time_spent: questionTimes[q.id] || 0
             };

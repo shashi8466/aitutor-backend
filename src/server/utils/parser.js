@@ -785,8 +785,12 @@ const parseTextToQuestions = (text) => {
         if (splitMatch) {
           currentQuestion.correctAnswer = splitMatch[1].toUpperCase();
           if (splitMatch[2] && currentQuestion.explanation === null) currentQuestion.explanation = splitMatch[2].trim();
+        } else if (/^[A-E]$/i.test(rawContent)) {
+          currentQuestion.correctAnswer = rawContent.toUpperCase();
         } else {
-          currentQuestion.correctAnswer = /^[A-E]$/i.test(rawContent) ? rawContent.toUpperCase() : rawContent;
+          // Free-text short answer: normalize "0.25 or 1/4" into the comma-separated
+          // multi-accepted-answer convention the rest of the pipeline already understands.
+          currentQuestion.correctAnswer = rawContent.replace(/\s+or\s+/gi, ', ');
         }
         continue;
       }

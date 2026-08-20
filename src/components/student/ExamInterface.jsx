@@ -9,6 +9,7 @@ import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
+import { isAnswerCorrect } from '../../utils/answerGrading';
 
 const {
   FiChevronLeft, FiChevronRight, FiClock, FiGrid, FiMoreVertical, FiEdit3, FiInfo, FiChevronDown, FiStar, FiSlash, FiX, FiMapPin, FiFlag, FiLogOut, FiTrash2, FiType, FiFilePlus, FiTarget, FiCheckCircle, FiRefreshCw
@@ -344,30 +345,7 @@ const ExamInterface = () => {
         levels.forEach(lvl => {
             const moduleQs = allQuestions.filter(q => (q.computedLevel || '').toLowerCase() === (lvl || '').toLowerCase());
             if (moduleQs.length > 0) {
-                const correctCount = moduleQs.filter(q => {
-                   const studentAns = (userAnswers[q.id] || '').toString().trim().toLowerCase();
-                   if (!studentAns || !q.correctAnswer) return false;
-                   
-                   let acceptedAnswers = [];
-                   const rawCorrect = q.correctAnswer.toString().trim();
-                   
-                   // Robust multi-format parsing
-                   if (rawCorrect.startsWith('[') && rawCorrect.endsWith(']')) {
-                     try {
-                       // Handle JSON array format ["2", "-12"]
-                       const parsed = JSON.parse(rawCorrect);
-                       acceptedAnswers = Array.isArray(parsed) ? parsed.map(a => a.toString().trim().toLowerCase()) : [parsed.toString().trim().toLowerCase()];
-                     } catch (e) {
-                       // Fallback to comma split if JSON parse fails
-                       acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
-                     }
-                   } else {
-                     // Handle comma or pipe separated format "2, -12"
-                     acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
-                   }
-                   
-                   return acceptedAnswers.includes(studentAns);
-                }).length;
+                const correctCount = moduleQs.filter(q => isAnswerCorrect(userAnswers[q.id], q.correctAnswer)).length;
                 moduleScores[lvl.toLowerCase()] = {
                     correct: correctCount,
                     total: moduleQs.length,
@@ -388,8 +366,7 @@ const ExamInterface = () => {
                 section: sectionName,
                 question_text: q.text,
                 selected_answer: userAnswers[q.id] || '',
-                is_correct: userAnswers[q.id] && q.correctAnswer &&
-                            userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
+                is_correct: isAnswerCorrect(userAnswers[q.id], q.correctAnswer),
                 is_unattempted: !userAnswers[q.id],
                 time_spent: questionTimes[q.id] || 0
             };

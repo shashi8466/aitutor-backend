@@ -10,6 +10,7 @@ import { enqueueNotification, processOutboxOnce } from '../utils/notificationOut
 import notificationMiddleware from '../middleware/notificationMiddleware.js';
 import { analyticsService } from '../services/analyticsService.js';
 import { TAXONOMY } from '../../utils/taxonomy.js';
+import { isAnswerCorrect } from '../../utils/answerGrading.js';
 
 const router = express.Router();
 
@@ -377,12 +378,8 @@ router.post('/submit-test', async (req, res) => {
                         let correct = 0;
                         qs.forEach(q => {
                             const qIdx = questionIds.findIndex(id => String(id) === String(q.id));
-                            if (qIdx !== -1) {
-                                const studentAns = String(answers[qIdx] || '').trim().toLowerCase();
-                                const correctAns = String(q.correct_answer || '').trim().toLowerCase();
-                                if (studentAns !== '' && studentAns === correctAns) {
-                                    correct++;
-                                }
+                            if (qIdx !== -1 && isAnswerCorrect(answers[qIdx], q.correct_answer)) {
+                                correct++;
                             }
                         });
                         return correct;
@@ -537,11 +534,8 @@ router.post('/submit-test', async (req, res) => {
                                 const rawLevel = String(q.level || 'Medium').toLowerCase().trim();
                                 if (tempScores[rawLevel]) {
                                     tempScores[rawLevel].total++;
-                                    
-                                    const studentAns = String(answers[idx] || '').trim();
-                                    const correctAns = String(q.correct_answer || '').trim();
-                                    
-                                    if (studentAns !== '' && studentAns === correctAns) {
+
+                                    if (isAnswerCorrect(answers[idx], q.correct_answer)) {
                                         tempScores[rawLevel].correct++;
                                     }
                                 }
@@ -733,7 +727,7 @@ router.post('/submit-adaptive-test', async (req, res) => {
             const q = (questions || []).find(dq => String(dq.id) === String(qId));
             const studentAns = String(answers?.[idx] || '').trim();
             // Strictly cast to boolean to avoid Postgres 22P02 error
-            const isCorrect = !!(q && studentAns && studentAns.toLowerCase() === String(q.correct_answer || '').trim().toLowerCase());
+            const isCorrect = !!(q && isAnswerCorrect(studentAns, q.correct_answer));
             
             // Use numeric ID for the array storage (compatible with int8[] columns)
             const numericQId = parseInt(qId);
@@ -1143,7 +1137,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                         if (!existingIds.includes(String(qId))) {
                             const q = questions.find(dq => String(dq.id) === String(qId));
                             if (q) {
-                                const isCorrect = String(answer || '').trim().toLowerCase() === String(q.correct_answer || '').trim().toLowerCase();
+                                const isCorrect = isAnswerCorrect(answer, q.correct_answer);
                                 const resp = {
                                     selected_answer: answer,
                                     is_correct: isCorrect,
@@ -1296,7 +1290,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                         if (!qError && questions) {
                             const reconstructedResponses = foundData.map((answer, index) => {
                                 const question = questions.find(q => q.id === questionIds[index]);
-                                const isCorrect = question && String(answer).trim() === String(question.correct_answer || '').trim();
+                                const isCorrect = !!(question && isAnswerCorrect(answer, question.correct_answer));
                                 
                                 return {
                                     selected_answer: String(answer),

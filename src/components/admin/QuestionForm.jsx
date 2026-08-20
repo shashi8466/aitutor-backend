@@ -651,7 +651,7 @@ const mathButton = {
                       onChange={handleChange}
                       required
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-gray-900 bg-emerald-50"
-                      placeholder={formData.type === 'fill_in_the_blank' ? "Enter the exact correct answer text..." : "Enter the short answer..."}
+                      placeholder={formData.type === 'fill_in_the_blank' ? "Enter the exact correct answer text..." : "Enter the short answer. For multiple accepted forms, separate with commas (e.g. 0.25, 1/4)"}
                     />
                   )}
                 </div>

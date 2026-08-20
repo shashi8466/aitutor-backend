@@ -12,6 +12,7 @@ import CombinedRegularCourseReport from '../common/CombinedRegularCourseReport';
 import { questionService, progressService, enrollmentService, gradingService, planService, courseService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { isAnswerCorrect } from '../../utils/answerGrading';
 
 const {
   FiArrowLeft, FiArrowRight, FiCheck, FiX, FiMessageCircle, FiClock, FiTarget,
@@ -441,26 +442,7 @@ const QuizInterface = () => {
     }
   };
 
-  const checkAnswerRobustly = (studentAns, correctAnswer) => {
-    const sAns = (studentAns || '').toString().trim().toLowerCase();
-    if (!sAns || !correctAnswer) return false;
-    
-    const rawCorrect = correctAnswer.toString().trim();
-    let acceptedAnswers = [];
-    
-    if (rawCorrect.startsWith('[') && rawCorrect.endsWith(']')) {
-      try {
-        const parsed = JSON.parse(rawCorrect);
-        acceptedAnswers = Array.isArray(parsed) ? parsed.map(a => a.toString().trim().toLowerCase()) : [parsed.toString().trim().toLowerCase()];
-      } catch (e) {
-        acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
-      }
-    } else {
-      acceptedAnswers = rawCorrect.split(/[,|]/).map(a => a.trim().toLowerCase());
-    }
-    
-    return acceptedAnswers.includes(sAns);
-  };
+  const checkAnswerRobustly = (studentAns, correctAnswer) => isAnswerCorrect(studentAns, correctAnswer);
 
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;

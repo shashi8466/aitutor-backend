@@ -9,6 +9,7 @@ import supabase from '../../supabase/supabase';
 import axios from 'axios';
 import DemoLeadForm from './DemoLeadForm';
 import { calculateSatScore } from '../../utils/scoreCalculator';
+import { isAnswerCorrect } from '../../utils/answerGrading';
 
 const {
   FiArrowLeft, FiCheck, FiX, FiClock, FiTarget,
@@ -348,16 +349,13 @@ const PublicDemoQuizInterface = () => {
     const threshold = courseInfo?.threshold_percentage || 60;
     
     // Calculate current module score - Exact match with student test
-    const correctCount = questions.filter(q => {
-      const ans = userAnswers[q.id];
-      return ans && q.correctAnswer && ans.toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
-    }).length;
+    const correctCount = questions.filter(q => isAnswerCorrect(userAnswers[q.id], q.correctAnswer)).length;
     const percentage = (correctCount / questions.length) * 100;
 
     // Aggregate topic stats
     const topicStats = {};
     questions.forEach(q => {
-      const isCorrect = userAnswers[q.id] && q.correctAnswer && userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
+      const isCorrect = isAnswerCorrect(userAnswers[q.id], q.correctAnswer);
       const topic = q.topic || 'General';
       if (!topicStats[topic]) topicStats[topic] = { total: 0, correct: 0 };
       topicStats[topic].total++;
@@ -479,16 +477,13 @@ const PublicDemoQuizInterface = () => {
 
     // Add current module if not already scored (in case of direct submission)
     if (!moduleScores[currentModuleKey]) {
-      const correctCount = questions.filter(q => {
-        const ans = userAnswers[q.id];
-        return ans && q.correctAnswer && ans.toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
-      }).length;
+      const correctCount = questions.filter(q => isAnswerCorrect(userAnswers[q.id], q.correctAnswer)).length;
       const percentage = (correctCount / questions.length) * 100;
-      
+
       // Aggregate topic stats
       const topicStats = {};
       questions.forEach(q => {
-        const isCorrect = userAnswers[q.id] && q.correctAnswer && userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase();
+        const isCorrect = isAnswerCorrect(userAnswers[q.id], q.correctAnswer);
         const topic = q.topic || 'General';
         if (!topicStats[topic]) topicStats[topic] = { total: 0, correct: 0 };
         topicStats[topic].total++;
@@ -611,8 +606,7 @@ const PublicDemoQuizInterface = () => {
             correctAnswer: q.correctAnswer,
             userAnswer: userAnswers[q.id] || null,
             topic: q.topic || 'General',
-            isCorrect: userAnswers[q.id] && q.correctAnswer &&
-              userAnswers[q.id].toString().trim().toLowerCase() === q.correctAnswer.toString().trim().toLowerCase(),
+            isCorrect: isAnswerCorrect(userAnswers[q.id], q.correctAnswer),
             timeSpent: questionTimes[q.id] || 0
           }));
         });
