@@ -80,10 +80,20 @@ const DemoReport = () => {
     // lives here - only field renaming/flattening of the same dynamic content.
     const submission = useMemo(() => {
         if (!reportData) return null;
-        const { studentName, courseName, finalScores, moduleAnswers } = reportData;
+        const { studentName, courseName, finalScores, moduleAnswers, moduleHistory } = reportData;
 
-        const responses = Object.entries(moduleAnswers || {}).flatMap(([moduleKey, questions]) =>
-            (questions || []).map(q => ({
+        // Iterate moduleHistory (a plain array, e.g. ['rw_moderate','rw_easy','math_moderate',
+        // 'math_easy']) rather than Object.keys(moduleAnswers) - moduleAnswers is stored in a
+        // jsonb column, and Postgres's jsonb type does NOT preserve object key insertion order
+        // (it re-serializes keys by length then lexicographically), so relying on its key order
+        // silently scrambled the module sequence in the report. moduleHistory is a JSON array,
+        // which jsonb does preserve in original order, so it's the reliable source of sequence.
+        const moduleOrder = (moduleHistory && moduleHistory.length > 0)
+            ? moduleHistory
+            : Object.keys(moduleAnswers || {});
+
+        const responses = moduleOrder.flatMap(moduleKey =>
+            (moduleAnswers?.[moduleKey] || []).map(q => ({
                 topic: q.topic || 'General',
                 section: moduleKey.startsWith('rw') ? 'Reading & Writing' : 'Math',
                 selected_answer: q.userAnswer,
