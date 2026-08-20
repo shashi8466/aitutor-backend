@@ -62,12 +62,12 @@ const AdminDemoLeads = () => {
 
   const handleViewReport = (lead) => {
     const reportData = buildReportData(lead);
-    navigate(`/demo/${lead.course_id}/report`, { state: { reportData, isAdminView: true } });
+    navigate(`/report/${lead.id}`, { state: { reportData, isAdminView: true } });
   };
 
   const handleDownloadReport = (lead) => {
     const reportData = buildReportData(lead);
-    navigate(`/demo/${lead.course_id}/report`, { state: { reportData, isAdminView: true, autoPrint: true } });
+    navigate(`/report/${lead.id}`, { state: { reportData, isAdminView: true, autoPrint: true } });
   };
 
   useEffect(() => {

@@ -40,7 +40,7 @@ const DemoReport = () => {
                     const data = await res.json();
                     if (data.success && data.reportData) {
                         setReportData(data.reportData);
-                        if (shouldPrint) setTimeout(() => window.print(), 1500);
+                        if (shouldPrint || location.state?.autoPrint) setTimeout(() => window.print(), 1500);
                         return;
                     }
                     setNotFound(true);

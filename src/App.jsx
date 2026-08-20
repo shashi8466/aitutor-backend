@@ -395,6 +395,7 @@ const App = () => {
                 /demo/ is kept mounted only so already-shared old links keep working. */}
             <Route path="/test/:courseId" element={<PublicDemoCourseView />} />
             <Route path="/test/:courseId/level/:level" element={<PublicDemoQuizInterface />} />
+            <Route path="/test/:courseId/report" element={<DemoReport />} />
             <Route path="/report/:reportId" element={<DemoReport />} />
 
             <Route path="/demo/:courseId" element={<PublicDemoCourseView />} />

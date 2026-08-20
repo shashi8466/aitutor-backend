@@ -675,9 +675,9 @@ const PublicDemoQuizInterface = () => {
       if (leadId) {
           navigate(`/report/${leadId}`);
       } else {
-          // No leadId back from the server - fall back to the legacy route, which still knows
-          // how to recover report data from localStorage for this course.
-          navigate(`/demo/${courseId}/report`);
+          // No leadId back from the server - fall back to the courseId-based report route,
+          // which still knows how to recover report data from localStorage for this course.
+          navigate(`/test/${courseId}/report`);
       }
     } catch (err) {
       console.error("❌ [DEMO] Failed to submit final scores:", err);

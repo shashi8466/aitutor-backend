@@ -20,7 +20,7 @@ const AIPrep365LandingPage = () => {
   const handleLoginClick = () => { navigate('/login'); };
   const handleSignupClick = () => { navigate('/signup'); };
   const handleStartPracticeClick = () => {
-    window.location.href = 'https://aiprep365.com/demo/89';
+    window.location.href = 'https://aiprep365.com/test/89';
   };
   const handleBookDemoClick = () => { navigate('/contact'); };
 

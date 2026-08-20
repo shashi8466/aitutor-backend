@@ -115,7 +115,7 @@ export default function LandingPage() {
                         Aiprep365 helps students practice anytime, get instant feedback, target weak areas, and build confidence faster with AI-powered SAT prep.
                      </p>
                      <div className="flex flex-wrap gap-6">
-                         <a href="https://aiprep365.com/demo/89" className="btn-primary">
+                         <a href="https://aiprep365.com/test/89" className="btn-primary">
                             Start Free Practice
                          </a>
                         <Link to="/contact" className="px-10 py-4 bg-[#0a0f1d] border border-white/5 text-white rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-[#111827] transition-all">
