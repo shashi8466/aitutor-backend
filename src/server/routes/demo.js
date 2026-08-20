@@ -1,11 +1,20 @@
 import express from 'express';
+import crypto from 'crypto';
 import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 import { sendEmail, buildDemoScoreEmail, buildDemoAdminEmail, sendSMS } from '../utils/notificationEngine.js';
+import { enqueueNotification } from '../utils/notificationOutbox.js';
 
 const router = express.Router();
 
 // Simple in-memory storage for OTPs (for production, use Redis or a DB table)
 const otpCache = new Map();
+
+// Records that a given email was actually OTP-verified, keyed by normalized email, so a demo
+// lead can only ever be created with an email the student proved they own - not just whatever
+// happens to be in the form field. The frontend must present this token back on submit-lead;
+// see /verify-email-otp (issues it) and /submit-lead (requires it for a brand-new lead).
+const verifiedEmailTokens = new Map();
+const EMAIL_VERIFICATION_TTL_MS = 30 * 60 * 1000; // 30 minutes - comfortably covers filling out the rest of the form
 
 // Generate a random 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -252,7 +261,12 @@ router.post('/verify-email-otp', async (req, res) => {
 
     if (cachedData.otp === otp.trim()) {
         otpCache.delete(key);
-        res.json({ success: true, message: 'Email verified successfully' });
+        // Issue a short-lived proof-of-verification token for this exact email. Callers that
+        // need to guarantee "the email a record gets created with is the one that was actually
+        // verified" (e.g. the demo lead flow's /submit-lead) require this back - see there.
+        const verificationToken = crypto.randomBytes(16).toString('hex');
+        verifiedEmailTokens.set(key, { token: verificationToken, expiry: Date.now() + EMAIL_VERIFICATION_TTL_MS });
+        res.json({ success: true, message: 'Email verified successfully', verificationToken });
     } else {
         res.status(400).json({ success: false, error: 'Invalid verification code. Please try again.' });
     }
@@ -261,7 +275,7 @@ router.post('/verify-email-otp', async (req, res) => {
 
 // 1. Submit Demo Lead & Track Level Progress
 router.post('/submit-lead', async (req, res) => {
-    const { courseId, fullName, grade, email, phone, level, scoreDetails, parentName, parentEmail } = req.body;
+    const { courseId, fullName, grade, email, phone, level, scoreDetails, parentName, parentEmail, verificationToken } = req.body;
 
     console.log(`📩 [DEMO] Lead Submission: ${fullName} (${email}) for Course ${courseId}, Level: ${level}`);
 
@@ -341,11 +355,24 @@ router.post('/submit-lead', async (req, res) => {
             console.log('✅ [DEMO] Lead updated successfully');
             leadRecord = { ...existingLead, ...updateData };
         } else {
+            // Only a brand-new lead needs the check - the email is set once here and never
+            // changed afterwards (the update branch above never touches it), so a returning
+            // request for the same student+course doesn't need to re-prove verification.
+            const verifiedRecord = verifiedEmailTokens.get(normalizedEmail);
+            const isEmailVerified = verifiedRecord && verifiedRecord.token === verificationToken && Date.now() < verifiedRecord.expiry;
+            if (!isEmailVerified) {
+                console.warn(`🚫 [DEMO] Rejected lead submission - email not verified: ${normalizedEmail}`);
+                return res.status(400).json({ success: false, error: 'This email address has not been verified. Please verify your email before submitting.' });
+            }
+
             console.log('🔍 [DEMO] Step 2: Creating new lead record...');
             const insertData = {
                 course_id: parseInt(courseId),
                 email: normalizedEmail,
-                ...updateData
+                ...updateData,
+                // Durable record that this exact email was OTP-verified before the lead/report
+                // was created - not just whatever happened to be typed into the form.
+                score_details: { ...updateData.score_details, emailVerified: true }
             };
             const { error: insertError } = await supabaseAdmin
                 .from('demo_leads')
@@ -372,6 +399,54 @@ router.post('/submit-lead', async (req, res) => {
             console.error('❌ [DEMO] Course Fetch Error:', courseError);
         }
         console.log(`✅ [DEMO] Successfully saved lead: ${leadRecord.id}`);
+
+        // The result email/admin notification only fire once the complete, final report has
+        // been saved (isFinal), never on intermediate module-progress saves. Fire-and-forget -
+        // never block the student's own response on outbound email.
+        if (isFinal && leadRecord.id) {
+            const finalScore = newScoreDetails.comprehensive?.finalPredictedScore || 0;
+            const testName = isAdaptiveSAT ? 'SAT Full-Length Test' : (course?.name || 'Demo Test');
+
+            enqueueNotification({
+                eventType: 'DEMO_TEST_COMPLETED',
+                recipientProfileId: null,
+                recipientType: 'student',
+                channels: ['email'],
+                payload: {
+                    submissionId: leadRecord.id,
+                    recipientEmail: normalizedEmail,
+                    studentName: fullName,
+                    testName,
+                    score: finalScore
+                }
+            }).catch(err => console.error('❌ [DEMO] Failed to enqueue result email:', err.message));
+
+            // Admin lead-notification: only on the FIRST transition to final for this lead, so a
+            // retake doesn't re-ping the admin inbox every time (the student outbox send above
+            // already has its own idempotency and doesn't need this guard).
+            if (!existingLead?.final_email_sent) {
+                const adminEmail = process.env.ADMIN_EMAIL || 'ssky57771@gmail.com';
+                const adminHtml = buildDemoAdminEmail({
+                    fullName,
+                    grade,
+                    email: normalizedEmail,
+                    phone,
+                    parentName: newScoreDetails.parentName,
+                    parentEmail: newScoreDetails.parentEmail,
+                    courseName: course?.name || 'Demo Course',
+                    level,
+                    scoreDetails: newScoreDetails,
+                    submittedAt: leadRecord.created_at,
+                    courseId,
+                    leadId: leadRecord.id
+                });
+                sendEmail({
+                    to: adminEmail,
+                    subject: `NEW DEMO LEAD: ${fullName} - ${course?.name || 'Demo Course'}`,
+                    html: adminHtml
+                }).catch(err => console.error('❌ [DEMO] Failed to send admin notification:', err.message));
+            }
+        }
 
         res.json({
             success: true,
@@ -443,27 +518,55 @@ router.get('/report/:leadId', async (req, res) => {
             console.error('❌ [DEMO] Report fetch error:', error);
             return res.status(404).json({ success: false, error: 'Report not found' });
         }
-        
+
+        const { data: course } = await supabaseAdmin
+            .from('courses')
+            .select('name')
+            .eq('id', lead.course_id)
+            .maybeSingle();
+
         // Build report data from score_details
         const scoreDetails = lead.score_details || {};
         const comprehensive = scoreDetails.comprehensive || {};
-        
+        const moduleAnswers = scoreDetails.moduleAnswers || {};
+
+        // Self-heal older reports saved before `moduleDetails[key].topics` was populated at
+        // write time: derive per-module topic stats from the per-question moduleAnswers array
+        // (which always has `{topic, isCorrect}` per question) whenever `topics` is missing.
+        const moduleDetails = comprehensive.moduleDetails || {};
+        Object.keys(moduleDetails).forEach(mKey => {
+            const mod = moduleDetails[mKey];
+            if (!mod || mod.topics) return;
+            const questions = moduleAnswers[mKey] || [];
+            if (questions.length === 0) return;
+            const topics = {};
+            questions.forEach(q => {
+                const topic = q.topic || 'General';
+                if (!topics[topic]) topics[topic] = { total: 0, correct: 0 };
+                topics[topic].total++;
+                if (q.isCorrect) topics[topic].correct++;
+            });
+            mod.topics = topics;
+        });
+
         const reportData = {
             studentName: lead.full_name,
+            courseId: lead.course_id,
+            courseName: course?.name || null,
             finalScores: {
                 totalScore: comprehensive.finalPredictedScore || 0,
                 rwScore: comprehensive.rwScore || 0,
                 mathScore: comprehensive.mathScore || 0,
                 overallAccuracy: comprehensive.overallAccuracy || 0,
-                moduleDetails: comprehensive.moduleDetails || {},
+                moduleDetails,
                 completedAt: lead.created_at
             },
             moduleHistory: comprehensive.moduleHistory || [],
-            moduleAnswers: scoreDetails.moduleAnswers || {},
+            moduleAnswers,
             questionTimes: scoreDetails.questionTimes || {},
             moduleDurations: scoreDetails.moduleDurations || {}
         };
-        
+
         res.json({ success: true, reportData });
     } catch (error) {
         console.error('❌ [DEMO] Report processing failed:', error);

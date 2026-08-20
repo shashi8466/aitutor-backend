@@ -279,7 +279,7 @@ const PublicDemoCourseView = () => {
                                     </div>
                                     <div className="flex flex-col items-center md:w-auto gap-3 w-full md:w-auto">
                                         <button
-                                            onClick={() => navigate(`/demo/${courseId}/level/rw_moderate`)}
+                                            onClick={() => navigate(`/test/${courseId}/level/rw_moderate`)}
                                             className="w-full md:w-auto px-10 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest shadow-xl transition-all group bg-blue-600 text-white hover:bg-blue-700 transform hover:-translate-y-1"
                                         >
                                             <SafeIcon icon={FiPlay} className="w-4 h-4 group-hover:animate-ping" />
@@ -413,7 +413,7 @@ const PublicDemoCourseView = () => {
                                                 </div>
                                             )}
                                             <button
-                                                onClick={() => unlocked && navigate(`/demo/${courseId}/level/${level.toLowerCase()}`)}
+                                                onClick={() => unlocked && navigate(`/test/${courseId}/level/${level.toLowerCase()}`)}
                                                 disabled={!unlocked}
                                                 className={`w-full md:w-auto px-10 py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest shadow-xl transition-all group ${
                                                     unlocked 

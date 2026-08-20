@@ -526,7 +526,8 @@ const PublicDemoQuizInterface = () => {
         correct: moduleCorrect,
         total: mScore.total,
         percentage: mScore.percentage,
-        difficulty: diff.toUpperCase()
+        difficulty: diff.toUpperCase(),
+        topics: mScore.topics
       };
     });
 
@@ -668,11 +669,14 @@ const PublicDemoQuizInterface = () => {
         console.warn("Could not save progress to localStorage:", e);
       }
 
-      // Navigate to full report page
+      // Navigate to the public report page - the result email is sent server-side from
+      // /api/demo/submit-lead once the score is saved, so no client-side finalize step is needed.
       const leadId = response.data?.leadId;
       if (leadId) {
-          navigate(`/demo/${courseId}/report?id=${leadId}&finalize=true`);
+          navigate(`/report/${leadId}`);
       } else {
+          // No leadId back from the server - fall back to the legacy route, which still knows
+          // how to recover report data from localStorage for this course.
           navigate(`/demo/${courseId}/report`);
       }
     } catch (err) {
@@ -701,7 +705,7 @@ const PublicDemoQuizInterface = () => {
     return (
       <DemoLeadForm 
         isOpen={showLeadForm} 
-        onClose={() => navigate(`/demo/${courseId}`)} 
+        onClose={() => navigate(`/test/${courseId}`)}
         onSubmit={handleLeadSubmit}
         courseName={courseInfo?.name}
         level="FULL LENGTH TEST"
@@ -914,8 +918,8 @@ const PublicDemoQuizInterface = () => {
                    exit={{ opacity: 0, y: 10 }}
                    className="absolute top-[100%] right-0 bg-[#1e293b] border border-slate-700/50 rounded-xl py-2 w-[200px] shadow-2xl z-[10002] mt-2 overflow-hidden"
                  >
-                    <div 
-                       onClick={() => { setShowMoreMenu(false); navigate(`/demo/${courseId}`); }} 
+                    <div
+                       onClick={() => { setShowMoreMenu(false); navigate(`/test/${courseId}`); }}
                        className="flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 cursor-pointer text-slate-200 hover:text-white text-sm font-medium transition-colors"
                     >
                        <SafeIcon icon={FiLogOut} className="w-4 h-4 opacity-70" />

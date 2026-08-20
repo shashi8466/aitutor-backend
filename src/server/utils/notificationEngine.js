@@ -494,7 +494,7 @@ export function buildWelcomeEmail({ name, appUrl }) {
 export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetails, courseId }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const frontendUrl = process.env.FRONTEND_URL || 'https://aiprep365.com';
-    const reportUrl = `${frontendUrl}/demo/${courseId}/report`;
+    const reportUrl = `${frontendUrl}/test/${courseId}`;
     const allLevels = scoreDetails?.allLevels || {};
     const comprehensive = scoreDetails?.comprehensive || {};
     const isAdaptiveSAT = scoreDetails?.isAdaptiveSAT || 
@@ -619,11 +619,50 @@ export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetai
     </div></div></body></html>`;
 }
 
+/**
+ * Mandatory post-completion result email for the public demo/full-length SAT test.
+ * Links to the web report page directly (never a PDF) - a "Download PDF" action lives on
+ * that page itself.
+ */
+export function buildDemoResultEmail({ studentName, testName, score, reportUrl }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const displayName = studentName || 'Student';
+    const displayTestName = testName || 'SAT Full-Length Test';
+    const displayScore = (score === undefined || score === null) ? '--' : score;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card">
+        <div class="header"><h1>Your Results Are Ready!</h1><p>${appName}</p></div>
+        <div class="body">
+            <p class="intro-heading">Hi ${displayName},</p>
+            <p class="intro-text">Your <strong>${displayTestName}</strong> results are ready.</p>
+            <div class="score-row">
+                <div class="score-box" style="flex: 2; width: 100%;">
+                    <div class="val" style="font-size: 36px;">${displayScore}</div>
+                    <div class="lbl">Your Score</div>
+                </div>
+            </div>
+            <p class="intro-text">Your complete performance report is now available.</p>
+            <a class="cta" href="${reportUrl}">View Your Report →</a>
+            <p class="section-title">Your report includes</p>
+            <div style="color:#e2e8f0; font-size:14px; line-height:2;">
+                • SAT Score<br/>
+                • Reading &amp; Writing Performance<br/>
+                • Math Performance<br/>
+                • Answer Summary<br/>
+                • Strengths &amp; Weaknesses<br/>
+                • Performance Analysis
+            </div>
+            <p style="margin-top:24px; font-size: 14px; color: #94a3b8;">Thank you for using ${appName}.</p>
+        </div>
+        <div class="footer">${appName} • The Ultimate AI-Powered Test Prep Platform</div>
+    </div></div></body></html>`;
+}
+
 export function buildDemoAdminEmail({ fullName, grade, email, phone, parentName, parentEmail, courseName, level, scoreDetails, submittedAt, courseId, leadId, customTitle, downloadUrl: providedDownloadUrl }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://aiprep365.com' : 'http://localhost:5173');
-    const reportUrl = `${frontendUrl}/demo/${courseId}/report${leadId ? `?id=${leadId}` : ''}`;
-    const downloadUrl = providedDownloadUrl || `${frontendUrl}/demo/${courseId}/report${leadId ? `?id=${leadId}&print=true` : '?print=true'}`;
+    const reportUrl = leadId ? `${frontendUrl}/report/${leadId}` : `${frontendUrl}/test/${courseId}`;
+    const downloadUrl = providedDownloadUrl || reportUrl;
     const allLevels = scoreDetails?.allLevels || {};
     const comprehensive = scoreDetails?.comprehensive || {};
     const isAdaptiveSAT = scoreDetails?.isAdaptiveSAT || 

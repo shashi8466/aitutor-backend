@@ -4,7 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import axios from 'axios';
 import SafeIcon from '../../common/SafeIcon';
 
-const { FiUser, FiMail, FiPhone, FiBookOpen, FiLoader, FiCheckCircle, FiX, FiChevronDown, FiShield } = FiIcons;
+const { FiUser, FiMail, FiPhone, FiBookOpen, FiLoader, FiCheckCircle, FiX, FiChevronDown, FiShield, FiEdit2 } = FiIcons;
 
 const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
   const [formData, setFormData] = useState({
@@ -25,6 +25,10 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
   const [studentEmailOtpLoading, setStudentEmailOtpLoading] = useState(false);
   const [studentEmailOtpError, setStudentEmailOtpError] = useState('');
   const [studentEmailDebugOtp, setStudentEmailDebugOtp] = useState('');
+  // Proof that this exact email was actually OTP-verified - the backend requires this back on
+  // submit so the report is guaranteed to go to a verified address, never just whatever's typed
+  // into the field. Cleared any time the student edits the email, forcing re-verification.
+  const [emailVerificationToken, setEmailVerificationToken] = useState('');
 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -73,6 +77,7 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
       if (response.data.success) {
         setStudentEmailOtpVerified(true);
         setStudentEmailOtpError('');
+        setEmailVerificationToken(response.data.verificationToken || '');
       } else {
         setStudentEmailOtpError(response.data.error || 'Invalid OTP.');
       }
@@ -81,6 +86,18 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
     } finally {
       setStudentEmailOtpLoading(false);
     }
+  };
+
+  // Lets the student go back and correct the email after Send OTP (or even after verifying) -
+  // the old OTP/verification is fully discarded so a fresh email always requires a fresh
+  // Send OTP + Verify OTP cycle before it can be used.
+  const handleEditEmail = () => {
+    setStudentEmailOtpSent(false);
+    setStudentEmailOtpVerified(false);
+    setStudentEmailOtp('');
+    setStudentEmailOtpError('');
+    setStudentEmailDebugOtp('');
+    setEmailVerificationToken('');
   };
 
 
@@ -101,7 +118,8 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
       const cleanedFormData = {
         ...formData,
         phone: fullPhone,
-        countryCode
+        countryCode,
+        verificationToken: emailVerificationToken
       };
       await onSubmit(cleanedFormData);
       setSubmitted(true);
@@ -353,8 +371,17 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                         onChange={handleChange}
                         disabled={studentEmailOtpVerified || studentEmailOtpSent}
                         placeholder="john@example.com"
-                        className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50 disabled:opacity-60"
+                        className="w-full pl-10 pr-16 py-3 bg-white border-2 border-gray-200 focus:border-[#E53935] rounded-xl outline-none transition-all text-gray-900 font-medium placeholder-gray-400 hover:bg-gray-50 disabled:opacity-60"
                       />
+                      {(studentEmailOtpSent || studentEmailOtpVerified) && (
+                        <button
+                          type="button"
+                          onClick={handleEditEmail}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-black text-[#E53935] hover:text-red-700 uppercase tracking-wide"
+                        >
+                          <SafeIcon icon={FiEdit2} className="w-3 h-3" /> Edit
+                        </button>
+                      )}
                     </div>
 
                     {/* STUDENT EMAIL OTP FLOW */}
@@ -371,9 +398,18 @@ const DemoLeadForm = ({ isOpen, onClose, onSubmit, courseName, level }) => {
                           </button>
                         ) : (
                           <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-lg">
-                            <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                              Verification code sent to {formData.email}
-                            </p>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                                Verification code sent to {formData.email}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleEditEmail}
+                                className="text-[10px] font-black text-[#E53935] hover:text-red-700 uppercase tracking-wide shrink-0"
+                              >
+                                Edit Email
+                              </button>
+                            </div>
                             {studentEmailOtpError && (
                               <p className="text-[10px] text-red-600 dark:text-red-400 font-extrabold uppercase tracking-wide">{studentEmailOtpError}</p>
                             )}

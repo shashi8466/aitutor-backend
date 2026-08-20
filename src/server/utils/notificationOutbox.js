@@ -1,12 +1,13 @@
 import supabase from '../../supabase/supabaseAdmin.js';
-import { 
-  sendNotification, 
-  buildTestCompletionEmail, 
-  buildWeeklyReportEmail, 
-  buildDueDateReminderEmail, 
+import {
+  sendNotification,
+  buildTestCompletionEmail,
+  buildWeeklyReportEmail,
+  buildDueDateReminderEmail,
   buildWelcomeEmail,
   buildContactSubmissionEmail,
-  buildACTFullLengthCompletionEmail
+  buildACTFullLengthCompletionEmail,
+  buildDemoResultEmail
 } from './notificationEngine.js';
 import { getInternalSettings } from './internalSettings.js';
 
@@ -79,6 +80,9 @@ function channelsFromPrefs(prefs, channelsRequested, eventType, profile = null) 
   const allowEvent =
     (eventType === 'WELCOME_EMAIL') ||
     (eventType === 'CONTACT_SUBMISSION') ||
+    // Demo leads have no `profiles` row/notification preferences to check against - this is a
+    // mandatory result email, always allowed, same treatment as WELCOME_EMAIL.
+    (eventType === 'DEMO_TEST_COMPLETED') ||
     (eventType === 'TEST_COMPLETED' && testCompEnabled) ||
     (eventType === 'WEEKLY_REPORT' && weeklyRepEnabled) ||
     (eventType === 'DUE_DATE_REMINDER' && dueDateEnabled);
@@ -218,6 +222,22 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     return { subject, emailHtml, smsMessage };
   }
 
+  if (normalizedEventType === 'DEMO_TEST_COMPLETED') {
+    const subject = 'Your AIPrep365 SAT Test Results Are Ready';
+    // Plain path link (the app uses BrowserRouter, not HashRouter) directly to the new
+    // /report/:reportId public route - no #/?redirect= machinery needed here.
+    const reportUrl = payload.reportUrl || (appUrl ? `${appUrl}/report/${payload.submissionId}` : `/report/${payload.submissionId}`);
+
+    const emailHtml = buildDemoResultEmail({
+      studentName: payload.studentName,
+      testName: payload.testName,
+      score: payload.score,
+      reportUrl
+    });
+    const smsMessage = `${appName}: Hi ${payload.studentName || 'Student'}, your SAT test results are ready! Score: ${payload.score || 'N/A'}. View: ${reportUrl}`;
+    return { subject, emailHtml, smsMessage };
+  }
+
   if (normalizedEventType === 'WEEKLY_REPORT') {
     const subject = `Weekly Progress Report${isParent ? `: ${payload.studentName || ''}` : ''}`;
     
@@ -340,11 +360,16 @@ export async function enqueueNotification({
   const submissionId = payload?.submissionId ?? payload?.submission_id ?? null;
   const recipientEmail = payload?.recipientEmail ? String(payload.recipientEmail).trim().toLowerCase() : null;
 
-  if (eventType === 'TEST_COMPLETED' && submissionId) {
+  if ((eventType === 'TEST_COMPLETED' || eventType === 'DEMO_TEST_COMPLETED') && submissionId) {
     // 🔒 CRITICAL: Cross-profile de-duplication.
     // Use raw JSONB text cast to match BOTH numeric and string stored values.
     // .contains() is type-strict and silently misses the alternative form.
     const submissionIdStr = String(submissionId);
+    // Demo leads have no profile row - recipientProfileId is null for them. PostgREST needs
+    // `is.null`, not `eq.null` (the latter never matches, per PostgREST's own filter semantics).
+    const profileIdClause = recipientProfileId
+      ? `recipient_profile_id.eq.${recipientProfileId}`
+      : `recipient_profile_id.is.null`;
 
     const { data: existing, error: existingErr } = await supabase
       .from('notification_outbox')
@@ -352,8 +377,8 @@ export async function enqueueNotification({
       .eq('event_type', eventType)
       .or(
         recipientEmail
-          ? `recipient_profile_id.eq.${recipientProfileId},payload->>recipientEmail.eq.${recipientEmail}`
-          : `recipient_profile_id.eq.${recipientProfileId}`
+          ? `${profileIdClause},payload->>recipientEmail.eq.${recipientEmail}`
+          : profileIdClause
       )
       // Filter by submissionId using raw text cast (handles number/string mismatch)
       .filter('payload->>submissionId', 'eq', submissionIdStr)
@@ -413,11 +438,14 @@ export async function enqueueNotification({
     if (error.code === '23505') {
       console.log(`ℹ️ [Outbox] Unique constraint hit for ${recipientProfileId} / sub ${payload?.submissionId} — fetching existing row.`);
       const subIdStr = String(payload?.submissionId ?? '');
-      const { data: existing } = await supabase
+      let existingQuery = supabase
         .from('notification_outbox')
         .select('id')
-        .eq('event_type', eventType)
-        .eq('recipient_profile_id', recipientProfileId)
+        .eq('event_type', eventType);
+      existingQuery = recipientProfileId
+        ? existingQuery.eq('recipient_profile_id', recipientProfileId)
+        : existingQuery.is('recipient_profile_id', null);
+      const { data: existing } = await existingQuery
         .filter('payload->>submissionId', 'eq', subIdStr)
         .limit(1)
         .maybeSingle();
@@ -567,6 +595,11 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
       // ────────────────────────────────────────────────────────────────────────
       if (emailDelivered) {
         // Email sent (or wasn't required) → mark whole notification as done.
+        // Track the provider's message id (for delivery debugging) inside the existing `payload`
+        // jsonb rather than a new column - no schema change needed.
+        const updatedPayload = (actualChannels.includes('email') && results.email?.id)
+          ? { ...item.payload, providerMessageId: results.email.id }
+          : item.payload;
         await supabase
           .from('notification_outbox')
           .update({
@@ -574,7 +607,8 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
             sent_at: new Date().toISOString(),
             attempts: nextAttempts,
             last_error: null,
-            delivered_channels: newlyDelivered
+            delivered_channels: newlyDelivered,
+            payload: updatedPayload
           })
           .eq('id', item.id);
       } else {
