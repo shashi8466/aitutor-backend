@@ -301,10 +301,26 @@ const mathButton = {
   };
 
   const removeOption = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      options: prev.options.filter((_, i) => i !== index)
-    }));
+    optionEditorRefs.current.splice(index, 1);
+    setFormData(prev => {
+      // correct_answer is a positional letter (A/B/C...), not the option's own text, so
+      // removing an earlier option must re-letter it (or clear it if it was the option removed) -
+      // otherwise it silently keeps pointing at whatever option shifts into that letter's slot.
+      let newCorrectAnswer = prev.correct_answer;
+      if (prev.type === 'mcq' && /^[A-Z]$/.test(prev.correct_answer)) {
+        const correctIndex = prev.correct_answer.charCodeAt(0) - 65;
+        if (correctIndex === index) {
+          newCorrectAnswer = '';
+        } else if (correctIndex > index) {
+          newCorrectAnswer = String.fromCharCode(65 + correctIndex - 1);
+        }
+      }
+      return {
+        ...prev,
+        options: prev.options.filter((_, i) => i !== index),
+        correct_answer: newCorrectAnswer
+      };
+    });
   };
 
   const handleTypeChange = (newType) => {
@@ -379,6 +395,25 @@ const mathButton = {
           border-radius: 0.25rem;
           font-family: monospace;
           color: #0f172a;
+        }
+        /* Tailwind Preflight zeroes list-style/margin/padding on every ul/ol sitewide, which
+           silently strips bullets/numbering from content Jodit inserts here - restore it so the
+           toolbar's List/Ordered List buttons actually look like they did something. */
+        .jodit-wysiwyg ul {
+          list-style-type: disc !important;
+          padding-left: 1.5em !important;
+          margin: 0.5em 0 !important;
+        }
+        .jodit-wysiwyg ol {
+          list-style-type: decimal !important;
+          padding-left: 1.5em !important;
+          margin: 0.5em 0 !important;
+        }
+        .jodit-wysiwyg ul ul {
+          list-style-type: circle !important;
+        }
+        .jodit-wysiwyg li {
+          display: list-item !important;
         }
       `}</style>
       <motion.div
@@ -609,10 +644,11 @@ const mathButton = {
                               editorRef={(instance) => { optionEditorRefs.current[index] = instance; }}
                             />
                           </div>
-                          {formData.options.length > 2 && (
+                          {formData.options.length > 1 && (
                             <button
                               type="button"
                               onClick={() => removeOption(index)}
+                              title="Remove Option"
                               className="absolute -top-2 -right-2 bg-red-100 text-red-600 hover:bg-red-500 hover:text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
                             >
                               <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" />
