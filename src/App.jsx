@@ -115,13 +115,29 @@ axios.defaults.withCredentials = true;
 // CRITICAL FIX: Increased global timeout to prevent hanging requests and allow for heavy AI processing
 axios.defaults.timeout = 60000; // 60 seconds timeout for all requests
 
+// Reads the access token directly out of the Supabase client's own localStorage entry -
+// synchronous, no network/race involved. Used as a fallback when the async getSession() call
+// below times out, so a slow moment never means the request goes out with NO token at all
+// (which would guarantee a 401 and could itself trigger the refresh-token race that causes
+// spurious logouts - see the response interceptor's shared refresh mutex below).
+const readStoredAccessToken = () => {
+  try {
+    const authKey = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    if (!authKey) return null;
+    const stored = JSON.parse(localStorage.getItem(authKey));
+    return stored?.access_token || null;
+  } catch {
+    return null;
+  }
+};
+
 // Add request interceptor for auth and debugging
 axios.interceptors.request.use(
   async (config) => {
     try {
       // 1. Only add token if it's an API request to our own backend
       const isInternalApi = config.url && (
-        config.url.includes('/api/') || 
+        config.url.includes('/api/') ||
         (BACKEND_URL && config.url.includes(BACKEND_URL)) ||
         !config.url.startsWith('http')
       );
@@ -129,7 +145,7 @@ axios.interceptors.request.use(
       if (isInternalApi) {
         // 2. Get the session from Supabase with a timeout
         const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Supabase session request timed out')), 5000)
         );
 
@@ -138,10 +154,10 @@ axios.interceptors.request.use(
           return null;
         });
 
-        const session = sessionResult?.data?.session;
-        
-        if (session?.access_token) {
-          config.headers.Authorization = `Bearer ${session.access_token}`;
+        const accessToken = sessionResult?.data?.session?.access_token || readStoredAccessToken();
+
+        if (accessToken) {
+          config.headers.Authorization = `Bearer ${accessToken}`;
         } else {
           console.warn(`📡 [Auth] NO SESSION FOUND for internal API: ${config.url}. Status: ${sessionResult ? 'No Session' : 'Timeout/Error'}`);
         }
@@ -165,6 +181,22 @@ axios.interceptors.request.use(
 
 // Add response interceptor for debugging and retry logic
 const retryRequests = new Map(); // Track retry attempts
+
+// Shared in-flight refresh so a burst of near-simultaneous 401s (common on an exam page - several
+// autosave/question/submit calls firing close together) triggers exactly ONE
+// supabase.auth.refreshSession() call instead of each request racing its own. Concurrent manual
+// refresh calls compete over the same single-use/rotating refresh token - only one can win, and
+// the losing call(s) can make Supabase's client tear down the session entirely and emit a
+// SIGNED_OUT event app-wide, which is what was bouncing an otherwise-healthy session to /login.
+let refreshPromise = null;
+const getSharedSessionRefresh = () => {
+  if (!refreshPromise) {
+    refreshPromise = supabase.auth.refreshSession().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+};
 
 axios.interceptors.response.use(
   (response) => {
@@ -200,9 +232,9 @@ axios.interceptors.response.use(
       config._isRetry = true;
       
       try {
-        // Force a session refresh
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-        
+        // Force a session refresh - shared across any other concurrent 401s (see mutex above)
+        const { data: { session }, error: refreshError } = await getSharedSessionRefresh();
+
         if (session?.access_token) {
           console.log('✅ [Auth] Session refreshed successfully. Retrying request...');
           config.headers.Authorization = `Bearer ${session.access_token}`;
@@ -322,7 +354,7 @@ const App = () => {
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isStudentRoute = location.pathname.startsWith('/student');
   const isTutorRoute = location.pathname.startsWith('/tutor');
-  const isDemoRoute = location.pathname.startsWith('/demo');
+  const isDemoRoute = location.pathname.startsWith('/demo') || location.pathname.startsWith('/test') || location.pathname.startsWith('/report');
   const isAuthRoute = location.pathname.startsWith('/login') ||
                       location.pathname.startsWith('/signup') ||
                       location.pathname.startsWith('/forgot-password') ||
@@ -359,7 +391,12 @@ const App = () => {
             <Route path="/terms-conditions" element={<TermsConditions />} />
             <Route path="/join-group/:token" element={<JoinGroupInvite />} />
 
-            {/* Public Demo Routes */}
+            {/* Public Demo/Test Routes - /test/ and /report/ are the current public-facing paths;
+                /demo/ is kept mounted only so already-shared old links keep working. */}
+            <Route path="/test/:courseId" element={<PublicDemoCourseView />} />
+            <Route path="/test/:courseId/level/:level" element={<PublicDemoQuizInterface />} />
+            <Route path="/report/:reportId" element={<DemoReport />} />
+
             <Route path="/demo/:courseId" element={<PublicDemoCourseView />} />
             <Route path="/demo/:courseId/level/:level" element={<PublicDemoQuizInterface />} />
             <Route path="/demo/:courseId/report" element={<DemoReport />} />

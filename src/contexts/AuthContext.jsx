@@ -140,10 +140,11 @@ export const AuthProvider = ({ children }) => {
             'User';
           const finalName = normalizeName(cachedProfile?.name, normalizeName(metaName));
           
-          if (!prev) return { ...currentUser, ...normalizedProfile, name: finalName };
-          if (prev.role !== normalizedRole || prev.name !== finalName || 
-              JSON.stringify(prev.linked_students) !== JSON.stringify(cachedProfile.linked_students)) {
-            return { ...prev, ...normalizedProfile, name: finalName };
+          if (!prev) return { ...currentUser, ...normalizedProfile, name: finalName, _pending_sync: false, _optimistic: false };
+          if (prev.role !== normalizedRole || prev.name !== finalName ||
+              JSON.stringify(prev.linked_students) !== JSON.stringify(cachedProfile.linked_students) ||
+              prev._pending_sync || prev._optimistic) {
+            return { ...prev, ...normalizedProfile, name: finalName, _pending_sync: false, _optimistic: false };
           }
           return prev;
         });
@@ -175,11 +176,16 @@ export const AuthProvider = ({ children }) => {
           const finalName = normalizeName(profile?.name, normalizeName(metaName));
           const finalEmail = profile?.email || currentUser.email;
           
-          if (!prev) return { ...currentUser, ...normalizedProfile, name: finalName, email: finalEmail };
-          
+          // Sync has now genuinely completed - clear the transient hydration flags
+          // unconditionally. Leaving them set (the previous behavior) meant any consumer
+          // gating on "has sync finished?" (e.g. ProtectedRoute's role-mismatch check) could
+          // wait forever once nothing else about the profile happened to change on this sync.
+          if (!prev) return { ...currentUser, ...normalizedProfile, name: finalName, email: finalEmail, _pending_sync: false, _optimistic: false };
+
           if (prev.role !== normalizedRole || prev.name !== finalName || prev.email !== finalEmail ||
-              JSON.stringify(prev.linked_students) !== JSON.stringify(profile.linked_students)) {
-            return { ...prev, ...normalizedProfile, name: finalName, email: finalEmail };
+              JSON.stringify(prev.linked_students) !== JSON.stringify(profile.linked_students) ||
+              prev._pending_sync || prev._optimistic) {
+            return { ...prev, ...normalizedProfile, name: finalName, email: finalEmail, _pending_sync: false, _optimistic: false };
           }
           return prev;
         });
@@ -335,9 +341,22 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
         }
       } else if (event === 'SIGNED_OUT') {
-        console.log('📤 [Auth] Processing SIGNED_OUT');
-        setUser(null);
-        setLoading(false);
+        // A SIGNED_OUT event fires both for an explicit user logout AND when a background
+        // token refresh fails (e.g. a refresh-token race under concurrent requests) - the two
+        // are indistinguishable from the event alone. Re-check for a session before clearing
+        // state, so a transient refresh glitch doesn't bounce an actively-working user to
+        // /login. A genuine logout still clears storage synchronously, so getSession() still
+        // correctly resolves to null here - this adds no meaningful delay to a real sign-out.
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!mounted) return;
+          if (session) {
+            console.warn('⚠️ [Auth] SIGNED_OUT fired but a session still exists - ignoring (likely a refresh race, not a real logout)');
+            return;
+          }
+          console.log('📤 [Auth] Processing SIGNED_OUT');
+          setUser(null);
+          setLoading(false);
+        });
       }
     });
 
