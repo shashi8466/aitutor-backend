@@ -508,50 +508,54 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="relative bg-white dark:bg-gray-800 rounded-3xl p-8 max-w-md w-full shadow-2xl"
+                            className="relative bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full max-h-[90vh] shadow-2xl flex flex-col overflow-hidden"
                         >
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Create Student Group</h3>
+                            <div className="px-8 pt-8 shrink-0">
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Create Student Group</h3>
 
-                            {error && (
-                                <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2">
-                                    <SafeIcon icon={FiInfo} /> {error}
-                                </div>
-                            )}
+                                {error && (
+                                    <div className="p-3 mb-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2">
+                                        <SafeIcon icon={FiInfo} /> {error}
+                                    </div>
+                                )}
+                            </div>
 
-                            <form onSubmit={handleCreateGroup} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Group Name</label>
-                                    <input
-                                        required
-                                        type="text"
-                                        value={newGroupName}
-                                        onChange={(e) => setNewGroupName(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Batch A, Monday Session, etc."
-                                    />
+                            <form onSubmit={handleCreateGroup} className="flex flex-col flex-1 min-h-0">
+                                <div className="flex-1 overflow-y-auto px-8 space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Group Name</label>
+                                        <input
+                                            required
+                                            type="text"
+                                            value={newGroupName}
+                                            onChange={(e) => setNewGroupName(e.target.value)}
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Batch A, Monday Session, etc."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Content</label>
+                                        <HierarchicalContentSelector
+                                            courses={courses}
+                                            initialContent={assignedContent}
+                                            onChange={({ assigned_content, assigned_course_ids }) => {
+                                                setAssignedContent(assigned_content);
+                                                setAssignedCourseIds(assigned_course_ids);
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description (Optional)</label>
+                                        <textarea
+                                            value={groupDescription}
+                                            onChange={(e) => setGroupDescription(e.target.value)}
+                                            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            rows="3"
+                                            placeholder="Details about this group"
+                                        ></textarea>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Content</label>
-                                    <HierarchicalContentSelector 
-                                        courses={courses}
-                                        initialContent={assignedContent}
-                                        onChange={({ assigned_content, assigned_course_ids }) => {
-                                            setAssignedContent(assigned_content);
-                                            setAssignedCourseIds(assigned_course_ids);
-                                        }}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description (Optional)</label>
-                                    <textarea
-                                        value={groupDescription}
-                                        onChange={(e) => setGroupDescription(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
-                                        rows="3"
-                                        placeholder="Details about this group"
-                                    ></textarea>
-                                </div>
-                                <div className="flex gap-3 pt-4">
+                                <div className="flex gap-3 px-8 py-6 shrink-0 border-t border-gray-100 dark:border-gray-700">
                                     <button
                                         type="button"
                                         onClick={() => setShowCreateModal(false)}
