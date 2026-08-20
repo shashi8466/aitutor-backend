@@ -17,7 +17,7 @@ const StudentCourseList = () => {
   const [loading, setLoading] = useState(true);
   const [enrollLoading, setEnrollLoading] = useState(null);
   const [filter, setFilter] = useState('');
-  const [activeCategory, setActiveCategory] = useState('SAT');
+  const [activeCategory, setActiveCategory] = useState('FULL LENGTH TESTS');
   const [activeSubcategory, setActiveSubcategory] = useState('All');
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
@@ -643,10 +643,10 @@ const StudentCourseList = () => {
       {/* Top Category Buttons (Compact & Balanced) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
         {[
+           { id: 'FULL LENGTH TESTS', title: 'FULL LENGTH TESTS', subtitle: 'Real Exam Simulation', icon: FiIcons.FiClipboard, bg: 'bg-[#0F172A]', border: 'border-blue-500', text: 'text-blue-300' },
            { id: 'SAT', title: 'SAT', subtitle: 'Digital SAT Prep', icon: FiIcons.FiBookOpen, bg: 'bg-[#181033]', border: 'border-[#7C3AED]', text: 'text-[#c4b5fd]' },
            { id: 'ACT', title: 'ACT', subtitle: 'ACT Prep', icon: FiIcons.FiActivity, bg: 'bg-[#064E3B]', border: 'border-green-500', text: 'text-green-300' },
-           { id: 'AP', title: 'AP', subtitle: 'AP Courses', icon: FiIcons.FiGrid, bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' },
-           { id: 'FULL LENGTH TESTS', title: 'FULL LENGTH TESTS', subtitle: 'Real Exam Simulation', icon: FiIcons.FiClipboard, bg: 'bg-[#0F172A]', border: 'border-blue-500', text: 'text-blue-300' }
+           { id: 'AP', title: 'AP', subtitle: 'AP Courses', icon: FiIcons.FiGrid, bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' }
         ].map(cat => (
           <button
             key={cat.id}
