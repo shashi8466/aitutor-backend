@@ -22,6 +22,17 @@ if (!getInternalSettings) {
     getInternalSettings = async () => ({});
 }
 
+// Some deployments still have a stale APP_URL/FRONTEND_URL env var (or DB site_config value)
+// pointing at the legacy Firebase Hosting default domain from before the aiprep365.com custom
+// domain migration - that domain is a separate, unmaintained deployment, so links built from it
+// 404/render blank for recipients. Reject it so links always resolve to the real production app.
+const LEGACY_HOSTING_DOMAIN = /\.web\.app|\.firebaseapp\.com/i;
+
+export function sanitizeAppUrl(url) {
+    if (!url || LEGACY_HOSTING_DOMAIN.test(url)) return '';
+    return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
 // ─── Email via Brevo HTTP API ────────────────────────────────────────────────
 
 /**
@@ -493,7 +504,7 @@ export function buildWelcomeEmail({ name, appUrl }) {
 
 export function buildDemoScoreEmail({ studentName, courseName, level, scoreDetails, courseId }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
-    const frontendUrl = process.env.FRONTEND_URL || 'https://aiprep365.com';
+    const frontendUrl = sanitizeAppUrl(process.env.FRONTEND_URL) || 'https://aiprep365.com';
     const reportUrl = `${frontendUrl}/test/${courseId}`;
     const allLevels = scoreDetails?.allLevels || {};
     const comprehensive = scoreDetails?.comprehensive || {};
@@ -660,7 +671,7 @@ export function buildDemoResultEmail({ studentName, testName, score, reportUrl }
 
 export function buildDemoAdminEmail({ fullName, grade, email, phone, parentName, parentEmail, courseName, level, scoreDetails, submittedAt, courseId, leadId, customTitle, downloadUrl: providedDownloadUrl }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
-    const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://aiprep365.com' : 'http://localhost:5173');
+    const frontendUrl = sanitizeAppUrl(process.env.FRONTEND_URL) || (process.env.NODE_ENV === 'production' ? 'https://aiprep365.com' : 'http://localhost:5173');
     const reportUrl = leadId ? `${frontendUrl}/report/${leadId}` : `${frontendUrl}/test/${courseId}`;
     const downloadUrl = providedDownloadUrl || reportUrl;
     const allLevels = scoreDetails?.allLevels || {};

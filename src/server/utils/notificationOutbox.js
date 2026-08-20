@@ -7,7 +7,8 @@ import {
   buildWelcomeEmail,
   buildContactSubmissionEmail,
   buildACTFullLengthCompletionEmail,
-  buildDemoResultEmail
+  buildDemoResultEmail,
+  sanitizeAppUrl
 } from './notificationEngine.js';
 import { getInternalSettings } from './internalSettings.js';
 
@@ -123,13 +124,12 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   const dbSettings = await getInternalSettings();
   const siteConfig = dbSettings?.site_config || {};
   
-  let appUrl = siteConfig.appUrl || process.env.APP_URL || process.env.VITE_APP_URL || '';
-  // Prefer the frontend base URL if available (especially on Render).
-  // HashRouter URLs need the full origin; if appUrl is empty, we lose the `#` deep link.
-  appUrl = appUrl || process.env.FRONTEND_URL || process.env.VITE_FRONTEND_URL || '';
-  if (appUrl.endsWith('/')) {
-    appUrl = appUrl.slice(0, -1);
-  }
+  let appUrl = sanitizeAppUrl(siteConfig.appUrl)
+    || sanitizeAppUrl(process.env.APP_URL)
+    || sanitizeAppUrl(process.env.VITE_APP_URL)
+    || sanitizeAppUrl(process.env.FRONTEND_URL)
+    || sanitizeAppUrl(process.env.VITE_FRONTEND_URL)
+    || 'https://aiprep365.com';
   const appName = process.env.APP_NAME || 'AIPrep365';
 
   const normalizedEventType = (eventType || '').trim().toUpperCase();

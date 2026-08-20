@@ -168,7 +168,7 @@ class BrevoEmailService {
 
 
       <center>
-        <a href="${process.env.APP_URL || 'https://aitutor-4431c.web.app/'}" class="button">
+        <a href="${process.env.APP_URL || 'https://aiprep365.com'}" class="button">
           Start Learning Now 🚀
         </a>
       </center>
