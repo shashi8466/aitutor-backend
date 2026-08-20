@@ -374,7 +374,7 @@ router.post('/submit-lead', async (req, res) => {
                 // was created - not just whatever happened to be typed into the form.
                 score_details: { ...updateData.score_details, emailVerified: true }
             };
-            const { error: insertError } = await supabaseAdmin
+            const { data: insertedRows, error: insertError } = await supabaseAdmin
                 .from('demo_leads')
                 .insert(insertData)
                 .select();
@@ -384,7 +384,11 @@ router.post('/submit-lead', async (req, res) => {
                 throw insertError;
             }
             console.log('✅ [DEMO] New lead created successfully');
-            leadRecord = insertData;
+            // insertData never carries the database-generated id (it's client-built, not
+            // returned) - use the actually-inserted row so leadRecord.id is real, not undefined.
+            // A student's very first completion for a course used to silently produce a
+            // "/report/undefined-<timestamp>" link in their result email otherwise.
+            leadRecord = insertedRows?.[0] || insertData;
         }
 
         // 2. Fetch Course Details
