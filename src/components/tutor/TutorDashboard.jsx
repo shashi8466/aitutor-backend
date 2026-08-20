@@ -19,6 +19,7 @@ const GroupManager = lazy(() => import('./GroupManager'));
 const TutorGrades = lazy(() => import('./TutorGrades'));
 const TutorCourses = lazy(() => import('./TutorCourses'));
 const TutorStudents = lazy(() => import('./TutorStudents'));
+const TutorStudentProfile = lazy(() => import('./TutorStudentProfile'));
 const TutorEnrollmentKeys = lazy(() => import('./TutorEnrollmentKeys'));
 const TutorInvitations = lazy(() => import('./TutorInvitations'));
 const TutorSettings = lazy(() => import('./TutorSettings'));
@@ -309,6 +310,7 @@ const TutorDashboard = () => {
                             <Route path="course-content/adaptive-test/:courseId" element={<StudentAdaptiveExamInterface />} />
                             <Route path="course-content/adaptive-pre-test/:courseId" element={<StudentAdaptivePreTest />} />
                             <Route path="students" element={<TutorStudents dashboardData={dashboardData} isParentLoading={loading} />} />
+                            <Route path="students/:studentId" element={<TutorStudentProfile />} />
                             <Route path="groups" element={<GroupManager dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="enrollment-keys" element={<TutorEnrollmentKeys dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="invitations" element={<TutorInvitations dashboardData={dashboardData} isParentLoading={loading} />} />

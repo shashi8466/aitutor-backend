@@ -1,11 +1,104 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { tutorService } from '../../services/api';
 import { useLocation, Link } from 'react-router-dom';
 
-const { FiUsers, FiSearch, FiFilter, FiMail, FiBarChart2, FiCalendar, FiBook } = FiIcons;
+const { FiUsers, FiSearch, FiFilter, FiMail, FiBarChart2, FiCalendar, FiBook, FiArrowDown, FiArrowUp, FiChevronDown, FiCheck } = FiIcons;
+
+// Status thresholds, based on the student's most recent MEANINGFUL activity
+// (test start/submit/completion - never just a login). A student with no such
+// activity ever recorded (last_activity === null) is treated as Needs Attention,
+// not Active - enrolling isn't the same as engaging.
+const ACTIVE_MAX_DAYS = 15;      // 0-15 days since last activity
+const INACTIVE_MAX_DAYS = 30;    // 16-30 days since last activity
+// 31+ days, or never active at all -> Needs Attention
+
+const daysSince = (dateStr) => {
+    if (!dateStr) return Infinity;
+    return (Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24);
+};
+
+const getStudentStatus = (student) => {
+    const age = daysSince(student.last_activity);
+    if (age <= ACTIVE_MAX_DAYS) return 'active';
+    if (age <= INACTIVE_MAX_DAYS) return 'inactive';
+    return 'attention';
+};
+
+const STATUS_META = {
+    active: { label: 'Active', dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+    inactive: { label: 'Inactive', dot: 'bg-gray-400', text: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-50 dark:bg-gray-700/40' },
+    attention: { label: 'Needs Attention', dot: 'bg-red-500', text: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' }
+};
+
+const STATUS_TABS = [
+    { id: 'all', label: 'All Students' },
+    { id: 'active', label: 'Active' },
+    { id: 'inactive', label: 'Inactive' },
+    { id: 'attention', label: 'Needs Attention' }
+];
+
+const SORT_OPTIONS = [
+    { id: 'last_activity', label: 'Last Activity' },
+    { id: 'progress', label: 'Progress' },
+    { id: 'tests', label: 'Tests Attempted' },
+    { id: 'name', label: 'Name' }
+];
+
+// Small self-contained dark-theme dropdown - a native <select>'s open panel can't be reliably
+// restyled cross-browser (it always falls back to the OS/browser's native white list, which is
+// why the previous version looked inconsistent with the rest of the dark Tutor Panel).
+const Dropdown = ({ icon, value, options, onChange, renderLabel }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const onClickOutside = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', onClickOutside);
+        return () => document.removeEventListener('mousedown', onClickOutside);
+    }, []);
+
+    const selected = options.find(o => o.id === value);
+
+    return (
+        <div className="relative" ref={ref}>
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 shadow-sm text-sm font-bold text-gray-700 dark:text-gray-300 min-w-[160px] justify-between"
+            >
+                <span className="flex items-center gap-2 truncate">
+                    <SafeIcon icon={icon} className="text-gray-400 w-4 h-4 shrink-0" />
+                    <span className="truncate">{renderLabel ? renderLabel(selected) : selected?.label}</span>
+                </span>
+                <SafeIcon icon={FiChevronDown} className={`text-gray-400 w-3.5 h-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <div className="absolute z-20 mt-2 w-full min-w-[200px] max-h-72 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl py-1">
+                    {options.map(opt => (
+                        <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => { onChange(opt.id); setOpen(false); }}
+                            className={`w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 text-sm font-medium truncate transition-colors ${
+                                opt.id === value
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            <span className="truncate">{opt.label}</span>
+                            {opt.id === value && <SafeIcon icon={FiCheck} className="w-3.5 h-3.5 shrink-0" />}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 const TutorStudents = ({ dashboardData, isParentLoading }) => {
     const location = useLocation();
@@ -17,6 +110,9 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
     const [loading, setLoading] = useState(true);
     const [courseFilter, setCourseFilter] = useState(initialCourseFilter);
     const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [sortBy, setSortBy] = useState('last_activity');
+    const [sortDir, setSortDir] = useState('desc');
 
     useEffect(() => {
         if (dashboardData?.courses) {
@@ -61,10 +157,36 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
         }
     };
 
-    const filteredStudents = students.filter(s =>
-        s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const courseOptions = useMemo(() => [
+        { id: '', label: 'All Courses' },
+        ...courses.map(c => ({ id: String(c.id), label: c.name }))
+    ], [courses]);
+
+    const sortOptions = useMemo(() => SORT_OPTIONS.map(o => ({ ...o, label: `Sort: ${o.label}` })), []);
+
+    const filteredStudents = useMemo(() => {
+        let list = students.filter(s =>
+            s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            s.email?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        if (statusFilter !== 'all') {
+            list = list.filter(s => getStudentStatus(s) === statusFilter);
+        }
+
+        const sorted = [...list];
+        const dirMul = sortDir === 'asc' ? -1 : 1;
+        if (sortBy === 'progress') {
+            sorted.sort((a, b) => dirMul * ((b.overall_progress || 0) - (a.overall_progress || 0)));
+        } else if (sortBy === 'tests') {
+            sorted.sort((a, b) => dirMul * ((b.tests_attempted || 0) - (a.tests_attempted || 0)));
+        } else if (sortBy === 'name') {
+            sorted.sort((a, b) => -dirMul * (a.name || '').localeCompare(b.name || ''));
+        } else {
+            sorted.sort((a, b) => dirMul * (new Date(b.last_activity || 0) - new Date(a.last_activity || 0)));
+        }
+        return sorted;
+    }, [students, searchQuery, statusFilter, sortBy, sortDir]);
 
     if (loading && students.length === 0) return <div className="p-8 text-center text-blue-600 font-bold animate-pulse">Loading students...</div>;
 
@@ -84,24 +206,50 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                             placeholder="Find student..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 shadow-sm"
+                            className="pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 shadow-sm text-gray-700 dark:text-gray-300"
                         />
                     </div>
 
-                    <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 shadow-sm">
-                        <SafeIcon icon={FiFilter} className="text-gray-400 w-4 h-4" />
-                        <select
-                            value={courseFilter}
-                            onChange={(e) => setCourseFilter(e.target.value)}
-                            className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-300 focus:outline-none"
+                    <Dropdown
+                        icon={FiFilter}
+                        value={courseFilter}
+                        options={courseOptions}
+                        onChange={setCourseFilter}
+                    />
+
+                    <div className="flex items-center gap-1.5">
+                        <Dropdown
+                            icon={sortDir === 'asc' ? FiArrowUp : FiArrowDown}
+                            value={sortBy}
+                            options={sortOptions}
+                            onChange={setSortBy}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                            title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                            className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                         >
-                            <option value="">All Courses</option>
-                            {courses.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
+                            <SafeIcon icon={sortDir === 'asc' ? FiArrowUp : FiArrowDown} className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                {STATUS_TABS.map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setStatusFilter(tab.id)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                            statusFilter === tab.id
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
@@ -110,22 +258,27 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                         <thead>
                             <tr className="bg-gray-50 dark:bg-gray-900/50">
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Student</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Enrolled Course</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Enrollment Date</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Courses</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Tests</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Progress</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Last Active</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                             {filteredStudents.length === 0 ? (
                                 <tr>
-                                    <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
-                                        {searchQuery || courseFilter ? 'No students match your filters.' : 'No students found.'}
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                                        {searchQuery || courseFilter || statusFilter !== 'all' ? 'No students match your filters.' : 'No students found.'}
                                     </td>
                                 </tr>
                             ) : (
-                                filteredStudents.map(student => (
-                                    <tr key={`${student.id}-${student.enrolled_course_id}`} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors group">
+                                filteredStudents.map(student => {
+                                    const status = getStudentStatus(student);
+                                    const meta = STATUS_META[status];
+                                    return (
+                                    <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors group">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-black text-sm uppercase">
@@ -140,26 +293,35 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                                                 <SafeIcon icon={FiBook} className="text-gray-400" />
-                                                {courses.find(c => String(c.id) === String(student.enrolled_course_id))?.name || 'Assigned Course'}
+                                                {student.courses_count}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {student.tests_attempted}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
+                                                    <div
+                                                        className="h-full bg-blue-500 rounded-full"
+                                                        style={{ width: `${Math.min(student.overall_progress || 0, 100)}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                                    {student.overall_progress || 0}%
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${meta.bg} ${meta.text}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                                                {meta.label}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                                             <div className="flex items-center gap-2">
                                                 <SafeIcon icon={FiCalendar} className="text-gray-400" />
-                                                {new Date(student.enrolled_at).toLocaleDateString()}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-blue-500 rounded-full"
-                                                        style={{ width: `${Math.min((student.progress_count || 0) * 10, 100)}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                                                    {typeof student.progress_count === 'object' ? (student.progress_count.count || 0) : (student.progress_count || 0)} Lessons
-                                                </span>
+                                                {student.last_activity ? new Date(student.last_activity).toLocaleDateString() : 'Never'}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
@@ -172,16 +334,17 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                                     <SafeIcon icon={FiMail} />
                                                 </button>
                                                 <Link
-                                                    to={`/tutor/student-analysis/${student.id}`}
+                                                    to={`/tutor/students/${student.id}`}
                                                     className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
-                                                    title="View Detailed Progress"
+                                                    title="View Student Profile"
                                                 >
                                                     <SafeIcon icon={FiBarChart2} />
                                                 </Link>
                                             </div>
                                         </td>
                                     </tr>
-                                ))
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

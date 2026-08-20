@@ -26,6 +26,30 @@ const getAssignedCourses = (profile) => {
     return Array.isArray(rawAssigned) ? rawAssigned.map(Number).filter(id => !isNaN(id)) : [];
 };
 
+/**
+ * Supabase/PostgREST caps unpaginated selects at 1000 rows. A tutor with many students across
+ * many assigned courses can easily have more enrollment/submission rows than that (confirmed:
+ * one production tutor has 2600+ enrollment rows), which would silently truncate aggregation
+ * results in an order-dependent (effectively random) way. Page through all rows instead -
+ * mirrors the same pattern already used in src/server/utils/prep365KB.js.
+ * `queryFactory` must return a fresh Supabase query builder each call (so `.range()` can be
+ * applied per page).
+ */
+const fetchAllRows = async (queryFactory) => {
+    const pageSize = 1000;
+    let from = 0;
+    const allRows = [];
+    while (true) {
+        const { data, error } = await queryFactory().range(from, from + pageSize - 1);
+        if (error) return { data: null, error };
+        if (!data || data.length === 0) break;
+        allRows.push(...data);
+        if (data.length < pageSize) break;
+        from += pageSize;
+    }
+    return { data: allRows, error: null };
+};
+
 router.get('/diagnostics', async (req, res) => {
     try {
         const userId = req.user?.id;
@@ -183,7 +207,8 @@ router.get('/courses', async (req, res) => {
 
 /**
  * GET /api/tutor/students
- * Get students in tutor's courses - OPTIMIZED with RPC
+ * Get students in tutor's courses - one row per student, courses/tests/progress
+ * aggregated across all of their enrollments (not one row per enrollment).
  */
 router.get('/students', async (req, res) => {
     try {
@@ -194,22 +219,102 @@ router.get('/students', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        // Use RPC for all heavy joins and counting
-        const { data: students, error } = await supabase.rpc('get_tutor_students', {
-            course_filter: courseId ? parseInt(courseId) : null,
-            requested_user_id: userId
-        });
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('role, assigned_courses')
+            .eq('id', userId)
+            .single();
 
-        if (error) {
-            console.error('❌ [STUDENTS] Error fetching tutor students:', error);
-            return res.status(500).json({
-                error: 'Failed to fetch students',
-                details: error.message
-            });
+        if (profileError || !profile) {
+            return res.status(404).json({ error: 'User profile not found' });
         }
 
-        // The RPC already returns formatted students with progress_count
-        res.json({ students: students || [] });
+        const isAdmin = profile.role === 'admin';
+        const assignedCourses = getAssignedCourses(profile);
+
+        if (!isAdmin && assignedCourses.length === 0) {
+            return res.json({ students: [] });
+        }
+
+        const parsedCourseId = courseId ? parseInt(courseId) : null;
+
+        const { data: enrollments, error: enrollError } = await fetchAllRows(() => {
+            let q = supabase.from('enrollments').select('user_id, course_id, enrolled_at');
+            if (!isAdmin) q = q.in('course_id', assignedCourses);
+            if (parsedCourseId) q = q.eq('course_id', parsedCourseId);
+            return q;
+        });
+
+        if (enrollError) {
+            console.error('❌ [STUDENTS] Error fetching enrollments:', enrollError);
+            return res.status(500).json({ error: 'Failed to fetch students', details: enrollError.message });
+        }
+
+        if (!enrollments || enrollments.length === 0) {
+            return res.json({ students: [] });
+        }
+
+        const studentIds = [...new Set(enrollments.map(e => e.user_id))];
+        const courseIdsForSubmissions = isAdmin ? [...new Set(enrollments.map(e => e.course_id))] : assignedCourses;
+
+        const [{ data: profiles, error: profilesError }, { data: submissions, error: submissionsError }] = await Promise.all([
+            fetchAllRows(() => supabase.from('profiles').select('id, name, email').in('id', studentIds).eq('role', 'student')),
+            fetchAllRows(() => supabase.from('test_submissions')
+                .select('user_id, course_id, raw_score_percentage, created_at')
+                .in('user_id', studentIds)
+                .in('course_id', courseIdsForSubmissions))
+        ]);
+
+        if (profilesError) {
+            console.error('❌ [STUDENTS] Error fetching profiles:', profilesError);
+            return res.status(500).json({ error: 'Failed to fetch students', details: profilesError.message });
+        }
+        if (submissionsError) {
+            console.error('❌ [STUDENTS] Error fetching submissions:', submissionsError);
+            return res.status(500).json({ error: 'Failed to fetch students', details: submissionsError.message });
+        }
+
+        const byStudent = {};
+        enrollments.forEach(e => {
+            if (!byStudent[e.user_id]) {
+                byStudent[e.user_id] = { courseIds: new Set(), lastEnrolled: e.enrolled_at, tests: 0, scoreSum: 0, lastActivity: null };
+            }
+            const b = byStudent[e.user_id];
+            b.courseIds.add(e.course_id);
+            if (!b.lastEnrolled || new Date(e.enrolled_at) > new Date(b.lastEnrolled)) {
+                b.lastEnrolled = e.enrolled_at;
+            }
+        });
+
+        (submissions || []).forEach(s => {
+            const b = byStudent[s.user_id];
+            if (!b) return;
+            b.tests++;
+            b.scoreSum += (s.raw_score_percentage || 0);
+            if (!b.lastActivity || new Date(s.created_at) > new Date(b.lastActivity)) {
+                b.lastActivity = s.created_at;
+            }
+        });
+
+        const students = (profiles || []).map(p => {
+            const b = byStudent[p.id] || { courseIds: new Set(), tests: 0, scoreSum: 0, lastActivity: null, lastEnrolled: null };
+            return {
+                id: p.id,
+                name: p.name,
+                email: p.email,
+                courses_count: b.courseIds.size,
+                tests_attempted: b.tests,
+                overall_progress: b.tests > 0 ? Math.round(b.scoreSum / b.tests) : 0,
+                // Deliberately NOT falling back to enrollment date: a student who enrolled
+                // recently but never actually did anything (no test activity) must show as
+                // having no meaningful activity, not as "recently active" - the frontend status
+                // classification (Active/Inactive/Needs Attention) depends on this being null
+                // when nothing real has happened yet.
+                last_activity: b.lastActivity
+            };
+        }).sort((a, b) => new Date(b.last_activity || 0) - new Date(a.last_activity || 0));
+
+        res.json({ students });
 
     } catch (error) {
         console.error('Tutor students error:', error);
@@ -315,17 +420,20 @@ router.get('/student-progress/:studentId', async (req, res) => {
         const isAdmin = profile.role === 'admin';
         const assignedCourses = getAssignedCourses(profile);
 
-        if (!isAdmin) {
-            // Check if student is in any of tutor's courses
-            const { data: studentEnrollments } = await supabase
+        // Get the student's enrollments (scoped to the tutor's assigned courses; unscoped for
+        // admin), joined to course subject info - doubles as the tutor authorization check below
+        // and feeds the profile page's Courses tab.
+        const { data: enrollments } = await fetchAllRows(() => {
+            let q = supabase
                 .from('enrollments')
-                .select('course_id')
-                .eq('user_id', studentId)
-                .in('course_id', assignedCourses);
+                .select('course_id, enrolled_at, course:courses(id, name, tutor_type, main_category, category, is_adaptive)')
+                .eq('user_id', studentId);
+            if (!isAdmin) q = q.in('course_id', assignedCourses);
+            return q;
+        });
 
-            if (!studentEnrollments || studentEnrollments.length === 0) {
-                return res.status(403).json({ error: 'Not authorized for this student' });
-            }
+        if (!isAdmin && (!enrollments || enrollments.length === 0)) {
+            return res.status(403).json({ error: 'Not authorized for this student' });
         }
 
         // Get student info
@@ -336,28 +444,27 @@ router.get('/student-progress/:studentId', async (req, res) => {
             .single();
 
         // Get test submissions (only those with scores/attempts)
-        let query = supabase
-            .from('test_submissions')
-            .select('id, user_id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, test_duration_seconds, is_completed, test_date, created_at, course:courses(name, tutor_type, main_category, category, is_adaptive)')
-            .eq('user_id', studentId)
-            .not('raw_score_percentage', 'is', null);
-
-        if (!isAdmin) {
-            query = query.in('course_id', assignedCourses);
-        }
-
-        const { data: submissions } = await query.order('created_at', { ascending: false });
+        const { data: submissions } = await fetchAllRows(() => {
+            let q = supabase
+                .from('test_submissions')
+                .select('id, user_id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, correct_questions, incorrect_questions, test_duration_seconds, is_completed, test_date, created_at, course:courses(name, tutor_type, main_category, category, is_adaptive)')
+                .eq('user_id', studentId)
+                .not('raw_score_percentage', 'is', null)
+                .order('created_at', { ascending: false });
+            if (!isAdmin) q = q.in('course_id', assignedCourses);
+            return q;
+        });
 
         // Get progress records
-        const { data: progress } = await supabase
-            .from('student_progress')
-            .select('*')
-            .eq('user_id', studentId);
+        const { data: progress } = await fetchAllRows(() =>
+            supabase.from('student_progress').select('*').eq('user_id', studentId)
+        );
 
         res.json({
             student,
             submissions: submissions || [],
-            progress: progress || []
+            progress: progress || [],
+            enrollments: enrollments || []
         });
 
     } catch (error) {
