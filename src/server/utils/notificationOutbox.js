@@ -226,7 +226,11 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     const subject = 'Your AIPrep365 SAT Test Results Are Ready';
     // Plain path link (the app uses BrowserRouter, not HashRouter) directly to the new
     // /report/:reportId public route - no #/?redirect= machinery needed here.
-    const reportUrl = payload.reportUrl || (appUrl ? `${appUrl}/report/${payload.submissionId}` : `/report/${payload.submissionId}`);
+    // Use leadId (the real demo_leads.id) for the URL, not submissionId - that field is now a
+    // compound dedup key (leadId-timestamp) so retakes of the same lead don't get blocked by
+    // the outbox's own duplicate-send protection, and isn't a valid report id on its own.
+    const reportLeadId = payload.leadId ?? payload.submissionId;
+    const reportUrl = payload.reportUrl || (appUrl ? `${appUrl}/report/${reportLeadId}` : `/report/${reportLeadId}`);
 
     const emailHtml = buildDemoResultEmail({
       studentName: payload.studentName,
@@ -568,14 +572,9 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
         channels: actualChannels
       });
 
-      // Track which channels were successfully delivered
-      const newlyDelivered = [...deliveredChannels];
       if (actualChannels.includes('email') && results.email?.ok) {
-        newlyDelivered.push('email');
         emailWasSent = true; // Set BEFORE anything else that might throw
       }
-      if (actualChannels.includes('sms') && results.sms?.ok) newlyDelivered.push('sms');
-      if (actualChannels.includes('whatsapp') && results.whatsapp?.ok) newlyDelivered.push('whatsapp');
 
       const emailAttempted = actualChannels.includes('email');
       const emailDelivered = emailAttempted ? results.email.ok : true; // If not attempted, treat as ok
@@ -600,31 +599,37 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
         const updatedPayload = (actualChannels.includes('email') && results.email?.id)
           ? { ...item.payload, providerMessageId: results.email.id }
           : item.payload;
-        await supabase
+        // NOTE: `delivered_channels` is NOT a real column on this table (confirmed live -
+        // referencing it throws Postgres error 42703). supabase-js does not throw/reject on
+        // query errors by default, so a previous version of this update silently failed on
+        // EVERY successful send, leaving the row stuck in 'processing' forever - which in turn
+        // meant later work (e.g. dedup checks keyed on status='sent') never saw it as sent
+        // either. Do not reintroduce that field without a migration that actually adds it.
+        const { error: sentUpdateError } = await supabase
           .from('notification_outbox')
           .update({
             status: 'sent',
             sent_at: new Date().toISOString(),
             attempts: nextAttempts,
             last_error: null,
-            delivered_channels: newlyDelivered,
             payload: updatedPayload
           })
           .eq('id', item.id);
+        if (sentUpdateError) console.error(`❌ [Outbox] Failed to mark ${item.id} as sent:`, sentUpdateError.message);
       } else {
         // Email failed → retry (but log clearly so we know it's email-only retry)
         const failureReasons = [results.email?.error || 'email_delivery_failed'];
-        await supabase
+        const { error: retryUpdateError } = await supabase
           .from('notification_outbox')
           .update({
             status: nextAttempts < maxAttempts ? 'pending' : 'failed',
             sent_at: null,
             attempts: nextAttempts,
             last_error: failureReasons.join(' | '),
-            scheduled_for: nextAttempts < maxAttempts ? retryAt : item.scheduled_for,
-            delivered_channels: newlyDelivered
+            scheduled_for: nextAttempts < maxAttempts ? retryAt : item.scheduled_for
           })
           .eq('id', item.id);
+        if (retryUpdateError) console.error(`❌ [Outbox] Failed to update retry state for ${item.id}:`, retryUpdateError.message);
       }
 
       processed++;
@@ -641,8 +646,7 @@ export async function processOutboxOnce({ limit = 25 } = {}) {
         await supabase.from('notification_outbox').update({
           status: 'failed',
           attempts: nextAttempts,
-          last_error: `Email delivered but post-send error: ${err?.message}`,
-          delivered_channels: ['email']
+          last_error: `Email delivered but post-send error: ${err?.message}`
         }).eq('id', item.id);
       } else {
         // Email not yet sent — safe to retry.

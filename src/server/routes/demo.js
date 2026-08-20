@@ -413,7 +413,16 @@ router.post('/submit-lead', async (req, res) => {
                 recipientType: 'student',
                 channels: ['email'],
                 payload: {
-                    submissionId: leadRecord.id,
+                    // A demo lead's row is reused across retakes (submit-lead always UPDATEs the
+                    // same demo_leads.id rather than inserting a new one), so the dedup id must
+                    // be unique PER COMPLETION, not per lead - otherwise the very first retake of
+                    // any demo test is silently blocked forever by the outbox's own dedup check
+                    // ("Already SENT for sub X. Blocked."), since leadRecord.id never changes.
+                    // updateData.created_at is freshly generated for this exact submission, so
+                    // pairing it with the lead id gives each real completion its own identity.
+                    // leadId is kept separately (real, numeric) for the report link.
+                    submissionId: `${leadRecord.id}-${updateData.created_at}`,
+                    leadId: leadRecord.id,
                     recipientEmail: normalizedEmail,
                     studentName: fullName,
                     testName,
