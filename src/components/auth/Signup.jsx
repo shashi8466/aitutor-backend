@@ -16,10 +16,7 @@ const Signup = () => {
     email: '',
     password: '',
     role: 'student',
-    mobile: '',
-    parentName: '',
-    parentMobile: '',
-    parentEmail: ''
+    mobile: ''
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -51,13 +48,6 @@ const Signup = () => {
   const [studentEmailOtpError, setStudentEmailOtpError] = useState('');
   const [studentEmailDebugOtp, setStudentEmailDebugOtp] = useState('');
   const [studentEmailOtpVerified, setStudentEmailOtpVerified] = useState(false);
-
-  const [parentEmailOtpSent, setParentEmailOtpSent] = useState(false);
-  const [parentEmailOtp, setParentEmailOtp] = useState('');
-  const [parentEmailOtpLoading, setParentEmailOtpLoading] = useState(false);
-  const [parentEmailOtpError, setParentEmailOtpError] = useState('');
-  const [parentEmailDebugOtp, setParentEmailDebugOtp] = useState('');
-  const [parentEmailOtpVerified, setParentEmailOtpVerified] = useState(false);
 
 
 
@@ -238,54 +228,6 @@ const Signup = () => {
     }
   };
 
-  const handleSendParentEmailOTP = async () => {
-    if (!formData.parentEmail || !/^\S+@\S+\.\S+$/.test(formData.parentEmail)) {
-      setError('Please enter a valid parent email address.');
-      return;
-    }
-    setParentEmailOtpLoading(true);
-    setParentEmailOtpError('');
-    setError('');
-    setParentEmailDebugOtp('');
-    try {
-      const response = await axios.post('/api/demo/send-email-otp', { email: formData.parentEmail });
-      if (response.data.success) {
-        setParentEmailOtpSent(true);
-        if (response.data.otpForTesting) {
-          setParentEmailDebugOtp(response.data.otpForTesting);
-        }
-      } else {
-        setParentEmailOtpError(response.data.error || 'Failed to send OTP.');
-      }
-    } catch (err) {
-      setParentEmailOtpError(err?.response?.data?.error || err?.message || 'Failed to send OTP.');
-    } finally {
-      setParentEmailOtpLoading(false);
-    }
-  };
-
-  const handleVerifyParentEmailOTP = async () => {
-    if (parentEmailOtp.length !== 6) {
-      setParentEmailOtpError('Please enter a 6-digit verification code.');
-      return;
-    }
-    setParentEmailOtpLoading(true);
-    setParentEmailOtpError('');
-    try {
-      const response = await axios.post('/api/demo/verify-email-otp', { email: formData.parentEmail, otp: parentEmailOtp });
-      if (response.data.success) {
-        setParentEmailOtpVerified(true);
-        setParentEmailOtpError('');
-      } else {
-        setParentEmailOtpError(response.data.error || 'Invalid OTP.');
-      }
-    } catch (err) {
-      setParentEmailOtpError(err?.response?.data?.error || err?.message || 'Verification failed.');
-    } finally {
-      setParentEmailOtpLoading(false);
-    }
-  };
-
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     if (otp.length !== 6) {
@@ -410,7 +352,6 @@ const Signup = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const isStudent = formData.role === 'student';
 
     if (!termsAccepted) {
       setError("You must agree to the Terms & Conditions and Privacy Policy.");
@@ -422,18 +363,8 @@ const Signup = () => {
       return;
     }
 
-    if (isStudent && !parentEmailOtpVerified) {
-      setError("Please verify the parent email address.");
-      return;
-    }
-
     if (!studentEmailOtpVerified) {
       setError("Please verify your email address.");
-      return;
-    }
-
-    if (isStudent && formData.email.trim().toLowerCase() === formData.parentEmail.trim().toLowerCase()) {
-      setError("Student Email and Parent Email cannot be the same.");
       return;
     }
 
@@ -448,15 +379,6 @@ const Signup = () => {
         setError("This email address is already registered. Please use a different email.");
         setLoading(false);
         return;
-      }
-
-      if (isStudent) {
-        const parentEmailCheck = await authService.checkEmail(formData.parentEmail);
-        if (parentEmailCheck?.exists) {
-          setError("This email address is already registered. Please use a different email.");
-          setLoading(false);
-          return;
-        }
       }
     } catch (err) {
       console.warn("Could not verify email uniqueness before signup:", err);
@@ -933,109 +855,6 @@ const Signup = () => {
               )}
             </div>
 
-            {/* PARENT NAME */}
-            {formData.role === 'student' && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Name</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <SafeIcon icon={FiUser} className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="parentName"
-                    name="parentName"
-                    type="text"
-                    required
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Parent Name"
-                    value={formData.parentName}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* PARENT EMAIL */}
-            {formData.role === 'student' && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <SafeIcon icon={FiMail} className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="parentEmail"
-                    name="parentEmail"
-                    type="email"
-                    required
-                    disabled={parentEmailOtpVerified || parentEmailOtpSent}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-60"
-                    placeholder="parent@example.com"
-                    value={formData.parentEmail}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                {/* PARENT EMAIL OTP FLOW */}
-                {!parentEmailOtpVerified && (
-                  <div className="mt-2 space-y-2">
-                    {!parentEmailOtpSent ? (
-                      <button
-                        type="button"
-                        disabled={parentEmailOtpLoading || !formData.parentEmail || !/^\S+@\S+\.\S+$/.test(formData.parentEmail)}
-                        onClick={handleSendParentEmailOTP}
-                        className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
-                      >
-                        {parentEmailOtpLoading ? 'Sending...' : 'Send OTP'}
-                      </button>
-                    ) : (
-                      <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-lg">
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                          Verification code sent to {formData.parentEmail}
-                        </p>
-                        {parentEmailOtpError && (
-                          <p className="text-[10px] text-red-600 dark:text-red-400 font-extrabold uppercase tracking-wide">{parentEmailOtpError}</p>
-                        )}
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            maxLength={6}
-                            placeholder="Enter 6-Digit OTP"
-                            value={parentEmailOtp}
-                            onChange={(e) => setParentEmailOtp(e.target.value.replace(/[^\d]/g, ''))}
-                            className="flex-1 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-bold tracking-widest outline-none focus:ring-1 focus:ring-[#E53935]"
-                          />
-                          <button
-                            type="button"
-                            disabled={parentEmailOtpLoading || parentEmailOtp.length !== 6}
-                            onClick={handleVerifyParentEmailOTP}
-                            className="px-4 py-2 bg-[#E53935] hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
-                          >
-                            {parentEmailOtpLoading ? 'Verifying...' : 'Verify OTP'}
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleSendParentEmailOTP}
-                          className="text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-bold underline"
-                        >
-                          Resend Code
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {parentEmailOtpVerified && (
-                  <div className="mt-2 p-2 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-lg border border-green-200/50 flex items-center gap-1.5">
-                    <SafeIcon icon={FiCheckCircle} className="w-4 h-4 text-green-600 dark:text-green-400" />
-                    Parent email verified successfully!
-                  </div>
-                )}
-              </div>
-            )}
-
-
             {/* STUDENT MOBILE WITH COUNTRY CODE SELECTOR */}
             <div>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
@@ -1071,27 +890,6 @@ const Signup = () => {
                 </div>
               </div>
             </div>
-
-            {/* PARENT MOBILE NUMBER (No OTP required for parent) */}
-            {formData.role === 'student' && (
-              <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Mobile Number</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="parentMobile"
-                    name="parentMobile"
-                    type="tel"
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="+1234567890"
-                    value={formData.parentMobile}
-                    onChange={handleChange}
-                  />
-                </div>
-              </div>
-            )}
 
             {/* ACCOUNT TYPE */}
             <div>
@@ -1163,10 +961,8 @@ const Signup = () => {
                 redirecting ||
                 !termsAccepted ||
                 !studentEmailOtpVerified ||
-                (formData.role === 'student' && !parentEmailOtpVerified) ||
                 formData.name.trim() === '' ||
                 formData.email.trim() === '' ||
-                (formData.role === 'student' && formData.parentName.trim() === '') ||
                 formData.password.length < 6
               }
               className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white transition-all shadow-red-200 dark:shadow-none ${redirecting ? 'bg-green-600' : 'bg-[#E53935] hover:bg-[#d32f2f]'} disabled:opacity-50 disabled:cursor-not-allowed`}
