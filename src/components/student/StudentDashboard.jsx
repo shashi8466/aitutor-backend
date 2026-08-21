@@ -279,6 +279,23 @@ const StudentDashboard = () => {
           </h1>
           <p className="text-sm sm:text-base text-slate-500 mt-1">Here is your daily progress overview.</p>
         </div>
+
+        {scores.target > 0 && scores.total >= scores.target && (
+          <div className="mb-8 px-4 sm:px-0">
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-5 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white text-2xl flex-shrink-0">🎉</div>
+              <div>
+                <p className="text-lg font-extrabold text-green-700 dark:text-green-300">
+                  Congratulations, {user?.name ? user.name.split(' ')[0] : 'Student'}! 🎉
+                </p>
+                <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
+                  You've reached your target score of {scores.target}! Your current score: {scores.total} / 1600
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <DashboardNotifications limit={3} />
 
 
