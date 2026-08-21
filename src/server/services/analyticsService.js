@@ -936,7 +936,7 @@ export const analyticsService = {
         const [subRes, questions] = await Promise.all([
             supabase
                 .from('test_submissions')
-                .select('id, user_id, course_id, raw_score_percentage, scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, metadata, weak_topics, strong_topics, math_scaled_score, reading_scaled_score, course:courses(name, category)')
+                .select('id, user_id, course_id, raw_score_percentage, scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, metadata, weak_topics, strong_topics, math_scaled_score, reading_scaled_score, course:courses(name, category, tutor_type, is_adaptive, main_category)')
                 .eq('id', submissionId)
                 .single(),
             this.getAttemptQuestions(submissionId)
@@ -998,6 +998,16 @@ export const analyticsService = {
 
         return {
             studentName: profile?.name,
+            // Lets the caller decide which report component to render (the Full-Length/adaptive
+            // report vs. the regular topic-quiz report) the same way StudentCourseList.jsx's own
+            // isTest check does - without this, every attempt was forced into the regular report.
+            course: {
+                isAdaptive: !!sub.course?.is_adaptive,
+                category: sub.course?.category || '',
+                tutorType: sub.course?.tutor_type || '',
+                mainCategory: sub.course?.main_category || '',
+                name: sub.course?.name || ''
+            },
             attempt: {
                 id: sub.id,
                 date: sub.created_at,

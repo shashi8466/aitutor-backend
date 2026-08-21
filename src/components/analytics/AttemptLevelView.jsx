@@ -2,16 +2,20 @@ import React, { useState, useEffect } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import CombinedRegularCourseReport from '../common/CombinedRegularCourseReport';
-import { tutorService, adminService } from '../../services/api';
+import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
+import { tutorService, adminService, gradingService } from '../../services/api';
 
 const { FiAlertCircle, FiArrowLeft } = FiIcons;
 
 /**
  * AttemptLevelView - Centralized Report Wrapper for Admin & Tutor
- * Uses the exact same CombinedRegularCourseReport component as the Student view.
+ * Full-Length/adaptive test attempts render the same AdaptiveResultsDashboard report the
+ * student sees on their own dashboard (see FullTestReport.jsx for the student-facing wiring);
+ * regular topic-quiz attempts render CombinedRegularCourseReport, as before.
  */
 const AttemptLevelView = ({ groupId, submissionId, adminMode, onBack }) => {
     const [data, setData] = useState(null);
+    const [fullLengthSubmission, setFullLengthSubmission] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -23,9 +27,29 @@ const AttemptLevelView = ({ groupId, submissionId, adminMode, onBack }) => {
 
     const loadData = async () => {
         setLoading(true);
+        setFullLengthSubmission(null);
         try {
             const res = await service.getAttemptAnalytics(groupId, submissionId);
             setData(res.data);
+
+            // Same isTest check StudentCourseList.jsx uses to route between the Full-Length
+            // report and the regular topic report - a tutor/admin viewing this exact attempt
+            // must land on the same report the student themselves would see.
+            const course = res.data?.course || {};
+            const isFullLengthTest = Boolean(
+                course.isAdaptive ||
+                (course.category || '').toLowerCase().includes('full-length') ||
+                (course.tutorType || '').toLowerCase().includes('full-length') ||
+                (course.tutorType || '').toLowerCase().includes('linear sat') ||
+                (course.name || '').toLowerCase().includes('full length') ||
+                (course.name || '').toLowerCase().includes('linear sat')
+            );
+
+            if (isFullLengthTest) {
+                const subRes = await gradingService.getSubmission(submissionId);
+                const subData = subRes.data?.submission || subRes.data;
+                setFullLengthSubmission(subData);
+            }
         } catch (err) {
             console.error('Error loading attempt analytics', err);
             setError('Failed to load attempt report');
@@ -57,6 +81,16 @@ const AttemptLevelView = ({ groupId, submissionId, adminMode, onBack }) => {
     );
 
     if (!data || !data.attempt) return null;
+
+    if (fullLengthSubmission) {
+        return (
+            <AdaptiveResultsDashboard
+                submission={fullLengthSubmission}
+                onExit={onBack}
+                adminMode={adminMode}
+            />
+        );
+    }
 
     const { attempt, studentName, questions = [] } = data;
 
