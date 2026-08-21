@@ -306,26 +306,42 @@ export const analyticsService = {
             const mScore = sub.math_scaled_score || (isMath ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
             const rwScore = sub.reading_scaled_score || (!isMath ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
 
-            if (isMath && mScore) {
+            // Score aggregation (best/average/lowest) is independent per section - a Full-Length
+            // Test submission stores BOTH math_scaled_score and reading_scaled_score on the same
+            // row, so a real Math score must still count even when the course's category text
+            // (e.g. "Full-Length SAT") doesn't match the isMath keyword check below. This mirrors
+            // getGroupDashboard's leaderboard, which pushes math/reading scores unconditionally -
+            // gating this on isMath (as it was before) silently dropped every Full-Length Test's
+            // Math score, causing the Group leaderboard and this Student Report to disagree.
+            if (mScore) {
                 mathCount++;
                 mathSum += mScore;
+                if (mScore > mathHighest) mathHighest = mScore;
+                if (mScore < mathLowest) mathLowest = mScore;
+            }
+            if (rwScore) {
+                rwCount++;
+                rwSum += rwScore;
+                if (rwScore > rwHighest) rwHighest = rwScore;
+                if (rwScore < rwLowest) rwLowest = rwScore;
+            }
+
+            // Question-count/accuracy/time totals stay attributed to a single section per
+            // submission (via isMath) - a combined test's total_questions/correct/incorrect
+            // aren't stored split by section, so only the section SCORES above are independently
+            // trustworthy per row; splitting or duplicating these counts would double-count them.
+            if (isMath && mScore) {
                 mathQ += qCount;
                 mathCorrect += cCount;
                 mathIncorrect += iCount;
                 mathUnanswered += uCount;
                 mathTime += duration;
-                if (mScore > mathHighest) mathHighest = mScore;
-                if (mScore < mathLowest) mathLowest = mScore;
             } else if (rwScore) {
-                rwCount++;
-                rwSum += rwScore;
                 rwQ += qCount;
                 rwCorrect += cCount;
                 rwIncorrect += iCount;
                 rwUnanswered += uCount;
                 rwTime += duration;
-                if (rwScore > rwHighest) rwHighest = rwScore;
-                if (rwScore < rwLowest) rwLowest = rwScore;
             }
 
             const currentMath = mScore || (mathCount > 0 ? Math.round(mathSum / mathCount) : 400);
