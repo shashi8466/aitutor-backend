@@ -1561,6 +1561,11 @@ export const adminService = {
   createGroup: async (groupData) => {
     return axios.post('/api/admin/groups', groupData);
   },
+  // Reuses the tutor endpoint - it already treats an admin caller as authorized for any group
+  // (see tutor.js PUT /groups/:groupId), so no separate admin-only route is needed.
+  updateGroup: async (groupId, data) => {
+    return axios.put(`/api/tutor/groups/${groupId}`, data);
+  },
   getTutorGroups: async (tutorId) => {
     return axios.get(`/api/admin/tutors/${tutorId}/groups`);
   },
