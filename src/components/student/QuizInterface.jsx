@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -54,6 +54,7 @@ const QuizInterface = () => {
   const { courseId, level } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const searchParams = new URLSearchParams(window.location.search);
   const isPracticeMode = searchParams.get('mode') === 'practice';
@@ -151,6 +152,16 @@ const QuizInterface = () => {
   };
 
   useEffect(() => {
+    // Returning here from the Full-Length Test Practice Quiz's own report page (via its Back
+    // button) - restore the "Keep Practicing" completion popup directly instead of restarting
+    // the practice quiz, which is what a normal fresh mount of this route would otherwise do.
+    if (location.state?.restoreResult) {
+      setSubmissionResult(location.state.restoreResult);
+      setIsAdaptive(true);
+      setShowResults(true);
+      setLoading(false);
+      return;
+    }
     if (user?.id && courseId) {
       checkAccessAndLoad();
     }
@@ -1162,6 +1173,49 @@ const QuizInterface = () => {
                 </div>
               </div>
             )}
+
+            {/* Full-Length Test Practice Quiz report buttons - open/download the exact same
+                Full-Length Test report (AdaptiveResultsDashboard via FullTestReport) the
+                official test uses, since submitAdaptiveTest above already saved this practice
+                attempt as a real test_submissions row with a real submissionId. */}
+            {isAdaptive && res?.submissionId && (() => {
+              // Carried through the report page's Back button so it returns here (the
+              // completion popup) instead of restarting the practice quiz from scratch.
+              const practiceReturn = {
+                url: `/student/course/${courseId}/level/${level}/quiz?mode=practice`,
+                res
+              };
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Link
+                    to={`/student/report/${res.submissionId}`}
+                    state={{ practiceReturn }}
+                    className="py-4 px-4 bg-blue-50/70 hover:bg-blue-100/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-slate-700 rounded-2xl font-bold transition-all text-xs flex items-center gap-3 shadow-xs text-left group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <SafeIcon icon={FiFileText} className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-xs text-blue-700 dark:text-blue-300 block">View Report</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal block mt-0.5">Full-Length Test Report for this attempt</span>
+                    </div>
+                  </Link>
+                  <Link
+                    to={`/student/report/${res.submissionId}?download=true`}
+                    state={{ practiceReturn }}
+                    className="py-4 px-4 bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-slate-700 rounded-2xl font-bold transition-all text-xs flex items-center gap-3 shadow-xs text-left group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <SafeIcon icon={FiDownload} className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-xs text-emerald-700 dark:text-emerald-300 block">Download Report</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal block mt-0.5">Save this report as PDF</span>
+                    </div>
+                  </Link>
+                </div>
+              );
+            })()}
           </div>
         </motion.div>
       </div>
@@ -1208,8 +1262,12 @@ const QuizInterface = () => {
     );
   }
 
-  // Identify Regular Practice Quiz to use the new UI
-  const isRegularSATPractice = !isAdaptive && isPracticeMode && !isACTFullLengthCourse(courseInfo) && !isSequential;
+  // Practice Quiz always uses this light UI, whether the underlying course is a regular topic
+  // quiz or a Full-Length/adaptive SAT test (isAdaptive) - only the module/scoring/threshold
+  // logic in handleNextQuestion/handleNextModule/handleFinishQuiz differs by course type, and
+  // those are unaffected by which UI branch renders since they're shared handlers passed as
+  // props below, not reimplemented per-branch.
+  const isRegularSATPractice = isPracticeMode && !isACTFullLengthCourse(courseInfo) && !isSequential;
 
   if (isRegularSATPractice) {
     return (

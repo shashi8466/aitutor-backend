@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { gradingService } from '../../services/api';
 import AdaptiveResultsDashboard from './AdaptiveResultsDashboard';
 import * as FiIcons from 'react-icons/fi';
@@ -8,6 +8,7 @@ const FullTestReport = ({ adminMode = false }) => {
     const { submissionId } = useParams();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [submission, setSubmission] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -78,12 +79,26 @@ const FullTestReport = ({ adminMode = false }) => {
         );
     }
 
+    // Full-Length Test Practice Quiz reports arrive here with practiceReturn state (see
+    // QuizInterface.jsx) so Back restores the "Keep Practicing" completion popup instead of
+    // a plain history pop, which would otherwise land on a fresh, restarted practice quiz.
+    // Every other caller (official test reports, tutor/admin, demo) has no such state and
+    // keeps the original navigate(-1) behavior unchanged.
+    const handleExit = () => {
+        const practiceReturn = location.state?.practiceReturn;
+        if (practiceReturn?.url) {
+            navigate(practiceReturn.url, { state: { restoreResult: practiceReturn.res } });
+        } else {
+            navigate(-1);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 relative">
-            <AdaptiveResultsDashboard 
-                submission={submission} 
-                onExit={() => navigate(-1)} 
-                adminMode={adminMode} 
+            <AdaptiveResultsDashboard
+                submission={submission}
+                onExit={handleExit}
+                adminMode={adminMode}
             />
         </div>
     );
