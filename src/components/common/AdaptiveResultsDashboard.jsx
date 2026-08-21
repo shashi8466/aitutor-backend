@@ -1119,7 +1119,7 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
 
             {/* Header Actions */}
             <div className="max-w-4xl mx-auto mb-8 flex justify-between items-center print-hidden">
-                <button onClick={onExit} className="flex items-center gap-2 text-gray-600 hover:text-black font-bold">
+                <button onClick={onExit} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-colors">
                     <FiIcons.FiArrowLeft /> Back
                 </button>
                 <div className="font-black text-xl tracking-tighter uppercase tracking-widest">AIPrep365</div>

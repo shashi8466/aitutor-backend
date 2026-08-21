@@ -224,7 +224,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                 <div className="max-w-md w-full bg-[#131b2e] border border-slate-800 rounded-2xl p-8 text-center">
                     <button
                         onClick={onExit}
-                        className="flex items-center gap-2 text-slate-400 hover:text-white font-bold transition-colors text-sm mb-6"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-colors text-sm mb-6"
                     >
                         <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back
                     </button>
@@ -303,9 +303,9 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
             <div className="no-print">
                 {/* TOP NAVIGATION BAR WITH TAB SWITCHER */}
                 <div className="max-w-5xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center border-b border-slate-800 gap-4">
-                    <button 
+                    <button
                         onClick={onExit}
-                        className="flex items-center gap-2 text-slate-400 hover:text-white font-bold transition-colors text-sm"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-colors text-sm"
                     >
                         <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back
                     </button>
