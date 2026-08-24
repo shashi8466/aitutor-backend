@@ -197,14 +197,14 @@ const StudentSidebar = ({ isOpen, onClose }) => {
             <NavLink
               to="/student/upgrade"
               onClick={onClose}
-              className="mb-4 flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[#E53935] to-[#D32F2F] text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 group"
+              className="mb-4 flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 group"
             >
               <div className="bg-white/20 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
-                <SafeIcon icon={FiIcons.FiZap} className="w-5 h-5 text-yellow-300 fill-yellow-300" />
+                <SafeIcon icon={FiIcons.FiGift} className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-black uppercase tracking-wider">Join Premium</p>
-                <p className="text-[10px] text-red-100 font-bold">Unlock All AI Tools</p>
+                <p className="text-xs font-bold">Join Premium</p>
+                <p className="text-[10px] text-blue-100 font-medium">Unlock All AI Tools</p>
               </div>
               <SafeIcon icon={FiIcons.FiChevronRight} className="w-4 h-4 opacity-50" />
             </NavLink>
