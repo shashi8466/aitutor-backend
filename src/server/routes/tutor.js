@@ -594,7 +594,7 @@ router.put('/groups/:groupId', async (req, res) => {
     try {
         const userId = req.user?.id;
         const { groupId } = req.params;
-        const { name, assigned_content, assigned_course_ids, description, status, visibility, tutor_notes } = req.body;
+        const { name, assigned_content, assigned_course_ids, description } = req.body;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -639,9 +639,6 @@ router.put('/groups/:groupId', async (req, res) => {
             }
         }
         if (assigned_course_ids !== undefined) updateData.assigned_course_ids = assigned_course_ids;
-        if (status !== undefined) updateData.status = status;
-        if (visibility !== undefined) updateData.visibility = visibility;
-        if (tutor_notes !== undefined) updateData.tutor_notes = tutor_notes;
 
         const { data: updatedGroup, error } = await supabase
             .from('student_groups')

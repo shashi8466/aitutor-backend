@@ -335,6 +335,7 @@ const CourseView = () => {
   const [enrollmentSuccess, setEnrollmentSuccess] = useState(false);
   const [lockMessage, setLockMessage] = useState('');
   const [planAccess, setPlanAccess] = useState([]);
+  const [groupAccessIds, setGroupAccessIds] = useState(new Set());
   const [openPdfUnit, setOpenPdfUnit] = useState(null);
   const [expandedUnit, setExpandedUnit] = useState(null);
   const [expandedSubtopic, setExpandedSubtopic] = useState(null);
@@ -352,7 +353,7 @@ const CourseView = () => {
       const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
 
       // 1. Fetch course details and check enrollment in parallel
-      const [courseRes, isEnrolledRes, planAccessRes] = await Promise.all([
+      const [courseRes, isEnrolledRes, planAccessRes, groupAccessRes] = await Promise.all([
         courseService.getById(courseId),
         isTutorUser
           ? Promise.resolve(true)
@@ -360,8 +361,12 @@ const CourseView = () => {
               console.warn('Enrollment check failed:', err);
               return false;
             }),
-        planService.getContentAccess(user?.plan_type || 'free').catch(() => ({ data: [] }))
+        planService.getContentAccess(user?.plan_type || 'free').catch(() => ({ data: [] })),
+        Promise.resolve(supabase.rpc('get_my_group_granted_course_ids')).catch(() => ({ data: [] }))
       ]);
+
+      const groupIds = new Set(groupAccessRes?.data || []);
+      setGroupAccessIds(groupIds);
 
       const courseData = courseRes.data;
       setCourse(courseData);
@@ -405,8 +410,9 @@ const CourseView = () => {
 
       const hasDirectAccess = accessData.some(a => a.content_type === 'course' && String(a.content_id) === String(courseId) && a.plan_type === userPlan);
       const isPremiumUser = userPlan === 'premium';
+      const hasGroupAccess = groupIds.has(parseInt(courseId, 10));
 
-      let isEnrolled = isEnrolledRes || hasDirectAccess || hasTopicAccess || isPremiumUser;
+      let isEnrolled = isEnrolledRes || hasDirectAccess || hasTopicAccess || isPremiumUser || hasGroupAccess;
 
       if (!isEnrolled && courseData?.is_demo) isEnrolled = true;
 

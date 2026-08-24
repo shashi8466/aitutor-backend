@@ -16,11 +16,11 @@ export const TAXONOMY = {
       'Problem-Solving and Data Analysis': [
         'Ratios, rates, proportional relationships, and units',
         'Percentages',
-        'One-variable data: Distributions and measures of center and spread',
+        'One variable data Distributions',
         'Two-variable data: Models and scatterplots',
         'Probability and conditional probability',
         'Inference from sample statistics and margin of error',
-        'Evaluating statistical claims: Observational studies and experiments'
+        'Evaluating statistical claims Observational studies and experiments'
       ],
       'Geometry and Trigonometry': [
         'Area and volume',
@@ -36,7 +36,7 @@ export const TAXONOMY = {
         'Cross-Text Connections'
       ],
       'Information and Ideas': [
-        'Central Ideas and Details',
+        'Central Idea and Details',
         'Command of Evidence',
         'Inferences'
       ],

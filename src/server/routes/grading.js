@@ -11,6 +11,7 @@ import notificationMiddleware from '../middleware/notificationMiddleware.js';
 import { analyticsService } from '../services/analyticsService.js';
 import { TAXONOMY } from '../../utils/taxonomy.js';
 import { isAnswerCorrect } from '../../utils/answerGrading.js';
+import { assertCourseAccessible } from '../utils/contentAccess.js';
 
 const router = express.Router();
 
@@ -292,6 +293,12 @@ router.post('/submit-test', async (req, res) => {
 
         if (!courseId || !level || !questionIds || !answers) {
             return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        try {
+            await assertCourseAccessible(supabase, userId, courseId);
+        } catch (accessErr) {
+            return res.status(accessErr.statusCode || 403).json({ error: accessErr.message });
         }
 
         // 1. Idempotency Check: Prevent duplicate submissions within a short window (30s)
@@ -678,6 +685,12 @@ router.post('/submit-adaptive-test', async (req, res) => {
                 error: 'Unauthorized',
                 debug: { hasReqUser: !!req.user, authFailure: req.authFailure, hasAuthHeader: !!req.headers.authorization }
             });
+        }
+
+        try {
+            await assertCourseAccessible(supabase, userId, courseId);
+        } catch (accessErr) {
+            return res.status(accessErr.statusCode || 403).json({ error: accessErr.message });
         }
 
         // 1. Idempotency Check: Prevent duplicate submissions within a short window (30s)
@@ -2363,6 +2376,36 @@ router.get('/universal-leaderboard', async (req, res) => {
             });
         });
 
+        // When scoped to a group/tutor roster, a member with zero qualifying submissions must
+        // still appear on the leaderboard (as an unranked "--" row) rather than silently vanish -
+        // otherwise the group's own roster size never matches what's shown. Platform-wide ("All")
+        // requests are untouched: allowedStudentIds stays null there, so this backfill never runs.
+        if (allowedStudentIds !== null) {
+            const missingIds = allowedStudentIds.filter(id => !studentMap[id]);
+            if (missingIds.length > 0) {
+                const { data: missingProfiles } = await supabase
+                    .from('profiles')
+                    .select('id, name, email, role')
+                    .in('id', missingIds);
+
+                (missingProfiles || []).forEach(profile => {
+                    if (profile.role !== 'student') return;
+                    studentMap[profile.id] = {
+                        student_id: profile.id,
+                        name: profile.name || 'Student',
+                        email: profile.email || '',
+                        mathScores: [], rwScores: [],
+                        mathQuestions: 0, mathCorrect: 0, mathAttempts: 0,
+                        rwQuestions: 0, rwCorrect: 0, rwAttempts: 0,
+                        courseSubmissions: {},
+                        totalQuestions: 0,
+                        totalCorrect: 0,
+                        completedTests: 0
+                    };
+                });
+            }
+        }
+
         // 4. Calculate score & metric per category for each student
         const studentList = Object.values(studentMap).map(st => {
             let primaryScore = 0;
@@ -2489,7 +2532,7 @@ router.get('/universal-leaderboard', async (req, res) => {
                 totalQuestions: displayTotalQuestions,
                 completedTests: displayCompletedTests
             };
-        }).filter(st => st.totalQuestions > 0 || st.primaryScore > 0);
+        }).filter(st => st.totalQuestions > 0 || st.primaryScore > 0 || allowedStudentIds !== null);
 
         // Sort descending by primaryScore, then totalCorrect
         studentList.sort((a, b) => {

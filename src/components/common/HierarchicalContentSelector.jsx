@@ -70,11 +70,21 @@ const HierarchicalContentSelector = ({ courses = [], initialContent = {}, onChan
           } else {
             subtopicsList.forEach(subtopicName => {
               const subNameLower = subtopicName.toLowerCase().trim();
-              const matchedCourse = courses.find(c => {
-                const cName = (c.name || '').toLowerCase().trim();
-                const cCat = (c.category || '').toLowerCase().trim();
-                return cName === subNameLower || cCat === subNameLower || cName.includes(subNameLower) || subNameLower.includes(cName);
-              });
+              // Exact match first, across the whole list, before ever falling back to a loose
+              // substring check - e.g. "Linear functions" is a substring of "Nonlinear functions",
+              // and "Linear equations in two variables" is a substring of "Systems of two linear
+              // equations in two variables", so checking substrings first (or short-circuiting on
+              // the first .find() hit) can match the wrong course even when an exact match exists.
+              const matchedCourse =
+                courses.find(c => {
+                  const cName = (c.name || '').toLowerCase().trim();
+                  const cCat = (c.category || '').toLowerCase().trim();
+                  return cName === subNameLower || cCat === subNameLower;
+                }) ||
+                courses.find(c => {
+                  const cName = (c.name || '').toLowerCase().trim();
+                  return cName.includes(subNameLower) || subNameLower.includes(cName);
+                });
 
               if (matchedCourse) {
                 courseIds.add(matchedCourse.id);

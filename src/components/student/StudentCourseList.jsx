@@ -24,6 +24,7 @@ const StudentCourseList = () => {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [planAccess, setPlanAccess] = useState([]);
   const [topicCourseIds, setTopicCourseIds] = useState(new Set());
+  const [groupAccessIds, setGroupAccessIds] = useState(new Set());
   const [studentSubmissionsMap, setStudentSubmissionsMap] = useState({});
 
   const isPremium = (user?.plan_type || '').toLowerCase() === 'premium';
@@ -190,16 +191,18 @@ const StudentCourseList = () => {
         }
       };
 
-      const [coursesData, enrollmentsData, accessData] = await Promise.all([
+      const [coursesData, enrollmentsData, accessData, groupAccessData] = await Promise.all([
         safeFetch(courseService.getAll()),
         safeFetch(enrollmentService.getStudentEnrollments(user.id)),
-        safeFetch(planService.getContentAccess(user?.plan_type || 'free'))
+        safeFetch(planService.getContentAccess(user?.plan_type || 'free')),
+        safeFetch(supabase.rpc('get_my_group_granted_course_ids'))
       ]);
 
       setAllCourses(coursesData);
       setPlanAccess(accessData);
       const ids = new Set(enrollmentsData.map(e => e.course_id));
       setEnrolledIds(ids);
+      setGroupAccessIds(new Set(groupAccessData));
 
       // Fetch student submissions for accurate attempt/completion tracking
       const subsMap = {};
@@ -268,8 +271,10 @@ const StudentCourseList = () => {
 
   const handleEnroll = async (courseId) => {
     // Check if course is restricted for free users
-    const isRestricted = !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(courseId) && a.plan_type === 'free');
-    
+    const isRestricted = !isPremium
+      && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(courseId) && a.plan_type === 'free')
+      && !groupAccessIds.has(parseInt(courseId, 10));
+
     if (isRestricted) {
       navigate('/student/upgrade');
       return;
@@ -315,7 +320,8 @@ const StudentCourseList = () => {
     // 0. Access Filter:
     const hasDirectAccess = planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan);
     const hasTopicAccess = topicCourseIds.has(c.id);
-    if (!hasDirectAccess && !hasTopicAccess) return false;
+    const hasGroupAccess = groupAccessIds.has(c.id);
+    if (!hasDirectAccess && !hasTopicAccess && !hasGroupAccess) return false;
 
     // 1. Must NOT be an official practice course (unless it is adaptive OR an ACT full-length test)
     const isACTFullLength = c.is_practice === true && (
@@ -370,7 +376,7 @@ const StudentCourseList = () => {
       courseCat.includes(searchTerm) ||
       courseTutor.includes(searchTerm)
     );
-  }), [allCourses, planAccess, topicCourseIds, user?.plan_type, activeCategory, activeSubcategory, filter]);
+  }), [allCourses, planAccess, topicCourseIds, groupAccessIds, user?.plan_type, activeCategory, activeSubcategory, filter]);
 
   const sortCourses = (coursesList) => {
     return [...coursesList].sort((a, b) => {
@@ -396,8 +402,11 @@ const StudentCourseList = () => {
     });
   };
 
-  const enrolledCourses = useMemo(() => filteredCourses.filter(c => enrolledIds.has(c.id)), [filteredCourses, enrolledIds]);
-  const availableCourses = useMemo(() => filteredCourses.filter(c => !enrolledIds.has(c.id)), [filteredCourses, enrolledIds]);
+  // A group-granted course is treated as "enrolled" for display purposes without ever writing a
+  // real enrollments row - it must disappear immediately if the group later stops granting it,
+  // which a stored enrollment row would prevent.
+  const enrolledCourses = useMemo(() => filteredCourses.filter(c => enrolledIds.has(c.id) || groupAccessIds.has(c.id)), [filteredCourses, enrolledIds, groupAccessIds]);
+  const availableCourses = useMemo(() => filteredCourses.filter(c => !enrolledIds.has(c.id) && !groupAccessIds.has(c.id)), [filteredCourses, enrolledIds, groupAccessIds]);
 
   const getSubmissionsForCourse = (course, subsMap = {}) => {
     if (!course) return [];
@@ -490,7 +499,7 @@ const StudentCourseList = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {groups[cat].map((course, idx) => {
                     const courseSubmissions = getSubmissionsForCourse(course, studentSubmissionsMap);
-                    const courseIsEnrolled = isEnrolledFlag || enrolledIds.has(course.id) || courseSubmissions.length > 0;
+                    const courseIsEnrolled = isEnrolledFlag || enrolledIds.has(course.id) || groupAccessIds.has(course.id) || courseSubmissions.length > 0;
                     return (
                       <CourseCard
                         key={course.id}
@@ -498,7 +507,7 @@ const StudentCourseList = () => {
                         index={idx}
                         isEnrolled={courseIsEnrolled}
                         submissions={courseSubmissions}
-                        isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+                        isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
                         isLoading={enrollLoading === course.id}
                         onAction={() => {
                           if (courseIsEnrolled) {
@@ -515,7 +524,7 @@ const StudentCourseList = () => {
                 <div className="flex flex-col gap-3">
                   {groups[cat].map((course, idx) => {
                     const courseSubmissions = getSubmissionsForCourse(course, studentSubmissionsMap);
-                    const courseIsEnrolled = isEnrolledFlag || enrolledIds.has(course.id) || courseSubmissions.length > 0;
+                    const courseIsEnrolled = isEnrolledFlag || enrolledIds.has(course.id) || groupAccessIds.has(course.id) || courseSubmissions.length > 0;
                     return (
                       <CourseListRow
                         key={course.id}
@@ -523,7 +532,7 @@ const StudentCourseList = () => {
                         index={idx}
                         isEnrolled={courseIsEnrolled}
                         submissions={courseSubmissions}
-                        isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+                        isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
                         isLoading={enrollLoading === course.id}
                         onAction={() => {
                           if (courseIsEnrolled) {
@@ -553,7 +562,7 @@ const StudentCourseList = () => {
             index={idx}
             isEnrolled={isEnrolledFlag}
             submissions={getSubmissionsForCourse(course, studentSubmissionsMap)}
-            isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+            isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
             isLoading={enrollLoading === course.id}
             onAction={() => {
               if (isEnrolledFlag) {
@@ -580,7 +589,7 @@ const StudentCourseList = () => {
             index={idx}
             isEnrolled={isEnrolledFlag}
             submissions={getSubmissionsForCourse(course, studentSubmissionsMap)}
-            isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id)}
+            isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
             isLoading={enrollLoading === course.id}
             onAction={() => {
               if (isEnrolledFlag) {
