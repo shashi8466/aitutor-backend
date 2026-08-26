@@ -178,20 +178,25 @@ input:focus, select:focus, textarea:focus {
   display: block;
 }
 
-.kb-rich-content table.docx-table {
+/* Applies globally to every table.docx-table - not just inside .kb-rich-content - so a table
+   embedded in question text, answer options, or anywhere else uploaded DOCX content is rendered
+   (MathRenderer's dangerouslySetInnerHTML output) gets the same visible borders/contrast instead
+   of falling back to the near-invisible inline "border:1px solid #ddd" the DOCX parser itself
+   emits with no background/text-color at all. */
+table.docx-table {
   @apply w-full border-collapse my-6 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm;
   background-color: white;
 }
 
-.dark .kb-rich-content table.docx-table {
+.dark table.docx-table {
   background-color: rgba(15, 23, 42, 0.4);
 }
 
-.kb-rich-content table.docx-table td {
+table.docx-table td {
   @apply border border-slate-200 dark:border-slate-800 p-3 text-sm font-medium text-slate-700 dark:text-slate-300;
 }
 
-.kb-rich-content table.docx-table tr:first-child td {
+table.docx-table tr:first-child td {
   @apply bg-slate-50 dark:bg-slate-900/50 font-bold text-slate-900 dark:text-white;
 }
 
