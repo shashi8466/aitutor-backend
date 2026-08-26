@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { gradingService } from '../../services/api';
+import { gradingService, tutorService } from '../../services/api';
 import CombinedRegularCourseReport from '../common/CombinedRegularCourseReport';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { FiArrowLeft, FiAlertCircle } = FiIcons;
 
+// studentId is only present when a tutor/admin reaches this via Test History for a specific
+// student (see TestReview.jsx's topicReportPath) - the student's own /topic-report/:courseId
+// route never has it, and keeps fetching its own combined report exactly as before.
+// tutorService is used for both tutor and admin callers, same as TestReview.jsx's own
+// tutorService.getStudentProgress call - the backend route has an admin bypass built in.
 const TopicReportReview = () => {
-    const { courseId } = useParams();
+    const { courseId, studentId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
@@ -18,12 +23,14 @@ const TopicReportReview = () => {
 
     useEffect(() => {
         loadTopicData();
-    }, [courseId]);
+    }, [courseId, studentId]);
 
     const loadTopicData = async () => {
         try {
             setLoading(true);
-            const response = await gradingService.getTopicReport(courseId);
+            const response = studentId
+                ? await tutorService.getStudentTopicReport(studentId, courseId)
+                : await gradingService.getTopicReport(courseId);
             const data = response.data;
 
             if (!data || !data.overall) {
@@ -32,7 +39,7 @@ const TopicReportReview = () => {
             }
 
             setTopicReportData(data);
-            
+
         } catch (err) {
             console.error('Error fetching topic report:', err);
             setError('Failed to load topic report.');
@@ -63,7 +70,7 @@ const TopicReportReview = () => {
                         </div>
                     </div>
                     <button
-                        onClick={() => navigate('/student/courses')}
+                        onClick={() => navigate(studentId ? -1 : '/student/courses')}
                         className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-bold shadow-sm"
                     >
                         Go Back
@@ -76,8 +83,8 @@ const TopicReportReview = () => {
     return (
         <CombinedRegularCourseReport
             topicReportData={topicReportData}
-            studentName={user?.name || user?.user_metadata?.name || topicReportData?.studentName}
-            onExit={() => navigate('/student/courses')}
+            studentName={studentId ? topicReportData?.studentName : (user?.name || user?.user_metadata?.name || topicReportData?.studentName)}
+            onExit={() => navigate(studentId ? -1 : '/student/courses')}
         />
     );
 };

@@ -165,11 +165,21 @@ const getTestAttemptStats = (sub) => {
   };
 };
 
-const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) => {
+// onBack, when provided, overrides the default browser-history-back behavior of the Back
+// button - used when this is embedded in an in-memory drill-down (e.g. Tutor Group -> Student
+// -> Test History) so returning preserves that navigation state instead of leaving the route
+// entirely. Every existing caller that doesn't pass it keeps the original navigate(-1) behavior.
+const TestReview = ({ studentId: propStudentId = null, basePath = '/student', onBack = null }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { studentId: paramStudentId } = useParams();
   const studentId = propStudentId || paramStudentId;
+  // Self-view (student browsing their own history) keeps the existing /topic-report/:courseId
+  // shape unchanged; a tutor/admin viewing someone else's history needs the target student's id
+  // in the URL too, so the combined-report page fetches THAT student's data, not the viewer's own.
+  const topicReportPath = (courseId) => studentId
+    ? `${basePath}/topic-report/${studentId}/${courseId}`
+    : `${basePath}/topic-report/${courseId}`;
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -448,19 +458,19 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
         {combined.isFullyCompleted ? (
           <>
             <button
-              onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}`)}
+              onClick={() => navigate(topicReportPath(combined.courseId))}
               className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
             >
               <SafeIcon icon={FiFileText} className="w-4 h-4" /> View Report
             </button>
             <button
-              onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?view=question-wise`)}
+              onClick={() => navigate(`${topicReportPath(combined.courseId)}?view=question-wise`)}
               className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
             >
               <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Question-wise Analysis
             </button>
             <button
-              onClick={() => navigate(`${basePath}/topic-report/${combined.courseId}?download=true`)}
+              onClick={() => navigate(`${topicReportPath(combined.courseId)}?download=true`)}
               className="py-3 px-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-xl font-black flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all cursor-pointer"
             >
               <SafeIcon icon={FiDownload} className="w-4 h-4" /> Download PDF
@@ -605,7 +615,7 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student' }) 
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => (onBack ? onBack() : navigate(-1))}
             className="p-2 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm rounded-xl transition-colors text-gray-600 dark:text-gray-400"
             title="Go Back"
           >

@@ -1098,6 +1098,22 @@ router.get('/groups/:groupId/analytics/students/:studentId/topic-report/:courseI
     }
 });
 
+// Group content drill-down (Section / Topic / Subtopic) - courseIds is a comma-separated list;
+// a single id serves the Subtopic level, several serve Topic/Section.
+router.get('/groups/:groupId/analytics/content', verifyAdminAccess, async (req, res) => {
+    try {
+        const courseIds = (req.query.courseIds || '')
+            .split(',')
+            .map(id => parseInt(id, 10))
+            .filter(id => !isNaN(id));
+        const data = await analyticsService.getGroupContentAnalytics(req.params.groupId, courseIds);
+        res.json(data);
+    } catch (error) {
+        console.error('Admin group content analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // 4. Attempt Level
 router.get('/groups/:groupId/analytics/attempts/:submissionId', verifyAdminAccess, async (req, res) => {
     try {

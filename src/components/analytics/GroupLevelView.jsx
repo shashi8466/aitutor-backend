@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import PdfExportWrapper from './PdfExportWrapper';
-import { tutorService, adminService } from '../../services/api';
+import { tutorService, adminService, courseService } from '../../services/api';
+import { buildGroupContentTree } from '../../utils/groupContentTree';
 
-const { FiUsers, FiTarget, FiTrendingUp, FiActivity, FiChevronRight } = FiIcons;
+const { FiUsers, FiTarget, FiTrendingUp, FiActivity, FiChevronRight, FiClock, FiBookOpen } = FiIcons;
 
-const GroupLevelView = ({ groupId, adminMode, onStudentSelect }) => {
+const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySelect, onContentSectionSelect }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [contentTree, setContentTree] = useState(null);
 
     const service = adminMode ? adminService : tutorService;
 
@@ -22,6 +24,15 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect }) => {
         try {
             const res = await service.getGroupDashboard(groupId);
             setData(res.data);
+
+            // Additive: builds the content drill-down tree from the group's own assigned
+            // content - failure here shouldn't break the existing dashboard, so it's isolated.
+            try {
+                const coursesRes = await courseService.getAll();
+                setContentTree(buildGroupContentTree(res.data?.assignedContent, coursesRes.data || []));
+            } catch (treeErr) {
+                console.warn('Error building group content tree', treeErr);
+            }
         } catch (err) {
             console.error('Error loading group dashboard', err);
             setError('Failed to load group analytics');
@@ -229,6 +240,33 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect }) => {
                 </div>
             </div>
 
+            {/* Content Analytics (Section -> Topic -> Subtopic drill-down) */}
+            {contentTree && Object.keys(contentTree).length > 0 && (
+                <div>
+                    <h3 className="text-lg font-black mb-4 text-white">Content Analytics — Select Section</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {Object.values(contentTree).map(section => (
+                            <div
+                                key={section.name}
+                                onClick={() => onContentSectionSelect(section)}
+                                className="bg-[#0a0e24] p-5 rounded-2xl border border-slate-800 hover:border-blue-500/50 cursor-pointer transition-all flex items-center justify-between group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                                        <SafeIcon icon={FiBookOpen} className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-white text-base group-hover:text-blue-400 transition-colors">{section.name}</h4>
+                                        <p className="text-xs text-slate-400">{Object.keys(section.topics).length} topics assigned</p>
+                                    </div>
+                                </div>
+                                <SafeIcon icon={FiChevronRight} className="text-slate-500 group-hover:text-blue-400 transition-colors w-5 h-5" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Student Performance Table */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
                 <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex justify-between items-center">
@@ -276,9 +314,23 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect }) => {
                                         </td>
                                         <td className="p-4 text-center text-slate-300">{student.studyTime}</td>
                                         <td className="p-4 text-right">
-                                            <button className="text-blue-400 font-black text-xs inline-flex items-center gap-1 hover:underline cursor-pointer">
-                                                Analytics <SafeIcon icon={FiChevronRight} className="w-3.5 h-3.5" />
-                                            </button>
+                                            <div className="flex items-center justify-end gap-3">
+                                                <button className="text-blue-400 font-black text-xs inline-flex items-center gap-1 hover:underline cursor-pointer">
+                                                    Analytics <SafeIcon icon={FiChevronRight} className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Same student Test History & Review component the student uses for
+                                                        // their own history - kept in-memory (not a route navigate) so its
+                                                        // Back button can return here instead of leaving Student Groups.
+                                                        onTestHistorySelect(student);
+                                                    }}
+                                                    className="text-purple-400 font-black text-xs inline-flex items-center gap-1 hover:underline cursor-pointer"
+                                                >
+                                                    Test History <SafeIcon icon={FiClock} className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

@@ -255,7 +255,11 @@ export const analyticsService = {
                     studyTime: rwAgg.time
                 }
             },
-            students: studentsList
+            students: studentsList,
+            // Additive: lets the Group Dashboard build its content drill-down tree (Section ->
+            // Topic -> Subtopic) without a second fetch - existing consumers of this response
+            // that don't read this field are unaffected.
+            assignedContent
         };
     },
 
@@ -283,70 +287,32 @@ export const analyticsService = {
         }
 
         const { data: submissions } = await submissionsQuery;
-        
-        let mathQ = 0, mathCorrect = 0, mathIncorrect = 0, mathUnanswered = 0, mathTime = 0;
-        let mathHighest = 0, mathLowest = 800, mathSum = 0, mathCount = 0;
 
-        let rwQ = 0, rwCorrect = 0, rwIncorrect = 0, rwUnanswered = 0, rwTime = 0;
-        let rwHighest = 0, rwLowest = 800, rwSum = 0, rwCount = 0;
+        // Canonical per-topic (course_id) combined Easy+Medium+Hard reports - the SAME
+        // calculation Test Review, the topic report page, and the Completed Tests table below
+        // all use. The section-level Math/R&W/Overall cards are aggregated from these (only the
+        // FULLY COMPLETED ones), not from raw per-submission rows - a topic a student is
+        // mid-way through, or an individual Easy/Medium/Hard attempt, can no longer skew the
+        // headline score, and it always matches what "View Report" for that topic shows.
+        const topicReports = await this._getTopicReportsForSubmissions(groupId, studentId, submissions || []);
 
+        // The score-progression chart is legitimately per-attempt (a point per submission, not
+        // per topic), so it still reads the raw submissions directly, with the same running-
+        // average placeholder as before for a point with no score on one side - unaffected by
+        // the section-level aggregation change below.
+        let mathSum = 0, mathCount = 0, rwSum = 0, rwCount = 0;
         const trend = [];
-
         submissions?.forEach((sub, idx) => {
             const pct = sub.raw_score_percentage || 0;
-            const qCount = sub.total_questions || 0;
-            const cCount = sub.correct_questions?.length || 0;
-            const iCount = sub.incorrect_questions?.length || 0;
-            const uCount = Math.max(0, qCount - (cCount + iCount));
-            const duration = sub.test_duration_seconds || 0;
-
             const categoryName = (sub.course?.tutor_type || sub.course?.category || sub.course?.name || '').toLowerCase();
             const isMath = categoryName.includes('math') || categoryName.includes('quant');
-
             const mScore = sub.math_scaled_score || (isMath ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
             const rwScore = sub.reading_scaled_score || (!isMath ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
-
-            // Score aggregation (best/average/lowest) is independent per section - a Full-Length
-            // Test submission stores BOTH math_scaled_score and reading_scaled_score on the same
-            // row, so a real Math score must still count even when the course's category text
-            // (e.g. "Full-Length SAT") doesn't match the isMath keyword check below. This mirrors
-            // getGroupDashboard's leaderboard, which pushes math/reading scores unconditionally -
-            // gating this on isMath (as it was before) silently dropped every Full-Length Test's
-            // Math score, causing the Group leaderboard and this Student Report to disagree.
-            if (mScore) {
-                mathCount++;
-                mathSum += mScore;
-                if (mScore > mathHighest) mathHighest = mScore;
-                if (mScore < mathLowest) mathLowest = mScore;
-            }
-            if (rwScore) {
-                rwCount++;
-                rwSum += rwScore;
-                if (rwScore > rwHighest) rwHighest = rwScore;
-                if (rwScore < rwLowest) rwLowest = rwScore;
-            }
-
-            // Question-count/accuracy/time totals stay attributed to a single section per
-            // submission (via isMath) - a combined test's total_questions/correct/incorrect
-            // aren't stored split by section, so only the section SCORES above are independently
-            // trustworthy per row; splitting or duplicating these counts would double-count them.
-            if (isMath && mScore) {
-                mathQ += qCount;
-                mathCorrect += cCount;
-                mathIncorrect += iCount;
-                mathUnanswered += uCount;
-                mathTime += duration;
-            } else if (rwScore) {
-                rwQ += qCount;
-                rwCorrect += cCount;
-                rwIncorrect += iCount;
-                rwUnanswered += uCount;
-                rwTime += duration;
-            }
+            if (mScore) { mathCount++; mathSum += mScore; }
+            if (rwScore) { rwCount++; rwSum += rwScore; }
 
             const currentMath = mScore || (mathCount > 0 ? Math.round(mathSum / mathCount) : 400);
             const currentRw = rwScore || (rwCount > 0 ? Math.round(rwSum / rwCount) : 400);
-
             trend.push({
                 name: `Test ${idx + 1}`,
                 mathScore: currentMath,
@@ -356,6 +322,43 @@ export const analyticsService = {
             });
         });
 
+        // Aggregate ONLY fully-completed topics per section - "in progress" or unattempted
+        // topics contribute nothing, per this section's own explicit requirement.
+        const isMathTopic = (tr) => {
+            // Same field precedence as getGroupDashboard's leaderboard and the raw-submission
+            // trend loop above: tutor_type ("SAT Math") is the reliable subject signal -
+            // course.category is actually the domain name (e.g. "Algebra"), not the subject.
+            const cat = (tr.tutorType || tr.category || tr.courseName || tr.topicName || '').toLowerCase();
+            return cat.includes('math') || cat.includes('quant');
+        };
+
+        let mathQ = 0, mathCorrect = 0, mathIncorrect = 0, mathUnanswered = 0, mathTime = 0, mathCompletedCount = 0, mathHighest = 0, mathLowest = 800;
+        let rwQ = 0, rwCorrect = 0, rwIncorrect = 0, rwUnanswered = 0, rwTime = 0, rwCompletedCount = 0, rwHighest = 0, rwLowest = 800;
+
+        topicReports.forEach(tr => {
+            if (!tr.isFullyCompleted) return;
+            const isMath = isMathTopic(tr);
+            const correct = tr.overall.correct || 0;
+            const incorrect = tr.overall.incorrect || 0;
+            const unanswered = tr.overall.unanswered || 0;
+            const total = tr.overall.totalQuestions || 0;
+            const score = tr.overall.scaledScore || 200;
+            const time = tr.overall.totalTime || 0;
+            if (isMath) {
+                mathQ += total; mathCorrect += correct; mathIncorrect += incorrect; mathUnanswered += unanswered; mathTime += time; mathCompletedCount++;
+                if (score > mathHighest) mathHighest = score;
+                if (score < mathLowest) mathLowest = score;
+            } else {
+                rwQ += total; rwCorrect += correct; rwIncorrect += incorrect; rwUnanswered += unanswered; rwTime += time; rwCompletedCount++;
+                if (score > rwHighest) rwHighest = score;
+                if (score < rwLowest) rwLowest = score;
+            }
+        });
+
+        const currentMathScore = mathQ > 0 ? Math.round(200 + (mathCorrect / mathQ) * 600) : 400;
+        const currentRwScore = rwQ > 0 ? Math.round(200 + (rwCorrect / rwQ) * 600) : 400;
+        const currentSatScore = currentMathScore + currentRwScore;
+
         const totalSubs = submissions?.length || 0;
         const totalQ = mathQ + rwQ;
         const totalCorrect = mathCorrect + rwCorrect;
@@ -363,14 +366,10 @@ export const analyticsService = {
         const totalUnanswered = mathUnanswered + rwUnanswered;
         const totalTime = mathTime + rwTime;
 
-        const currentMathScore = mathCount > 0 ? Math.round(mathSum / mathCount) : 400;
-        const currentRwScore = rwCount > 0 ? Math.round(rwSum / rwCount) : 400;
-        const currentSatScore = currentMathScore + currentRwScore;
-
         const firstTestScore = trend.length > 0 ? trend[0].satScore : currentSatScore;
         const lastTestScore = trend.length > 0 ? trend[trend.length - 1].satScore : currentSatScore;
         const scoreDiff = lastTestScore - firstTestScore;
-        
+
         let trendStatus = 'Stable';
         if (scoreDiff >= 30) trendStatus = 'Improving';
         else if (scoreDiff <= -30) trendStatus = 'Declining';
@@ -398,10 +397,10 @@ export const analyticsService = {
                 bestScore: mathHighest || currentMathScore,
                 lowestScore: mathLowest === 800 ? currentMathScore : mathLowest,
                 averageScore: currentMathScore,
-                scoreImprovement: mathCount > 1 ? `+${currentMathScore - (trend[0]?.mathScore || currentMathScore)}` : '0',
-                testsCompleted: mathCount,
+                scoreImprovement: mathCompletedCount > 1 ? `+${currentMathScore - (trend[0]?.mathScore || currentMathScore)}` : '0',
+                testsCompleted: mathCompletedCount,
                 testsAssigned: Math.round(assignedCourseIds.length / 2),
-                testsRemaining: Math.max(0, Math.round(assignedCourseIds.length / 2) - mathCount),
+                testsRemaining: Math.max(0, Math.round(assignedCourseIds.length / 2) - mathCompletedCount),
                 accuracy: mathQ > 0 ? Math.round((mathCorrect / mathQ) * 100) : 0,
                 totalQuestions: mathQ,
                 correct: mathCorrect,
@@ -414,10 +413,10 @@ export const analyticsService = {
                 bestScore: rwHighest || currentRwScore,
                 lowestScore: rwLowest === 800 ? currentRwScore : rwLowest,
                 averageScore: currentRwScore,
-                scoreImprovement: rwCount > 1 ? `+${currentRwScore - (trend[0]?.rwScore || currentRwScore)}` : '0',
-                testsCompleted: rwCount,
+                scoreImprovement: rwCompletedCount > 1 ? `+${currentRwScore - (trend[0]?.rwScore || currentRwScore)}` : '0',
+                testsCompleted: rwCompletedCount,
                 testsAssigned: Math.round(assignedCourseIds.length / 2),
-                testsRemaining: Math.max(0, Math.round(assignedCourseIds.length / 2) - rwCount),
+                testsRemaining: Math.max(0, Math.round(assignedCourseIds.length / 2) - rwCompletedCount),
                 accuracy: rwQ > 0 ? Math.round((rwCorrect / rwQ) * 100) : 0,
                 totalQuestions: rwQ,
                 correct: rwCorrect,
@@ -429,14 +428,18 @@ export const analyticsService = {
             assignedContent,
             // Easy/Medium/Hard are separate test_submissions rows for the same course_id - the
             // Group Student Report must show ONE row per topic (not one per difficulty level),
-            // using the SAME combined-report data already shown in Test Review, not a fresh
-            // calculation. getTopicCombinedReport is the canonical source for that; reuse it here
-            // per-topic instead of re-deriving score/accuracy from the raw submissions.
-            completedAttempts: await this._getCompletedTopicSummaries(groupId, studentId, submissions || [])
+            // reusing the same topicReports fetched above rather than re-querying.
+            completedAttempts: this._summarizeTopicReports(topicReports)
         };
     },
 
-    async _getCompletedTopicSummaries(groupId, studentId, submissions) {
+    /**
+     * Fetches the canonical combined report (getTopicCombinedReport) for every distinct
+     * course_id present in `submissions`, in parallel. Shared by getStudentDashboard's
+     * section-level (Math/R&W/Overall) aggregation and its per-topic Completed Tests list, so
+     * both always agree with each other and with the topic report page itself.
+     */
+    async _getTopicReportsForSubmissions(groupId, studentId, submissions) {
         const courseIds = [...new Set(submissions.map(s => s.course_id).filter(Boolean))];
 
         const topicReports = await Promise.all(courseIds.map(async (courseId) => {
@@ -449,8 +452,11 @@ export const analyticsService = {
             }
         }));
 
+        return topicReports.filter(Boolean);
+    },
+
+    _summarizeTopicReports(topicReports) {
         return topicReports
-            .filter(Boolean)
             .map(tr => ({
                 courseId: tr.courseId,
                 testName: tr.topicName,
@@ -766,7 +772,7 @@ export const analyticsService = {
         // fetch concurrently instead of as separate sequential round-trips (the profile fetch
         // in particular used to happen last, at the very end of this function, for no reason).
         const [courseRes, submissionsRes, profileRes] = await Promise.all([
-            supabase.from('courses').select('name, category').eq('id', courseId).single(),
+            supabase.from('courses').select('name, category, tutor_type').eq('id', courseId).single(),
             supabase
                 .from('test_submissions')
                 .select('id, level, raw_score_percentage, scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, math_scaled_score, reading_scaled_score, metadata')
@@ -936,6 +942,10 @@ export const analyticsService = {
             courseName: courseName,
             topicName: topicName,
             category: course.category,
+            // course.category actually holds the domain name (e.g. "Advanced Math",
+            // "Algebra"), not the subject - tutor_type ("SAT Math" / "SAT Reading & Writing")
+            // is the reliable subject classifier used elsewhere in this file.
+            tutorType: course.tutor_type,
             date: latestDate,
             levels,
             overall,
@@ -947,6 +957,113 @@ export const analyticsService = {
             activeLevels: Object.keys(levels).filter(l => levels[l].latest).map(l => l),
             isFullyCompleted,
             missingLevels
+        };
+    },
+
+    /**
+     * GROUP CONTENT ANALYTICS (Section / Topic / Subtopic drill-down)
+     *
+     * One reusable "Analytics Resolver" for the group's assigned content, at whatever
+     * granularity the caller passes in courseIds: a single course_id for a subtopic, or many
+     * for a topic/domain or a whole section - the aggregation logic is identical either way.
+     * Per-student, per-course_id numbers are ALWAYS the same getTopicCombinedReport() result
+     * already used by Test Review, the per-student topic report, and the combined report page -
+     * this never recomputes a score independently, so nothing here can disagree with those.
+     */
+    async getGroupContentAnalytics(groupId, courseIds) {
+        const [{ assignedCourseIds }, membersRes] = await Promise.all([
+            this._getGroupScope(groupId),
+            supabase
+                .from('group_members')
+                .select('student_id, student:profiles!group_members_student_id_fkey(name, email)')
+                .eq('group_id', groupId)
+        ]);
+        const members = membersRes.data || [];
+
+        // Only content actually assigned to this group counts - a courseId the caller passed
+        // that isn't part of the group's own assignment is silently dropped, not authorized.
+        const assignedSet = new Set(assignedCourseIds);
+        const scopedCourseIds = [...new Set(courseIds)].filter(id => assignedSet.has(id));
+
+        // Every (student, course) combined report is independent of every other - fetch all of
+        // them concurrently rather than per-student or per-course sequential passes.
+        const cells = await Promise.all(
+            members.flatMap(m =>
+                scopedCourseIds.map(async courseId => {
+                    try {
+                        const report = await this.getTopicCombinedReport(null, m.student_id, courseId);
+                        return { studentId: m.student_id, courseId, report };
+                    } catch (err) {
+                        console.error(`getGroupContentAnalytics: course ${courseId} for student ${m.student_id}`, err);
+                        return { studentId: m.student_id, courseId, report: null };
+                    }
+                })
+            )
+        );
+
+        const byStudent = new Map(members.map(m => [m.student_id, {
+            id: m.student_id,
+            name: m.student?.name || 'Student',
+            email: m.student?.email || '',
+            reports: []
+        }]));
+
+        cells.forEach(({ studentId, report }) => {
+            if (report) byStudent.get(studentId)?.reports.push(report);
+        });
+
+        const studentRows = Array.from(byStudent.values()).map(s => {
+            const attempted = s.reports.filter(r => r.activeLevels.length > 0);
+            const completed = s.reports.filter(r => r.isFullyCompleted);
+            const completedScores = completed.map(r => r.overall.scaledScore);
+            const completedAccuracies = completed.map(r => r.overall.accuracy);
+            const totalAttempts = s.reports.reduce((sum, r) => sum + r.attemptHistory.length, 0);
+            const scopedTotal = scopedCourseIds.length;
+
+            let status = 'Not Attempted';
+            if (scopedTotal > 0 && completed.length === scopedTotal) status = 'Completed';
+            else if (attempted.length > 0) status = 'In Progress';
+
+            return {
+                id: s.id,
+                name: s.name,
+                email: s.email,
+                bestScore: completedScores.length ? Math.max(...completedScores) : null,
+                avgAccuracy: completedAccuracies.length
+                    ? Math.round(completedAccuracies.reduce((a, b) => a + b, 0) / completedAccuracies.length)
+                    : null,
+                attempts: totalAttempts,
+                completionRate: scopedTotal > 0 ? Math.round((completed.length / scopedTotal) * 100) : 0,
+                status
+            };
+        });
+
+        const assignedCount = members.length;
+        const attemptedCount = studentRows.filter(s => s.attempts > 0).length;
+        const completedCount = studentRows.filter(s => s.status === 'Completed').length;
+        const scores = studentRows.filter(s => s.bestScore != null).map(s => s.bestScore);
+        const accuracies = studentRows.filter(s => s.avgAccuracy != null).map(s => s.avgAccuracy);
+
+        const top10 = [...studentRows]
+            .filter(s => s.bestScore != null)
+            .sort((a, b) => b.bestScore - a.bestScore)
+            .slice(0, 10);
+
+        return {
+            overview: {
+                totalStudents: assignedCount,
+                studentsAssigned: assignedCount,
+                studentsAttempted: attemptedCount,
+                studentsCompleted: completedCount,
+                studentsNotAttempted: Math.max(0, assignedCount - attemptedCount),
+                averageScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+                highestScore: scores.length ? Math.max(...scores) : null,
+                averageAccuracy: accuracies.length ? Math.round(accuracies.reduce((a, b) => a + b, 0) / accuracies.length) : null,
+                totalAttempts: studentRows.reduce((sum, s) => sum + s.attempts, 0),
+                completionRate: assignedCount > 0 ? Math.round((completedCount / assignedCount) * 100) : 0
+            },
+            top10,
+            students: studentRows
         };
     },
 

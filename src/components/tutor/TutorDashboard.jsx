@@ -24,6 +24,7 @@ const TutorEnrollmentKeys = lazy(() => import('./TutorEnrollmentKeys'));
 const TutorInvitations = lazy(() => import('./TutorInvitations'));
 const TutorSettings = lazy(() => import('./TutorSettings'));
 const TutorCourseContent = lazy(() => import('./TutorCourseContent'));
+const TopicReportReview = lazy(() => import('../student/TopicReportReview'));
 
 // Lazy load student course view components (for Course Content feature)
 const StudentCourseView = lazy(() => import('../student/CourseView'));
@@ -319,6 +320,7 @@ const TutorDashboard = () => {
                             <Route path="grades" element={<TutorGrades dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="leaderboard" element={<UniversalLeaderboard role="tutor" title="Tutor Leaderboard" subtitle="Track performance of students in your assigned groups" />} />
                             <Route path="student-analysis/:studentId" element={<TestReview basePath="/tutor" />} />
+                            <Route path="topic-report/:studentId/:courseId" element={<TopicReportReview />} />
                             <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
                             <Route path="report/:submissionId" element={<FullTestReport adminMode={true} />} />
                             <Route path="settings" element={<TutorSettings dashboardData={dashboardData} isParentLoading={loading} />} />

@@ -1422,6 +1422,9 @@ export const tutorService = {
   getStudentProgress: async (studentId) => {
     return cachedTutorGet(`studentProgress_${studentId}`, `/api/tutor/student-progress/${studentId}`);
   },
+  getStudentTopicReport: async (studentId, courseId) => {
+    return axios.get(`/api/tutor/student-topic-report/${studentId}/${courseId}`);
+  },
   // Advanced Analytics
   getGroupDashboard: async (groupId) => {
     return axios.get(`/api/tutor/groups/${groupId}/analytics/dashboard`);
@@ -1440,6 +1443,9 @@ export const tutorService = {
   },
   getTopicReport: async (groupId, studentId, courseId) => {
     return axios.get(`/api/tutor/groups/${groupId}/analytics/students/${studentId}/topic-report/${courseId}`);
+  },
+  getGroupContentAnalytics: async (groupId, courseIds) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/content?courseIds=${courseIds.join(',')}`);
   }
 };
 
@@ -1646,6 +1652,9 @@ export const adminService = {
   },
   getTopicReport: async (groupId, studentId, courseId) => {
     return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}/topic-report/${courseId}`);
+  },
+  getGroupContentAnalytics: async (groupId, courseIds) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/content?courseIds=${courseIds.join(',')}`);
   }
 };
 

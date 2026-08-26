@@ -475,6 +475,49 @@ router.get('/student-progress/:studentId', async (req, res) => {
 });
 
 /**
+ * GET /api/tutor/student-topic-report/:studentId/:courseId
+ * Combined Easy+Medium+Hard report for one of the tutor's students, reached from Test History -
+ * same authorization as GET /student-progress/:studentId (assigned_courses, or admin bypass) and
+ * the same analyticsService.getTopicCombinedReport data the group-scoped topic-report route and
+ * the student's own /student/topic-report/:courseId use - no separate calculation.
+ */
+router.get('/student-topic-report/:studentId/:courseId', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId, courseId } = req.params;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('assigned_courses, role')
+            .eq('id', userId)
+            .single();
+
+        if (profileError || !profile) {
+            return res.status(404).json({ error: 'User profile not found' });
+        }
+
+        const isAdmin = profile.role === 'admin';
+        const assignedCourses = getAssignedCourses(profile);
+
+        if (!isAdmin && !assignedCourses.includes(parseInt(courseId))) {
+            return res.status(403).json({ error: 'Not authorized to view this course' });
+        }
+
+        // groupId is unused inside getTopicCombinedReport - only course_id/user_id matter -
+        // this route's own authorization above stands in for the group-scoped one.
+        const data = await analyticsService.getTopicCombinedReport(null, studentId, courseId);
+        res.json(data);
+    } catch (error) {
+        console.error('Student topic report error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * GET /api/tutor/groups
  * Get all groups managed by the tutor
  */
@@ -1209,6 +1252,22 @@ router.get('/groups/:groupId/analytics/students/:studentId/topic-report/:courseI
         res.json(data);
     } catch (error) {
         console.error('Topic Combined Report error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Group content drill-down (Section / Topic / Subtopic) - courseIds is a comma-separated list;
+// a single id serves the Subtopic level, several serve Topic/Section.
+router.get('/groups/:groupId/analytics/content', verifyTutorAccess, async (req, res) => {
+    try {
+        const courseIds = (req.query.courseIds || '')
+            .split(',')
+            .map(id => parseInt(id, 10))
+            .filter(id => !isNaN(id));
+        const data = await analyticsService.getGroupContentAnalytics(req.params.groupId, courseIds);
+        res.json(data);
+    } catch (error) {
+        console.error('Group content analytics error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
