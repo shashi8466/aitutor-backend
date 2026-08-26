@@ -9,6 +9,7 @@ import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
 import { courseService, gradingService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { resolveCourseAccess } from '../../utils/contentAccess';
 
 const {
   FiChevronLeft, FiChevronRight, FiClock, FiFlag, FiLogOut, FiAlertCircle,
@@ -197,15 +198,26 @@ const ACTFullLengthExam = () => {
   }, [screen]);
 
   useEffect(() => {
-    if (courseId) loadExamData();
-  }, [courseId]);
+    if (courseId && user?.id) loadExamData();
+  }, [courseId, user]);
 
   const loadExamData = async () => {
     setScreen('loading');
     try {
-      // 1. Load course info
-      const courseRes = await courseService.getById(courseId);
+      // 1. Load course info + resolve access (same effective-access resolver every other
+      // content-start flow uses - includes LIVE group-granted access).
+      const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
+      const [courseRes, { isEnrolled }] = await Promise.all([
+        courseService.getById(courseId),
+        resolveCourseAccess({ userId: user.id, courseId, userPlan: user?.plan_type, isTutorUser })
+      ]);
       if (!courseRes.data) throw new Error('Course not found');
+
+      if (!isEnrolled && !courseRes.data?.is_demo && !courseRes.data?.is_free) {
+        setLoadError('You do not have access to this test. Please contact your tutor or check your enrollment.');
+        return;
+      }
+
       setCourseInfo(courseRes.data);
 
       console.log('🎯 [ACT-EXAM] Loading ACT Full-Length questions for course:', courseId);

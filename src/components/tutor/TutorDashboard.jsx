@@ -163,9 +163,9 @@ const TutorDashboard = () => {
                         animate={{ x: 0 }}
                         exit={{ x: -300 }}
                         transition={{ type: "spring", stiffness: 100 }}
-                        className="fixed lg:sticky top-0 left-0 h-screen w-72 shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-[9999] overflow-y-auto"
+                        className="fixed lg:sticky top-0 left-0 h-screen w-72 shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-[9999] flex flex-col overflow-hidden"
                     >
-                        <div className="p-6">
+                        <div className="p-6 pb-0 shrink-0">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
@@ -215,26 +215,28 @@ const TutorDashboard = () => {
                                     </div>
                                 )}
                             </div>
+                        </div>
 
-                            <nav className="space-y-1">
-                                {menuItems.map((item) => (
-                                    <Link
-                                        key={item.path}
-                                        to={item.path}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActivePath(item.path, item.exact)
-                                            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200 dark:shadow-none'
-                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                            }`}
-                                    >
-                                        <SafeIcon icon={item.icon} className="w-5 h-5" />
-                                        <span className="font-medium">{item.label}</span>
-                                    </Link>
-                                ))}
-                            </nav>
+                        <nav className="flex-1 overflow-y-auto px-6 space-y-1">
+                            {menuItems.map((item) => (
+                                <Link
+                                    key={item.path}
+                                    to={item.path}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActivePath(item.path, item.exact)
+                                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200 dark:shadow-none'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                        }`}
+                                >
+                                    <SafeIcon icon={item.icon} className="w-5 h-5" />
+                                    <span className="font-medium">{item.label}</span>
+                                </Link>
+                            ))}
+                        </nav>
 
+                        <div className="p-6 pt-6 shrink-0">
                             <button
                                 onClick={handleLogout}
-                                className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
                             >
                                 <SafeIcon icon={FiLogOut} className="w-5 h-5" />
                                 <span className="font-medium">Logout</span>

@@ -500,6 +500,22 @@ const Signup = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // The email field stays editable even after an OTP was sent (or verified) - editing it
+  // means the OTP that was sent (or the verification already granted) was for the old
+  // address, so it must no longer count for signup until a fresh OTP is sent and verified
+  // for the new one.
+  const handleEmailChange = (e) => {
+    const newEmail = e.target.value;
+    setFormData(prev => ({ ...prev, email: newEmail }));
+    if (studentEmailOtpSent || studentEmailOtpVerified) {
+      setStudentEmailOtpSent(false);
+      setStudentEmailOtpVerified(false);
+      setStudentEmailOtp('');
+      setStudentEmailOtpError('');
+      setStudentEmailDebugOtp('');
+    }
+  };
+
   const renderTermsModal = () => {
     if (!showTermsModal) return null;
     return (
@@ -788,11 +804,10 @@ const Signup = () => {
                   name="email"
                   type="email"
                   required
-                  disabled={studentEmailOtpVerified || studentEmailOtpSent}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-60"
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder={formData.role === 'student' ? "student@example.com" : "you@example.com"}
                   value={formData.email}
-                  onChange={handleChange}
+                  onChange={handleEmailChange}
                   onFocus={handleInteraction}
                 />
               </div>

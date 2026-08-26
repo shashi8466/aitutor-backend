@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { courseService, uploadService } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { resolveCourseAccess } from '../../utils/contentAccess';
 
 const { 
   FiClock, FiBookOpen, FiPlay, FiArrowLeft, FiInfo, FiCheckCircle, 
@@ -13,16 +15,31 @@ const {
 const AdaptivePreTest = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
-    loadCourseData();
-  }, [courseId]);
+    if (user?.id && courseId) loadCourseData();
+  }, [courseId, user]);
 
   const loadCourseData = async () => {
     try {
-      const { data } = await courseService.getById(courseId);
+      const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
+      // Same effective-access resolver every other content-start flow uses - includes LIVE
+      // group-granted access so a Full-Length Test added to a group is accessible immediately.
+      const [{ data }, { isEnrolled }] = await Promise.all([
+        courseService.getById(courseId),
+        resolveCourseAccess({ userId: user.id, courseId, userPlan: user?.plan_type, isTutorUser })
+      ]);
+
+      if (!isEnrolled && !data?.is_demo && !data?.is_free) {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
+
       setCourse(data);
     } catch (error) {
       console.error(error);
@@ -39,6 +56,8 @@ const AdaptivePreTest = () => {
       </div>
     </div>
   );
+
+  if (accessDenied) return <div className="p-8 text-center">Access Denied</div>;
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] pb-24">

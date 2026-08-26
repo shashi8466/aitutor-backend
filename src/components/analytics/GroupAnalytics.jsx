@@ -5,6 +5,7 @@ import CourseLevelView from './CourseLevelView';
 import DomainLevelView from './DomainLevelView';
 import TopicLevelView from './TopicLevelView';
 import AttemptLevelView from './AttemptLevelView';
+import TopicCombinedReportView from './TopicCombinedReportView';
 import AnalyticsBreadcrumb from './AnalyticsBreadcrumb';
 
 /**
@@ -26,6 +27,9 @@ const GroupAnalytics = ({ groupId, groupName, adminMode = false, onBack }) => {
     const [selectedDomain, setSelectedDomain] = useState(null);
     const [selectedTopic, setSelectedTopic] = useState(null);
     const [selectedAttemptId, setSelectedAttemptId] = useState(null);
+    // Set from the Student Report's "Completed Tests" table - opens a topic's combined
+    // (Easy+Medium+Hard) report directly, bypassing the Course/Domain/Topic drill-down.
+    const [selectedTopicReportCourseId, setSelectedTopicReportCourseId] = useState(null);
 
     // Build breadcrumb path
     const buildPath = () => {
@@ -35,6 +39,7 @@ const GroupAnalytics = ({ groupId, groupName, adminMode = false, onBack }) => {
         if (selectedDomain) path.push({ id: 'domain', level: 4, label: selectedDomain.name });
         if (selectedTopic) path.push({ id: 'topic', level: 5, label: selectedTopic.name });
         if (selectedAttemptId) path.push({ id: 'attempt', level: 6, label: `Attempt #${selectedAttemptId}` });
+        if (selectedTopicReportCourseId) path.push({ id: 'topic-report', level: 6, label: 'Combined Report' });
         return path;
     };
 
@@ -45,11 +50,13 @@ const GroupAnalytics = ({ groupId, groupName, adminMode = false, onBack }) => {
             setSelectedDomain(null);
             setSelectedTopic(null);
             setSelectedAttemptId(null);
+            setSelectedTopicReportCourseId(null);
         } else if (level === 2) {
             setSelectedCourseName(null);
             setSelectedDomain(null);
             setSelectedTopic(null);
             setSelectedAttemptId(null);
+            setSelectedTopicReportCourseId(null);
         } else if (level === 3) {
             setSelectedDomain(null);
             setSelectedTopic(null);
@@ -64,6 +71,18 @@ const GroupAnalytics = ({ groupId, groupName, adminMode = false, onBack }) => {
 
     // Render Logic based on deep-link state
     const renderView = () => {
+        if (selectedTopicReportCourseId) {
+            return (
+                <TopicCombinedReportView
+                    groupId={groupId}
+                    student={selectedStudent}
+                    courseId={selectedTopicReportCourseId}
+                    adminMode={adminMode}
+                    onBack={() => setSelectedTopicReportCourseId(null)}
+                />
+            );
+        }
+
         if (selectedAttemptId) {
             return (
                 <AttemptLevelView 
@@ -127,7 +146,7 @@ const GroupAnalytics = ({ groupId, groupName, adminMode = false, onBack }) => {
                     adminMode={adminMode}
                     onBack={() => setSelectedStudent(null)}
                     onCourseSelect={(courseName) => setSelectedCourseName(courseName)}
-                    onAttemptSelect={(attemptId) => setSelectedAttemptId(attemptId)}
+                    onTopicReportSelect={(courseId) => setSelectedTopicReportCourseId(courseId)}
                 />
             );
         }

@@ -108,7 +108,11 @@ const AttemptLevelView = ({ groupId, submissionId, adminMode, onBack }) => {
         explanation: q.explanation || q.solution || '',
         is_correct: q.isCorrect ?? q.is_correct ?? (q.studentAnswer === q.correctAnswer),
         isCorrect: q.isCorrect ?? q.is_correct ?? (q.studentAnswer === q.correctAnswer),
-        section: q.section || q.level || attempt.level || 'Medium',
+        // getAttemptQuestions() (analyticsService.js) returns each question's difficulty as
+        // `difficulty`, not `section`/`level` - checking only the latter two silently missed it
+        // and fell through to the 'Medium' default for every question, mislabeling e.g. an
+        // Easy-only attempt as a Medium-level one in the report.
+        section: q.section || q.level || q.difficulty || attempt.level || 'Medium',
         topic: q.topic || attempt.courseName || 'SAT Topic',
         time_taken: q.timeSpent || q.timeTaken || 0,
         timeTaken: q.timeSpent || q.timeTaken || 0

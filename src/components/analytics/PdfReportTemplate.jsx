@@ -514,6 +514,7 @@ export const PdfReportTemplate = React.forwardRef(({ type, data, groupName, stud
                                         <tr style={{ color: MUTED }}>
                                             <th style={{ padding: '8px 10px', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Test / Topic</th>
                                             <th style={{ padding: '8px 10px', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Date</th>
+                                            <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Status</th>
                                             <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Accuracy</th>
                                             <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Score</th>
                                             <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Time</th>
@@ -521,15 +522,18 @@ export const PdfReportTemplate = React.forwardRef(({ type, data, groupName, stud
                                     </thead>
                                     <tbody>
                                         {attempts.map((a, idx) => (
-                                            <tr key={a.submissionId || idx} style={{ borderTop: `1px solid ${BORDER}`, backgroundColor: idx % 2 === 0 ? '#0a0e24' : CARD_BG, pageBreakInside: 'avoid' }}>
+                                            <tr key={a.courseId || idx} style={{ borderTop: `1px solid ${BORDER}`, backgroundColor: idx % 2 === 0 ? '#0a0e24' : CARD_BG, pageBreakInside: 'avoid' }}>
                                                 <td style={{ padding: '8px 10px' }}>
                                                     <strong style={{ color: 'white' }}>{a.testName || a.topicName || 'Test'}</strong>
-                                                    {a.topicName && a.testName && <br/>}
-                                                    {a.topicName && a.testName && <span style={{ color: MUTED, fontSize: '9px' }}>{a.topicName}</span>}
+                                                    {a.courseName && a.testName && <br/>}
+                                                    {a.courseName && a.testName && <span style={{ color: MUTED, fontSize: '9px' }}>{a.courseName}</span>}
                                                 </td>
                                                 <td style={{ padding: '8px 10px', color: '#cbd5e1' }}>{fDate(a.date)}</td>
-                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: '#34d399', fontWeight: 'bold' }}>{a.accuracy}%</td>
-                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: '#fbbf24', fontWeight: 'bold' }}>{a.scaledScore} / 800</td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: a.isFullyCompleted ? '#34d399' : '#fbbf24', fontWeight: 'bold', fontSize: '9.5px' }}>
+                                                    {a.isFullyCompleted ? 'Completed' : `In Progress (${(a.activeLevels || []).length}/3)`}
+                                                </td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: '#34d399', fontWeight: 'bold' }}>{a.isFullyCompleted ? `${a.accuracy}%` : '--'}</td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: '#fbbf24', fontWeight: 'bold' }}>{a.isFullyCompleted ? `${a.scaledScore} / 800` : '--'}</td>
                                                 <td style={{ padding: '8px 10px', textAlign: 'center', color: '#cbd5e1' }}>{fmtTime(a.timeTaken)}</td>
                                             </tr>
                                         ))}

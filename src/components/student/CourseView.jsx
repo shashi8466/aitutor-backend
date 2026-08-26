@@ -7,6 +7,7 @@ import { courseService, uploadService, progressService, enrollmentService, planS
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getCategory, calculateSatScore } from '../../utils/scoreCalculator';
+import { resolveCourseAccess } from '../../utils/contentAccess';
 
 const { FiArrowLeft, FiLock, FiPlay, FiCheckCircle, FiShield, FiAward, FiTrendingUp, FiInfo, FiKey, FiAlertCircle, FiLoader, FiTarget } = FiIcons;
 
@@ -352,21 +353,13 @@ const CourseView = () => {
       // TUTOR BYPASS: Tutors can view all course content without enrollment
       const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
 
-      // 1. Fetch course details and check enrollment in parallel
-      const [courseRes, isEnrolledRes, planAccessRes, groupAccessRes] = await Promise.all([
+      // 1. Fetch course details and resolve access (enrollments + plan + LIVE group grant) in parallel
+      const [courseRes, accessResult] = await Promise.all([
         courseService.getById(courseId),
-        isTutorUser
-          ? Promise.resolve(true)
-          : enrollmentService.isEnrolled(user.id, parseInt(courseId)).catch(err => {
-              console.warn('Enrollment check failed:', err);
-              return false;
-            }),
-        planService.getContentAccess(user?.plan_type || 'free').catch(() => ({ data: [] })),
-        Promise.resolve(supabase.rpc('get_my_group_granted_course_ids')).catch(() => ({ data: [] }))
+        resolveCourseAccess({ userId: user.id, courseId, userPlan: user?.plan_type, isTutorUser })
       ]);
 
-      const groupIds = new Set(groupAccessRes?.data || []);
-      setGroupAccessIds(groupIds);
+      setGroupAccessIds(accessResult.groupAccessIds);
 
       const courseData = courseRes.data;
       setCourse(courseData);
@@ -382,37 +375,9 @@ const CourseView = () => {
         return;
       }
 
-      const accessData = planAccessRes.data || [];
-      setPlanAccess(accessData);
+      setPlanAccess(accessResult.planAccess);
 
-      const userPlan = (user?.plan_type || 'free').toLowerCase();
-      let hasTopicAccess = false;
-      
-      if (userPlan !== 'premium') {
-        const assignedTopics = accessData
-          .filter(a => a.content_type === 'topic' && a.plan_type === 'free')
-          .map(a => a.content_id);
-
-        if (assignedTopics.length > 0) {
-          try {
-            const { data: topicMaps } = await supabase
-              .from('questions')
-              .select('course_id')
-              .in('topic', assignedTopics)
-              .eq('course_id', parseInt(courseId)); // Optimize by just checking this course
-            
-            if (topicMaps && topicMaps.length > 0) {
-              hasTopicAccess = true;
-            }
-          } catch (e) { console.warn("Topic check failed"); }
-        }
-      }
-
-      const hasDirectAccess = accessData.some(a => a.content_type === 'course' && String(a.content_id) === String(courseId) && a.plan_type === userPlan);
-      const isPremiumUser = userPlan === 'premium';
-      const hasGroupAccess = groupIds.has(parseInt(courseId, 10));
-
-      let isEnrolled = isEnrolledRes || hasDirectAccess || hasTopicAccess || isPremiumUser || hasGroupAccess;
+      let isEnrolled = accessResult.isEnrolled;
 
       if (!isEnrolled && courseData?.is_demo) isEnrolled = true;
 

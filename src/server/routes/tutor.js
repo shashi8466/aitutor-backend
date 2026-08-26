@@ -7,6 +7,7 @@ import express from 'express';
 import crypto from 'crypto';
 import supabase from '../../supabase/supabaseAdmin.js';
 import { analyticsService } from '../services/analyticsService.js';
+import { isCoTutorOf, getCoTutorGroupIds } from '../utils/groupTutors.js';
 
 const router = express.Router();
 
@@ -486,14 +487,19 @@ router.get('/groups', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
+        const coTutorGroupIds = await getCoTutorGroupIds(supabase, userId);
+
         let query = supabase
             .from('student_groups')
             .select(`
                 *,
                 course:courses(id, name),
                 member_count:group_members(count)
-            `)
-            .eq('created_by', userId);
+            `);
+
+        query = coTutorGroupIds.length > 0
+            ? query.or(`created_by.eq.${userId},id.in.(${coTutorGroupIds.join(',')})`)
+            : query.eq('created_by', userId);
 
         if (courseId) {
             query = query.eq('course_id', courseId);
@@ -520,7 +526,8 @@ router.get('/groups', async (req, res) => {
             return {
                 ...g,
                 member_count: Number(count),
-                invite_token: g.invite_token || g.assigned_content?.invite_token
+                invite_token: g.invite_token || g.assigned_content?.invite_token,
+                isOwner: g.created_by === userId
             };
         });
 
@@ -623,7 +630,7 @@ router.put('/groups/:groupId', async (req, res) => {
             return res.status(404).json({ error: 'Group not found' });
         }
 
-        if (!isAdmin && group.created_by !== userId) {
+        if (!isAdmin && group.created_by !== userId && !(await isCoTutorOf(supabase, groupId, userId))) {
             return res.status(403).json({ error: 'Not authorized to edit this group' });
         }
 
@@ -709,7 +716,7 @@ router.post('/groups/:groupId/members', async (req, res) => {
         const isAdmin = profile?.role === 'admin';
         const isCreator = group.created_by === userId;
 
-        if (!isAdmin && !isCreator) {
+        if (!isAdmin && !isCreator && !(await isCoTutorOf(supabase, groupId, userId))) {
             return res.status(403).json({ error: 'Not authorized for this group' });
         }
 
@@ -748,12 +755,25 @@ router.get('/groups/:groupId/available-students', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        const { data: group } = await supabase.from('student_groups').select('created_by').eq('id', groupId).single();
+
+        if (!group) {
+            return res.status(404).json({ error: 'Group not found' });
+        }
+
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group.created_by === userId;
+        if (!isAdmin && !isOwner && !(await isCoTutorOf(supabase, groupId, userId))) {
+            return res.status(403).json({ error: 'Not authorized for this group' });
+        }
+
         // 1. Get IDs of students already in this group
         const { data: members } = await supabase
             .from('group_members')
             .select('student_id')
             .eq('group_id', groupId);
-        
+
         const assignedStudentIds = members?.map(m => m.student_id) || [];
 
         // 2. Get all student profiles
@@ -803,8 +823,9 @@ router.delete('/groups/:groupId/members/:studentId', async (req, res) => {
 
         const isAdmin = profile?.role === 'admin';
         const isOwner = group?.created_by === userId;
+        const isCoTutor = !isAdmin && !isOwner && !!group && await isCoTutorOf(supabase, groupId, userId);
 
-        if (!group || (!isAdmin && !isOwner)) {
+        if (!group || (!isAdmin && !isOwner && !isCoTutor)) {
             return res.status(403).json({ error: 'Not authorized for this group' });
         }
 
@@ -840,11 +861,22 @@ router.delete('/groups/:groupId', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        const { data: group } = await supabase.from('student_groups').select('created_by').eq('id', groupId).single();
+
+        if (!group) {
+            return res.status(404).json({ error: 'Group not found' });
+        }
+
+        const isAdmin = profile?.role === 'admin';
+        if (!isAdmin && group.created_by !== userId) {
+            return res.status(403).json({ error: 'Only the group owner or an admin can delete this group' });
+        }
+
         const { error } = await supabase
             .from('student_groups')
             .delete()
-            .eq('id', groupId)
-            .eq('created_by', userId);
+            .eq('id', groupId);
 
         if (error) {
             console.error('Error deleting group:', error);
@@ -888,8 +920,9 @@ router.post('/groups/:groupId/invite-token', async (req, res) => {
 
         const isAdmin = profile?.role === 'admin';
         const isOwner = group?.created_by === userId;
+        const isCoTutor = !isAdmin && !isOwner && !!group && await isCoTutorOf(supabase, groupId, userId);
 
-        if (!group || (!isAdmin && !isOwner)) {
+        if (!group || (!isAdmin && !isOwner && !isCoTutor)) {
             return res.status(403).json({ error: 'Not authorized for this group' });
         }
 
@@ -956,10 +989,11 @@ router.get('/groups/:groupId/members', async (req, res) => {
 
         const isAdmin = profile?.role === 'admin';
         const isOwner = group.created_by === userId;
+        const isCoTutor = !isAdmin && !isOwner && await isCoTutorOf(supabase, groupId, userId);
 
-        console.log(`🔐 [AUTH] Group Access - User: ${userId}, Role: ${profile?.role}, Group Owner: ${group.created_by}, isAdmin: ${isAdmin}, isOwner: ${isOwner}`);
+        console.log(`🔐 [AUTH] Group Access - User: ${userId}, Role: ${profile?.role}, Group Owner: ${group.created_by}, isAdmin: ${isAdmin}, isOwner: ${isOwner}, isCoTutor: ${isCoTutor}`);
 
-        if (!isAdmin && !isOwner) {
+        if (!isAdmin && !isOwner && !isCoTutor) {
             console.warn(`🚫 [AUTH] Access Denied - User ${userId} (${profile?.role}) tried to access group ${groupId} owned by ${group.created_by}`);
             return res.status(403).json({ error: 'Not authorized for this group' });
         }
@@ -1124,7 +1158,10 @@ const verifyTutorAccess = async (req, res, next) => {
         ]);
 
         if (profile?.role === 'admin') return next();
-        if (!group || group.created_by !== userId) return res.status(403).json({ error: 'Forbidden' });
+        if (!group) return res.status(403).json({ error: 'Forbidden' });
+        if (group.created_by !== userId && !(await isCoTutorOf(supabase, req.params.groupId, userId))) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
 
         next();
     } catch (err) {
@@ -1216,13 +1253,19 @@ router.get('/groups/compare', async (req, res) => {
         }
 
         const groupIdArray = groupIds.split(',').map(id => parseInt(id));
+        const coTutorGroupIds = await getCoTutorGroupIds(supabase, userId);
 
-        // Verify all groups belong to the tutor
-        const { data: groups } = await supabase
+        // Verify each group is owned by, or co-tutored by, the requesting tutor
+        let groupsQuery = supabase
             .from('student_groups')
             .select('id, name, assigned_course_ids')
-            .in('id', groupIdArray)
-            .eq('created_by', userId);
+            .in('id', groupIdArray);
+
+        groupsQuery = coTutorGroupIds.length > 0
+            ? groupsQuery.or(`created_by.eq.${userId},id.in.(${coTutorGroupIds.join(',')})`)
+            : groupsQuery.eq('created_by', userId);
+
+        const { data: groups } = await groupsQuery;
 
         if (!groups || groups.length === 0) {
             return res.status(404).json({ error: 'No groups found' });
@@ -1268,6 +1311,153 @@ router.get('/groups/compare', async (req, res) => {
 
     } catch (error) {
         console.error('Compare groups error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/tutor/groups/:groupId/tutors
+ * List the owner and co-tutors of a group (owner, co-tutor, or admin only)
+ */
+router.get('/groups/:groupId/tutors', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        const { data: group } = await supabase
+            .from('student_groups')
+            .select('id, created_by, owner:profiles!created_by(id, name, email)')
+            .eq('id', groupId)
+            .single();
+
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group.created_by === userId;
+        const isCoTutor = !isAdmin && !isOwner && await isCoTutorOf(supabase, groupId, userId);
+
+        if (!isAdmin && !isOwner && !isCoTutor) {
+            return res.status(403).json({ error: 'Not authorized for this group' });
+        }
+
+        const { data: coTutorRows, error } = await supabase
+            .from('group_tutors')
+            .select('id, tutor_id, created_at, tutor:profiles!tutor_id(id, name, email)')
+            .eq('group_id', groupId);
+
+        if (error) {
+            console.error('Error fetching co-tutors:', error);
+            return res.status(500).json({ error: 'Failed to fetch co-tutors' });
+        }
+
+        res.json({
+            owner: group.owner,
+            coTutors: (coTutorRows || []).map(r => ({
+                id: r.tutor_id,
+                name: r.tutor?.name,
+                email: r.tutor?.email,
+                added_at: r.created_at
+            }))
+        });
+    } catch (error) {
+        console.error('Get group tutors error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * POST /api/tutor/groups/:groupId/tutors
+ * Add a co-tutor to a group by email (owner or admin only, NOT co-tutor)
+ */
+router.post('/groups/:groupId/tutors', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        const { email } = req.body;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!email) return res.status(400).json({ error: 'Tutor email is required' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        const { data: group } = await supabase.from('student_groups').select('id, created_by').eq('id', groupId).single();
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group.created_by === userId;
+        if (!isAdmin && !isOwner) {
+            return res.status(403).json({ error: 'Only the group owner or an admin can add co-tutors' });
+        }
+
+        const { data: targetTutor } = await supabase
+            .from('profiles')
+            .select('id, name, email, role')
+            .ilike('email', email.trim())
+            .maybeSingle();
+
+        if (!targetTutor) {
+            return res.status(404).json({ error: 'No user found with that email' });
+        }
+        if (targetTutor.role !== 'tutor') {
+            return res.status(400).json({ error: 'Only tutor accounts can be added as co-tutors' });
+        }
+        if (targetTutor.id === group.created_by) {
+            return res.status(400).json({ error: 'This tutor already owns the group' });
+        }
+
+        const { error } = await supabase
+            .from('group_tutors')
+            .insert({ group_id: groupId, tutor_id: targetTutor.id, added_by: userId });
+
+        if (error) {
+            if (error.code === '23505') {
+                return res.status(409).json({ error: 'This tutor is already a co-tutor of this group' });
+            }
+            console.error('Error adding co-tutor:', error);
+            return res.status(500).json({ error: 'Failed to add co-tutor' });
+        }
+
+        res.json({ success: true, coTutor: { id: targetTutor.id, name: targetTutor.name, email: targetTutor.email } });
+    } catch (error) {
+        console.error('Add co-tutor error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * DELETE /api/tutor/groups/:groupId/tutors/:tutorId
+ * Remove a co-tutor from a group (owner or admin only, NOT co-tutor)
+ */
+router.delete('/groups/:groupId/tutors/:tutorId', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId, tutorId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        const { data: group } = await supabase.from('student_groups').select('id, created_by').eq('id', groupId).single();
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group.created_by === userId;
+        if (!isAdmin && !isOwner) {
+            return res.status(403).json({ error: 'Only the group owner or an admin can remove co-tutors' });
+        }
+
+        const { error } = await supabase
+            .from('group_tutors')
+            .delete()
+            .eq('group_id', groupId)
+            .eq('tutor_id', tutorId);
+
+        if (error) {
+            console.error('Error removing co-tutor:', error);
+            return res.status(500).json({ error: 'Failed to remove co-tutor' });
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Remove co-tutor error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

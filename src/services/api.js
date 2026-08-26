@@ -915,12 +915,14 @@ export const enrollmentService = {
   // that checks for enrollment key requirements
 
   isEnrolled: async (userId, courseId) => {
+    // maybeSingle, not single - no enrollment row is the normal case for a student whose
+    // access comes from a group/plan grant instead, not an error worth a 406 in the console.
     const { data } = await supabase
       .from('enrollments')
       .select('id')
       .eq('user_id', userId)
       .eq('course_id', courseId)
-      .single();
+      .maybeSingle();
     return !!data;
   },
 
@@ -1023,12 +1025,13 @@ export const progressService = {
 // --- PLAN SERVICE ---
 export const planService = {
   savePlan: async (userId, diagnosticData, generatedPlan) => {
-    // Check if plan exists
+    // Check if plan exists - maybeSingle, not single: no row yet is the normal case for a
+    // student who hasn't generated a plan, not an error.
     const { data: existing } = await supabase
       .from('student_plans')
       .select('id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     const payload = {
       user_id: userId,
@@ -1046,7 +1049,7 @@ export const planService = {
   },
   getPlan: async (userId) => {
     try {
-      const { data, error } = await supabase.from('student_plans').select('*').eq('user_id', userId).single();
+      const { data, error } = await supabase.from('student_plans').select('*').eq('user_id', userId).maybeSingle();
       return { data: data || null };
     } catch {
       return { data: null };
@@ -1388,6 +1391,17 @@ export const tutorService = {
   generateGroupInviteToken: async (groupId) => {
     return axios.post(`/api/tutor/groups/${groupId}/invite-token`);
   },
+  getCoTutors: async (groupId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/tutors`);
+  },
+  addCoTutor: async (groupId, email) => {
+    clearTutorCache();
+    return axios.post(`/api/tutor/groups/${groupId}/tutors`, { email });
+  },
+  removeCoTutor: async (groupId, tutorId) => {
+    clearTutorCache();
+    return axios.delete(`/api/tutor/groups/${groupId}/tutors/${tutorId}`);
+  },
   // New analytics endpoints
   getGroupMembers: async (groupId) => {
     return cachedTutorGet(`groupMembers_${groupId}`, `/api/tutor/groups/${groupId}/members`);
@@ -1580,6 +1594,15 @@ export const adminService = {
   },
   generateGroupInviteToken: async (groupId) => {
     return axios.post(`/api/admin/groups/${groupId}/invite-token`);
+  },
+  getCoTutors: async (groupId) => {
+    return axios.get(`/api/admin/groups/${groupId}/tutors`);
+  },
+  addCoTutor: async (groupId, email) => {
+    return axios.post(`/api/admin/groups/${groupId}/tutors`, { email });
+  },
+  removeCoTutor: async (groupId, tutorId) => {
+    return axios.delete(`/api/admin/groups/${groupId}/tutors/${tutorId}`);
   },
   deleteGroup: async (groupId) => {
     return axios.delete(`/api/admin/groups/${groupId}`);

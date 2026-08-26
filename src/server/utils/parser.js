@@ -775,7 +775,12 @@ const parseTextToQuestions = (text) => {
 
       if (!currentQuestion) continue;
 
-      const answerMatch = line.match(/^(Answer|Ans|Correct Answer|Correct|Correct Option)[\s:.-]*\s*(.*)/i);
+      // [\s:.]* eats label punctuation ("Answer:", "Answer -" as a separator with a
+      // trailing space); the hyphen is only treated as a separator via (?:-(?=\s))? - i.e.
+      // ONLY when followed by whitespace - so a hyphen glued to a digit ("Answer: -3") is
+      // left untouched for the capture group instead of being swallowed as punctuation and
+      // silently turning the answer positive.
+      const answerMatch = line.match(/^(Answer|Ans|Correct Answer|Correct|Correct Option)[\s:.]*(?:-(?=\s))?\s*(.*)/i);
       const explanationMatch = line.match(/^(Explanation|Sol|Solution|Reason|Note|Hint)[\s:.-]*\s*(.*)/i);
       const choiceExpMatch = line.match(/^(Choice\s+[A-E]\s+is\s+correct|Choice\s+[A-E]\s+is\s+incorrect)/i);
 

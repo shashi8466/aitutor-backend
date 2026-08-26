@@ -77,12 +77,20 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
       const rows = match.trim().split('\n');
       const htmlRows = rows.map((row, index) => {
         const cells = row.replace(/^\||\|$/g, '').split('|');
-        const cellTag = index === 0 ? 'th' : 'td';
+        const isHeader = index === 0;
+        const cellTag = isHeader ? 'th' : 'td';
         if (row.includes('---')) return '';
-        const htmlCells = cells.map(c => `<${cellTag}>${c.trim()}</${cellTag}>`).join('');
+        // Explicit border/background/text colors on every cell (not just the outer table) so
+        // the grid, header row, and text stay visible regardless of the surrounding question/
+        // option/explanation container's own theme - a parent with a dark or tinted background
+        // previously made the table (which had no cell borders or fills of its own) disappear.
+        const cellClass = isHeader
+          ? 'border border-gray-400 bg-gray-100 text-gray-900 px-3 py-2 text-left font-bold whitespace-nowrap'
+          : 'border border-gray-400 bg-white text-gray-900 px-3 py-2 text-left';
+        const htmlCells = cells.map(c => `<${cellTag} class="${cellClass}">${c.trim()}</${cellTag}>`).join('');
         return `<tr>${htmlCells}</tr>`;
       }).join('');
-      return `<table class="min-w-full border-collapse border border-gray-300 my-4 text-sm">${htmlRows}</table>`;
+      return `<div class="overflow-x-auto my-4"><table class="border-collapse border border-gray-400 text-sm bg-white">${htmlRows}</table></div>`;
     });
 
     // Handle line breaks before math wrapping. A blank line in the source (double+ newline)

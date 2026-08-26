@@ -7,6 +7,7 @@ import { enrollmentService, planService, courseService, uploadService } from '..
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import EnrollmentKeyInput from './EnrollmentKeyInput';
+import { getGroupGrantedCourseIds } from '../../utils/contentAccess';
 
 const { FiActivity, FiClock, FiPlay, FiBookOpen, FiArrowRight } = FiIcons;
 
@@ -42,12 +43,13 @@ const PracticeTests = () => {
 
     const loadPracticeTests = async () => {
         try {
-            // 0. Fetch Plan Settings and Access
-            const [settingsRes, accessRes] = await Promise.all([
+            // 0. Fetch Plan Settings, plan-based Access, and LIVE group-granted course IDs
+            const [settingsRes, accessRes, groupAccessIds] = await Promise.all([
                 planService.getSettings(),
-                planService.getContentAccess()
+                planService.getContentAccess(),
+                getGroupGrantedCourseIds()
             ]);
-            
+
             const currentSettings = (settingsRes.data || []).find(s => s.plan_type === userPlan);
             setPlanSettings(currentSettings);
             const currentAccess = (accessRes.data || []);
@@ -61,13 +63,17 @@ const PracticeTests = () => {
             const enrollments = enrollmentsRes || [];
             const enrolledIds = enrollments.map(e => e.course_id);
 
-            // 3. Filter into Enrolled and Available
-            const allowedPracticeCourses = (allPracticeCourses || []).filter(c => 
-                currentAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan)
+            // 3. Filter into Enrolled and Available. A course granted purely through a group's
+            // (possibly recently-updated) assigned_course_ids has no plan_content_access row -
+            // groupAccessIds is checked live here so it isn't invisible until the enrollments
+            // snapshot happens to catch up.
+            const allowedPracticeCourses = (allPracticeCourses || []).filter(c =>
+                currentAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(c.id) && a.plan_type === userPlan) ||
+                groupAccessIds.has(c.id)
             );
 
-            const enrolledPractice = allowedPracticeCourses.filter(c => enrolledIds.includes(c.id));
-            const notEnrolledPractice = allowedPracticeCourses.filter(c => !enrolledIds.includes(c.id));
+            const enrolledPractice = allowedPracticeCourses.filter(c => enrolledIds.includes(c.id) || groupAccessIds.has(c.id));
+            const notEnrolledPractice = allowedPracticeCourses.filter(c => !enrolledIds.includes(c.id) && !groupAccessIds.has(c.id));
 
             setAvailableCourses(notEnrolledPractice);
 
@@ -87,7 +93,8 @@ const PracticeTests = () => {
                     .filter(test => {
                         const hasDirectAccess = currentAccess.some(a => a.content_type === 'test' && String(a.content_id) === String(test.id) && a.plan_type === userPlan);
                         const hasCourseAccess = currentAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(test.course_id) && a.plan_type === userPlan);
-                        return hasDirectAccess || hasCourseAccess;
+                        const hasGroupAccess = groupAccessIds.has(Number(test.course_id));
+                        return hasDirectAccess || hasCourseAccess || hasGroupAccess;
                     })
                     .map(test => {
                         const fullCourse = (allPracticeCourses || []).find(c => String(c.id) === String(test.course_id));

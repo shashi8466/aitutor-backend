@@ -112,7 +112,17 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
             const unanswered = qs.filter(q => q.studentAnswer === 'Not recorded' || q.studentAnswer === 'Unattempted').length || levelBackendObj.unanswered || 0;
             const accuracy = totalQ > 0 ? Math.round((correct / totalQ) * 100) : (levelBackendObj.score || 0);
             const rawScoreText = `${correct} / ${totalQ}`;
-            const scaledScore = levelBackendObj.scaledScore || (totalQ > 0 ? Math.round(200 + (accuracy / 100) * 600) : 200);
+            // A single-attempt report (e.g. one topic quiz, no true multi-level combine) has no
+            // per-level backend data (`levelBackendObj` is {}), so this used to always fall back
+            // to a crude percent->200-800 approximation - silently ignoring the actual saved
+            // scaled_score for that attempt. When this level's questions ARE the entire report
+            // (not one of several genuine level buckets), use the canonical saved score instead.
+            const canonicalScaledScore = sourceData.scaled_score ?? sourceData.scaledScore;
+            const isSingleAttemptReport = qs.length > 0 && qs.length === allResponses.length;
+            const scaledScore = levelBackendObj.scaledScore
+                || (isSingleAttemptReport && canonicalScaledScore != null
+                    ? canonicalScaledScore
+                    : (totalQ > 0 ? Math.round(200 + (accuracy / 100) * 600) : 200));
             const timeSpent = qs.reduce((sum, q) => sum + q.timeTaken, 0) || levelBackendObj.timeSpent || 0;
             const passStatus = accuracy >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT';
 
@@ -146,8 +156,12 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
         const overallAccuracy = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
         const incorrectPercentage = totalQuestions > 0 ? Math.round((totalIncorrectCombined / totalQuestions) * 100) : 0;
         
-        // SAT Scaled Score (200 - 800 Scale)
-        const overallScaledScore = sourceData.overall?.scaledScore || (totalQuestions > 0 ? Math.round(200 + (totalCorrect / totalQuestions) * 600) : 200);
+        // SAT Scaled Score (200 - 800 Scale). Same canonical-first rule as calculateLevel above:
+        // prefer the actual saved score for this attempt over a recomputed approximation. Only
+        // relevant for a single-attempt view - a genuine multi-level topicReportData already
+        // carries its own correctly-computed sourceData.overall.scaledScore (or null while
+        // incomplete, which correctly falls through here too).
+        const overallScaledScore = sourceData.overall?.scaledScore || (sourceData.scaled_score ?? sourceData.scaledScore) || (totalQuestions > 0 ? Math.round(200 + (totalCorrect / totalQuestions) * 600) : 200);
         const displayScoreText = `${overallScaledScore} / 800`;
 
         const totalTime = (easyLevel.timeSpent + mediumLevel.timeSpent + hardLevel.timeSpent) || sourceData.overall?.totalTime || 0;

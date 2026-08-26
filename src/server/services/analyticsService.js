@@ -427,22 +427,45 @@ export const analyticsService = {
             },
             trend,
             assignedContent,
-            completedAttempts: (submissions || []).map((sub, idx) => ({
-                submissionId: sub.id,
-                testName: sub.course?.name || `Attempt #${idx + 1}`,
-                courseName: sub.course?.category || 'SAT',
-                topicName: sub.course?.name || 'General',
-                date: sub.created_at,
-                score: Math.round(sub.raw_score_percentage || 0),
-                scaledScore: sub.scaled_score || 500,
-                accuracy: sub.total_questions > 0 ? Math.round(((sub.correct_questions?.length || 0) / sub.total_questions) * 100) : 0,
-                correct: sub.correct_questions?.length || 0,
-                incorrect: sub.incorrect_questions?.length || 0,
-                unanswered: Math.max(0, (sub.total_questions || 0) - ((sub.correct_questions?.length || 0) + (sub.incorrect_questions?.length || 0))),
-                timeTaken: sub.test_duration_seconds || 0,
-                status: 'Completed'
-            }))
+            // Easy/Medium/Hard are separate test_submissions rows for the same course_id - the
+            // Group Student Report must show ONE row per topic (not one per difficulty level),
+            // using the SAME combined-report data already shown in Test Review, not a fresh
+            // calculation. getTopicCombinedReport is the canonical source for that; reuse it here
+            // per-topic instead of re-deriving score/accuracy from the raw submissions.
+            completedAttempts: await this._getCompletedTopicSummaries(groupId, studentId, submissions || [])
         };
+    },
+
+    async _getCompletedTopicSummaries(groupId, studentId, submissions) {
+        const courseIds = [...new Set(submissions.map(s => s.course_id).filter(Boolean))];
+
+        const topicReports = await Promise.all(courseIds.map(async (courseId) => {
+            try {
+                const tr = await this.getTopicCombinedReport(groupId, studentId, courseId);
+                return { ...tr, courseId };
+            } catch (err) {
+                console.error(`Failed to build combined report for course ${courseId}`, err);
+                return null;
+            }
+        }));
+
+        return topicReports
+            .filter(Boolean)
+            .map(tr => ({
+                courseId: tr.courseId,
+                testName: tr.topicName,
+                courseName: tr.courseName,
+                topicName: tr.topicName,
+                date: tr.date,
+                accuracy: tr.overall.accuracy,
+                scaledScore: tr.overall.scaledScore,
+                timeTaken: tr.overall.totalTime,
+                isFullyCompleted: tr.isFullyCompleted,
+                activeLevels: tr.activeLevels,
+                missingLevels: tr.missingLevels,
+                status: tr.isFullyCompleted ? 'Completed' : 'In Progress'
+            }))
+            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     },
 
     /**
@@ -936,7 +959,7 @@ export const analyticsService = {
         const [subRes, questions] = await Promise.all([
             supabase
                 .from('test_submissions')
-                .select('id, user_id, course_id, raw_score_percentage, scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, metadata, weak_topics, strong_topics, math_scaled_score, reading_scaled_score, course:courses(name, category, tutor_type, is_adaptive, main_category)')
+                .select('id, user_id, course_id, level, raw_score_percentage, scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, metadata, weak_topics, strong_topics, math_scaled_score, reading_scaled_score, course:courses(name, category, tutor_type, is_adaptive, main_category)')
                 .eq('id', submissionId)
                 .single(),
             this.getAttemptQuestions(submissionId)
@@ -1013,6 +1036,7 @@ export const analyticsService = {
                 date: sub.created_at,
                 courseName: sub.course?.name || 'Unknown',
                 category: sub.course?.category || 'Unknown',
+                level: sub.level,
                 score: Math.round(sub.raw_score_percentage || 0),
                 scaledScore: sub.scaled_score,
                 mathScaled: sub.math_scaled_score,

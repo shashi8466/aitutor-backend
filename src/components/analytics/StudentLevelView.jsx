@@ -7,7 +7,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const { FiArrowLeft, FiAward, FiBookOpen, FiClock, FiTarget, FiChevronRight, FiTrendingUp } = FiIcons;
 
-const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect, onAttemptSelect }) => {
+const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect, onTopicReportSelect }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -330,6 +330,7 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
                                 <tr>
                                     <th className="p-4">Test / Topic</th>
                                     <th className="p-4">Date</th>
+                                    <th className="p-4 text-center">Status</th>
                                     <th className="p-4 text-center">Accuracy</th>
                                     <th className="p-4 text-center">Score</th>
                                     <th className="p-4 text-center">Time</th>
@@ -339,29 +340,44 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
                             <tbody className="divide-y divide-slate-800">
                                 {[...data.completedAttempts]
                                     .sort((a, b) => new Date(b.date) - new Date(a.date))
-                                    .map((attempt) => (
-                                    <tr key={attempt.submissionId} className="hover:bg-blue-600/10">
+                                    .map((topic) => (
+                                    <tr key={topic.courseId} className="hover:bg-blue-600/10">
                                         <td className="p-4">
-                                            <p className="font-black text-white text-sm">{attempt.testName}</p>
-                                            <p className="text-[11px] text-slate-400">{attempt.topicName}</p>
+                                            <p className="font-black text-white text-sm">{topic.testName}</p>
+                                            <p className="text-[11px] text-slate-400">{topic.courseName}</p>
                                         </td>
                                         <td className="p-4 text-slate-300 font-normal">
-                                            {new Date(attempt.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            {topic.date ? new Date(topic.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'}
                                         </td>
                                         <td className="p-4 text-center">
-                                            <span className="px-2.5 py-1 rounded-full font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
-                                                {attempt.accuracy}%
-                                            </span>
+                                            {topic.isFullyCompleted ? (
+                                                <span className="px-2.5 py-1 rounded-full font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                                                    Completed
+                                                </span>
+                                            ) : (
+                                                <span className="px-2.5 py-1 rounded-full font-black text-amber-400 bg-amber-500/10 border border-amber-500/20">
+                                                    In Progress ({(topic.activeLevels || []).length}/3)
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-4 text-center">
+                                            {topic.isFullyCompleted ? (
+                                                <span className="px-2.5 py-1 rounded-full font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                                                    {topic.accuracy}%
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-500 font-normal">--</span>
+                                            )}
                                         </td>
                                         <td className="p-4 text-center font-black text-amber-400">
-                                            {attempt.scaledScore} / 800
+                                            {topic.isFullyCompleted ? `${topic.scaledScore} / 800` : <span className="text-slate-500 font-normal">--</span>}
                                         </td>
                                         <td className="p-4 text-center text-slate-300 font-normal">
-                                            {Math.floor(attempt.timeTaken / 60)}m {attempt.timeTaken % 60}s
+                                            {Math.floor(topic.timeTaken / 60)}m {topic.timeTaken % 60}s
                                         </td>
                                         <td className="p-4 text-right">
-                                            <button 
-                                                onClick={() => onAttemptSelect(attempt.submissionId)}
+                                            <button
+                                                onClick={() => onTopicReportSelect(topic.courseId)}
                                                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 rounded-lg text-xs font-black transition-colors cursor-pointer"
                                             >
                                                 View Report <SafeIcon icon={FiChevronRight} />

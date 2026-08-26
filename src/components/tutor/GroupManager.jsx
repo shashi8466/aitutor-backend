@@ -50,8 +50,15 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [editAssignedCourseIds, setEditAssignedCourseIds] = useState([]);
     const [editGroupDescription, setEditGroupDescription] = useState('');
     const [editGroupStatus, setEditGroupStatus] = useState('active');
-    const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' or 'students'
+    const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' | 'students' | 'tutors'
     const [inviteLink, setInviteLink] = useState('');
+
+    // Co-Tutor management state
+    const [groupTutors, setGroupTutors] = useState({ owner: null, coTutors: [] });
+    const [loadingTutors, setLoadingTutors] = useState(false);
+    const [showAddCoTutorForm, setShowAddCoTutorForm] = useState(false);
+    const [newCoTutorEmail, setNewCoTutorEmail] = useState('');
+    const [addingCoTutor, setAddingCoTutor] = useState(false);
     useEffect(() => {
         if (dashboardData?.courses) {
             setCourses(dashboardData.courses);
@@ -162,6 +169,46 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         }
     };
 
+    const fetchGroupTutors = async (groupId) => {
+        setLoadingTutors(true);
+        try {
+            const res = await tutorService.getCoTutors(groupId);
+            setGroupTutors({ owner: res.data.owner, coTutors: res.data.coTutors || [] });
+        } catch (err) {
+            console.error('Error fetching group tutors:', err);
+        } finally {
+            setLoadingTutors(false);
+        }
+    };
+
+    const handleAddCoTutor = async () => {
+        if (!selectedGroup || !newCoTutorEmail.trim()) return;
+        setAddingCoTutor(true);
+        try {
+            await tutorService.addCoTutor(selectedGroup.id, newCoTutorEmail.trim());
+            setNewCoTutorEmail('');
+            setShowAddCoTutorForm(false);
+            await fetchGroupTutors(selectedGroup.id);
+        } catch (error) {
+            console.error('Error adding co-tutor:', error);
+            const errMsg = error.response?.data?.error || 'Failed to add co-tutor';
+            alert(errMsg);
+        } finally {
+            setAddingCoTutor(false);
+        }
+    };
+
+    const handleRemoveCoTutor = async (tutorId) => {
+        if (!selectedGroup || !window.confirm('Remove this co-tutor from the group?')) return;
+        try {
+            await tutorService.removeCoTutor(selectedGroup.id, tutorId);
+            await fetchGroupTutors(selectedGroup.id);
+        } catch (error) {
+            console.error('Error removing co-tutor:', error);
+            alert('Failed to remove co-tutor');
+        }
+    };
+
     const handleGenerateInviteLink = async () => {
         if (!selectedGroup) return;
         try {
@@ -194,6 +241,8 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         setActiveEditTab('settings');
         setSelectedStudentIds([]);
         setShowAddMemberModal(true);
+        setShowAddCoTutorForm(false);
+        setNewCoTutorEmail('');
         if (group.invite_token) {
             const baseUrl = window.location.origin;
             setInviteLink(`${baseUrl}/join-group/${group.invite_token}`);
@@ -201,6 +250,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
             setInviteLink('');
         }
         fetchGroupMembers(group.id);
+        fetchGroupTutors(group.id);
     };
 
     const handleUpdateGroup = async (e) => {
@@ -228,6 +278,8 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         setActiveEditTab('students');
         setSelectedStudentIds([]);
         setShowAddMemberModal(true);
+        setShowAddCoTutorForm(false);
+        setNewCoTutorEmail('');
         if (group.invite_token) {
             const baseUrl = window.location.origin;
             setInviteLink(`${baseUrl}/join-group/${group.invite_token}`);
@@ -235,6 +287,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
             setInviteLink('');
         }
         fetchGroupMembers(group.id);
+        fetchGroupTutors(group.id);
     };
 
     const handleRemoveMember = async (groupId, studentId) => {
@@ -249,6 +302,11 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     };
 
     const getStudentCount = (group) => (typeof group.member_count === 'object' ? (group.member_count.count || 0) : (group.member_count || 0));
+
+    // A co-tutor can manage everything about a group except owner-only actions
+    // (delete the group, add/remove co-tutors). `isOwner` comes from the API
+    // (GET /groups); fall back to comparing created_by client-side if missing.
+    const isGroupOwner = (group) => group?.isOwner ?? (group?.created_by === user?.id);
 
     const formatShortDate = (dateStr) => {
         if (!dateStr) return '—';
@@ -402,13 +460,15 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                             <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/30 rounded-xl flex items-center justify-center">
                                                 <SafeIcon icon={FiUsers} className="w-6 h-6 text-indigo-400" />
                                             </div>
-                                            <button
-                                                onClick={() => handleDeleteGroup(group.id)}
-                                                title="Delete group"
-                                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                                            >
-                                                <SafeIcon icon={FiTrash2} />
-                                            </button>
+                                            {isGroupOwner(group) && (
+                                                <button
+                                                    onClick={() => handleDeleteGroup(group.id)}
+                                                    title="Delete group"
+                                                    className="px-2 py-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all flex items-center gap-1.5 text-xs font-bold"
+                                                >
+                                                    Delete <SafeIcon icon={FiTrash2} />
+                                                </button>
+                                            )}
                                         </div>
                                         <h3 className="text-lg font-bold text-white mb-1">{group.name}</h3>
                                         <div className="flex items-center gap-1.5 mb-3">
@@ -462,12 +522,6 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                                 className="flex-1 min-w-[110px] px-3 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-amber-500/20 transition-all"
                                             >
                                                 <SafeIcon icon={FiEdit2} className="w-3.5 h-3.5" /> Edit Group
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteGroup(group.id)}
-                                                className="flex-1 min-w-[110px] px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-red-500/20 transition-all"
-                                            >
-                                                <SafeIcon icon={FiTrash2} className="w-3.5 h-3.5" /> Delete
                                             </button>
                                         </div>
                                     </div>
@@ -616,6 +670,12 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                 >
                                     Manage Students
                                 </button>
+                                <button
+                                    onClick={() => setActiveEditTab('tutors')}
+                                    className={`pb-3 px-4 font-bold text-sm transition-colors border-b-2 ${activeEditTab === 'tutors' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    Manage Tutors
+                                </button>
                             </div>
 
                             <div className="flex-1 overflow-y-auto space-y-6">
@@ -660,7 +720,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                             </button>
                                         </div>
                                     </form>
-                                ) : (
+                                ) : activeEditTab === 'students' ? (
                                     <div className="flex flex-col h-[calc(100vh-250px)]">
                                         <div className="mb-6 p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50">
                                             <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-2">Group Invitation</h4>
@@ -772,6 +832,109 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                             </>
                                         )}
                                     </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6 pr-2">
+                                        {loadingTutors ? (
+                                            <div className="text-center py-8 text-blue-600 font-bold">Loading tutors...</div>
+                                        ) : (
+                                            <>
+                                                {/* Group Owner */}
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Group Owner</h4>
+                                                    <div className="flex items-center justify-between p-3 rounded-xl border bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-800">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase bg-indigo-600 text-white">
+                                                                {groupTutors.owner?.name?.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                    {groupTutors.owner?.name}
+                                                                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">OWNER</span>
+                                                                </p>
+                                                                <p className="text-xs text-gray-500">{groupTutors.owner?.email}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Co-Tutors */}
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">
+                                                            Co-Tutors ({groupTutors.coTutors.length})
+                                                        </h4>
+                                                        {isGroupOwner(selectedGroup) && !showAddCoTutorForm && (
+                                                            <button
+                                                                onClick={() => setShowAddCoTutorForm(true)}
+                                                                className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                                                            >
+                                                                <SafeIcon icon={FiPlus} className="w-3 h-3" /> Add Co-Tutor
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {groupTutors.coTutors.length === 0 ? (
+                                                        <p className="text-center py-4 text-gray-500 text-sm">No co-tutors yet.</p>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            {groupTutors.coTutors.map(ct => (
+                                                                <div key={ct.id} className="flex items-center justify-between p-3 rounded-xl border bg-gray-50 dark:bg-gray-900 border-transparent">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase bg-gray-200 dark:bg-gray-700 text-gray-500">
+                                                                            {ct.name?.charAt(0)}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                                                {ct.name}
+                                                                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">CO-TUTOR</span>
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-500">{ct.email}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    {isGroupOwner(selectedGroup) && (
+                                                                        <button
+                                                                            onClick={() => handleRemoveCoTutor(ct.id)}
+                                                                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                                                        >
+                                                                            <SafeIcon icon={FiUserMinus} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {isGroupOwner(selectedGroup) && showAddCoTutorForm && (
+                                                        <div className="mt-4 p-4 border rounded-xl bg-gray-50 dark:bg-gray-800/50 space-y-3">
+                                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Tutor Email</label>
+                                                            <input
+                                                                type="email"
+                                                                value={newCoTutorEmail}
+                                                                onChange={(e) => setNewCoTutorEmail(e.target.value)}
+                                                                placeholder="tutor@example.com"
+                                                                className="w-full px-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                                            />
+                                                            <div className="flex gap-3">
+                                                                <button
+                                                                    onClick={() => { setShowAddCoTutorForm(false); setNewCoTutorEmail(''); }}
+                                                                    className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                                <button
+                                                                    onClick={handleAddCoTutor}
+                                                                    disabled={!newCoTutorEmail.trim() || addingCoTutor}
+                                                                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none hover:bg-blue-700 transition-all"
+                                                                >
+                                                                    {addingCoTutor ? 'Adding...' : 'Add Co-Tutor'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>

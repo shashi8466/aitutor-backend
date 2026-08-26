@@ -13,6 +13,7 @@ import { questionService, progressService, enrollmentService, gradingService, pl
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAnswerCorrect } from '../../utils/answerGrading';
+import { resolveCourseAccess } from '../../utils/contentAccess';
 
 const {
   FiArrowLeft, FiArrowRight, FiCheck, FiX, FiMessageCircle, FiClock, FiTarget,
@@ -174,40 +175,15 @@ const QuizInterface = () => {
   const checkAccessAndLoad = async () => {
     try {
       const isTutorUser = (user?.role || '').toLowerCase() === 'tutor';
-      const isEnrolledRes = await enrollmentService.isEnrolled(user.id, parseInt(courseId)).catch(() => false);
-      
-      let isEnrolled = isEnrolledRes || isTutorUser;
-      
-      if (!isEnrolled) {
-        try {
-          const planAccessRes = await planService.getContentAccess(user?.plan_type || 'free');
-          const accessData = planAccessRes.data || [];
-          const userPlan = (user?.plan_type || 'free').toLowerCase();
-          
-          let hasTopicAccess = false;
-          if (userPlan !== 'premium') {
-            const assignedTopics = accessData
-              .filter(a => a.content_type === 'topic' && a.plan_type === 'free')
-              .map(a => a.content_id);
-            if (assignedTopics.length > 0) {
-              const { data: topicMaps } = await supabase
-                .from('questions')
-                .select('course_id')
-                .in('topic', assignedTopics)
-                .eq('course_id', parseInt(courseId));
-              if (topicMaps && topicMaps.length > 0) {
-                hasTopicAccess = true;
-              }
-            }
-          }
-          
-          const hasDirectAccess = accessData.some(a => a.content_type === 'course' && String(a.content_id) === String(courseId) && a.plan_type === userPlan);
-          
-          isEnrolled = hasDirectAccess || hasTopicAccess || userPlan === 'premium';
-        } catch (e) {
-          console.warn("Plan access check failed in quiz", e);
-        }
-      }
+      // Same resolver CourseView.jsx uses - includes LIVE group-granted access, not just the
+      // enrollments snapshot, so a topic added to a group after the student joined is granted
+      // immediately instead of 403ing until they're removed/re-added.
+      const { isEnrolled } = await resolveCourseAccess({
+        userId: user.id,
+        courseId,
+        userPlan: user?.plan_type,
+        isTutorUser
+      });
 
       if (!isEnrolled) {
         setAccessDenied(true);

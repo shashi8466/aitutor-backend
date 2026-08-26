@@ -1120,4 +1120,122 @@ router.get('/groups/:groupId/analytics/attempts/:submissionId/questions', verify
     }
 });
 
+/**
+ * GET /api/admin/groups/:groupId/tutors
+ * List the owner and co-tutors of any group (admin only)
+ */
+router.get('/groups/:groupId/tutors', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+        const { data: group } = await supabase
+            .from('student_groups')
+            .select('id, created_by, owner:profiles!created_by(id, name, email)')
+            .eq('id', groupId)
+            .single();
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const { data: coTutorRows, error } = await supabase
+            .from('group_tutors')
+            .select('id, tutor_id, created_at, tutor:profiles!tutor_id(id, name, email)')
+            .eq('group_id', groupId);
+
+        if (error) {
+            console.error('Admin get co-tutors error:', error);
+            return res.status(500).json({ error: 'Failed to fetch co-tutors' });
+        }
+
+        res.json({
+            owner: group.owner,
+            coTutors: (coTutorRows || []).map(r => ({
+                id: r.tutor_id, name: r.tutor?.name, email: r.tutor?.email, added_at: r.created_at
+            }))
+        });
+    } catch (error) {
+        console.error('Admin get group tutors error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * POST /api/admin/groups/:groupId/tutors
+ * Add a co-tutor to any group by email (admin only)
+ */
+router.post('/groups/:groupId/tutors', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        const { email } = req.body;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+        if (!email) return res.status(400).json({ error: 'Tutor email is required' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+        const { data: group } = await supabase.from('student_groups').select('id, created_by').eq('id', groupId).single();
+        if (!group) return res.status(404).json({ error: 'Group not found' });
+
+        const { data: targetTutor } = await supabase
+            .from('profiles')
+            .select('id, name, email, role')
+            .ilike('email', email.trim())
+            .maybeSingle();
+
+        if (!targetTutor) return res.status(404).json({ error: 'No user found with that email' });
+        if (targetTutor.role !== 'tutor') return res.status(400).json({ error: 'Only tutor accounts can be added as co-tutors' });
+        if (targetTutor.id === group.created_by) return res.status(400).json({ error: 'This tutor already owns the group' });
+
+        const { error } = await supabase
+            .from('group_tutors')
+            .insert({ group_id: groupId, tutor_id: targetTutor.id, added_by: userId });
+
+        if (error) {
+            if (error.code === '23505') return res.status(409).json({ error: 'This tutor is already a co-tutor of this group' });
+            console.error('Admin add co-tutor error:', error);
+            return res.status(500).json({ error: 'Failed to add co-tutor' });
+        }
+
+        res.json({ success: true, coTutor: { id: targetTutor.id, name: targetTutor.name, email: targetTutor.email } });
+    } catch (error) {
+        console.error('Admin add co-tutor error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * DELETE /api/admin/groups/:groupId/tutors/:tutorId
+ * Remove a co-tutor from any group (admin only)
+ */
+router.delete('/groups/:groupId/tutors/:tutorId', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId, tutorId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+
+        const { error } = await supabase
+            .from('group_tutors')
+            .delete()
+            .eq('group_id', groupId)
+            .eq('tutor_id', tutorId);
+
+        if (error) {
+            console.error('Admin remove co-tutor error:', error);
+            return res.status(500).json({ error: 'Failed to remove co-tutor' });
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Admin remove co-tutor error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 export default router;

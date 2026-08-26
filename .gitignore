@@ -42,3 +42,6 @@ scratch/
 src/server/scratch/
 force_demo_rls.js
 *.mjs
+
+# vexp local daemon state (per-machine index/pid/lock, not project source)
+.vexp/
