@@ -360,6 +360,25 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                         /* INTERACTIVE QUESTION-WISE ANALYSIS REVIEWER               */
                         /* ========================================================= */
                         <div className="p-6 sm:p-8 bg-[#0a0e24]">
+                            {aggregated.allResponses.length === 0 ? (
+                                // The score summary (Full Report tab) can be genuinely correct while
+                                // this per-question breakdown is unavailable: it's read from a
+                                // separate detailed-response record captured at submission time,
+                                // which - for some past attempts - was never saved even though the
+                                // attempt itself completed with a real score. This is a data gap on
+                                // that specific historical attempt, not a sign the student didn't
+                                // actually answer questions, so it's worded accordingly rather than
+                                // as a generic/confusing "0 of 0" empty state.
+                                <div className="text-center py-10">
+                                    <p className="text-white font-bold text-lg mb-2">Question-by-question detail isn't available for this attempt</p>
+                                    <p className="text-slate-400 text-sm max-w-md mx-auto">
+                                        The score summary above reflects the student's actual results
+                                        ({aggregated.totalCorrect} / {aggregated.totalQuestions} correct). The individual
+                                        question-by-question record for this specific attempt wasn't captured.
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-800">
                                 <div>
                                     <span className="text-xs font-black uppercase tracking-widest text-blue-400">
@@ -369,7 +388,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         Question {currentReviewQIndex + 1} of {aggregated.allResponses.length}
                                     </h2>
                                 </div>
-                                
+
                                 {/* Level Badge */}
                                 <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
                                     (aggregated.allResponses[currentReviewQIndex]?.section || '').toLowerCase() === 'easy' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' :
@@ -496,6 +515,8 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     </div>
                                 );
                             })()}
+                                </>
+                            )}
                         </div>
                     ) : (
                         <>
