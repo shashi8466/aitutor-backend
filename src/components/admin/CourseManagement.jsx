@@ -274,7 +274,7 @@ const CourseManagement = ({ onStatsUpdate }) => {
 
       {/* Category Tabs */}
       <div className="flex flex-col space-y-4">
-        <div className="flex space-x-6 border-b border-gray-800">
+        <div className="flex flex-wrap gap-1.5 p-1.5 bg-[#0f1420] rounded-xl border border-gray-800 w-fit max-w-full">
           {Object.keys(COURSE_CATEGORIES).map(cat => (
             <button
               key={cat}
@@ -282,10 +282,10 @@ const CourseManagement = ({ onStatsUpdate }) => {
                 setActiveCategory(cat);
                 setActiveSubcategory('All');
               }}
-              className={`pb-2 text-sm font-semibold transition-all relative ${
-                activeCategory === cat 
-                  ? 'text-blue-500 border-b-2 border-blue-500' 
-                  : 'text-gray-500 hover:text-gray-300'
+              className={`px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wide transition-all ${
+                activeCategory === cat
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
             >
               {cat}
