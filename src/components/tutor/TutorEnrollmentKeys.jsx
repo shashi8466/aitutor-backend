@@ -13,12 +13,12 @@ const TutorEnrollmentKeys = ({ dashboardData, isParentLoading }) => {
         if (dashboardData?.courses) {
             setCourses(dashboardData.courses);
             setLoading(false);
-        } else if (!isParentLoading && !dashboardData) {
+        } else {
+            // Fetch this page's own data immediately - never wait on the unrelated top-level
+            // dashboard-stats call to finish first.
             fetchCourses();
-        } else if (isParentLoading) {
-            setLoading(true);
         }
-    }, [dashboardData, isParentLoading]);
+    }, [dashboardData]);
 
     const fetchCourses = async () => {
         if (!dashboardData) setLoading(true);

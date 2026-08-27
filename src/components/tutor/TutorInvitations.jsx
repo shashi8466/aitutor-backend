@@ -24,10 +24,11 @@ const TutorInvitations = ({ dashboardData, isParentLoading }) => {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (!isParentLoading) {
-            loadData();
-        }
-    }, [isParentLoading, dashboardData]);
+        // Fetch this page's own data immediately - never wait on the unrelated top-level
+        // dashboard-stats call. loadData() already falls back to fetching courses itself when
+        // dashboardData.courses isn't available yet.
+        loadData();
+    }, []);
 
     const loadData = async () => {
         setLoading(true);

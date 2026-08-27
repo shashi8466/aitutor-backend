@@ -637,26 +637,26 @@ const AdaptiveExamInterface = () => {
   if (showCheckWork) {
     return (
       <div className="fixed inset-0 z-[999999] bg-[#F1F5F9] flex flex-col font-sans select-none text-black overflow-hidden take-quiz-force-white px-0">
-        <header className="bg-[#0f172a] px-10 h-[60px] flex items-center justify-between shadow-sm">
-          <div className="flex flex-col">
-            <h2 className="text-sm font-bold text-white">
+        <header className="bg-[#0f172a] px-4 sm:px-10 h-[56px] sm:h-[60px] flex items-center justify-between shadow-sm">
+          <div className="flex flex-col min-w-0">
+            <h2 className="text-xs sm:text-sm font-bold text-white truncate">
               {getHeaderTitle()}
             </h2>
-            <span className="text-[11px] text-gray-400 font-semibold">Review Section</span>
+            <span className="text-[10px] sm:text-[11px] text-gray-400 font-semibold truncate">Review Section</span>
           </div>
-          <div className="flex flex-col items-center">
-              <div className="text-white font-black text-lg">
+          <div className="flex flex-col items-center shrink-0 px-2">
+              <div className="text-white font-black text-base sm:text-lg">
                 {formatTime(timeLeft)}
               </div>
           </div>
-          <div className="w-[100px]"></div>
+          <div className="w-[40px] sm:w-[100px] shrink-0"></div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-12 bg-white">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white">
           <div className="max-w-4xl mx-auto w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden mb-8">
-            <div className="p-10 border-b border-slate-100 bg-slate-50/50">
-              <h2 className="text-3xl font-black text-slate-900 mb-2">Section Review</h2>
-              <p className="text-slate-500 font-medium">Review your work before you finish this section. You can click any question number to return to it.</p>
+            <div className="p-5 sm:p-8 md:p-10 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 mb-2">Section Review</h2>
+              <p className="text-sm sm:text-base text-slate-500 font-medium">Review your work before you finish this section. You can click any question number to return to it.</p>
             </div>
 
             <div className="p-6 sm:p-10">

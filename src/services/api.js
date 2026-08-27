@@ -1329,6 +1329,12 @@ export const gradingService = {
   },
   getTopicReport: async (courseId) => {
     return axios.get(`/api/grading/topic-report/${courseId}`);
+  },
+  getTargetProgress: async (target) => {
+    return axios.get(`/api/grading/target-progress?target=${target}`);
+  },
+  getTopScores: async () => {
+    return axios.get('/api/grading/top-scores');
   }
 };
 

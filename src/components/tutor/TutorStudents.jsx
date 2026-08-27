@@ -121,11 +121,11 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
     }, [dashboardData]);
 
     useEffect(() => {
-        // Wait for dashboard data if it's currently loading
-        if (!isParentLoading) {
-            loadData();
-        }
-    }, [courseFilter, isParentLoading]);
+        // Fetch this page's own data immediately - never wait on the unrelated top-level
+        // dashboard-stats call. loadData() already falls back to fetching courses itself when
+        // dashboardData.courses isn't available yet, so nothing here depends on parent timing.
+        loadData();
+    }, [courseFilter]);
 
     const loadData = async () => {
         setLoading(true);

@@ -544,34 +544,34 @@ const ExamInterface = () => {
   if (showCheckWork) {
       return (
         <div className="fixed inset-0 z-[999999] bg-[#F1F5F9] flex flex-col font-sans select-none text-black overflow-hidden take-quiz-force-white px-0">
-          <header className="bg-[#0f172a] px-10 h-[60px] flex items-center justify-between shadow-sm">
-            <div className="flex flex-col">
-              <h2 className="text-sm font-bold text-white">
+          <header className="bg-[#0f172a] px-4 sm:px-10 h-[56px] sm:h-[60px] flex items-center justify-between shadow-sm">
+            <div className="flex flex-col min-w-0">
+              <h2 className="text-xs sm:text-sm font-bold text-white truncate">
                 {isSequential ? `${unitId} Graded Quiz` : `Section 1, Module ${activeModuleIndex + 1}: ${detectSection()}`}
               </h2>
-              <span className="text-[11px] text-gray-400 font-semibold">{isSequential ? "Review Unit Quiz" : "Review Section"}</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-400 font-semibold truncate">{isSequential ? "Review Unit Quiz" : "Review Section"}</span>
             </div>
-            <div className="flex flex-col items-center">
-                <div className="text-white font-black text-lg">
+            <div className="flex flex-col items-center shrink-0 px-2">
+                <div className="text-white font-black text-base sm:text-lg">
                   {formatTime(timeLeft)}
                 </div>
             </div>
-            <div className="w-[100px]"></div>
+            <div className="w-[40px] sm:w-[100px] shrink-0"></div>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-12 bg-white">
+          <main className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white">
             <div className="max-w-4xl mx-auto w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden mb-8">
-              <div className="p-10 border-b border-slate-100 bg-slate-50/50">
-                <h2 className="text-3xl font-black text-slate-900 mb-2">{isSequential ? "Unit Quiz Review" : "Section Review"}</h2>
-                <p className="text-slate-600 font-medium">
-                  {isSequential 
-                    ? "Review your work before you finish this unit. You can click any question number to return to it." 
+              <div className="p-5 sm:p-8 md:p-10 border-b border-slate-100 bg-slate-50/50">
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 mb-2">{isSequential ? "Unit Quiz Review" : "Section Review"}</h2>
+                <p className="text-sm sm:text-base text-slate-600 font-medium">
+                  {isSequential
+                    ? "Review your work before you finish this unit. You can click any question number to return to it."
                     : "Review your work before you finish this section. You can click any question number to return to it."}
                 </p>
               </div>
 
-              <div className="p-10">
-                <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-10 gap-4">
+              <div className="p-4 sm:p-6 md:p-10">
+                <div className="grid grid-cols-4 sm:grid-cols-7 md:grid-cols-10 gap-2 sm:gap-3 md:gap-4">
                   {questions.map((q, idx) => {
                     const isAnswered = !!userAnswers[q.id];
                     const isFlagged = flaggedQuestions[idx];
@@ -579,7 +579,7 @@ const ExamInterface = () => {
                       <button 
                         key={idx} 
                         onClick={() => { setShowCheckWork(false); setCurrentQuestionIndex(idx); setQuestionStartTime(Date.now()); }}
-                        className={`aspect-square w-full rounded-xl relative flex items-center justify-center font-bold text-xl transition-all border-2 ${isAnswered ? 'bg-[#2E4DC6] border-[#2E4DC6] text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}
+                        className={`aspect-square w-full rounded-xl relative flex items-center justify-center font-bold text-base sm:text-lg md:text-xl transition-all border-2 ${isAnswered ? 'bg-[#2E4DC6] border-[#2E4DC6] text-white shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400'}`}
                       >
                         {idx + 1}
                         {isFlagged && (
@@ -593,7 +593,7 @@ const ExamInterface = () => {
                 </div>
               </div>
 
-              <div className="p-10 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <div className="p-5 sm:p-8 md:p-10 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-5 sm:gap-4 sm:justify-between">
                 <div className="flex gap-4">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
                     <div className="w-3.5 h-3.5 rounded bg-[#2E4DC6]"></div> Answered
@@ -602,7 +602,7 @@ const ExamInterface = () => {
                     <div className="w-3.5 h-3.5 rounded border-2 border-slate-200"></div> Unanswered
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto">
                     <button onClick={() => { setShowCheckWork(false); setQuestionStartTime(Date.now()); }} className="w-full sm:w-auto px-6 sm:px-8 py-3 bg-white text-slate-900 border-2 border-slate-200 rounded-full font-black text-[13px] sm:text-[15px] hover:bg-slate-50 transition-all flex items-center justify-center gap-3">
                       <SafeIcon icon={FiChevronLeft} /> Back to Questions

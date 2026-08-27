@@ -1474,6 +1474,46 @@ router.get('/all-my-scores', async (req, res) => {
 });
 
 /**
+ * GET /api/grading/target-progress?target=1500
+ * Current combined SAT score (Math from completed topics OR best Full-Length Test, whichever
+ * is higher, same for R&W) compared against the student's target, with durable first-crossing
+ * tracking. `target` is read from the caller's own student_plans.diagnostic_data - this route
+ * doesn't re-derive it, just compares against whatever the client already has.
+ */
+router.get('/target-progress', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const target = parseInt(req.query.target, 10) || 0;
+        const data = await analyticsService.getStudentTargetProgress(userId, target);
+        res.json(data);
+    } catch (error) {
+        console.error('Target progress error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/top-scores
+ * The caller's best Full-Length Test score, current SAT Math score (from completed topics), and
+ * current SAT Reading & Writing score (from completed topics) - up to 3 category results,
+ * sorted by achieved score descending, omitting any category with nothing completed yet.
+ */
+router.get('/top-scores', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const data = await analyticsService.getStudentTopScores(userId);
+        res.json(data);
+    } catch (error) {
+        console.error('Top scores error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * GET /api/grading/my-enrollments
  * Get all course enrollments for current user (or preview target)
  */

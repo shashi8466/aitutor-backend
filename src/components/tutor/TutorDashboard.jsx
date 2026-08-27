@@ -113,6 +113,15 @@ const TutorDashboard = () => {
 
     const fetchDashboardData = async () => {
         setLoading(true);
+        // This is only the "Dashboard Overview" stats card data - a slow/cold backend on this
+        // one non-critical request must not leave that page's skeletons spinning for the full
+        // 60s global axios timeout. Degrade to an empty state quickly; if the request does
+        // complete after that, still apply the real data instead of discarding it.
+        const timeoutId = setTimeout(() => {
+            console.warn('⏱️ [TutorDashboard] Dashboard stats taking too long - showing empty state');
+            setLoading(false);
+        }, 10000);
+
         try {
             console.log('📡 [TutorDashboard] Fetching data...');
             const response = await tutorService.getDashboard(user?.id);
@@ -120,12 +129,13 @@ const TutorDashboard = () => {
                 setDashboardData(response.data);
                 console.log('✅ [TutorDashboard] Data loaded');
             } else {
-                setDashboardData({ courses: [], profile: user });
+                setDashboardData(prev => prev || { courses: [], profile: user });
             }
         } catch (error) {
             console.error('❌ [TutorDashboard] Error:', error);
-            setDashboardData({ courses: [], students: [], groups: [] });
+            setDashboardData(prev => prev || { courses: [], students: [], groups: [] });
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     };

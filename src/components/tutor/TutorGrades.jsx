@@ -37,10 +37,11 @@ const TutorGrades = ({ adminMode = false, courseId = null, dashboardData, isPare
     const [activeTab, setActiveTab] = useState('incorrect'); // 'incorrect' or 'correct'
 
     useEffect(() => {
-        if (!isParentLoading) {
-            loadCourses();
-        }
-    }, [courseIdParam, isParentLoading, dashboardData]);
+        // Fetch this page's own data immediately - never wait on the unrelated top-level
+        // dashboard-stats call. loadCourses() already falls back to fetching courses itself
+        // when dashboardData.courses isn't available yet.
+        loadCourses();
+    }, [courseIdParam]);
 
     const loadCourses = async () => {
         try {

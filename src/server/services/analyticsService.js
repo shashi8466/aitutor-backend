@@ -475,6 +475,204 @@ export const analyticsService = {
     },
 
     /**
+     * TARGET SCORE ACHIEVEMENT
+     *
+     * The student's current combined SAT score, computed from whichever of these two sources is
+     * currently higher: (a) their fully-completed SAT Math/R&W topics, aggregated the exact same
+     * way getStudentDashboard's section cards are (never in-progress/unattempted topics), or (b)
+     * their best-scoring Full-Length Test submission. Reuses getTopicCombinedReport - the same
+     * calculation Test Review, the topic report page, and the group dashboards all use - so this
+     * can never disagree with what those screens show for the same student.
+     *
+     * The first time the result crosses `target`, a durable record is written to
+     * notification_outbox (event_type TARGET_SCORE_REACHED, status 'sent' so the actual
+     * notification-delivery worker never touches it - this is a one-time achievement record, not
+     * a real outbound notification) so the triggering topic/test stays fixed even after later
+     * activity would otherwise change today's live numbers.
+     */
+    // Full-Length/adaptive test courses never populate getTopicCombinedReport's Easy/Medium/Hard
+    // buckets (their level is 'Adaptive'), so they're always split out and scored from their own
+    // math_scaled_score/reading_scaled_score instead of being run through the topic-combining
+    // path. Shared by getStudentTargetProgress and getStudentTopScores so both agree on the
+    // exact same split.
+    async _getStudentSubmissionsSplit(studentId) {
+        const { data: submissions } = await supabase
+            .from('test_submissions')
+            .select('id, course_id, level, math_scaled_score, reading_scaled_score, created_at, course:courses(name, tutor_type, main_category, is_adaptive, category)')
+            .eq('user_id', studentId)
+            .order('created_at', { ascending: true });
+
+        const isFullLengthCourse = (course) =>
+            course?.is_adaptive === true || (course?.main_category || '').toUpperCase() === 'FULL LENGTH TESTS';
+
+        return {
+            flSubs: (submissions || []).filter(s => isFullLengthCourse(s.course)),
+            topicSubs: (submissions || []).filter(s => !isFullLengthCourse(s.course))
+        };
+    },
+
+    // Shared by getStudentTargetProgress and getStudentTopScores: the student's current Math/R&W
+    // scores from their fully-completed topics only (Easy+Medium+Hard already combined via
+    // getTopicCombinedReport, never in-progress/unattempted topics), plus their best-scoring
+    // Full-Length Test submission. Nothing here is a new scoring formula - it's the same
+    // correct/totalQuestions -> 200+((correct/total)*600) calculation used everywhere else,
+    // just aggregated across every completed topic in a section instead of one at a time.
+    async _computeCurrentSectionScores(studentId) {
+        const { topicSubs, flSubs } = await this._getStudentSubmissionsSplit(studentId);
+        const topicReports = await this._getTopicReportsForSubmissions(null, studentId, topicSubs);
+        const isMathTopic = (tr) => {
+            const cat = (tr.tutorType || tr.category || tr.courseName || tr.topicName || '').toLowerCase();
+            return cat.includes('math') || cat.includes('quant');
+        };
+
+        let topicMathQ = 0, topicMathCorrect = 0, topicRwQ = 0, topicRwCorrect = 0;
+        const mathTopics = [], rwTopics = [];
+        topicReports.forEach(tr => {
+            if (!tr.isFullyCompleted) return;
+            const entry = { name: tr.topicName, date: tr.date, scaledScore: tr.overall.scaledScore };
+            if (isMathTopic(tr)) {
+                topicMathQ += tr.overall.totalQuestions; topicMathCorrect += tr.overall.correct;
+                mathTopics.push(entry);
+            } else {
+                topicRwQ += tr.overall.totalQuestions; topicRwCorrect += tr.overall.correct;
+                rwTopics.push(entry);
+            }
+        });
+
+        const topicMathScore = topicMathQ > 0 ? Math.round(200 + (topicMathCorrect / topicMathQ) * 600) : 400;
+        const topicRwScore = topicRwQ > 0 ? Math.round(200 + (topicRwCorrect / topicRwQ) * 600) : 400;
+        const mostRecentTopic = [...mathTopics, ...rwTopics].sort((a, b) => new Date(b.date) - new Date(a.date))[0] || null;
+
+        let bestFullLength = null;
+        flSubs.forEach(s => {
+            const m = s.math_scaled_score || 0;
+            const r = s.reading_scaled_score || 0;
+            const total = m + r;
+            if (total > 0 && (!bestFullLength || total > bestFullLength.total)) {
+                bestFullLength = { name: s.course?.name || 'Full-Length Test', date: s.created_at, math: m, rw: r, total };
+            }
+        });
+
+        return {
+            topicMathScore, topicRwScore,
+            mathTopicsCount: mathTopics.length, rwTopicsCount: rwTopics.length,
+            mostRecentTopic, bestFullLength
+        };
+    },
+
+    async getStudentTargetProgress(studentId, target) {
+        const { topicMathScore, topicRwScore, mathTopicsCount, rwTopicsCount, mostRecentTopic, bestFullLength } =
+            await this._computeCurrentSectionScores(studentId);
+        const topicOverall = topicMathScore + topicRwScore;
+
+        // Whichever of the two candidate assessments currently produces the higher combined
+        // score IS the student's current SAT score - report its own math/rw breakdown together,
+        // never a mix of both sources.
+        const useFullLength = bestFullLength && bestFullLength.total > topicOverall;
+        const mathScore = useFullLength ? bestFullLength.math : topicMathScore;
+        const rwScore = useFullLength ? bestFullLength.rw : topicRwScore;
+        const overallScore = useFullLength ? bestFullLength.total : topicOverall;
+
+        const result = {
+            mathScore,
+            rwScore,
+            overallScore,
+            target,
+            mathTopicsCount,
+            rwTopicsCount,
+            triggerType: useFullLength ? 'full_length_test' : 'topic',
+            triggerName: useFullLength ? bestFullLength.name : (mostRecentTopic?.name || null),
+            triggerDate: useFullLength ? bestFullLength.date : (mostRecentTopic?.date || null)
+        };
+
+        const reached = target > 0 && overallScore >= target;
+        if (!reached) return { ...result, reached: false, justAchieved: false, alreadyAchieved: false };
+
+        const { data: existing } = await supabase
+            .from('notification_outbox')
+            .select('id, payload')
+            .eq('event_type', 'TARGET_SCORE_REACHED')
+            .eq('recipient_profile_id', studentId)
+            .limit(1)
+            .maybeSingle();
+
+        if (existing) {
+            // Already recorded - always show the ORIGINAL crossing event's details, not
+            // today's recomputed numbers, so the attribution stays correct even after the
+            // student completes more topics afterward.
+            return { ...existing.payload, reached: true, justAchieved: false, alreadyAchieved: true };
+        }
+
+        try {
+            await supabase.from('notification_outbox').insert({
+                event_type: 'TARGET_SCORE_REACHED',
+                recipient_profile_id: studentId,
+                recipient_type: 'student',
+                status: 'sent', // never picked up by processOutboxOnce - this is a record, not a real send
+                channels: [],
+                payload: result
+            });
+            return { ...result, reached: true, justAchieved: true, alreadyAchieved: false };
+        } catch (err) {
+            // Most likely the TARGET_SCORE_REACHED event_type migration hasn't been applied to
+            // this environment yet - degrade gracefully: still show the achievement now, just
+            // without durable first-crossing tracking until the migration runs.
+            console.error('Failed to record TARGET_SCORE_REACHED (has the migration been applied?):', err);
+            return { ...result, reached: true, justAchieved: true, alreadyAchieved: false };
+        }
+    },
+
+    /**
+     * TOP SCORES
+     *
+     * Exactly three category-level results - never individual topics, never individual
+     * Easy/Medium/Hard attempts, never every Full-Length Test attempt: the student's best
+     * completed Full-Length Test score, their current SAT Math score (aggregated across every
+     * fully-completed Math topic, same calculation as the target-achievement banner), and their
+     * current SAT Reading & Writing score (same, for R&W topics). A category is omitted entirely
+     * if the student has no qualifying result for it yet (no Full-Length attempt, or zero
+     * completed topics in that section) rather than showing a meaningless default score.
+     */
+    async getStudentTopScores(studentId) {
+        const { topicMathScore, topicRwScore, mathTopicsCount, rwTopicsCount, bestFullLength } =
+            await this._computeCurrentSectionScores(studentId);
+
+        const categories = [];
+        if (bestFullLength) {
+            categories.push({
+                type: 'full_length_test',
+                label: 'Full-Length Test',
+                description: 'Best completed full-length score',
+                score: bestFullLength.total,
+                maxScore: 1600
+            });
+        }
+        if (mathTopicsCount > 0) {
+            categories.push({
+                type: 'sat_math',
+                label: 'SAT Math',
+                description: 'Based on completed Math topics',
+                score: topicMathScore,
+                maxScore: 800,
+                topicsCount: mathTopicsCount
+            });
+        }
+        if (rwTopicsCount > 0) {
+            categories.push({
+                type: 'sat_rw',
+                label: 'SAT Reading & Writing',
+                description: 'Based on completed R&W topics',
+                score: topicRwScore,
+                maxScore: 800,
+                topicsCount: rwTopicsCount
+            });
+        }
+
+        categories.sort((a, b) => b.score - a.score);
+        return { topScores: categories };
+    },
+
+    /**
      * LEVEL 3 & 4: COURSE & TOPIC ANALYTICS
      */
     /**

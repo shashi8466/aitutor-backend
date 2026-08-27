@@ -760,8 +760,11 @@ const AITutorAgent = () => {
     );
   };
 
+  // Below lg, StudentLayout stacks a mobile header + the scrolling announcement bar above this
+  // panel (~150-160px of chrome) instead of the ~100px this height assumed - that extra height
+  // was pushing the message composer at the bottom off-screen on phones.
   return (
-    <div className="h-[calc(100vh-100px)] flex flex-col bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div className="h-[calc(100vh-165px)] lg:h-[calc(100vh-100px)] flex flex-col bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 
       {/* ── Header ── */}
       <div className="bg-black p-4 flex justify-between items-center text-white flex-shrink-0">

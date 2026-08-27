@@ -144,13 +144,14 @@ const TutorCourses = ({ dashboardData, isParentLoading }) => {
         if (dashboardData?.courses) {
             setCourses(dashboardData.courses);
             setLoading(false);
-        } else if (!isParentLoading && !dashboardData) {
-            // Only fetch if parent is NOT loading but data is still missing
+        } else {
+            // Fetch this page's own data immediately - never wait on the unrelated top-level
+            // dashboard-stats call to finish first. fetchCourses() hits the same cached
+            // endpoint, so if the parent's call is still in flight this just resolves on its
+            // own timeline instead of being artificially gated on the parent's.
             fetchCourses();
-        } else if (isParentLoading) {
-            setLoading(true);
         }
-    }, [dashboardData, isParentLoading]);
+    }, [dashboardData]);
 
     const fetchCourses = async () => {
         if (!dashboardData) setLoading(true);

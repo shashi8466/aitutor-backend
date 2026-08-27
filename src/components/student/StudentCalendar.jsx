@@ -301,9 +301,12 @@ const StudentCalendar = () => {
                                                         <h3 className={`font-bold text-sm truncate ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>
                                                             {task.title}
                                                         </h3>
-                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button onClick={() => openEditModal(task)} className="p-1 hover:text-blue-600 text-gray-400"><FiEdit2 className="w-3 h-3" /></button>
-                                                            <button onClick={() => handleDeleteTask(task.id)} className="p-1 hover:text-red-600 text-gray-400"><FiTrash2 className="w-3 h-3" /></button>
+                                                        {/* Always visible (not opacity-0 group-hover) - touchscreens have no
+                                                            hover state, so a hover-only reveal makes these untappable on
+                                                            mobile. Padding bumped up for a real tap target too. */}
+                                                        <div className="flex gap-1 shrink-0">
+                                                            <button onClick={() => openEditModal(task)} className="p-2 hover:text-blue-600 text-gray-400"><FiEdit2 className="w-3.5 h-3.5" /></button>
+                                                            <button onClick={() => handleDeleteTask(task.id)} className="p-2 hover:text-red-600 text-gray-400"><FiTrash2 className="w-3.5 h-3.5" /></button>
                                                         </div>
                                                     </div>
 
