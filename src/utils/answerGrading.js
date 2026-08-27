@@ -7,16 +7,24 @@
  * frontend (bundled by Vite) and the backend (plain Node ESM import).
  *
  * `correct_answer` may hold more than one accepted written form for the same answer, using the
- * convention already adopted in production data: a comma- or pipe-separated list (e.g.
- * "3.44, 86/25"), or a JSON array string (e.g. '["3.44","86/25"]'). These all mean "ANY ONE of
- * these forms is a complete correct answer" - unchanged by the addition below.
+ * convention already adopted in production data: a comma-, pipe-, or " OR "-separated list (e.g.
+ * "3.44, 86/25" or "7/2 OR 3.5"), or a JSON array string (e.g. '["3.44","86/25"]'). These all
+ * mean "ANY ONE of these forms is a complete correct answer" - unchanged by the addition below.
+ * " OR " is purely a separator recognized by the parser here - it is never itself treated as a
+ * literal accepted answer value.
+ *
+ * A student may also submit more than one value in a single response (comma-, pipe-, or
+ * " OR "-separated), when several accepted answers are equivalent alternatives. That is marked
+ * correct as long as EVERY value the student submitted individually matches one of the accepted
+ * answers - it does not require the student to enter only one value, nor to cover every accepted
+ * alternative.
  *
  * A separate, distinct convention - the literal word " and " joining the values (e.g.
  * "-6 and 4") - means the opposite: ALL of the listed values must be present in the student's
  * answer (in any order) for credit, for questions that genuinely ask for multiple values in one
  * response (e.g. "give both x-intercepts"). This is deliberately a different separator from
- * comma/pipe so it can never collide with the existing alternative-answer data already stored
- * for other questions - a comma/pipe list is untouched by this and keeps meaning "any one".
+ * comma/pipe/OR so it can never collide with the existing alternative-answer data already stored
+ * for other questions - a comma/pipe/OR list is untouched by this and keeps meaning "any one".
  */
 
 /**
@@ -31,9 +39,13 @@ export function parseRequiredAllValues(correctAnswerRaw) {
   return parts.length > 1 ? parts : null;
 }
 
+// Splits on a comma, a pipe, or the standalone word "OR" (case-insensitive, whitespace on both
+// sides so it never matches inside a word like "for" or "world").
+const VALUE_SEPARATOR = /[,|]|\s+or\s+/i;
+
 /**
  * Splits a raw `correct_answer` string into its individual accepted forms, trimmed and
- * lowercased. A plain single-value answer (no comma/pipe/JSON-array) returns a one-element
+ * lowercased. A plain single-value answer (no comma/pipe/OR/JSON-array) returns a one-element
  * array, so existing single-answer questions behave identically to before.
  */
 export function parseAcceptedAnswers(correctAnswerRaw) {
@@ -51,7 +63,7 @@ export function parseAcceptedAnswers(correctAnswerRaw) {
     }
   }
 
-  return raw.split(/[,|]/).map(a => a.trim().toLowerCase()).filter(Boolean);
+  return raw.split(VALUE_SEPARATOR).map(a => a.trim().toLowerCase()).filter(Boolean);
 }
 
 /**
@@ -124,5 +136,18 @@ export function isAnswerCorrect(studentAnswer, correctAnswerRaw) {
 
   if (accepted.includes(studentAns)) return true;
 
-  return accepted.some(candidate => numericallyEqual(studentAns, candidate));
+  if (accepted.some(candidate => numericallyEqual(studentAns, candidate))) return true;
+
+  // The student may have submitted more than one value (comma/pipe/OR-separated) when several
+  // accepted answers are equivalent alternatives - correct as long as EVERY value they submitted
+  // individually matches an accepted answer (not a requirement to enter only one, or to cover
+  // every accepted alternative).
+  const studentValues = studentAns.split(VALUE_SEPARATOR).map(v => v.trim()).filter(Boolean);
+  if (studentValues.length > 1) {
+    return studentValues.every(value =>
+      accepted.includes(value) || accepted.some(candidate => numericallyEqual(value, candidate))
+    );
+  }
+
+  return false;
 }
