@@ -7,7 +7,37 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { groupInviteService } from '../../services/api';
 
-const { FiUsers, FiCheckCircle, FiAlertCircle, FiLoader, FiArrowLeft, FiLogOut } = FiIcons;
+const { FiUsers, FiCheckCircle, FiAlertCircle, FiLoader, FiArrowLeft, FiLogOut, FiUserPlus, FiLock, FiShield, FiStar, FiArrowRight } = FiIcons;
+
+// Fixed, hand-placed scatter (not random - a re-shuffle on every render would look jittery) for
+// the invite card's decorative sparkle layer. 'shape' picks star icon, round dot, or a thin
+// ribbon streamer.
+const INVITE_SPARKLES = [
+  { top: '8%', left: '10%', rotate: '-15deg', color: 'text-amber-300', shape: 'star', size: 'w-3 h-3' },
+  { top: '15%', left: '22%', rotate: '10deg', color: 'text-pink-400', shape: 'ribbon', size: 'w-1 h-4' },
+  { top: '6%', left: '38%', rotate: '20deg', color: 'text-sky-300', shape: 'dot', size: 'w-1.5 h-1.5' },
+  { top: '4%', left: '58%', rotate: '-10deg', color: 'text-purple-300', shape: 'star', size: 'w-3 h-3' },
+  { top: '18%', left: '72%', rotate: '15deg', color: 'text-amber-300', shape: 'dot', size: 'w-2 h-2' },
+  { top: '10%', left: '85%', rotate: '-20deg', color: 'text-sky-400', shape: 'dot', size: 'w-1.5 h-1.5' },
+  { top: '30%', left: '5%', rotate: '25deg', color: 'text-pink-400', shape: 'ribbon', size: 'w-1 h-4' },
+  { top: '28%', left: '92%', rotate: '-25deg', color: 'text-purple-400', shape: 'ribbon', size: 'w-1 h-4' },
+  { top: '2%', left: '90%', rotate: '18deg', color: 'text-red-400', shape: 'star', size: 'w-3 h-3' }
+];
+
+const InviteSparkles = () => (
+  <div className="pointer-events-none absolute inset-x-0 top-0 h-40 overflow-hidden">
+    {INVITE_SPARKLES.map((s, i) => (
+      <span
+        key={i}
+        className={`absolute ${s.color}`}
+        style={{ top: s.top, left: s.left, transform: `rotate(${s.rotate})` }}
+      >
+        {s.shape === 'star' && <SafeIcon icon={FiStar} className={s.size} />}
+        {s.shape !== 'star' && <span className={`block ${s.shape === 'dot' ? 'rounded-full' : 'rounded-sm'} bg-current ${s.size}`} />}
+      </span>
+    ))}
+  </div>
+);
 
 export const PENDING_GROUP_INVITE_KEY = 'pendingGroupInviteToken';
 
@@ -73,8 +103,8 @@ const JoinGroupInvite = () => {
     })();
   }, [authSettled, user, token, navigate]);
 
-  const renderCard = (children) => (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 bg-[#FAFAFA] dark:bg-gray-900 transition-colors duration-200">
+  const renderCard = (children, { decorated = false } = {}) => (
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 bg-[#0a0e1f]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -83,14 +113,15 @@ const JoinGroupInvite = () => {
         <div className="absolute -top-12 left-0">
           <Link
             to="/"
-            className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-[#E53935] transition-colors"
+            className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-indigo-300 transition-colors"
           >
             <SafeIcon icon={FiArrowLeft} className="w-4 h-4" />
             Back to Home
           </Link>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 text-center">
-          {children}
+        <div className="relative overflow-hidden bg-[#111a33] p-8 rounded-2xl shadow-[0_0_40px_-15px_rgba(99,102,241,0.35)] border border-indigo-500/20 text-center">
+          {decorated && <InviteSparkles />}
+          <div className="relative">{children}</div>
         </div>
       </motion.div>
     </div>
@@ -100,8 +131,8 @@ const JoinGroupInvite = () => {
   if (infoLoading) {
     return renderCard(
       <div className="flex flex-col items-center gap-3 py-6">
-        <SafeIcon icon={FiLoader} className="w-10 h-10 animate-spin text-[#E53935]" />
-        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Loading invitation…</p>
+        <SafeIcon icon={FiLoader} className="w-10 h-10 animate-spin text-indigo-400" />
+        <p className="text-slate-400 text-sm font-medium">Loading invitation…</p>
       </div>
     );
   }
@@ -110,11 +141,11 @@ const JoinGroupInvite = () => {
   if (infoError) {
     return renderCard(
       <>
-        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-          <SafeIcon icon={FiAlertCircle} className="w-8 h-8 text-red-600 dark:text-red-400" />
+        <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+          <SafeIcon icon={FiAlertCircle} className="w-8 h-8 text-red-400" />
         </div>
-        <h2 className="text-xl font-bold text-black dark:text-white mb-2">Invalid Invitation</h2>
-        <p className="text-gray-600 dark:text-gray-300">{infoError}</p>
+        <h2 className="text-xl font-bold text-white mb-2">Invalid Invitation</h2>
+        <p className="text-slate-300">{infoError}</p>
       </>
     );
   }
@@ -123,8 +154,8 @@ const JoinGroupInvite = () => {
   if (!authSettled) {
     return renderCard(
       <div className="flex flex-col items-center gap-3 py-6">
-        <SafeIcon icon={FiLoader} className="w-10 h-10 animate-spin text-[#E53935]" />
-        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Verifying access rights…</p>
+        <SafeIcon icon={FiLoader} className="w-10 h-10 animate-spin text-indigo-400" />
+        <p className="text-slate-400 text-sm font-medium">Verifying access rights…</p>
       </div>
     );
   }
@@ -133,16 +164,16 @@ const JoinGroupInvite = () => {
   if (user && user.role !== 'student') {
     return renderCard(
       <>
-        <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-          <SafeIcon icon={FiAlertCircle} className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+        <div className="w-16 h-16 bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+          <SafeIcon icon={FiAlertCircle} className="w-8 h-8 text-yellow-400" />
         </div>
-        <h2 className="text-xl font-bold text-black dark:text-white mb-2">Student Accounts Only</h2>
-        <p className="text-gray-600 dark:text-gray-300 mb-6">
+        <h2 className="text-xl font-bold text-white mb-2">Student Accounts Only</h2>
+        <p className="text-slate-300 mb-6">
           You're signed in as a {user.role}. Only student accounts can join a group via this link.
         </p>
         <button
           onClick={() => logout()}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 dark:border-gray-600 text-sm font-bold rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all"
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-slate-600 text-sm font-bold rounded-lg text-slate-200 bg-slate-800 hover:bg-slate-700 transition-all"
         >
           <SafeIcon icon={FiLogOut} className="w-4 h-4" />
           Log Out
@@ -156,11 +187,11 @@ const JoinGroupInvite = () => {
     if (joinStatus === 'error') {
       return renderCard(
         <>
-          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <SafeIcon icon={FiAlertCircle} className="w-8 h-8 text-red-600 dark:text-red-400" />
+          <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <SafeIcon icon={FiAlertCircle} className="w-8 h-8 text-red-400" />
           </div>
-          <h2 className="text-xl font-bold text-black dark:text-white mb-2">Couldn't Join Group</h2>
-          <p className="text-gray-600 dark:text-gray-300">{joinError}</p>
+          <h2 className="text-xl font-bold text-white mb-2">Couldn't Join Group</h2>
+          <p className="text-slate-300">{joinError}</p>
         </>
       );
     }
@@ -168,18 +199,18 @@ const JoinGroupInvite = () => {
     if (joinStatus === 'success' || joinStatus === 'already') {
       return renderCard(
         <>
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <SafeIcon icon={FiCheckCircle} className="w-8 h-8 text-green-600 dark:text-green-400" />
+          <div className="w-16 h-16 bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <SafeIcon icon={FiCheckCircle} className="w-8 h-8 text-green-400" />
           </div>
-          <h2 className="text-xl font-bold text-black dark:text-white mb-2">
+          <h2 className="text-xl font-bold text-white mb-2">
             {joinStatus === 'already' ? "You're Already a Member" : 'Congratulations!'}
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-2">
+          <p className="text-slate-300 mb-2">
             {joinStatus === 'already'
-              ? <>You're already a member of <strong className="text-black dark:text-white">{groupInfo?.name}</strong>.</>
-              : <>You've successfully joined <strong className="text-black dark:text-white">{groupInfo?.name}</strong>.</>}
+              ? <>You're already a member of <strong className="text-white">{groupInfo?.name}</strong>.</>
+              : <>You've successfully joined <strong className="text-white">{groupInfo?.name}</strong>.</>}
           </p>
-          <p className="text-sm text-gray-400">Redirecting to your dashboard…</p>
+          <p className="text-sm text-slate-400">Redirecting to your dashboard…</p>
         </>
       );
     }
@@ -187,8 +218,8 @@ const JoinGroupInvite = () => {
     // joining or idle (about to join)
     return renderCard(
       <div className="flex flex-col items-center gap-3 py-6">
-        <SafeIcon icon={FiLoader} className="w-10 h-10 animate-spin text-[#E53935]" />
-        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Joining {groupInfo?.name}…</p>
+        <SafeIcon icon={FiLoader} className="w-10 h-10 animate-spin text-indigo-400" />
+        <p className="text-slate-400 text-sm font-medium">Joining {groupInfo?.name}…</p>
       </div>
     );
   }
@@ -196,29 +227,51 @@ const JoinGroupInvite = () => {
   // Logged out - show the invite and let them log in / sign up
   return renderCard(
     <>
-      <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-        <SafeIcon icon={FiUsers} className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+      <div className="relative w-16 h-16 mx-auto mb-4">
+        <div className="absolute inset-0 rounded-full bg-indigo-500/30 blur-xl scale-125" />
+        <div className="relative w-16 h-16 rounded-full bg-indigo-950 border-2 border-indigo-400/60 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.5)]">
+          <SafeIcon icon={FiUsers} className="w-7 h-7 text-indigo-300" />
+        </div>
       </div>
-      <h2 className="text-xl font-bold text-black dark:text-white mb-2">You've Been Invited!</h2>
-      <p className="text-gray-600 dark:text-gray-300 mb-6">
-        Join <strong className="text-black dark:text-white">{groupInfo?.name}</strong> on{' '}
-        <strong className="text-[#E53935]">{settings.appName}</strong>. Log in or create a student account to continue.
+      <h2 className="text-xl font-bold text-white mb-2">You've Been Invited!</h2>
+      <div className="flex items-center justify-center gap-2 mb-4 opacity-70">
+        <span className="h-px w-10 bg-gradient-to-r from-transparent to-indigo-400/60" />
+        <SafeIcon icon={FiStar} className="w-3 h-3 text-indigo-300" />
+        <span className="h-px w-10 bg-gradient-to-l from-transparent to-indigo-400/60" />
+      </div>
+      <p className="text-slate-300 mb-6">
+        Join <strong className="text-indigo-300">{groupInfo?.name}</strong> on{' '}
+        <strong className="text-pink-400">{settings.appName}</strong>. Log in or create a student account to continue.
       </p>
       <div className="space-y-3">
         <Link
           to="/signup"
-          className="w-full inline-flex items-center justify-center px-4 py-3 border border-transparent text-sm font-bold rounded-lg text-white bg-[#E53935] hover:bg-[#d32f2f] transition-all"
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-transparent text-sm font-bold rounded-lg text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-[0_4px_20px_-4px_rgba(99,102,241,0.6)] transition-all"
         >
+          <SafeIcon icon={FiUserPlus} className="w-4 h-4" />
           Sign Up
+          <SafeIcon icon={FiArrowRight} className="w-4 h-4" />
         </Link>
         <Link
           to="/login"
-          className="w-full inline-flex items-center justify-center px-4 py-3 border border-gray-300 dark:border-gray-600 text-sm font-bold rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all"
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 border border-slate-700 text-sm font-bold rounded-lg text-slate-200 bg-slate-800/60 hover:bg-slate-800 transition-all"
         >
+          <SafeIcon icon={FiLock} className="w-4 h-4" />
           Log In
+          <SafeIcon icon={FiArrowRight} className="w-4 h-4" />
         </Link>
       </div>
-    </>
+      <div className="flex items-center gap-3 my-5">
+        <span className="h-px flex-1 bg-slate-700" />
+        <span className="text-xs text-slate-500 font-medium">or</span>
+        <span className="h-px flex-1 bg-slate-700" />
+      </div>
+      <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-400">
+        <SafeIcon icon={FiShield} className="w-3.5 h-3.5" />
+        Secure &amp; Private
+      </div>
+    </>,
+    { decorated: true }
   );
 };
 
