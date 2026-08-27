@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -52,6 +52,102 @@ export const restoreMathFromEditor = (html) => {
       }
   });
   return tempDiv.innerHTML;
+};
+
+// Module-level (not component-scoped) so these objects keep a stable identity across every
+// render. jodit-react destroys and rebuilds its underlying Jodit instance whenever the `config`
+// or `editorRef` prop it receives changes identity (see its useEffect deps in
+// node_modules/jodit-react) - a brand-new object/callback literal on every render was causing
+// every editor on this page to be torn down and recreated on any unrelated state change (e.g.
+// typing in a plain input elsewhere in the form), which is especially destructive to paste since
+// Jodit's paste/Word-cleanup handling is asynchronous and loses the race against that rebuild.
+const mathButton = {
+  name: 'insertMath',
+  iconURL: 'data:image/svg+xml;utf8,<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M2 13h12v1H2v-1zm10.7-3.3l-3.4-3.4 1.4-1.4 3.4 3.4-1.4 1.4zM3 11l4-8h2l4 8h-1.5L8 4.5 4.5 11H3z" fill="currentColor"/></svg>',
+  tooltip: 'Insert Math (LaTeX)',
+  exec: (editor) => {
+    const tex = prompt('Enter LaTeX (include $ or \\( \\)):', '\\( \\)');
+    if (tex && tex.trim() !== '') {
+        const encoded = btoa(encodeURIComponent(tex));
+        const html = `<span class="jodit-math-widget" data-tex="${encoded}" contenteditable="false" style="display:inline-block; background:#f8fafc; border:1px solid #cbd5e1; padding:2px 4px; border-radius:4px; cursor:pointer; margin: 0 2px;" title="Double-click to edit Math">${tex}</span>`;
+        editor.s.insertHTML(html);
+        setTimeout(() => {
+            const widgets = editor.editor.querySelectorAll('.jodit-math-widget');
+            const lastWidget = widgets[widgets.length - 1];
+            if (window.MathJax && lastWidget) {
+                window.MathJax.typesetPromise([lastWidget]);
+            }
+        }, 50);
+    }
+  }
+};
+
+const editorEvents = {
+  dblclick: (e) => {
+    const widget = e.target.closest('.jodit-math-widget');
+    if (widget) {
+        try {
+            const currentTex = decodeURIComponent(atob(widget.getAttribute('data-tex')));
+            const newTex = prompt('Edit Math (LaTeX):', currentTex);
+            if (newTex !== null && newTex !== currentTex && newTex.trim() !== '') {
+                widget.setAttribute('data-tex', btoa(encodeURIComponent(newTex)));
+                widget.innerHTML = newTex;
+                if (window.MathJax) window.MathJax.typesetPromise([widget]);
+                const editor = e.target.closest('.jodit-wysiwyg');
+                if (editor) editor.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        } catch(err) {}
+    }
+  }
+};
+
+const editorConfig = {
+  readonly: false,
+  toolbarSticky: false,
+  showCharsCounter: false,
+  showWordsCounter: false,
+  showXPathInStatusbar: false,
+  disablePlugins: ['cleanHTML'],
+  defaultActionOnPaste: 'insert_as_html',
+  extraButtons: [mathButton],
+  events: editorEvents,
+  buttons: [
+    'source', '|',
+    'bold', 'italic', 'underline', 'strikethrough', '|',
+    'superscript', 'subscript', '|',
+    'ul', 'ol', '|',
+    'outdent', 'indent', '|',
+    'font', 'fontsize', 'brush', 'paragraph', '|',
+    'image', 'table', 'link', 'insertMath', '|',
+    'align', 'undo', 'redo', '|',
+    'hr', 'eraser', 'copyformat', '|',
+    'fullsize'
+  ],
+  uploader: {
+    insertImageAsBase64URI: true
+  }
+};
+
+const minimalEditorConfig = {
+  readonly: false,
+  toolbarSticky: false,
+  showCharsCounter: false,
+  showWordsCounter: false,
+  showXPathInStatusbar: false,
+  disablePlugins: ['cleanHTML'],
+  defaultActionOnPaste: 'insert_as_html',
+  extraButtons: [mathButton],
+  events: editorEvents,
+  buttons: [
+    'bold', 'italic', 'underline', 'strikethrough', '|',
+    'superscript', 'subscript', '|',
+    'ul', 'ol', '|',
+    'image', 'table', 'link', 'insertMath', '|',
+    'eraser', 'source'
+  ],
+  uploader: {
+    insertImageAsBase64URI: true
+  }
 };
 
 const QuestionForm = ({ question, courses, onClose, onSave }) => {
@@ -146,94 +242,38 @@ const QuestionForm = ({ question, courses, onClose, onSave }) => {
     return merged;
   };
 
-const mathButton = {
-    name: 'insertMath',
-    iconURL: 'data:image/svg+xml;utf8,<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M2 13h12v1H2v-1zm10.7-3.3l-3.4-3.4 1.4-1.4 3.4 3.4-1.4 1.4zM3 11l4-8h2l4 8h-1.5L8 4.5 4.5 11H3z" fill="currentColor"/></svg>',
-    tooltip: 'Insert Math (LaTeX)',
-    exec: (editor) => {
-      const tex = prompt('Enter LaTeX (include $ or \\( \\)):', '\\( \\)');
-      if (tex && tex.trim() !== '') {
-          const encoded = btoa(encodeURIComponent(tex));
-          const html = `<span class="jodit-math-widget" data-tex="${encoded}" contenteditable="false" style="display:inline-block; background:#f8fafc; border:1px solid #cbd5e1; padding:2px 4px; border-radius:4px; cursor:pointer; margin: 0 2px;" title="Double-click to edit Math">${tex}</span>`;
-          editor.s.insertHTML(html);
-          setTimeout(() => {
-              const widgets = editor.editor.querySelectorAll('.jodit-math-widget');
-              const lastWidget = widgets[widgets.length - 1];
-              if (window.MathJax && lastWidget) {
-                  window.MathJax.typesetPromise([lastWidget]);
-              }
-          }, 50);
-      }
-    }
-  };
+  // Stable (memoized) config objects and editorRef callbacks, one per field, so jodit-react's
+  // internal effect (which destroys/rebuilds the editor whenever `config` or `editorRef` changes
+  // identity) doesn't fire on every unrelated re-render of this form - see the comment above the
+  // module-level editorConfig/minimalEditorConfig definitions for why that was breaking paste.
+  const passageConfig = useMemo(() => ({
+    ...editorConfig,
+    placeholder: 'Enter the linked passage or context for this question (supports LaTeX with $$ or $)...'
+  }), []);
+  const questionConfig = useMemo(() => ({
+    ...editorConfig,
+    placeholder: 'Enter your question here...'
+  }), []);
+  const explanationConfig = useMemo(() => ({
+    ...editorConfig,
+    placeholder: 'Provide detailed steps, hints, or reasons why the answer is correct...'
+  }), []);
 
-  const editorEvents = {
-    dblclick: (e) => {
-      const widget = e.target.closest('.jodit-math-widget');
-      if (widget) {
-          try {
-              const currentTex = decodeURIComponent(atob(widget.getAttribute('data-tex')));
-              const newTex = prompt('Edit Math (LaTeX):', currentTex);
-              if (newTex !== null && newTex !== currentTex && newTex.trim() !== '') {
-                  widget.setAttribute('data-tex', btoa(encodeURIComponent(newTex)));
-                  widget.innerHTML = newTex;
-                  if (window.MathJax) window.MathJax.typesetPromise([widget]);
-                  const editor = e.target.closest('.jodit-wysiwyg');
-                  if (editor) editor.dispatchEvent(new Event('input', { bubbles: true }));
-              }
-          } catch(err) {}
-      }
-    }
-  };
+  const setPassageEditorRef = useCallback((instance) => { passageEditorRef.current = instance; }, []);
+  const setQuestionEditorRef = useCallback((instance) => { questionEditorRef.current = instance; }, []);
+  const setExplanationEditorRef = useCallback((instance) => { explanationEditorRef.current = instance; }, []);
 
-  const editorConfig = {
-    readonly: false,
-    toolbarSticky: false,
-    showCharsCounter: false,
-    showWordsCounter: false,
-    showXPathInStatusbar: false,
-    disablePlugins: ['cleanHTML'],
-    defaultActionOnPaste: 'insert_as_html',
-    extraButtons: [mathButton],
-    events: editorEvents,
-    buttons: [
-      'source', '|',
-      'bold', 'italic', 'underline', 'strikethrough', '|',
-      'superscript', 'subscript', '|',
-      'ul', 'ol', '|',
-      'outdent', 'indent', '|',
-      'font', 'fontsize', 'brush', 'paragraph', '|',
-      'image', 'table', 'link', 'insertMath', '|',
-      'align', 'undo', 'redo', '|',
-      'hr', 'eraser', 'copyformat', '|',
-      'fullsize'
-    ],
-    uploader: {
-      insertImageAsBase64URI: true
-    }
-  };
-
-  const minimalEditorConfig = {
-    readonly: false,
-    toolbarSticky: false,
-    showCharsCounter: false,
-    showWordsCounter: false,
-    showXPathInStatusbar: false,
-    disablePlugins: ['cleanHTML'],
-    defaultActionOnPaste: 'insert_as_html',
-    extraButtons: [mathButton],
-    events: editorEvents,
-    buttons: [
-      'bold', 'italic', 'underline', 'strikethrough', '|',
-      'superscript', 'subscript', '|',
-      'ul', 'ol', '|',
-      'image', 'table', 'link', 'insertMath', '|',
-      'eraser', 'source'
-    ],
-    uploader: {
-      insertImageAsBase64URI: true
-    }
-  };
+  // Options are a dynamic-length array (add/remove up to 6), so their per-index configs/refs are
+  // rebuilt only when the option count changes, not on every keystroke.
+  const optionsCount = formData.options?.length || 0;
+  const optionConfigs = useMemo(() => Array.from({ length: optionsCount }, (_, i) => ({
+    ...minimalEditorConfig,
+    placeholder: `Enter Option ${String.fromCharCode(65 + i)}...`,
+    minHeight: 100
+  })), [optionsCount]);
+  const optionEditorRefSetters = useMemo(() => Array.from({ length: optionsCount }, (_, i) =>
+    (instance) => { optionEditorRefs.current[i] = instance; }
+  ), [optionsCount]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -539,9 +579,9 @@ const mathButton = {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden text-gray-900 [&_.jodit-wysiwyg]:!text-gray-900 [&_.jodit-wysiwyg]:!bg-white">
                       <JoditEditor
                         value={formData.passage}
-                        config={{...editorConfig, placeholder: "Enter the linked passage or context for this question (supports LaTeX with $$ or $)..."}}
+                        config={passageConfig}
                         onBlur={(newContent) => setFormData(prev => ({ ...prev, passage: newContent }))}
-                        editorRef={(instance) => { passageEditorRef.current = instance; }}
+                        editorRef={setPassageEditorRef}
                       />
                     </div>
                   </div>
@@ -554,9 +594,9 @@ const mathButton = {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden text-gray-900 [&_.jodit-wysiwyg]:!text-gray-900 [&_.jodit-wysiwyg]:!bg-white">
                       <JoditEditor
                         value={formData.question}
-                        config={{...editorConfig, placeholder: "Enter your question here..."}}
+                        config={questionConfig}
                         onBlur={(newContent) => setFormData(prev => ({ ...prev, question: newContent }))}
-                        editorRef={(instance) => { questionEditorRef.current = instance; }}
+                        editorRef={setQuestionEditorRef}
                       />
                     </div>
                   </div>
@@ -639,9 +679,9 @@ const mathButton = {
                           <div className="flex-1 w-full bg-white border border-gray-200 rounded text-sm overflow-hidden min-w-[200px] text-gray-900 [&_.jodit-wysiwyg]:!text-gray-900 [&_.jodit-wysiwyg]:!bg-white">
                             <JoditEditor
                               value={option}
-                              config={{...minimalEditorConfig, placeholder: `Enter Option ${String.fromCharCode(65 + index)}...`, minHeight: 100}}
+                              config={optionConfigs[index]}
                               onBlur={(newContent) => handleOptionChange(index, newContent)}
-                              editorRef={(instance) => { optionEditorRefs.current[index] = instance; }}
+                              editorRef={optionEditorRefSetters[index]}
                             />
                           </div>
                           {formData.options.length > 1 && (
@@ -704,9 +744,9 @@ const mathButton = {
                   <div className="bg-white rounded-xl shadow-sm border border-gray-300 overflow-hidden mt-2 text-gray-900 [&_.jodit-wysiwyg]:!text-gray-900 [&_.jodit-wysiwyg]:!bg-white">
                     <JoditEditor
                       value={formData.explanation}
-                      config={{...editorConfig, placeholder: "Provide detailed steps, hints, or reasons why the answer is correct..."}}
+                      config={explanationConfig}
                       onBlur={(newContent) => setFormData(prev => ({ ...prev, explanation: newContent }))}
-                      editorRef={(instance) => { explanationEditorRef.current = instance; }}
+                      editorRef={setExplanationEditorRef}
                     />
                   </div>
                 </div>
