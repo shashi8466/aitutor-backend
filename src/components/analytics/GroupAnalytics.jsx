@@ -180,13 +180,19 @@ const GroupAnalytics = ({ groupId, groupName, adminMode = false, onBack }) => {
 
         if (selectedStudent) {
             return (
-                <StudentLevelView 
+                <StudentLevelView
                     groupId={groupId}
                     student={selectedStudent}
                     adminMode={adminMode}
                     onBack={() => setSelectedStudent(null)}
                     onCourseSelect={(courseName) => setSelectedCourseName(courseName)}
                     onTopicReportSelect={(courseId) => setSelectedTopicReportCourseId(courseId)}
+                    // Completed Full-Length Test rows open the specific completed attempt's own
+                    // report (AttemptLevelView, keyed by submissionId) - the same report a
+                    // regular topic's individual attempt drill-down already uses - instead of the
+                    // Easy/Medium/Hard combined-report view, which a Full-Length Test can never
+                    // satisfy.
+                    onAttemptSelect={(submissionId) => setSelectedAttemptId(submissionId)}
                 />
             );
         }

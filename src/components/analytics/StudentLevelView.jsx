@@ -7,7 +7,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const { FiArrowLeft, FiAward, FiBookOpen, FiClock, FiTarget, FiChevronRight, FiTrendingUp } = FiIcons;
 
-const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect, onTopicReportSelect }) => {
+const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect, onTopicReportSelect, onAttemptSelect }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -40,10 +40,10 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
     const { overview = {}, trend = [], assignedContent = {} } = data || {};
 
     const math = data?.math || {
-        currentScore: 400,
-        bestScore: 400,
-        lowestScore: 400,
-        averageScore: 400,
+        currentScore: null,
+        bestScore: null,
+        lowestScore: null,
+        averageScore: null,
         scoreImprovement: '0',
         testsCompleted: 0,
         testsAssigned: 0,
@@ -53,14 +53,15 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
         correct: 0,
         incorrect: 0,
         unanswered: 0,
-        totalStudyTime: 0
+        totalStudyTime: 0,
+        hasData: false
     };
 
     const readingWriting = data?.readingWriting || {
-        currentScore: 400,
-        bestScore: 400,
-        lowestScore: 400,
-        averageScore: 400,
+        currentScore: null,
+        bestScore: null,
+        lowestScore: null,
+        averageScore: null,
         scoreImprovement: '0',
         testsCompleted: 0,
         testsAssigned: 0,
@@ -70,14 +71,15 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
         correct: 0,
         incorrect: 0,
         unanswered: 0,
-        totalStudyTime: 0
+        totalStudyTime: 0,
+        hasData: false
     };
 
     const overall = data?.overall || {
-        currentSatScore: 800,
-        bestSatScore: 800,
-        lowestSatScore: 800,
-        averageSatScore: 800,
+        currentSatScore: null,
+        bestSatScore: null,
+        lowestSatScore: null,
+        averageSatScore: null,
         scoreImprovement: '0',
         overallAccuracy: 0,
         totalTests: 0,
@@ -87,8 +89,13 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
         incorrect: 0,
         unanswered: 0,
         totalStudyTime: 0,
-        trendStatus: 'Stable'
+        trendStatus: 'Stable',
+        hasData: false
     };
+
+    // null when the student has no completed Full-Length Test yet within this group's assigned
+    // content - kept entirely separate from the regular-course math/readingWriting/overall above.
+    const fullLengthTest = data?.fullLengthTest || null;
 
     // Filter main categories out of assignedContent to list as courses
     const assignedCourses = Object.keys(assignedContent || {}).filter(c => c !== 'invite_token');
@@ -120,6 +127,7 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
             </div>
 
             {/* STUDENT SAT PERFORMANCE SECTION CARDS */}
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Regular SAT Course Scores</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Reading & Writing Card */}
                 <div 
@@ -134,18 +142,18 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
                             </span>
                         </div>
                         <div className="text-4xl font-black text-purple-400 mb-1 group-hover:text-purple-300 transition-colors">
-                            {readingWriting.bestScore} <span className="text-sm font-bold text-slate-400">/ 800</span>
+                            {readingWriting.hasData ? readingWriting.bestScore : '—'} <span className="text-sm font-bold text-slate-400">/ 800</span>
                         </div>
-                        <p className="text-xs font-bold text-slate-400 mb-4">Best R&W Score</p>
+                        <p className="text-xs font-bold text-slate-400 mb-4">{readingWriting.hasData ? 'Best R&W Score' : 'No regular course completed'}</p>
 
                         <div className="grid grid-cols-2 gap-2 p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs mb-3">
                             <div>
                                 <span className="text-[10px] text-slate-400 uppercase font-black block">Average Score</span>
-                                <span className="text-sm font-black text-white">{readingWriting.averageScore}</span>
+                                <span className="text-sm font-black text-white">{readingWriting.hasData ? readingWriting.averageScore : '—'}</span>
                             </div>
                             <div>
                                 <span className="text-[10px] text-slate-400 uppercase font-black block">Lowest</span>
-                                <span className="text-sm font-black text-rose-400">{readingWriting.lowestScore}</span>
+                                <span className="text-sm font-black text-rose-400">{readingWriting.hasData ? readingWriting.lowestScore : '—'}</span>
                             </div>
                             <div>
                                 <span className="text-[10px] text-slate-400 uppercase font-black block">Accuracy</span>
@@ -177,18 +185,18 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
                             </span>
                         </div>
                         <div className="text-4xl font-black text-blue-400 mb-1 group-hover:text-blue-300 transition-colors">
-                            {math.bestScore} <span className="text-sm font-bold text-slate-400">/ 800</span>
+                            {math.hasData ? math.bestScore : '—'} <span className="text-sm font-bold text-slate-400">/ 800</span>
                         </div>
-                        <p className="text-xs font-bold text-slate-400 mb-4">Best Math Score</p>
+                        <p className="text-xs font-bold text-slate-400 mb-4">{math.hasData ? 'Best Math Score' : 'No regular course completed'}</p>
 
                         <div className="grid grid-cols-2 gap-2 p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs mb-3">
                             <div>
                                 <span className="text-[10px] text-slate-400 uppercase font-black block">Average Score</span>
-                                <span className="text-sm font-black text-white">{math.averageScore}</span>
+                                <span className="text-sm font-black text-white">{math.hasData ? math.averageScore : '—'}</span>
                             </div>
                             <div>
                                 <span className="text-[10px] text-slate-400 uppercase font-black block">Lowest</span>
-                                <span className="text-sm font-black text-rose-400">{math.lowestScore}</span>
+                                <span className="text-sm font-black text-rose-400">{math.hasData ? math.lowestScore : '—'}</span>
                             </div>
                             <div>
                                 <span className="text-[10px] text-slate-400 uppercase font-black block">Accuracy</span>
@@ -216,13 +224,13 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
                                 {overall.scoreImprovement} Total Impr.
                             </span>
                         </div>
-                        <div className="text-5xl font-black text-amber-400 mb-1">{overall.bestSatScore} <span className="text-sm font-bold text-slate-400">/ 1600</span></div>
-                        <p className="text-xs font-bold text-slate-300 mb-4">Best Overall SAT Score</p>
+                        <div className="text-5xl font-black text-amber-400 mb-1">{overall.hasData ? overall.bestSatScore : '—'} <span className="text-sm font-bold text-slate-400">/ 1600</span></div>
+                        <p className="text-xs font-bold text-slate-300 mb-4">{overall.hasData ? 'Best Overall SAT Score' : 'No regular course completed'}</p>
 
                         <div className="space-y-2 p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs mb-3">
                             <div className="flex justify-between">
                                 <span className="text-slate-400 font-bold">Average SAT Score:</span>
-                                <span className="font-black text-emerald-400">{overall.averageSatScore}</span>
+                                <span className="font-black text-emerald-400">{overall.hasData ? overall.averageSatScore : '—'}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-slate-400 font-bold">Overall Accuracy:</span>
@@ -238,6 +246,55 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
                     <div className="pt-3 border-t border-slate-800 text-[11px] font-bold text-slate-400 flex justify-between">
                         <span>Total Questions: {overall.totalQuestions}</span>
                         <span>Trend: <strong className="text-emerald-400">{overall.trendStatus}</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            {/* FULL-LENGTH TEST SCORES - kept entirely separate from the regular-course cards
+                above; sourced only from the student's completed Full-Length Test attempts, never
+                mixed with regular course/topic scores. */}
+            <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Full-Length Test Scores</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Reading & Writing (Full-Length) */}
+                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-purple-500/40 text-white shadow-xl flex flex-col justify-between">
+                        <div>
+                            <span className="px-3 py-1 bg-purple-600/30 text-purple-300 font-black text-xs uppercase tracking-wider rounded-lg border border-purple-500/40">READING & WRITING</span>
+                            <div className="text-4xl font-black text-purple-400 mt-3 mb-1">
+                                {fullLengthTest ? fullLengthTest.rwScore : '--'} <span className="text-sm font-bold text-slate-400">/ 800</span>
+                            </div>
+                        </div>
+                        <p className="text-xs font-bold text-slate-400 pt-3 border-t border-slate-800 mt-3">
+                            {fullLengthTest ? `From ${fullLengthTest.testName}` : 'No completed Full-Length Test yet'}
+                        </p>
+                    </div>
+
+                    {/* Math (Full-Length) */}
+                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-blue-500/40 text-white shadow-xl flex flex-col justify-between">
+                        <div>
+                            <span className="px-3 py-1 bg-blue-600/30 text-blue-300 font-black text-xs uppercase tracking-wider rounded-lg border border-blue-500/40">MATH</span>
+                            <div className="text-4xl font-black text-blue-400 mt-3 mb-1">
+                                {fullLengthTest ? fullLengthTest.mathScore : '--'} <span className="text-sm font-bold text-slate-400">/ 800</span>
+                            </div>
+                        </div>
+                        <p className="text-xs font-bold text-slate-400 pt-3 border-t border-slate-800 mt-3">
+                            {fullLengthTest ? `From ${fullLengthTest.testName}` : 'No completed Full-Length Test yet'}
+                        </p>
+                    </div>
+
+                    {/* Overall SAT Score (Full-Length) */}
+                    <div className="p-6 bg-gradient-to-br from-[#0c1330] via-[#0f1738] to-[#070b1e] rounded-2xl border-2 border-amber-500/40 text-white shadow-xl flex flex-col justify-between">
+                        <div>
+                            <span className="px-3 py-1 bg-amber-600/30 text-amber-300 font-black text-xs uppercase tracking-wider rounded-lg border border-amber-500/40">OVERALL SAT SCORE</span>
+                            <div className="text-5xl font-black text-amber-400 mt-3 mb-1">
+                                {fullLengthTest ? fullLengthTest.overallScore : '--'} <span className="text-sm font-bold text-slate-400">/ 1600</span>
+                            </div>
+                        </div>
+                        <p className="text-xs font-bold text-slate-300 pt-3 border-t border-slate-800 mt-3">
+                            {fullLengthTest
+                                ? `Best of completed Full-Length Tests - ${new Date(fullLengthTest.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                                : 'No completed Full-Length Test yet'}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -370,14 +427,16 @@ const StudentLevelView = ({ groupId, student, adminMode, onBack, onCourseSelect,
                                             )}
                                         </td>
                                         <td className="p-4 text-center font-black text-amber-400">
-                                            {topic.isFullyCompleted ? `${topic.scaledScore} / 800` : <span className="text-slate-500 font-normal">--</span>}
+                                            {topic.isFullyCompleted ? `${topic.scaledScore} / ${topic.maxScore || 800}` : <span className="text-slate-500 font-normal">--</span>}
                                         </td>
                                         <td className="p-4 text-center text-slate-300 font-normal">
                                             {Math.floor(topic.timeTaken / 60)}m {topic.timeTaken % 60}s
                                         </td>
                                         <td className="p-4 text-right">
                                             <button
-                                                onClick={() => onTopicReportSelect(topic.courseId)}
+                                                onClick={() => topic.isFullLengthTest
+                                                    ? onAttemptSelect(topic.submissionId)
+                                                    : onTopicReportSelect(topic.courseId)}
                                                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 rounded-lg text-xs font-black transition-colors cursor-pointer"
                                             >
                                                 View Report <SafeIcon icon={FiChevronRight} />

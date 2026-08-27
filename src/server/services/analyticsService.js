@@ -276,7 +276,7 @@ export const analyticsService = {
 
         let submissionsQuery = supabase
             .from('test_submissions')
-            .select('id, course_id, raw_score_percentage, scaled_score, math_scaled_score, reading_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, course:courses(name, category, tutor_type)')
+            .select('id, course_id, raw_score_percentage, scaled_score, math_scaled_score, reading_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, course:courses(name, category, tutor_type, is_adaptive, main_category)')
             .eq('user_id', studentId)
             .order('created_at', { ascending: true });
 
@@ -288,13 +288,25 @@ export const analyticsService = {
 
         const { data: submissions } = await submissionsQuery;
 
+        // Full-Length Tests are single complete attempts scored from their own
+        // math_scaled_score/reading_scaled_score - they never populate Easy/Medium/Hard, so
+        // running them through the topic-combining path below (built for regular courses) is the
+        // wrong tool and always left them stuck showing "In Progress". Split them out up front;
+        // see _isFullLengthCourse.
+        const flSubmissions = (submissions || []).filter(s => this._isFullLengthCourse(s.course));
+        const topicSubmissions = (submissions || []).filter(s => !this._isFullLengthCourse(s.course));
+
         // Canonical per-topic (course_id) combined Easy+Medium+Hard reports - the SAME
         // calculation Test Review, the topic report page, and the Completed Tests table below
         // all use. The section-level Math/R&W/Overall cards are aggregated from these (only the
         // FULLY COMPLETED ones), not from raw per-submission rows - a topic a student is
         // mid-way through, or an individual Easy/Medium/Hard attempt, can no longer skew the
-        // headline score, and it always matches what "View Report" for that topic shows.
-        const topicReports = await this._getTopicReportsForSubmissions(groupId, studentId, submissions || []);
+        // headline score, and it always matches what "View Report" for that topic shows. Full-
+        // Length Tests are handled separately below (flAttempts/fullLengthTest) - excluding them
+        // here doesn't change these numbers, since they were already always skipped by the
+        // isFullyCompleted check further down (their level is 'Adaptive', so they could never be
+        // "fully completed" in the Easy/Medium/Hard sense).
+        const topicReports = await this._getTopicReportsForSubmissions(groupId, studentId, topicSubmissions);
 
         // The score-progression chart is legitimately per-attempt (a point per submission, not
         // per topic), so it still reads the raw submissions directly, with the same running-
@@ -355,6 +367,15 @@ export const analyticsService = {
             }
         });
 
+        // Whether this section has any FULLY COMPLETED regular-course topic yet - 400/800 below
+        // is an internal placeholder used only to keep the arithmetic well-defined (e.g. the
+        // trend-chart seed, scoreImprovement deltas); it must never be exposed as a real score
+        // when there's no completed regular-course activity to back it, and a Full-Length Test
+        // never counts toward this - see math.hasData/readingWriting.hasData/overall.hasData below.
+        const mathHasData = mathQ > 0;
+        const rwHasData = rwQ > 0;
+        const overallHasData = mathHasData && rwHasData;
+
         const currentMathScore = mathQ > 0 ? Math.round(200 + (mathCorrect / mathQ) * 600) : 400;
         const currentRwScore = rwQ > 0 ? Math.round(200 + (rwCorrect / rwQ) * 600) : 400;
         const currentSatScore = currentMathScore + currentRwScore;
@@ -374,13 +395,51 @@ export const analyticsService = {
         if (scoreDiff >= 30) trendStatus = 'Improving';
         else if (scoreDiff <= -30) trendStatus = 'Declining';
 
+        // Full-Length Test rows for the Completed Tests table, built directly from each
+        // submission's own stored score - a Full-Length Test row exists only once the test is
+        // actually submitted, so its presence alone means "Completed" (no Easy/Medium/Hard
+        // concept applies here, unlike regular topics).
+        const flAttempts = flSubmissions.map(sub => {
+            const mathScore = sub.math_scaled_score || 0;
+            const rwScore = sub.reading_scaled_score || 0;
+            const scaledScore = (mathScore + rwScore) || sub.scaled_score || 0;
+            const totalQuestions = sub.total_questions || 0;
+            const correct = sub.correct_questions?.length || 0;
+            return {
+                // The specific completed attempt, not the course/test ID - "View Report" must
+                // open the report for THIS attempt (getAttemptAnalytics/AttemptLevelView), not a
+                // course-level combined report, and must resolve correctly even if the student
+                // has multiple completed attempts of the same Full-Length Test.
+                submissionId: sub.id,
+                courseId: sub.course_id,
+                testName: sub.course?.name || 'Full-Length Test',
+                courseName: sub.course?.category || sub.course?.name || 'Full-Length Test',
+                topicName: sub.course?.name || 'Full-Length Test',
+                date: sub.created_at,
+                accuracy: totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : Math.round(sub.raw_score_percentage || 0),
+                scaledScore,
+                maxScore: 1600,
+                timeTaken: sub.test_duration_seconds || 0,
+                isFullyCompleted: true,
+                activeLevels: [],
+                missingLevels: [],
+                status: 'Completed',
+                isFullLengthTest: true
+            };
+        });
+
+        // Best-scoring Full-Length Test within this group's assigned content, kept completely
+        // separate from the regular-course math/readingWriting/overall numbers above - never
+        // mixed into that calculation, per this section's own requirement.
+        const bestFullLength = this._bestFullLengthResult(flSubmissions);
+
         return {
             student: profile,
             overall: {
-                currentSatScore,
-                bestSatScore: Math.max(currentSatScore, (mathHighest || 400) + (rwHighest || 400)),
-                lowestSatScore: Math.min(currentSatScore, (mathLowest === 800 ? 400 : mathLowest) + (rwLowest === 800 ? 400 : rwLowest)),
-                averageSatScore: currentSatScore,
+                currentSatScore: overallHasData ? currentSatScore : null,
+                bestSatScore: overallHasData ? Math.max(currentSatScore, (mathHighest || 400) + (rwHighest || 400)) : null,
+                lowestSatScore: overallHasData ? Math.min(currentSatScore, (mathLowest === 800 ? 400 : mathLowest) + (rwLowest === 800 ? 400 : rwLowest)) : null,
+                averageSatScore: overallHasData ? currentSatScore : null,
                 scoreImprovement: scoreDiff >= 0 ? `+${scoreDiff}` : `${scoreDiff}`,
                 overallAccuracy: totalQ > 0 ? Math.round((totalCorrect / totalQ) * 100) : 0,
                 totalTests: assignedCourseIds.length,
@@ -390,13 +449,14 @@ export const analyticsService = {
                 incorrect: totalIncorrect,
                 unanswered: totalUnanswered,
                 totalStudyTime: totalTime,
-                trendStatus
+                trendStatus,
+                hasData: overallHasData
             },
             math: {
-                currentScore: currentMathScore,
-                bestScore: mathHighest || currentMathScore,
-                lowestScore: mathLowest === 800 ? currentMathScore : mathLowest,
-                averageScore: currentMathScore,
+                currentScore: mathHasData ? currentMathScore : null,
+                bestScore: mathHasData ? (mathHighest || currentMathScore) : null,
+                lowestScore: mathHasData ? (mathLowest === 800 ? currentMathScore : mathLowest) : null,
+                averageScore: mathHasData ? currentMathScore : null,
                 scoreImprovement: mathCompletedCount > 1 ? `+${currentMathScore - (trend[0]?.mathScore || currentMathScore)}` : '0',
                 testsCompleted: mathCompletedCount,
                 testsAssigned: Math.round(assignedCourseIds.length / 2),
@@ -406,13 +466,14 @@ export const analyticsService = {
                 correct: mathCorrect,
                 incorrect: mathIncorrect,
                 unanswered: mathUnanswered,
-                totalStudyTime: mathTime
+                totalStudyTime: mathTime,
+                hasData: mathHasData
             },
             readingWriting: {
-                currentScore: currentRwScore,
-                bestScore: rwHighest || currentRwScore,
-                lowestScore: rwLowest === 800 ? currentRwScore : rwLowest,
-                averageScore: currentRwScore,
+                currentScore: rwHasData ? currentRwScore : null,
+                bestScore: rwHasData ? (rwHighest || currentRwScore) : null,
+                lowestScore: rwHasData ? (rwLowest === 800 ? currentRwScore : rwLowest) : null,
+                averageScore: rwHasData ? currentRwScore : null,
                 scoreImprovement: rwCompletedCount > 1 ? `+${currentRwScore - (trend[0]?.rwScore || currentRwScore)}` : '0',
                 testsCompleted: rwCompletedCount,
                 testsAssigned: Math.round(assignedCourseIds.length / 2),
@@ -422,14 +483,28 @@ export const analyticsService = {
                 correct: rwCorrect,
                 incorrect: rwIncorrect,
                 unanswered: rwUnanswered,
-                totalStudyTime: rwTime
+                totalStudyTime: rwTime,
+                hasData: rwHasData
             },
             trend,
             assignedContent,
+            // Full-Length Test scores, kept entirely separate from the regular-course math/
+            // readingWriting/overall above - null when the student has no completed Full-Length
+            // Test yet within this group's assigned content.
+            fullLengthTest: bestFullLength ? {
+                mathScore: bestFullLength.math,
+                rwScore: bestFullLength.rw,
+                overallScore: bestFullLength.total,
+                testName: bestFullLength.name,
+                date: bestFullLength.date
+            } : null,
             // Easy/Medium/Hard are separate test_submissions rows for the same course_id - the
             // Group Student Report must show ONE row per topic (not one per difficulty level),
-            // reusing the same topicReports fetched above rather than re-querying.
-            completedAttempts: this._summarizeTopicReports(topicReports)
+            // reusing the same topicReports fetched above rather than re-querying. Full-Length
+            // Test rows (flAttempts) are appended separately since they were never part of that
+            // topic-combining path to begin with.
+            completedAttempts: [...this._summarizeTopicReports(topicReports), ...flAttempts]
+                .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
         };
     },
 
@@ -465,6 +540,7 @@ export const analyticsService = {
                 date: tr.date,
                 accuracy: tr.overall.accuracy,
                 scaledScore: tr.overall.scaledScore,
+                maxScore: 800,
                 timeTaken: tr.overall.totalTime,
                 isFullyCompleted: tr.isFullyCompleted,
                 activeLevels: tr.activeLevels,
@@ -493,8 +569,31 @@ export const analyticsService = {
     // Full-Length/adaptive test courses never populate getTopicCombinedReport's Easy/Medium/Hard
     // buckets (their level is 'Adaptive'), so they're always split out and scored from their own
     // math_scaled_score/reading_scaled_score instead of being run through the topic-combining
-    // path. Shared by getStudentTargetProgress and getStudentTopScores so both agree on the
-    // exact same split.
+    // path. Used everywhere a submission needs to be classified as a Full-Length Test vs a
+    // regular topic attempt (getStudentDashboard's Completed Tests list included), so every call
+    // site agrees on the exact same split.
+    _isFullLengthCourse(course) {
+        return course?.is_adaptive === true || (course?.main_category || '').toUpperCase() === 'FULL LENGTH TESTS';
+    },
+
+    // The single best-scoring Full-Length Test submission from a list of them (by combined
+    // math+reading scaled score), or null if none has a real score yet. Shared by
+    // _computeCurrentSectionScores (student's own dashboard, unscoped) and getStudentDashboard
+    // (the Group Student Report, scoped to that group's assigned content) so "best Full-Length
+    // Test score" is computed identically everywhere, just over a different candidate list.
+    _bestFullLengthResult(flSubs) {
+        let best = null;
+        flSubs.forEach(s => {
+            const m = s.math_scaled_score || 0;
+            const r = s.reading_scaled_score || 0;
+            const total = m + r;
+            if (total > 0 && (!best || total > best.total)) {
+                best = { name: s.course?.name || 'Full-Length Test', date: s.created_at, math: m, rw: r, total };
+            }
+        });
+        return best;
+    },
+
     async _getStudentSubmissionsSplit(studentId) {
         const { data: submissions } = await supabase
             .from('test_submissions')
@@ -502,12 +601,9 @@ export const analyticsService = {
             .eq('user_id', studentId)
             .order('created_at', { ascending: true });
 
-        const isFullLengthCourse = (course) =>
-            course?.is_adaptive === true || (course?.main_category || '').toUpperCase() === 'FULL LENGTH TESTS';
-
         return {
-            flSubs: (submissions || []).filter(s => isFullLengthCourse(s.course)),
-            topicSubs: (submissions || []).filter(s => !isFullLengthCourse(s.course))
+            flSubs: (submissions || []).filter(s => this._isFullLengthCourse(s.course)),
+            topicSubs: (submissions || []).filter(s => !this._isFullLengthCourse(s.course))
         };
     },
 
@@ -543,15 +639,7 @@ export const analyticsService = {
         const topicRwScore = topicRwQ > 0 ? Math.round(200 + (topicRwCorrect / topicRwQ) * 600) : 400;
         const mostRecentTopic = [...mathTopics, ...rwTopics].sort((a, b) => new Date(b.date) - new Date(a.date))[0] || null;
 
-        let bestFullLength = null;
-        flSubs.forEach(s => {
-            const m = s.math_scaled_score || 0;
-            const r = s.reading_scaled_score || 0;
-            const total = m + r;
-            if (total > 0 && (!bestFullLength || total > bestFullLength.total)) {
-                bestFullLength = { name: s.course?.name || 'Full-Length Test', date: s.created_at, math: m, rw: r, total };
-            }
-        });
+        const bestFullLength = this._bestFullLengthResult(flSubs);
 
         return {
             topicMathScore, topicRwScore,
