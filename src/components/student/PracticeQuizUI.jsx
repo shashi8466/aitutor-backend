@@ -128,7 +128,7 @@ const PracticeQuizUI = ({
 
             {/* Passage if exists */}
             {currentQuestion.passage && (
-              <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 text-slate-800 text-base md:text-lg font-normal leading-loose">
+              <div className="mb-6 text-slate-800 text-base md:text-lg font-normal leading-loose">
                 <MathRenderer text={currentQuestion.passage} courseId={courseId} />
               </div>
             )}
