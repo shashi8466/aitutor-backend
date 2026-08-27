@@ -66,6 +66,19 @@ export const convertToLatex = (node) => {
       const sup = children.find(c => getTagName(c) === 'sup');
       return `{${convertToLatex(base)}}_{${convertToLatex(sub)}}^{${convertToLatex(sup)}}`;
 
+    case 'bar': { // Overbar / underbar (e.g. line-segment notation like AB with a bar over it)
+      const barBase = children.find(c => getTagName(c) === 'e');
+      const barPr = children.find(c => getTagName(c) === 'barPr');
+      let pos = 'top'; // OOXML default position when <m:pos> is omitted is "top" (overbar)
+      if (barPr) {
+        const posNode = Array.from(barPr.childNodes || []).find(c => getTagName(c) === 'pos');
+        const posVal = posNode?.getAttribute?.('m:val') || posNode?.getAttribute?.('val');
+        if (posVal) pos = posVal;
+      }
+      const command = pos === 'bot' ? 'underline' : 'overline';
+      return `\\${command}{${convertToLatex(barBase)}}`;
+    }
+
     case 'd': // Delimiter (Parentheses, brackets)
       // Try to extract content. We default to () if no specific separator logic is implemented yet.
       const content = children.find(c => getTagName(c) === 'e');
