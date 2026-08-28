@@ -1086,12 +1086,23 @@ const QuizInterface = () => {
                 }
               }
 
-              // Not passed (e.g. after a failed Hard-level attempt) - previously this screen
-              // had no way back at all besides the report/PDF buttons below.
+              // Not passed - retry is for the CURRENT level only (failing Easy retries Easy,
+              // never Medium; failing Medium retries Medium, never Easy/Hard). The next level
+              // stays locked since it's only ever reachable via the "Continue" links above,
+              // which only render once isPassed is true for this level.
               return (
-                <Link to="/student/courses" className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
-                  <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to My Courses
-                </Link>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => checkAccessAndLoad()}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm"
+                  >
+                    <SafeIcon icon={FiRefreshCw} className="w-4 h-4" /> Retry {currentLevelName} Level
+                  </button>
+                  <Link to="/student/courses" className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                    <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to My Courses
+                  </Link>
+                </>
               );
             })()}
             
