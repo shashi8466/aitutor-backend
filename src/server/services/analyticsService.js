@@ -36,10 +36,13 @@ export const analyticsService = {
 
         const studentIds = members?.map(m => m.student_id) || [];
         
-        // Fetch submissions for students & assigned group courses ONLY
+        // Fetch submissions for students & assigned group courses ONLY - a single query for the
+        // whole group. Every per-student aggregate below (canonical scores included) is derived
+        // from this one result set in memory rather than a query per student, which is what
+        // made this endpoint slow for large groups (see canonicalScoresByStudent below).
         let submissionsQuery = supabase
             .from('test_submissions')
-            .select('id, user_id, course_id, raw_score_percentage, scaled_score, math_scaled_score, reading_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, course:courses(name, category, tutor_type, is_adaptive, main_category)');
+            .select('id, user_id, course_id, level, raw_score_percentage, scaled_score, math_scaled_score, reading_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, course:courses(name, category, tutor_type, is_adaptive, main_category)');
 
         if (assignedCourseIds.length > 0 && studentIds.length > 0) {
             submissionsQuery = submissionsQuery.in('course_id', assignedCourseIds).in('user_id', studentIds);
@@ -125,17 +128,59 @@ export const analyticsService = {
 
         const numSubs = submissions?.length || 0;
 
-        // Canonical SAT Math/R&W/Overall scaled scores - one call per student into the SAME
-        // getStudentDashboard used by the Student Analytics page, so the Group Dashboard can
-        // never disagree with it. This is deliberately NOT a second, independent scoring
-        // calculation - every completed-topic combining/hasData rule lives in exactly one place.
-        const canonicalResults = await Promise.all(
-            members.map(m => this.getStudentDashboard(groupId, m.student_id).catch(err => {
-                console.error(`getGroupDashboard: failed to load canonical scores for student ${m.student_id}`, err);
-                return null;
-            }))
-        );
-        const canonicalByStudent = new Map(members.map((m, i) => [m.student_id, canonicalResults[i]]));
+        // Canonical SAT Math/R&W scaled scores - computed in-memory from the SAME submissions
+        // already fetched above (no per-student query). This reproduces EXACTLY the same
+        // combining rule getTopicCombinedReport/getStudentDashboard use - a regular topic only
+        // counts once it's fully completed (has at least one Easy, one Medium, and one Hard
+        // attempt), using each level's LATEST attempt, scaled as
+        // 200 + (combined correct / combined total) * 600 - and a student's best score in a
+        // section is their highest scaled score among their own fully-completed topics there.
+        // Previously this called getStudentDashboard once per member, which independently
+        // re-fetched the group scope, the student's profile, and the student's submissions all
+        // over again - an O(students) set of redundant round-trips that was the actual cause of
+        // slow loading for large groups. This produces the identical numbers with none of that.
+        const isMathCourse = (course) => {
+            const cat = (course?.tutor_type || course?.category || course?.name || '').toLowerCase();
+            return cat.includes('math') || cat.includes('quant');
+        };
+
+        const topicBuckets = new Map(); // `${user_id}:${course_id}` -> { course, levels: {} }
+        submissions?.forEach(sub => {
+            if (this._isFullLengthCourse(sub.course)) return;
+            const key = `${sub.user_id}:${sub.course_id}`;
+            if (!topicBuckets.has(key)) topicBuckets.set(key, { course: sub.course, levels: {} });
+            const bucket = topicBuckets.get(key);
+            const rawLevel = sub.level || 'Medium';
+            const level = rawLevel.charAt(0).toUpperCase() + rawLevel.slice(1).toLowerCase();
+            const existing = bucket.levels[level];
+            if (!existing || new Date(sub.created_at) > new Date(existing.created_at)) {
+                bucket.levels[level] = sub;
+            }
+        });
+
+        const canonicalByStudent = new Map(members.map(m => [m.student_id, { mathBest: 0, rwBest: 0 }]));
+        const REQUIRED_LEVELS = ['Easy', 'Medium', 'Hard'];
+        topicBuckets.forEach((bucket, key) => {
+            const userId = key.slice(0, key.lastIndexOf(':'));
+            const isFullyCompleted = REQUIRED_LEVELS.every(lvl => bucket.levels[lvl]);
+            if (!isFullyCompleted) return;
+
+            let bucketTotalQ = 0, bucketCorrect = 0;
+            REQUIRED_LEVELS.forEach(lvl => {
+                const s = bucket.levels[lvl];
+                bucketTotalQ += s.total_questions || 0;
+                bucketCorrect += s.correct_questions?.length || 0;
+            });
+            const scaledScore = bucketTotalQ > 0 ? Math.round(200 + (bucketCorrect / bucketTotalQ) * 600) : 200;
+
+            const entry = canonicalByStudent.get(userId);
+            if (!entry) return;
+            if (isMathCourse(bucket.course)) {
+                if (scaledScore > entry.mathBest) entry.mathBest = scaledScore;
+            } else if (scaledScore > entry.rwBest) {
+                entry.rwBest = scaledScore;
+            }
+        });
 
         // Full-Length Test Top 10 - a completely independent leaderboard from the regular-
         // course one above, built only from this group's Full-Length Test submissions (never
@@ -183,9 +228,11 @@ export const analyticsService = {
             }
 
             const canonical = canonicalByStudent.get(m.student_id);
-            const mBest = canonical?.math?.hasData ? canonical.math.bestScore : 0;
-            const rwBest = canonical?.readingWriting?.hasData ? canonical.readingWriting.bestScore : 0;
-            const satTotal = canonical?.overall?.hasData ? canonical.overall.bestSatScore : 0;
+            const mBest = canonical?.mathBest > 0 ? canonical.mathBest : 0;
+            const rwBest = canonical?.rwBest > 0 ? canonical.rwBest : 0;
+            // Overall requires BOTH sections to have a completed topic, matching
+            // getStudentDashboard's overall.hasData rule (never Math-only or R&W-only).
+            const satTotal = (mBest > 0 && rwBest > 0) ? mBest + rwBest : 0;
             const accuracy = stats.totalQ > 0 ? Math.round((stats.correct / stats.totalQ) * 100) : 0;
             const progress = assignedCourseIds.length > 0 ? Math.round((stats.uniqueTopics.size / assignedCourseIds.length) * 100) : 0;
 

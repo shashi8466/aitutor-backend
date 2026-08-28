@@ -7,46 +7,86 @@ import { buildGroupContentTree } from '../../utils/groupContentTree';
 
 const { FiUsers, FiTarget, FiTrendingUp, FiActivity, FiChevronRight, FiClock, FiBookOpen } = FiIcons;
 
+// Mirrors the eventual page layout (header stats row, three Top-10 card rows, table) so the
+// page reads as "already open, still populating" rather than a blank screen behind a spinner.
+const GroupDashboardSkeleton = () => {
+    const pulse = 'animate-pulse bg-slate-800/70 rounded-xl';
+    return (
+        <div className="space-y-6">
+            <div className={`h-20 ${pulse}`} />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => <div key={i} className={`h-20 ${pulse}`} />)}
+            </div>
+            <div className={`h-4 w-40 ${pulse}`} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, i) => <div key={i} className={`h-48 ${pulse}`} />)}
+            </div>
+            <div className={`h-4 w-52 ${pulse}`} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, i) => <div key={i} className={`h-48 ${pulse}`} />)}
+            </div>
+            <div className={`h-64 ${pulse}`} />
+        </div>
+    );
+};
+
 const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySelect, onContentSectionSelect }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [contentTree, setContentTree] = useState(null);
+    const [retryToken, setRetryToken] = useState(0);
 
     const service = adminMode ? adminService : tutorService;
 
     useEffect(() => {
-        loadData();
-    }, [groupId]);
+        // Guards against setting state from a request for a group the user has already
+        // navigated away from (e.g. clicking into a different group before this one's
+        // response arrives) - stale data can no longer overwrite the current view.
+        let cancelled = false;
 
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            const res = await service.getGroupDashboard(groupId);
-            setData(res.data);
-
-            // Additive: builds the content drill-down tree from the group's own assigned
-            // content - failure here shouldn't break the existing dashboard, so it's isolated.
+        const loadData = async () => {
+            setLoading(true);
+            setError(null);
             try {
-                const coursesRes = await courseService.getAll();
-                setContentTree(buildGroupContentTree(res.data?.assignedContent, coursesRes.data || []));
-            } catch (treeErr) {
-                console.warn('Error building group content tree', treeErr);
-            }
-        } catch (err) {
-            console.error('Error loading group dashboard', err);
-            setError('Failed to load group analytics');
-        } finally {
-            setLoading(false);
-        }
-    };
+                const res = await service.getGroupDashboard(groupId);
+                if (cancelled) return;
+                setData(res.data);
 
-    if (loading) return (
-        <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                // Additive: builds the content drill-down tree from the group's own assigned
+                // content - failure here shouldn't break the existing dashboard, so it's isolated.
+                try {
+                    const coursesRes = await courseService.getAll();
+                    if (cancelled) return;
+                    setContentTree(buildGroupContentTree(res.data?.assignedContent, coursesRes.data || []));
+                } catch (treeErr) {
+                    console.warn('Error building group content tree', treeErr);
+                }
+            } catch (err) {
+                if (cancelled) return;
+                console.error('Error loading group dashboard', err);
+                setError('Failed to load group analytics');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        loadData();
+        return () => { cancelled = true; };
+    }, [groupId, retryToken]);
+
+    if (loading) return <GroupDashboardSkeleton />;
+    if (error) return (
+        <div className="flex flex-col items-center gap-4 p-8 text-center">
+            <p className="text-red-500 font-bold">{error}</p>
+            <button
+                onClick={() => setRetryToken(t => t + 1)}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors"
+            >
+                Retry
+            </button>
         </div>
     );
-    if (error) return <div className="text-red-500 font-bold p-4">{error}</div>;
     if (!data) return null;
 
     const { overview = {}, students = [] } = data || {};
