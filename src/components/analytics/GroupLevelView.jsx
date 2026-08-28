@@ -126,7 +126,9 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                 </div>
             </div>
 
-            {/* GROUP SAT TOP 10 LEADERBOARD CARDS */}
+            {/* REGULAR COURSE TOP 10 - sourced only from regular topic/course attempts, never
+                mixed with Full-Length Test results below. */}
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Regular Course — Top 10</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* 1. SAT MATH — TOP 10 */}
                 <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-blue-500/40 text-white shadow-xl flex flex-col justify-between">
@@ -240,6 +242,125 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                 </div>
             </div>
 
+            {/* FULL-LENGTH TEST TOP 10 - independently aggregated from this group's Full-Length
+                Test submissions only. Populated even when the group has no regular courses
+                assigned at all (e.g. a group with only a Full-Length Test), and vice versa. */}
+            <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Full-Length Test — Top 10</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* SAT Math - Full-Length Test Top 10 */}
+                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-blue-500/40 text-white shadow-xl flex flex-col justify-between">
+                        <div>
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="px-3 py-1 bg-blue-600/30 text-blue-300 font-black text-xs uppercase tracking-wider rounded-lg border border-blue-500/40">
+                                    SAT MATH — FULL-LENGTH TEST TOP 10
+                                </span>
+                                <span className="text-xs font-bold text-slate-400">Max 800</span>
+                            </div>
+
+                            {(!overview.topMathStudentsFullLength || overview.topMathStudentsFullLength.length === 0) ? (
+                                <p className="text-xs text-slate-400 py-6 text-center">No completed Full-Length Test attempts yet.</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                        <thead>
+                                            <tr className="text-[10px] text-slate-400 uppercase font-black border-b border-slate-800 pb-2">
+                                                <th className="py-2">Rank</th>
+                                                <th className="py-2">Student</th>
+                                                <th className="py-2 text-right">Score</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/60">
+                                            {overview.topMathStudentsFullLength.map((st, idx) => (
+                                                <tr key={st.id || idx} className="hover:bg-slate-900/50 cursor-pointer" onClick={() => onStudentSelect(st)}>
+                                                    <td className="py-2 font-black text-blue-400">#{idx + 1}</td>
+                                                    <td className="py-2 font-bold text-white truncate max-w-[120px]">{st.name}</td>
+                                                    <td className="py-2 font-black text-emerald-400 text-right">{st.math} <span className="text-[10px] text-slate-400">/ 800</span></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* SAT Reading & Writing - Full-Length Test Top 10 */}
+                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-purple-500/40 text-white shadow-xl flex flex-col justify-between">
+                        <div>
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="px-3 py-1 bg-purple-600/30 text-purple-300 font-black text-xs uppercase tracking-wider rounded-lg border border-purple-500/40">
+                                    SAT READING & WRITING — FULL-LENGTH TEST TOP 10
+                                </span>
+                                <span className="text-xs font-bold text-slate-400">Max 800</span>
+                            </div>
+
+                            {(!overview.topRwStudentsFullLength || overview.topRwStudentsFullLength.length === 0) ? (
+                                <p className="text-xs text-slate-400 py-6 text-center">No completed Full-Length Test attempts yet.</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                        <thead>
+                                            <tr className="text-[10px] text-slate-400 uppercase font-black border-b border-slate-800 pb-2">
+                                                <th className="py-2">Rank</th>
+                                                <th className="py-2">Student</th>
+                                                <th className="py-2 text-right">Score</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/60">
+                                            {overview.topRwStudentsFullLength.map((st, idx) => (
+                                                <tr key={st.id || idx} className="hover:bg-slate-900/50 cursor-pointer" onClick={() => onStudentSelect(st)}>
+                                                    <td className="py-2 font-black text-purple-400">#{idx + 1}</td>
+                                                    <td className="py-2 font-bold text-white truncate max-w-[120px]">{st.name}</td>
+                                                    <td className="py-2 font-black text-emerald-400 text-right">{st.readingWriting} <span className="text-[10px] text-slate-400">/ 800</span></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Overall SAT - Full-Length Test Top 10 */}
+                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-amber-500/40 text-white shadow-xl flex flex-col justify-between">
+                        <div>
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="px-3 py-1 bg-amber-600/30 text-amber-300 font-black text-xs uppercase tracking-wider rounded-lg border border-amber-500/40">
+                                    OVERALL SAT — FULL-LENGTH TEST TOP 10
+                                </span>
+                                <span className="text-xs font-bold text-slate-400">Max 1600</span>
+                            </div>
+
+                            {(!overview.topOverallStudentsFullLength || overview.topOverallStudentsFullLength.length === 0) ? (
+                                <p className="text-xs text-slate-400 py-6 text-center">No completed Full-Length Test attempts yet.</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs">
+                                        <thead>
+                                            <tr className="text-[10px] text-slate-400 uppercase font-black border-b border-slate-800 pb-2">
+                                                <th className="py-2">Rank</th>
+                                                <th className="py-2">Student</th>
+                                                <th className="py-2 text-right">SAT Score</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/60">
+                                            {overview.topOverallStudentsFullLength.map((st, idx) => (
+                                                <tr key={st.id || idx} className="hover:bg-slate-900/50 cursor-pointer" onClick={() => onStudentSelect(st)}>
+                                                    <td className="py-2 font-black text-amber-400">#{idx + 1}</td>
+                                                    <td className="py-2 font-bold text-white truncate max-w-[120px]">{st.name}</td>
+                                                    <td className="py-2 font-black text-yellow-400 text-right">{st.satScore} <span className="text-[10px] text-slate-400">/ 1600</span></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Content Analytics (Section -> Topic -> Subtopic drill-down) */}
             {contentTree && Object.keys(contentTree).length > 0 && (
                 <div>
@@ -302,9 +423,6 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                                             <p className="font-black text-white group-hover:text-blue-400 text-sm">{student.name}</p>
                                             <p className="text-[11px] text-slate-400 font-normal">{student.email}</p>
                                         </td>
-                                        <td className="p-4 text-center text-blue-400 font-black">{student.math}</td>
-                                        <td className="p-4 text-center text-purple-400 font-black">{student.readingWriting}</td>
-                                        <td className="p-4 text-center font-black text-amber-400 text-sm">{student.satScore}</td>
                                         <td className="p-4 text-center font-black text-emerald-400">{student.accuracy}</td>
                                         <td className="p-4 text-center text-white">{student.tests}</td>
                                         <td className="p-4 text-center">

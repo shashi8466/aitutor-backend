@@ -39,7 +39,7 @@ export const analyticsService = {
         // Fetch submissions for students & assigned group courses ONLY
         let submissionsQuery = supabase
             .from('test_submissions')
-            .select('id, user_id, course_id, raw_score_percentage, scaled_score, math_scaled_score, reading_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, course:courses(name, category, tutor_type)');
+            .select('id, user_id, course_id, raw_score_percentage, scaled_score, math_scaled_score, reading_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, course:courses(name, category, tutor_type, is_adaptive, main_category)');
 
         if (assignedCourseIds.length > 0 && studentIds.length > 0) {
             submissionsQuery = submissionsQuery.in('course_id', assignedCourseIds).in('user_id', studentIds);
@@ -136,6 +136,40 @@ export const analyticsService = {
             }))
         );
         const canonicalByStudent = new Map(members.map((m, i) => [m.student_id, canonicalResults[i]]));
+
+        // Full-Length Test Top 10 - a completely independent leaderboard from the regular-
+        // course one above, built only from this group's Full-Length Test submissions (never
+        // mixed with regular topic-quiz submissions). Each student's own best-by-total
+        // Full-Length attempt (same selection rule _bestFullLengthResult already uses for the
+        // Student Analytics "Full-Length Test Scores" cards) supplies their Math/R&W/Overall
+        // Full-Length score consistently, rather than three independently-chosen "best"
+        // attempts per student.
+        const flSubmissions = (submissions || []).filter(s => this._isFullLengthCourse(s.course));
+        const flSubsByStudent = new Map();
+        flSubmissions.forEach(s => {
+            if (!flSubsByStudent.has(s.user_id)) flSubsByStudent.set(s.user_id, []);
+            flSubsByStudent.get(s.user_id).push(s);
+        });
+
+        const flStudentsList = members
+            .map(m => {
+                const best = this._bestFullLengthResult(flSubsByStudent.get(m.student_id) || []);
+                if (!best) return null;
+                return {
+                    id: m.student_id,
+                    name: m.student?.name || 'Student',
+                    email: m.student?.email || '',
+                    math: best.math,
+                    readingWriting: best.rw,
+                    satScore: best.total,
+                    date: best.date
+                };
+            })
+            .filter(Boolean);
+
+        const topMathStudentsFullLength = [...flStudentsList].sort((a, b) => b.math - a.math).slice(0, 10);
+        const topRwStudentsFullLength = [...flStudentsList].sort((a, b) => b.readingWriting - a.readingWriting).slice(0, 10);
+        const topOverallStudentsFullLength = [...flStudentsList].sort((a, b) => b.satScore - a.satScore).slice(0, 10);
 
         let activeStudents = 0;
         let studentsCompletedTests = 0;
@@ -234,10 +268,18 @@ export const analyticsService = {
                 averageStudyTime: Math.round(totalTime / Math.max(1, studentIds.length)),
                 overallGroupProgress: assignedCourseIds.length > 0 ? Math.round((numSubs / Math.max(1, assignedCourseIds.length * studentIds.length)) * 100) : 0,
 
-                // Top 10 Leaderboard Data
+                // Top 10 Leaderboard Data (regular course/topic attempts only)
                 topMathStudents,
                 topRwStudents,
                 topOverallStudents,
+
+                // Full-Length Test Top 10 Leaderboard Data - independent of the regular-course
+                // one above, sourced only from this group's Full-Length Test submissions. A
+                // group with no regular courses (only a Full-Length Test assigned) still gets a
+                // populated leaderboard here even though topMathStudents/etc. above are empty.
+                topMathStudentsFullLength,
+                topRwStudentsFullLength,
+                topOverallStudentsFullLength,
 
                 // Section Summaries - averageScore/highestScore/lowestScore come from the
                 // corrected per-student canonical bests (mathBests/rwBests above); the rest
