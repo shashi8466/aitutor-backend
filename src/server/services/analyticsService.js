@@ -49,27 +49,27 @@ export const analyticsService = {
 
         const { data: submissions } = await submissionsQuery;
 
-        // Group & Section Aggregates
+        // Group & Section Aggregates - question/time counts only (these are legitimate raw
+        // totals regardless of scoring). The actual SAT Math/R&W/Overall SCALED scores are
+        // NOT derived here - see canonicalByStudent below for why.
         let totalQ = 0, totalCorrect = 0, totalIncorrect = 0, totalUnanswered = 0, totalTime = 0;
         let highestSat = 0, lowestSat = 1600;
 
-        const mathAgg = { totalTests: 0, sumScore: 0, highest: 0, lowest: 800, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, time: 0 };
-        const rwAgg = { totalTests: 0, sumScore: 0, highest: 0, lowest: 800, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, time: 0 };
+        const mathAgg = { totalTests: 0, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, time: 0 };
+        const rwAgg = { totalTests: 0, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, time: 0 };
 
         const studentStats = {};
         studentIds.forEach(id => {
-            studentStats[id] = { 
-                totalTests: 0, 
+            studentStats[id] = {
+                totalTests: 0,
                 sumAccuracy: 0,
-                mathScores: [], 
-                rwScores: [], 
-                uniqueTopics: new Set(), 
+                uniqueTopics: new Set(),
                 totalTime: 0,
                 totalQ: 0,
                 correct: 0,
                 incorrect: 0,
                 unanswered: 0,
-                lastActivity: null 
+                lastActivity: null
             };
         });
 
@@ -91,31 +91,21 @@ export const analyticsService = {
             const categoryName = (sub.course?.tutor_type || sub.course?.category || sub.course?.name || '').toLowerCase();
             const isMath = categoryName.includes('math') || categoryName.includes('quant');
 
-            // Math vs Reading & Writing Section Categorization
-            const mathScore = sub.math_scaled_score || (isMath ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
-            const rwScore = sub.reading_scaled_score || (!isMath ? (sub.scaled_score || Math.round(200 + (pct / 100) * 600)) : null);
-
-            if (isMath && mathScore) {
-                mathAgg.totalTests++;
-                mathAgg.sumScore += mathScore;
-                mathAgg.totalQ += qCount;
-                mathAgg.correct += cCount;
-                mathAgg.incorrect += iCount;
-                mathAgg.unanswered += uCount;
-                mathAgg.time += duration;
-                if (mathScore > mathAgg.highest) mathAgg.highest = mathScore;
-                if (mathScore < mathAgg.lowest) mathAgg.lowest = mathScore;
-            } else if (rwScore) {
-                rwAgg.totalTests++;
-                rwAgg.sumScore += rwScore;
-                rwAgg.totalQ += qCount;
-                rwAgg.correct += cCount;
-                rwAgg.incorrect += iCount;
-                rwAgg.unanswered += uCount;
-                rwAgg.time += duration;
-                if (rwScore > rwAgg.highest) rwAgg.highest = rwScore;
-                if (rwScore < rwAgg.lowest) rwAgg.lowest = rwScore;
-            }
+            // Question/time counts only - NOT a scaled score. A regular topic-level (Easy/
+            // Medium/Hard) submission's own math_scaled_score/reading_scaled_score columns are
+            // always a meaningless floor default (they're only meaningful for a genuinely
+            // multi-section submission like a Full-Length Test, where each question's own
+            // `section` field distinguishes math from reading) - using them here was exactly
+            // the bug: students with no completed Full-Length Test had every submission's
+            // math_scaled_score stuck at 200, which this file's own `||` fallback chain then
+            // treated as a real (if low) score instead of recognizing it as unpopulated.
+            const agg = isMath ? mathAgg : rwAgg;
+            agg.totalTests++;
+            agg.totalQ += qCount;
+            agg.correct += cCount;
+            agg.incorrect += iCount;
+            agg.unanswered += uCount;
+            agg.time += duration;
 
             if (studentStats[sid]) {
                 studentStats[sid].totalTests++;
@@ -127,9 +117,6 @@ export const analyticsService = {
                 studentStats[sid].totalTime += duration;
                 studentStats[sid].uniqueTopics.add(sub.course_id);
 
-                if (mathScore) studentStats[sid].mathScores.push(mathScore);
-                if (rwScore) studentStats[sid].rwScores.push(rwScore);
-
                 if (!studentStats[sid].lastActivity || new Date(sub.created_at) > new Date(studentStats[sid].lastActivity)) {
                     studentStats[sid].lastActivity = sub.created_at;
                 }
@@ -137,14 +124,22 @@ export const analyticsService = {
         });
 
         const numSubs = submissions?.length || 0;
-        const avgMathScore = mathAgg.totalTests > 0 ? Math.round(mathAgg.sumScore / mathAgg.totalTests) : 500;
-        const avgRwScore = rwAgg.totalTests > 0 ? Math.round(rwAgg.sumScore / rwAgg.totalTests) : 500;
-        const avgSatScore = avgMathScore + avgRwScore;
+
+        // Canonical SAT Math/R&W/Overall scaled scores - one call per student into the SAME
+        // getStudentDashboard used by the Student Analytics page, so the Group Dashboard can
+        // never disagree with it. This is deliberately NOT a second, independent scoring
+        // calculation - every completed-topic combining/hasData rule lives in exactly one place.
+        const canonicalResults = await Promise.all(
+            members.map(m => this.getStudentDashboard(groupId, m.student_id).catch(err => {
+                console.error(`getGroupDashboard: failed to load canonical scores for student ${m.student_id}`, err);
+                return null;
+            }))
+        );
+        const canonicalByStudent = new Map(members.map((m, i) => [m.student_id, canonicalResults[i]]));
 
         let activeStudents = 0;
         let studentsCompletedTests = 0;
 
-        // Map Student Performance Table
         // Map Student Performance Table and Leaderboards
         const studentsList = members?.map(m => {
             const stats = studentStats[m.student_id];
@@ -153,9 +148,10 @@ export const analyticsService = {
                 studentsCompletedTests++;
             }
 
-            const mBest = stats.mathScores.length > 0 ? Math.max(...stats.mathScores) : 0;
-            const rwBest = stats.rwScores.length > 0 ? Math.max(...stats.rwScores) : 0;
-            const satTotal = (mBest > 0 || rwBest > 0) ? (mBest || 200) + (rwBest || 200) : 0;
+            const canonical = canonicalByStudent.get(m.student_id);
+            const mBest = canonical?.math?.hasData ? canonical.math.bestScore : 0;
+            const rwBest = canonical?.readingWriting?.hasData ? canonical.readingWriting.bestScore : 0;
+            const satTotal = canonical?.overall?.hasData ? canonical.overall.bestSatScore : 0;
             const accuracy = stats.totalQ > 0 ? Math.round((stats.correct / stats.totalQ) * 100) : 0;
             const progress = assignedCourseIds.length > 0 ? Math.round((stats.uniqueTopics.size / assignedCourseIds.length) * 100) : 0;
 
@@ -186,6 +182,20 @@ export const analyticsService = {
                 lastActivity: stats.lastActivity
             };
         }) || [];
+
+        // Group-level average/highest/lowest for the section summary cards - derived from the
+        // SAME corrected per-student bests as the Top 10 lists and student table above, never
+        // from the raw per-submission fields.
+        const mathBests = studentsList.filter(s => s.rawMathBest > 0).map(s => s.rawMathBest);
+        const rwBests = studentsList.filter(s => s.rawRwBest > 0).map(s => s.rawRwBest);
+        const satBests = studentsList.filter(s => s.rawSatTotal > 0).map(s => s.rawSatTotal);
+        const avgMathScore = mathBests.length > 0 ? Math.round(mathBests.reduce((a, b) => a + b, 0) / mathBests.length) : 500;
+        const avgRwScore = rwBests.length > 0 ? Math.round(rwBests.reduce((a, b) => a + b, 0) / rwBests.length) : 500;
+        const avgSatScore = satBests.length > 0 ? Math.round(satBests.reduce((a, b) => a + b, 0) / satBests.length) : 1000;
+        const mathHighest = mathBests.length > 0 ? Math.max(...mathBests) : 0;
+        const mathLowest = mathBests.length > 0 ? Math.min(...mathBests) : 0;
+        const rwHighest = rwBests.length > 0 ? Math.max(...rwBests) : 0;
+        const rwLowest = rwBests.length > 0 ? Math.min(...rwBests) : 0;
 
         // Build Top 10 Leaderboards
         const topMathStudents = [...studentsList]
@@ -229,11 +239,15 @@ export const analyticsService = {
                 topRwStudents,
                 topOverallStudents,
 
-                // Section Summaries
+                // Section Summaries - averageScore/highestScore/lowestScore come from the
+                // corrected per-student canonical bests (mathBests/rwBests above); the rest
+                // (accuracy/testsCompleted/questionsAttempted/correct/incorrect/unanswered/
+                // studyTime) are legitimate raw counts across all math/R&W submissions and are
+                // unaffected by the scaled-score bug.
                 math: {
                     averageScore: avgMathScore,
-                    highestScore: mathAgg.highest || 500,
-                    lowestScore: mathAgg.lowest === 800 ? 500 : mathAgg.lowest,
+                    highestScore: mathHighest || 500,
+                    lowestScore: mathLowest || 500,
                     accuracy: mathAgg.totalQ > 0 ? Math.round((mathAgg.correct / mathAgg.totalQ) * 100) : 0,
                     testsCompleted: mathAgg.totalTests,
                     questionsAttempted: mathAgg.totalQ,
@@ -244,8 +258,8 @@ export const analyticsService = {
                 },
                 readingWriting: {
                     averageScore: avgRwScore,
-                    highestScore: rwAgg.highest || 500,
-                    lowestScore: rwAgg.lowest === 800 ? 500 : rwAgg.lowest,
+                    highestScore: rwHighest || 500,
+                    lowestScore: rwLowest || 500,
                     accuracy: rwAgg.totalQ > 0 ? Math.round((rwAgg.correct / rwAgg.totalQ) * 100) : 0,
                     testsCompleted: rwAgg.totalTests,
                     questionsAttempted: rwAgg.totalQ,
