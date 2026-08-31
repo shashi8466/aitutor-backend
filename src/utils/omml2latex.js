@@ -79,6 +79,31 @@ export const convertToLatex = (node) => {
       return `\\${command}{${convertToLatex(barBase)}}`;
     }
 
+    case 'acc': { // Accent (e.g. arc, hat, tilde over a base - Word's Equation > Accent gallery)
+      const accBase = children.find(c => getTagName(c) === 'e');
+      const accPr = children.find(c => getTagName(c) === 'accPr');
+      let chr = '';
+      if (accPr) {
+        const chrNode = Array.from(accPr.childNodes || []).find(c => getTagName(c) === 'chr');
+        chr = chrNode?.getAttribute?.('m:val') || chrNode?.getAttribute?.('val') || '';
+      }
+      const accBaseLatex = convertToLatex(accBase);
+      // Arc/frown notation (e.g. "minor arc AC") - Word's built-in "Arc" accent template.
+      // \stackrel{\frown}{} is used instead of \overparen{} since \stackrel/\frown are core
+      // MathJax macros (no extension package required), guaranteeing render support.
+      if (['⏜', '⌢', '⌣', '︵', '⌒', '⌢', '̑'].includes(chr)) {
+        return `\\stackrel{\\frown}{${accBaseLatex}}`;
+      }
+      if (chr === '^' || chr === '̂') return `\\hat{${accBaseLatex}}`;
+      if (chr === '~' || chr === '̃') return `\\tilde{${accBaseLatex}}`;
+      if (chr === '.' || chr === '̇') return `\\dot{${accBaseLatex}}`;
+      if (chr === '..' || chr === '̈') return `\\ddot{${accBaseLatex}}`;
+      if (chr === '→' || chr === '⃗') return `\\vec{${accBaseLatex}}`;
+      // Unrecognized accent character - keep it visible above the base rather than silently
+      // dropping it (matches the closest available intent instead of losing it entirely).
+      return chr ? `\\stackrel{${chr}}{${accBaseLatex}}` : accBaseLatex;
+    }
+
     case 'd': // Delimiter (Parentheses, brackets)
       // Try to extract content. We default to () if no specific separator logic is implemented yet.
       const content = children.find(c => getTagName(c) === 'e');

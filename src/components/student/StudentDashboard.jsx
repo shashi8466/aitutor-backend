@@ -330,33 +330,6 @@ const StudentDashboard = () => {
                 })}
               </svg>
 
-              {/* Balloons - shaded via gradient for a glossy look, same visibility reasoning as
-                  the firework above */}
-              <svg className="pointer-events-none hidden sm:block absolute bottom-2 right-4 w-16 h-24 sm:w-20 sm:h-28 drop-shadow-lg" viewBox="0 0 60 90" fill="none">
-                <defs>
-                  <radialGradient id="balloonPurple" cx="35%" cy="30%" r="70%">
-                    <stop offset="0%" stopColor="#c4b5fd" />
-                    <stop offset="60%" stopColor="#8b5cf6" />
-                    <stop offset="100%" stopColor="#6d28d9" />
-                  </radialGradient>
-                </defs>
-                <path d="M30 2C13 2 4 18 4 33c0 16 12 29 26 29s26-13 26-29C56 18 47 2 30 2Z" fill="url(#balloonPurple)" />
-                <path d="M25 60c1 3 4 4 5 4s4-1 5-4l-2 8h-6l-2-8Z" fill="#5b21b6" />
-                <path d="M28 68q4 8 0 16" stroke="#a78bfa" strokeWidth="1.5" fill="none" />
-              </svg>
-              <svg className="pointer-events-none hidden sm:block absolute bottom-6 right-16 sm:right-20 w-14 h-20 sm:w-16 sm:h-24 drop-shadow-lg rotate-[8deg]" viewBox="0 0 60 90" fill="none">
-                <defs>
-                  <radialGradient id="balloonOrange" cx="35%" cy="30%" r="70%">
-                    <stop offset="0%" stopColor="#fed7aa" />
-                    <stop offset="60%" stopColor="#f97316" />
-                    <stop offset="100%" stopColor="#c2410c" />
-                  </radialGradient>
-                </defs>
-                <path d="M30 2C13 2 4 18 4 33c0 16 12 29 26 29s26-13 26-29C56 18 47 2 30 2Z" fill="url(#balloonOrange)" />
-                <path d="M25 60c1 3 4 4 5 4s4-1 5-4l-2 8h-6l-2-8Z" fill="#9a3412" />
-                <path d="M28 68q-4 8 0 16" stroke="#fdba74" strokeWidth="1.5" fill="none" />
-              </svg>
-
               <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
                 {/* Trophy */}
                 <div className="relative flex-shrink-0">
