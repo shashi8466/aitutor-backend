@@ -790,9 +790,7 @@ const StudentCourseList = () => {
           </div>
         ) : (
           <div className="text-center py-12 bg-[#11131A] rounded-2xl border border-dashed border-[#1C202B]">
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold bg-[#7C3AED]/15 text-[#c4b5fd] border border-[#7C3AED]/40 shadow-[0_0_15px_rgba(124,58,237,0.2)]">
-              Coming Soon
-            </span>
+            <p className="text-gray-500">Your tutor hasn't assigned any tests to your account yet. Check back soon!</p>
           </div>
         )}
       </section>
