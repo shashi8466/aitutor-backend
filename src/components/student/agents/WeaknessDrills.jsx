@@ -163,15 +163,13 @@ const WeaknessDrills = () => {
     try {
       if (!topic) throw new Error('Missing weakness topic');
 
-      // 1. Access Check
-      const hasAccess = await planService.checkAccess(user.id, 'topic', topic, user.plan_type);
-      if (!hasAccess) {
-        setDrillError(`🔒 Topic Restricted: "${topic}" is only available for Premium students. Please upgrade to unlock!`);
-        setLoading(false);
-        return;
-      }
+      // Weakness Drill authorization is the "Weakness Drills" plan feature toggle alone
+      // (enforced by the FeatureGate wrapping this whole route in App.jsx) - deliberately no
+      // topic/content-level Free/Premium check here. A detected weakness topic that would
+      // normally be Premium-only elsewhere in the app must still be drillable once the
+      // student's plan has Weakness Drills enabled.
 
-      // 2. Limit Check
+      // 1. Limit Check
       const usage = await planService.getUsageStats(user.id);
       const { data: settings } = await planService.getSettings();
       const userPlan = (user?.plan_type || 'free').toLowerCase();

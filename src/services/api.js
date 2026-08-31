@@ -206,9 +206,26 @@ export const authService = {
   // FAST version for initial boot
   getSessionUser: async () => {
     try {
-      // 1. FAST INITIAL CHECK (Session Only - No network request usually)
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+      // 1. FAST INITIAL CHECK (Session Only - usually no network request). getSession() is a
+      // known supabase-js pain point: it can occasionally hang indefinitely (e.g. a token-
+      // refresh lock held by another tab) with no way to detect that from the outside - and
+      // unlike the getUser() network fallback below, it previously had no timeout at all, so
+      // the ONLY thing that ever recovered the UI was AuthContext's blunt 15-second global
+      // failsafe. Racing it the same way the getUser() call below already is means a hang here
+      // now falls through to that same getUser() path (or returns null) within a few seconds.
+      const sessionPromise = supabase.auth.getSession();
+      const sessionTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('getSession timeout')), 5000)
+      );
+
+      const { data: { session } = {}, error: sessionError } = await Promise.race([
+        sessionPromise,
+        sessionTimeoutPromise
+      ]).catch((err) => {
+        console.warn('⏰ getSessionUser: getSession timed out or failed:', err.message);
+        return { data: {}, error: err };
+      });
+
       if (session?.user) {
         console.log('✅ getSessionUser: Found session for', session.user.email);
         const user = session.user;
@@ -1104,13 +1121,15 @@ export const planService = {
     }).eq('id', userId);
   },
   getUsageStats: async (userId) => {
-    // Count questions answered in grading_submissions
-    const { data: submissions } = await supabase.from('grading_submissions').select('question_ids, upload_id').eq('user_id', userId);
-    const questionCount = (submissions || []).reduce((acc, sub) => acc + (sub.question_ids?.length || 0), 0);
-    
-    // Count unique tests (uploads) attempted
-    const uniqueTests = new Set((submissions || []).map(s => s.upload_id).filter(Boolean));
-    
+    // Count questions answered - test_submissions is the current schema (this used to query a
+    // table named grading_submissions, which no longer exists and was silently returning zero
+    // usage for every student, 404-ing on every call).
+    const { data: submissions } = await supabase.from('test_submissions').select('total_questions, course_id').eq('user_id', userId);
+    const questionCount = (submissions || []).reduce((acc, sub) => acc + (sub.total_questions || 0), 0);
+
+    // Count unique tests/courses attempted
+    const uniqueTests = new Set((submissions || []).map(s => s.course_id).filter(Boolean));
+
     return { totalQuestions: questionCount, totalTests: uniqueTests.size };
   },
   checkAccess: async (userId, contentType, contentId, planType = null) => {
