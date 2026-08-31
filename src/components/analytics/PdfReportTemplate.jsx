@@ -62,7 +62,7 @@ export const PdfReportTemplate = React.forwardRef(({ type, data, groupName, stud
         </div>
     );
 
-    const isDarkReport = type === 'Group' || type === 'Student';
+    const isDarkReport = type === 'Group' || type === 'Student' || type === 'GroupContent';
 
     return (
         <div ref={ref} style={{ backgroundColor: isDarkReport ? '#0a0e24' : 'white', padding: '0', color: '#111827', width: '100%', fontFamily: 'Helvetica, Arial, sans-serif', boxSizing: 'border-box' }} className="hidden-pdf-container">
@@ -356,6 +356,126 @@ export const PdfReportTemplate = React.forwardRef(({ type, data, groupName, stud
                                     </table>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* 3b. GROUP CONTENT REPORT (Section / Topic / Subtopic drill-down - mirrors
+                 GroupContentLevelView.jsx's own dark navy theme). One reusable template for
+                 every level of the content hierarchy: `title`/`subtitle` carry which
+                 subject/topic/subtopic is in scope, and `overview`/`top10`/`students` are the
+                 exact same data already fetched by getGroupContentAnalytics for that scope -
+                 nothing here is recalculated or topic-specific, so this works unchanged for
+                 every subject/topic/subtopic in the system. */}
+            {type === 'GroupContent' && data?.overview && (() => {
+                const ov = data.overview;
+                const top10 = data.top10 || [];
+                const students = data.students || [];
+                const CARD_BG = '#111625';
+                const BORDER = '#1e293b';
+                const MUTED = '#94a3b8';
+
+                const statCard = (label, value, color) => (
+                    <div style={{ backgroundColor: CARD_BG, padding: '14px', borderRadius: '10px', border: `1px solid ${BORDER}`, textAlign: 'center', pageBreakInside: 'avoid' }}>
+                        <p style={{ margin: '0 0 6px 0', fontSize: '10px', color: MUTED, textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.5px' }}>{label}</p>
+                        <p style={{ margin: 0, fontSize: '22px', fontWeight: 'bold', color }}>{value}</p>
+                    </div>
+                );
+
+                const sectionTitle = (text) => (
+                    <h3 style={{ fontSize: '15px', margin: '0 0 14px 0', color: 'white', fontWeight: 'bold' }}>{text}</h3>
+                );
+
+                return (
+                    <div style={{ backgroundColor: '#0a0e24', padding: '24px', minHeight: '100%' }}>
+                        {renderHeader(data.title || 'Content Analytics', data.subtitle || 'Group Content Performance Report')}
+
+                        <div style={{ marginBottom: '20px' }}>
+                            {sectionTitle('Overview')}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '10px' }}>
+                                {statCard('Students Assigned', ov.studentsAssigned ?? 0, 'white')}
+                                {statCard('Attempted', ov.studentsAttempted ?? 0, '#60a5fa')}
+                                {statCard('Completed', ov.studentsCompleted ?? 0, '#34d399')}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '10px' }}>
+                                {statCard('Not Attempted', ov.studentsNotAttempted ?? 0, '#fbbf24')}
+                                {statCard('Completion Rate', `${ov.completionRate ?? 0}%`, '#818cf8')}
+                                {statCard('Average Score', ov.averageScore != null ? `${ov.averageScore} / 800` : '--', 'white')}
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                                {statCard('Highest Score', ov.highestScore != null ? `${ov.highestScore} / 800` : '--', '#fbbf24')}
+                                {statCard('Average Accuracy', ov.averageAccuracy != null ? `${ov.averageAccuracy}%` : '--', '#c084fc')}
+                                {statCard('Total Attempts', ov.totalAttempts ?? 0, 'white')}
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '10px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#60a5fa33', border: '1px solid #60a5fa66', borderRadius: '8px 8px 0 0', padding: '8px 12px' }}>
+                                <h3 style={{ margin: 0, fontSize: '13px', color: '#60a5fa', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.5px' }}>{data.title || 'Topic'} — Top 10</h3>
+                                <span style={{ fontSize: '10px', color: MUTED, fontWeight: 'bold' }}>Max 800</span>
+                            </div>
+                            {top10.length === 0 ? (
+                                <p style={{ fontSize: '12px', color: MUTED, padding: '14px', backgroundColor: CARD_BG, border: `1px solid ${BORDER}`, borderTop: 'none' }}>No completed attempts yet.</p>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', border: `1px solid ${BORDER}`, borderTop: 'none' }}>
+                                    <thead>
+                                        <tr style={{ color: MUTED }}>
+                                            <th style={{ padding: '8px 12px', width: '12%', backgroundColor: CARD_BG, fontSize: '10px', textTransform: 'uppercase' }}>Rank</th>
+                                            <th style={{ padding: '8px 12px', backgroundColor: CARD_BG, fontSize: '10px', textTransform: 'uppercase' }}>Student</th>
+                                            <th style={{ padding: '8px 12px', textAlign: 'right', width: '20%', backgroundColor: CARD_BG, fontSize: '10px', textTransform: 'uppercase' }}>Score</th>
+                                            <th style={{ padding: '8px 12px', textAlign: 'right', width: '20%', backgroundColor: CARD_BG, fontSize: '10px', textTransform: 'uppercase' }}>Accuracy</th>
+                                            <th style={{ padding: '8px 12px', textAlign: 'right', width: '18%', backgroundColor: CARD_BG, fontSize: '10px', textTransform: 'uppercase' }}>Attempts</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {top10.map((st, idx) => (
+                                            <tr key={st.id || idx} style={{ borderTop: `1px solid ${BORDER}`, backgroundColor: idx % 2 === 0 ? '#0a0e24' : CARD_BG, pageBreakInside: 'avoid' }}>
+                                                <td style={{ padding: '8px 12px', fontWeight: 'bold', color: '#60a5fa' }}>#{idx + 1}</td>
+                                                <td style={{ padding: '8px 12px', fontWeight: 'bold', color: 'white' }}>{st.name}</td>
+                                                <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 'bold', color: 'white' }}>{st.bestScore} <span style={{ color: MUTED, fontWeight: 'normal' }}>/ 800</span></td>
+                                                <td style={{ padding: '8px 12px', textAlign: 'right', color: '#34d399' }}>{st.avgAccuracy != null ? `${st.avgAccuracy}%` : '--'}</td>
+                                                <td style={{ padding: '8px 12px', textAlign: 'right', color: 'white' }}>{st.attempts}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        <div style={{ pageBreakBefore: 'always', paddingTop: '24px' }}>
+                            {sectionTitle('Student Performance')}
+                            <div style={{ backgroundColor: '#60a5fa33', border: '1px solid #60a5fa66', borderRadius: '8px 8px 0 0', padding: '8px 12px' }}>
+                                <h3 style={{ margin: 0, fontSize: '13px', color: 'white', fontWeight: 'bold' }}>
+                                    {students.length} {students.length === 1 ? 'Student' : 'Students'}
+                                </h3>
+                            </div>
+                            {students.length === 0 ? (
+                                <p style={{ fontSize: '12px', color: MUTED, padding: '14px', backgroundColor: CARD_BG, border: `1px solid ${BORDER}`, borderTop: 'none' }}>No students in this group.</p>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', textAlign: 'left', border: `1px solid ${BORDER}`, borderTop: 'none' }}>
+                                    <thead>
+                                        <tr style={{ color: MUTED }}>
+                                            <th style={{ padding: '8px 10px', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Student</th>
+                                            <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Best Score</th>
+                                            <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Accuracy</th>
+                                            <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Attempts</th>
+                                            <th style={{ padding: '8px 10px', textAlign: 'center', backgroundColor: CARD_BG, fontSize: '9.5px', textTransform: 'uppercase' }}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {students.map((s, idx) => (
+                                            <tr key={s.id || idx} style={{ borderTop: `1px solid ${BORDER}`, backgroundColor: idx % 2 === 0 ? '#0a0e24' : CARD_BG, pageBreakInside: 'avoid' }}>
+                                                <td style={{ padding: '8px 10px' }}><strong style={{ color: 'white' }}>{s.name}</strong><br/><span style={{ color: MUTED, fontSize: '9px' }}>{s.email}</span></td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: '#fbbf24', fontWeight: 'bold' }}>{s.bestScore != null ? `${s.bestScore} / 800` : '--'}</td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: '#34d399' }}>{s.avgAccuracy != null ? `${s.avgAccuracy}%` : '--'}</td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: 'white' }}>{s.attempts}</td>
+                                                <td style={{ padding: '8px 10px', textAlign: 'center', color: s.status === 'Completed' ? '#34d399' : s.status === 'In Progress' ? '#fbbf24' : MUTED }}>{s.status}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 );

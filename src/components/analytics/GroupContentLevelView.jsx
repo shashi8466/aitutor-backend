@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import PdfExportWrapper from './PdfExportWrapper';
 import { tutorService, adminService } from '../../services/api';
 
 const { FiArrowLeft, FiChevronRight, FiUsers, FiTarget, FiAward, FiActivity, FiCheckCircle, FiClock } = FiIcons;
@@ -18,6 +19,7 @@ const { FiArrowLeft, FiChevronRight, FiUsers, FiTarget, FiAward, FiActivity, FiC
  */
 const GroupContentLevelView = ({
     groupId,
+    groupName,
     adminMode,
     title,
     subtitle,
@@ -67,15 +69,26 @@ const GroupContentLevelView = ({
     return (
         <div className="space-y-6 animate-fade-in">
             {/* Header */}
-            <div className="flex items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500 transition-colors">
-                    <SafeIcon icon={FiArrowLeft} className="w-6 h-6" />
-                </button>
-                <div>
-                    <h2 className="text-2xl font-bold dark:text-white flex items-center gap-2">
-                        {title} {badge && <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">{badge}</span>}
-                    </h2>
-                    {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+            <div className="flex justify-between items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                <div className="flex items-center gap-4">
+                    <button onClick={onBack} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-500 transition-colors">
+                        <SafeIcon icon={FiArrowLeft} className="w-6 h-6" />
+                    </button>
+                    <div>
+                        <h2 className="text-2xl font-bold dark:text-white flex items-center gap-2">
+                            {title} {badge && <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">{badge}</span>}
+                        </h2>
+                        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    <PdfExportWrapper
+                        type="GroupContent"
+                        data={{ title, subtitle, overview, top10, students }}
+                        groupName={groupName}
+                        filename={`${(title || 'Content').replace(/\s+/g, '_')}_Analytics`}
+                        buttonText="Download PDF"
+                    />
                 </div>
             </div>
 

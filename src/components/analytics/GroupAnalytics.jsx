@@ -218,6 +218,7 @@ const GroupAnalytics = ({ groupId, groupName, adminMode = false, onBack }) => {
             return (
                 <GroupContentLevelView
                     groupId={groupId}
+                    groupName={groupName}
                     adminMode={adminMode}
                     title={current.name}
                     subtitle={contentPath.slice(0, depth).map(e => e.name).join(' → ') || undefined}
