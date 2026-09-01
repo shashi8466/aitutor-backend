@@ -100,8 +100,8 @@ const WeeklyReport = ({ isParentView = false }) => {
         <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 pb-20">
             <div className="max-w-4xl mx-auto px-4 pt-8">
                 {/* Back Link */}
-                <button 
-                    onClick={() => navigate(isParentView ? `/parent/child/${targetStudentId}` : '/student')}
+                <button
+                    onClick={() => navigate(isParentView ? '/parent' : '/student')}
                     className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-indigo-600 transition-colors mb-8"
                 >
                     <SafeIcon icon={FiArrowLeft} /> Back to Dashboard

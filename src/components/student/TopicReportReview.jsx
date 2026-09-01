@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { gradingService, tutorService } from '../../services/api';
+import { gradingService, tutorService, parentService } from '../../services/api';
 import CombinedRegularCourseReport from '../common/CombinedRegularCourseReport';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { FiArrowLeft, FiAlertCircle } = FiIcons;
 
-// studentId is only present when a tutor/admin reaches this via Test History for a specific
-// student (see TestReview.jsx's topicReportPath) - the student's own /topic-report/:courseId
-// route never has it, and keeps fetching its own combined report exactly as before.
-// tutorService is used for both tutor and admin callers, same as TestReview.jsx's own
-// tutorService.getStudentProgress call - the backend route has an admin bypass built in.
-const TopicReportReview = () => {
+// studentId is only present when a tutor/admin/parent reaches this via Test History for a
+// specific student (see TestReview.jsx's topicReportPath) - the student's own
+// /topic-report/:courseId route never has it, and keeps fetching its own combined report
+// exactly as before. tutorService is used for both tutor and admin callers, same as
+// TestReview.jsx's own tutorService.getStudentProgress call - the backend route has an admin
+// bypass built in. parentMode selects the linked_students-authorized parentService route instead.
+const TopicReportReview = ({ parentMode = false }) => {
     const { courseId, studentId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -29,7 +30,9 @@ const TopicReportReview = () => {
         try {
             setLoading(true);
             const response = studentId
-                ? await tutorService.getStudentTopicReport(studentId, courseId)
+                ? (parentMode
+                    ? await parentService.getStudentTopicReport(studentId, courseId)
+                    : await tutorService.getStudentTopicReport(studentId, courseId))
                 : await gradingService.getTopicReport(courseId);
             const data = response.data;
 

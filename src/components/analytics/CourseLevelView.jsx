@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import PdfExportWrapper from './PdfExportWrapper';
-import { tutorService, adminService } from '../../services/api';
+import { tutorService, adminService, parentService } from '../../services/api';
 
 const { FiArrowLeft, FiClock, FiCheckCircle, FiXCircle, FiBook, FiChevronRight } = FiIcons;
 
-const CourseLevelView = ({ groupId, student, courseName, adminMode, onBack, onDomainSelect, onTopicSelect }) => {
+const CourseLevelView = ({ groupId, student, courseName, adminMode, parentMode, onBack, onDomainSelect, onTopicSelect }) => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const service = adminMode ? adminService : tutorService;
+    const service = parentMode ? parentService : (adminMode ? adminService : tutorService);
 
     useEffect(() => {
         loadData();
@@ -20,7 +20,9 @@ const CourseLevelView = ({ groupId, student, courseName, adminMode, onBack, onDo
     const loadData = async () => {
         setLoading(true);
         try {
-            const res = await service.getCourseAnalytics(groupId, student.id, courseName);
+            const res = parentMode
+                ? await service.getCourseAnalytics(student.id, courseName)
+                : await service.getCourseAnalytics(groupId, student.id, courseName);
             setData(res.data);
         } catch (err) {
             console.error('Error loading course analytics', err);

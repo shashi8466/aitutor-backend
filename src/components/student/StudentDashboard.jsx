@@ -8,7 +8,7 @@ import Skeleton from '../../components/common/Skeleton';
 import DashboardNotifications from '../../components/common/DashboardNotifications';
 
 // Services
-import { enrollmentService, progressService, planService, gradingService } from '../../services/api';
+import { enrollmentService, progressService, planService, gradingService, parentService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { calculateStudentScore, getCategory, calculateSatScore } from '../../utils/scoreCalculator';
 
@@ -62,9 +62,18 @@ function ProgressRow({ icon, color, bg, label, count, max }) {
   );
 }
 
-const StudentDashboard = () => {
+// viewStudentId/viewStudent, when provided (Parent Portal's Dashboard page), render this EXACT
+// component read-only for that linked student instead of the logged-in user - every data fetch
+// below switches to the parentService (linked_students-authorized) equivalent, and every display
+// name/email/avatar uses the viewed student's identity instead of the parent's own. No separate
+// dashboard implementation; this is genuinely the same component/markup either way.
+const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStudent = null }) => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const isParentView = !!viewStudentId;
+  const targetId = viewStudentId || user?.id;
+  const displayName = isParentView ? (viewStudent?.name || 'Student') : (user?.name || 'Student');
+  const displayEmail = isParentView ? (viewStudent?.email || '') : (user?.email || '');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -85,32 +94,50 @@ const StudentDashboard = () => {
   const [topScores, setTopScores] = useState(null);
 
   useEffect(() => {
-    if (user && !authLoading) {
+    if (user && !authLoading && targetId) {
       loadAllData().catch(err => {
         console.error('💥 Dashboard error:', err);
         setError(err.message || 'Failed to load dashboard');
         setLoading(false);
       });
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, targetId]);
 
   const loadAllData = async () => {
-    if (!user?.id) {
+    if (!targetId) {
       setLoading(false);
       return;
     }
-    
-    try {
-      const [enrollmentsRes, progressRes, planRes, submissionsRes] = await Promise.allSettled([
-        enrollmentService.getStudentEnrollments(user.id),
-        progressService.getAllUserProgress(user.id),
-        planService.getPlan(user.id),
-        gradingService.getAllMyScores(user.id)
-      ]);
 
-      const enrollments = enrollmentsRes.status === 'fulfilled' ? (enrollmentsRes.value?.data || []) : [];
-      const progress = progressRes.status === 'fulfilled' ? (progressRes.value?.data || []) : [];
-      const plan = planRes.status === 'fulfilled' ? (planRes.value?.data || null) : null;
+    try {
+      const [enrollmentsRes, progressRes, planRes, submissionsRes] = await Promise.allSettled(
+        isParentView
+          ? [
+              parentService.getStudentEnrollments(targetId),
+              parentService.getStudentProgress(targetId),
+              parentService.getStudentPlan(targetId),
+              parentService.getStudentReports(targetId)
+            ]
+          : [
+              enrollmentService.getStudentEnrollments(targetId),
+              progressService.getAllUserProgress(targetId),
+              planService.getPlan(targetId),
+              gradingService.getAllMyScores(targetId)
+            ]
+      );
+
+      // parentService.* are real axios calls (response shape { data: { enrollments/progress/
+      // plan: ... } }); the self-view services above return their own { data: ... } directly
+      // (not axios), so the two paths unwrap one level differently.
+      const enrollments = enrollmentsRes.status === 'fulfilled'
+        ? (isParentView ? (enrollmentsRes.value?.data?.enrollments || []) : (enrollmentsRes.value?.data || []))
+        : [];
+      const progress = progressRes.status === 'fulfilled'
+        ? (isParentView ? (progressRes.value?.data?.progress || []) : (progressRes.value?.data || []))
+        : [];
+      const plan = planRes.status === 'fulfilled'
+        ? (isParentView ? (planRes.value?.data?.plan || null) : (planRes.value?.data || null))
+        : null;
       const submissions = submissionsRes.status === 'fulfilled' ? (submissionsRes.value?.data?.submissions || []) : [];
 
       setRawData({
@@ -226,20 +253,24 @@ const StudentDashboard = () => {
   // is higher - the same canonical combined-report calculation used everywhere else - with
   // durable first-crossing tracking so the attributed topic/test doesn't drift on later loads.
   useEffect(() => {
-    if (!planLoaded || !user?.id || !scores.target) return;
-    gradingService.getTargetProgress(scores.target)
+    if (!planLoaded || !targetId || !scores.target) return;
+    const request = isParentView
+      ? parentService.getTargetProgress(targetId, scores.target)
+      : gradingService.getTargetProgress(scores.target);
+    request
       .then(res => setTargetProgress(res.data))
       .catch(err => console.error('Failed to load target progress', err));
-  }, [planLoaded, scores.target, user?.id]);
+  }, [planLoaded, scores.target, targetId, isParentView]);
 
-  // Top Scores - independent fetch, only needs the logged-in user, not any of the score/plan
+  // Top Scores - independent fetch, only needs the target student, not any of the score/plan
   // data above.
   useEffect(() => {
-    if (!user?.id) return;
-    gradingService.getTopScores()
+    if (!targetId) return;
+    const request = isParentView ? parentService.getTopScores(targetId) : gradingService.getTopScores();
+    request
       .then(res => setTopScores(res.data?.topScores || []))
       .catch(err => console.error('Failed to load top scores', err));
-  }, [user?.id]);
+  }, [targetId, isParentView]);
 
   if (authLoading || (!user && loading)) {
     return (
@@ -280,7 +311,10 @@ const StudentDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-12 font-sans text-slate-900 dark:text-slate-100">
+    // In parentView mode this is embedded inside the Parent Portal's own gray-50/gray-900
+    // page background (ParentDashboard.jsx) - no competing full-bleed background or forced
+    // min-h-screen here, so it blends into that shell instead of reading as a separate block.
+    <div className={`${isParentView ? '' : 'min-h-screen bg-slate-50 dark:bg-slate-950'} pb-12 font-sans text-slate-900 dark:text-slate-100`}>
       <div className="max-w-7xl mx-auto py-8">
         
         {loading && (
@@ -292,14 +326,14 @@ const StudentDashboard = () => {
 
         <div className="mb-8 px-4 sm:px-0">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-            Welcome back, {user?.name ? user.name.split(' ')[0] : 'Student'}!
+            Welcome back, {displayName.split(' ')[0]}!
           </h1>
           <p className="text-sm sm:text-base text-slate-500 mt-1">Here is your daily progress overview.</p>
         </div>
 
         {targetProgress?.reached && (
-          <div className="mb-8 px-4 sm:px-0">
-            <div className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-[#1a1140] via-[#150f38] to-[#0d0a26] p-6 sm:p-8 shadow-[0_0_35px_-18px_rgba(139,92,246,0.3)]">
+          <div className="mb-5 px-4 sm:px-0">
+            <div className="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-[#1a1140] via-[#150f38] to-[#0d0a26] p-4 sm:p-5 shadow-[0_0_35px_-18px_rgba(139,92,246,0.3)]">
               {/* Ambient glows - kept subtle so the purple stays a soft premium accent, not a
                   strong hover-like glow */}
               <div className="pointer-events-none absolute -top-16 -left-16 w-64 h-64 rounded-full bg-purple-600/12 blur-3xl" />
@@ -330,11 +364,11 @@ const StudentDashboard = () => {
                 })}
               </svg>
 
-              <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
+              <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
                 {/* Trophy */}
                 <div className="relative flex-shrink-0">
                   <div className="absolute inset-0 rounded-full bg-amber-400/40 blur-2xl scale-125" />
-                  <svg className="relative w-20 h-20 sm:w-28 sm:h-28 drop-shadow-[0_0_25px_rgba(251,191,36,0.55)]" viewBox="0 0 100 110" fill="none">
+                  <svg className="relative w-12 h-12 sm:w-16 sm:h-16 drop-shadow-[0_0_25px_rgba(251,191,36,0.55)]" viewBox="0 0 100 110" fill="none">
                     <defs>
                       <linearGradient id="trophyGold" x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stopColor="#fef3c7" />
@@ -366,10 +400,10 @@ const StudentDashboard = () => {
                 </div>
 
                 <div className="flex-1 min-w-0 text-center sm:text-left">
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-white">
-                    Congratulations, {user?.name ? user.name.split(' ')[0] : 'Student'}! 🎉
+                  <h3 className="text-base sm:text-lg font-extrabold text-white">
+                    Congratulations, {displayName.split(' ')[0]}! 🎉
                   </h3>
-                  <p className="text-sm sm:text-base text-indigo-200 mt-1">
+                  <p className="text-xs sm:text-sm text-indigo-200 mt-0.5">
                     You've reached your target score of <span className="font-bold text-amber-300">{targetProgress.target} / 1600</span>.
                   </p>
 
@@ -377,50 +411,50 @@ const StudentDashboard = () => {
                       4th (Target Reached) box gets extra flex-grow since its value is usually
                       the longest; icons/padding/font-size shrink together at the smallest sizes
                       so nothing needs to truncate or wrap to a new row. */}
-                  <div className="mt-5 flex flex-nowrap gap-1.5 sm:gap-3">
-                    <div className="flex-1 flex items-center gap-1.5 sm:gap-3 bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-1.5 sm:px-4 py-1.5 sm:py-3 min-w-0">
-                      <div className="hidden sm:flex w-6 h-6 sm:w-9 sm:h-9 rounded-full bg-sky-500/20 text-sky-300 items-center justify-center flex-shrink-0">
-                        <SafeIcon icon={FiZap} className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <div className="mt-3 flex flex-nowrap gap-1.5 sm:gap-2.5">
+                    <div className="flex-1 flex items-center gap-1.5 sm:gap-2 bg-white/5 border border-white/10 rounded-xl px-1.5 sm:px-3 py-1.5 sm:py-2 min-w-0">
+                      <div className="hidden sm:flex w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-sky-500/20 text-sky-300 items-center justify-center flex-shrink-0">
+                        <SafeIcon icon={FiZap} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[6px] sm:text-[10px] text-indigo-300 font-semibold uppercase tracking-wide truncate">Math</p>
-                        <p className="text-[10px] sm:text-base font-bold text-white whitespace-nowrap">{targetProgress.mathScore} / 800</p>
+                        <p className="text-[6px] sm:text-[9px] text-indigo-300 font-semibold uppercase tracking-wide truncate">Math</p>
+                        <p className="text-[10px] sm:text-sm font-bold text-white whitespace-nowrap">{targetProgress.mathScore} / 800</p>
                       </div>
                     </div>
 
-                    <div className="flex-1 flex items-center gap-1.5 sm:gap-3 bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-1.5 sm:px-4 py-1.5 sm:py-3 min-w-0">
-                      <div className="hidden sm:flex w-6 h-6 sm:w-9 sm:h-9 rounded-full bg-emerald-500/20 text-emerald-300 items-center justify-center flex-shrink-0">
-                        <SafeIcon icon={FiBook} className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <div className="flex-1 flex items-center gap-1.5 sm:gap-2 bg-white/5 border border-white/10 rounded-xl px-1.5 sm:px-3 py-1.5 sm:py-2 min-w-0">
+                      <div className="hidden sm:flex w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-emerald-500/20 text-emerald-300 items-center justify-center flex-shrink-0">
+                        <SafeIcon icon={FiBook} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[6px] sm:text-[10px] text-indigo-300 font-semibold uppercase tracking-wide truncate">Reading &amp; Writing</p>
-                        <p className="text-[10px] sm:text-base font-bold text-white whitespace-nowrap">{targetProgress.rwScore} / 800</p>
+                        <p className="text-[6px] sm:text-[9px] text-indigo-300 font-semibold uppercase tracking-wide truncate">Reading &amp; Writing</p>
+                        <p className="text-[10px] sm:text-sm font-bold text-white whitespace-nowrap">{targetProgress.rwScore} / 800</p>
                       </div>
                     </div>
 
-                    <div className="flex-1 flex items-center gap-1.5 sm:gap-3 bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-1.5 sm:px-4 py-1.5 sm:py-3 min-w-0">
-                      <div className="hidden sm:flex w-6 h-6 sm:w-9 sm:h-9 rounded-full bg-purple-500/20 text-purple-300 items-center justify-center flex-shrink-0">
-                        <SafeIcon icon={FiAward} className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <div className="flex-1 flex items-center gap-1.5 sm:gap-2 bg-white/5 border border-white/10 rounded-xl px-1.5 sm:px-3 py-1.5 sm:py-2 min-w-0">
+                      <div className="hidden sm:flex w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-purple-500/20 text-purple-300 items-center justify-center flex-shrink-0">
+                        <SafeIcon icon={FiAward} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[6px] sm:text-[10px] text-indigo-300 font-semibold uppercase tracking-wide truncate">Overall SAT Score</p>
-                        <p className="text-[10px] sm:text-base font-bold text-white whitespace-nowrap">{targetProgress.overallScore} / 1600</p>
+                        <p className="text-[6px] sm:text-[9px] text-indigo-300 font-semibold uppercase tracking-wide truncate">Overall SAT Score</p>
+                        <p className="text-[10px] sm:text-sm font-bold text-white whitespace-nowrap">{targetProgress.overallScore} / 1600</p>
                       </div>
                     </div>
 
-                    <div className="flex-[2.2] flex items-start gap-1.5 sm:gap-3 bg-amber-500/10 border border-amber-400/40 rounded-xl sm:rounded-2xl px-1.5 sm:px-4 py-1.5 sm:py-3 min-w-0">
-                      <div className="hidden sm:flex w-6 h-6 sm:w-9 sm:h-9 rounded-full bg-amber-500/20 text-amber-300 items-center justify-center flex-shrink-0 mt-0.5">
-                        <SafeIcon icon={FiTarget} className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <div className="flex-[2.2] flex items-start gap-1.5 sm:gap-2 bg-amber-500/10 border border-amber-400/40 rounded-xl px-1.5 sm:px-3 py-1.5 sm:py-2 min-w-0">
+                      <div className="hidden sm:flex w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-amber-500/20 text-amber-300 items-center justify-center flex-shrink-0 mt-0.5">
+                        <SafeIcon icon={FiTarget} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[6px] sm:text-[10px] text-amber-200/80 font-semibold uppercase tracking-wide truncate">
+                        <p className="text-[6px] sm:text-[9px] text-amber-200/80 font-semibold uppercase tracking-wide truncate">
                           {targetProgress.triggerType === 'topic' ? 'Target reached after completing' : 'Target reached with'}
                         </p>
                         {/* break-words (not truncate) - the full name must never be cut off; if it
                             doesn't fit on one line at this box's width, it wraps to a second line
                             within the box instead of clipping. The box stays in the same row
                             either way, it just grows taller. */}
-                        <p className="text-[10px] sm:text-base font-bold text-amber-300 break-words leading-snug">
+                        <p className="text-[10px] sm:text-sm font-bold text-amber-300 break-words leading-snug">
                           {targetProgress.triggerName || 'your completed topics'}
                         </p>
                       </div>
@@ -432,17 +466,17 @@ const StudentDashboard = () => {
           </div>
         )}
 
-        <DashboardNotifications limit={3} />
+        <DashboardNotifications limit={3} studentId={viewStudentId} basePath={isParentView ? '/parent' : '/student'} />
 
 
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 mx-4 sm:mx-0">
           <div className="flex items-center gap-5 w-full md:w-auto">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500 to-orange-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-              {user.name?.charAt(0) || 'S'}
+              {displayName.charAt(0) || 'S'}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">{user.name || 'Student'}</h2>
-              <p className="text-sm text-slate-500">{user.email}</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">{displayName}</h2>
+              <p className="text-sm text-slate-500">{displayEmail}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 lg:flex gap-4 w-full md:w-auto">
@@ -457,7 +491,7 @@ const StudentDashboard = () => {
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mx-4 sm:mx-0">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-bold text-lg text-slate-800 dark:text-white">Score Performance</h3>
-                <button onClick={() => navigate('/student/test-review')} className="px-4 py-2 bg-sky-600 text-white text-xs font-bold rounded-lg">Review Tests</button>
+                <button onClick={() => navigate(isParentView ? '/parent/test-history' : '/student/test-review')} className="px-4 py-2 bg-sky-600 text-white text-xs font-bold rounded-lg">Review Tests</button>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-8">
                 <div className="flex flex-col items-center">
@@ -513,7 +547,7 @@ const StudentDashboard = () => {
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mx-4 sm:mx-0">
             <div className="flex justify-between items-center mb-6 gap-2">
               <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white">Top Scores</h3>
-              <button onClick={() => navigate('/student/test-review')} className="text-sky-600 text-xs sm:text-sm font-bold hover:underline whitespace-nowrap flex-shrink-0">View All</button>
+              <button onClick={() => navigate(isParentView ? '/parent/test-history' : '/student/test-review')} className="text-sky-600 text-xs sm:text-sm font-bold hover:underline whitespace-nowrap flex-shrink-0">View All</button>
             </div>
             {topScores === null ? (
               <div className="space-y-3">

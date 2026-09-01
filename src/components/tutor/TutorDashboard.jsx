@@ -1,6 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
@@ -142,7 +141,9 @@ const TutorDashboard = () => {
 
     const handleLogout = async () => {
         await logout();
-        navigate('/login');
+        // Hard navigation, not react-router's navigate() - guarantees a fully fresh app/auth
+        // state on the login screen with no chance of a stale cached session bouncing back.
+        window.location.href = '/login';
     };
 
     const menuItems = [
@@ -166,16 +167,23 @@ const TutorDashboard = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
-            <AnimatePresence>
-                {sidebarOpen && (
-                    <motion.aside
-                        initial={{ x: -300 }}
-                        animate={{ x: 0 }}
-                        exit={{ x: -300 }}
-                        transition={{ type: "spring", stiffness: 100 }}
-                        className="fixed lg:sticky top-0 left-0 h-screen w-72 shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-[9999] flex flex-col overflow-hidden"
-                    >
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            {/* Mobile backdrop - dismisses the sidebar on outside click below lg */}
+            <div
+                onClick={() => setSidebarOpen(false)}
+                className={`fixed inset-0 bg-black/40 z-40 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            />
+
+            {/* Sidebar - always mounted, position:fixed spanning the full viewport height
+                (top-0 bottom-0, not h-screen+sticky) so it stays visible top-to-bottom no matter
+                how tall the routed page's content grows. Toggled via a plain CSS transform (no
+                framer-motion) since a framer-motion transform on a sticky/fixed element can break
+                its positioning - translate-x-0 vs -translate-x-full is enough for the mobile
+                slide in/out. */}
+            <aside
+                className={`fixed top-0 bottom-0 left-0 w-72 shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out
+                    lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            >
                         <div className="p-6 pb-0 shrink-0">
                             <div className="flex items-center justify-between mb-8">
                                 <div className="flex items-center gap-3">
@@ -253,11 +261,11 @@ const TutorDashboard = () => {
                                 <span className="font-medium">Logout</span>
                             </button>
                         </div>
-                    </motion.aside>
-                )}
-            </AnimatePresence>
+            </aside>
 
-            <div className="flex-1 flex flex-col min-h-screen min-w-0">
+            {/* Content column - offset by the sidebar's fixed width on lg+, full width below
+                that (sidebar overlays as a slide-in panel there). */}
+            <div className="lg:ml-72 flex flex-col min-h-screen">
                 <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-30">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -338,19 +346,6 @@ const TutorDashboard = () => {
                     </Suspense>
                 </main>
             </div>
-
-            {/* Mobile Overlay - Only visible below 1024px when sidebar is open */}
-            <AnimatePresence>
-                {sidebarOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setSidebarOpen(false)}
-                        className="fixed inset-0 bg-black/40 backdrop-blur-sm lg:hidden z-[9990] pointer-events-auto"
-                    />
-                )}
-            </AnimatePresence>
         </div>
     );
 };

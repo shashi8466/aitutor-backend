@@ -1,914 +1,274 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate, Link, useLocation, useParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
-import Skeleton from '../common/Skeleton';
-import supabase from '../../supabase/supabase';
-import { parentService, gradingService, planService } from '../../services/api';
-import { calculateStudentScore, calculateSessionScore, getCategory, calculateSatScore } from '../../utils/scoreCalculator';
-import CircularProgress from '../common/CircularProgress';
-import DashboardNotifications from '../common/DashboardNotifications';
-import WeeklyReport from '../common/WeeklyReport';
-import UniversalLeaderboard from '../common/UniversalLeaderboard';
+import { parentService } from '../../services/api';
+import LoadingSpinner from '../common/LoadingSpinner';
 
-const { FiUsers, FiLogOut, FiHome, FiChevronRight, FiFileText, FiBarChart2, FiPieChart, FiActivity, FiArrowLeft, FiCheckCircle, FiXCircle, FiMinusCircle, FiBook, FiCheckSquare, FiPlay } = FiIcons;
+const {
+    FiHome, FiGrid, FiBook, FiPieChart, FiBarChart2, FiActivity, FiSettings, FiLogOut, FiMenu, FiX, FiUsers, FiCheck
+} = FiIcons;
 
-// DUMMY DATA FOR DEMONSTRATION 
-const DUMMY_CHILDREN = [
-    { id: '1', name: 'Rahul Kumar', grade: '10th Grade' },
-    { id: '2', name: 'Ananya Kumar', grade: '8th Grade' },
-    { id: '3', name: 'Arjun Kumar', grade: '12th Grade' }
-];
+// Reused as-is from the Student/Tutor sides - the whole point of this shell is that every page
+// it mounts is the SAME component a student or tutor already sees, never a parent-specific copy.
+// StudentDashboard in particular is the exact page a student sees on their own /student
+// dashboard - given a studentId/student prop it renders read-only for that linked student
+// instead of the logged-in user.
+const StudentDashboard = lazy(() => import('../student/StudentDashboard'));
+const TestReview = lazy(() => import('../student/agents/TestReview'));
+const TopicReportReview = lazy(() => import('../student/TopicReportReview'));
+const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
+const FullTestReport = lazy(() => import('../common/FullTestReport'));
+const UniversalLeaderboard = lazy(() => import('../common/UniversalLeaderboard'));
+const WeeklyReport = lazy(() => import('../common/WeeklyReport'));
+const ParentDashboardHome = lazy(() => import('./ParentDashboardHome'));
+const ParentCourseBreakdown = lazy(() => import('./ParentCourseBreakdown'));
+const ParentStudentAnalytics = lazy(() => import('./ParentStudentAnalytics'));
+const ParentProfileSettings = lazy(() => import('./ParentProfileSettings'));
 
-const DIFFICULTY_LEVELS = [
-    { id: 'easy', name: 'Easy Tests', icon: '🟢', color: 'text-green-500', bg: 'bg-green-100' },
-    { id: 'medium', name: 'Medium Tests', icon: '🟡', color: 'text-yellow-500', bg: 'bg-yellow-100' },
-    { id: 'hard', name: 'Hard Tests', icon: '🔴', color: 'text-red-500', bg: 'bg-red-100' }
-];
+const SELECTED_STUDENT_KEY_PREFIX = 'parent_selected_student_';
 
-const DUMMY_TESTS = {
-    '1_math_easy': [
-        { id: 't1', testName: 'SAT Math Practice 1', courseName: 'Math', subject: 'Math', score: 680, maxScore: 800, date: '2026-03-10T10:00:00Z' }
-    ],
-    '1_math_medium': [
-        { id: 't2', testName: 'SAT Reading Drill', courseName: 'Math', subject: 'Math', score: 720, maxScore: 800, date: '2026-03-09T14:30:00Z' }
-    ]
-};
+const ParentDashboard = () => {
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
 
-const DUMMY_TEST_DETAILS = {
-    't1': { name: 'Math', actualTestName: 'SAT Math Practice 1', subject: 'Math', attemptDate: '2026-03-10T10:00:00Z', attempts: 1, totalQuestions: 50, attempted: 48, correct: 40, incorrect: 8, unanswered: 2, scaleScore: 680 }
-};
-
-// Helper Components
-const SummaryBadge = ({ label, value, color, darkColor = "" }) => (
-    <div className={`px-4 py-2.5 rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col justify-center min-w-[120px] ${color} ${darkColor}`}>
-        <span className="text-[10px] uppercase font-bold opacity-60 mb-0.5 tracking-wider">{label}</span>
-        <span className="text-base font-bold">{value}</span>
-    </div>
-);
-
-const LevelScore = ({ label, score, color }) => (
-    <div>
-        <div className="flex justify-between items-center mb-1.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
-            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{score || 0}%</span>
-        </div>
-        <div className="h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
-            <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${score || 0}%` }}
-                className={`h-full rounded-full ${color}`}
-            />
-        </div>
-    </div>
-);
-
-const ProgressRow = ({ icon, color, bg, label, count, max }) => {
-    const percent = Math.min(100, (count / max) * 100);
-    return (
-        <div>
-            <div className="flex justify-between items-center mb-1.5">
-                <div className="flex items-center gap-2">
-                    <SafeIcon icon={icon} className={`w-3.5 h-3.5 ${color}`} />
-                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{label}</span>
-                </div>
-                <span className="text-[10px] font-bold text-gray-400">{count}/{max}</span>
-            </div>
-            <div className="h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
-                <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${percent}%` }}
-                    className={`h-full rounded-full ${bg}`}
-                />
-            </div>
-        </div>
-    );
-};
-
-// 1. Parent Overview (Children List)
-const ChildrenOverview = () => {
-    const { user } = useAuth();
+    const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 1024);
     const [children, setChildren] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingChildren, setLoadingChildren] = useState(true);
+    const [selectedStudentId, setSelectedStudentId] = useState(null);
+
+    useEffect(() => {
+        if (!user) navigate('/login');
+    }, [user, navigate]);
 
     useEffect(() => {
         const fetchChildren = async () => {
-            const timeoutId = setTimeout(() => {
-                console.warn('⏰ Parent dashboard load timeout - showing empty state');
-                setLoading(false);
-                setChildren([]);
-            }, 15000); // 15 second timeout
-            
+            setLoadingChildren(true);
             try {
-                // Use the backend service to fetch linked children (bypasses RLS issues for parent role)
-                const res = await parentService.getMyChildren(user?.id);
-                const childrenData = res.data?.children || [];
+                const res = await parentService.getMyChildren();
+                const list = res.data?.children || [];
+                setChildren(list);
 
-                if (childrenData.length > 0) {
-                    setChildren(childrenData.map(child => ({
-                        id: child.id,
-                        name: child.name || 'Anonymous Student',
-                        email: child.email,
-                        grade: 'Student Core'
-                    })));
-                } else {
-                    setChildren([]);
-                }
-
+                const storageKey = SELECTED_STUDENT_KEY_PREFIX + user?.id;
+                const stored = localStorage.getItem(storageKey);
+                const storedStillLinked = stored && list.some(c => String(c.id) === String(stored));
+                setSelectedStudentId(storedStillLinked ? stored : (list[0]?.id || null));
             } catch (err) {
-                console.error('Failed to load children:', err.message);
+                console.error('Failed to load linked children:', err.message);
                 setChildren([]);
             } finally {
-                clearTimeout(timeoutId);
-                setLoading(false);
+                setLoadingChildren(false);
             }
         };
         if (user) fetchChildren();
     }, [user]);
 
+    const selectChild = (childId) => {
+        setSelectedStudentId(childId);
+        localStorage.setItem(SELECTED_STUDENT_KEY_PREFIX + user?.id, childId);
+    };
+
+    const selectedChild = children.find(c => String(c.id) === String(selectedStudentId)) || null;
+
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login');
+    };
+
+    const menuItems = [
+        { path: '/parent', icon: FiHome, label: 'Dashboard', exact: true },
+        { path: '/parent/overview', icon: FiGrid, label: 'Overview' },
+        { path: '/parent/courses', icon: FiBook, label: 'Course Breakdown' },
+        { path: '/parent/test-history', icon: FiPieChart, label: 'Test History & Review' },
+        { path: '/parent/leaderboard', icon: FiBarChart2, label: 'Leaderboard' },
+        { path: '/parent/analytics', icon: FiActivity, label: 'Student Analytics' },
+        { path: '/parent/settings', icon: FiSettings, label: 'Profile Settings' },
+    ];
+
+    const isActivePath = (path, exact = false) => {
+        if (exact) return location.pathname === path;
+        return location.pathname.startsWith(path);
+    };
+
+    // No student linked yet - nothing downstream has data to show.
+    const noChildren = !loadingChildren && children.length === 0;
+
     return (
-        <div className="px-6 pb-6 pt-6 max-w-5xl mx-auto min-h-screen bg-[#FAFAFA] dark:bg-gray-900">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-6">Parent Dashboard</h2>
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                    <SafeIcon icon={FiUsers} className="text-amber-500" />
-                    My Children
-                </h3>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            {/* Mobile backdrop - dismisses the sidebar on outside click below lg */}
+            <div
+                onClick={() => setSidebarOpen(false)}
+                className={`fixed inset-0 bg-black/40 z-40 lg:hidden transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            />
 
-                {/* In-app notifications panel (shown on overview too) */}
-                <DashboardNotifications limit={3} />
-
-                <div className="space-y-4">
-                    {loading ? (
-                        [1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-lg" />)
-                    ) : children.length === 0 ? (
-                        <div className="py-8 text-center text-gray-500 dark:text-gray-400 border border-dashed rounded-lg border-gray-200 dark:border-gray-700">
-                            No children accounts are linked to this parent profile.
-                        </div>
-                    ) : (
-                        children.map((child, index) => (
-                            <motion.div
-                                key={child.id}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4 rounded-lg bg-gray-50 dark:bg-gray-750 border border-gray-100 dark:border-gray-700 hover:border-amber-300 dark:hover:border-amber-700 transition-colors"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xl">
-                                        {child.name.charAt(0).toUpperCase()}
+            {/* Sidebar - always mounted, position:fixed spanning the full viewport height
+                (top-0 bottom-0, not h-screen+sticky) so it stays visible top-to-bottom no matter
+                how tall the routed page's content grows, matching StudentSidebar.jsx's proven
+                pattern. Toggled via a plain CSS transform (no framer-motion) since applying a
+                framer-motion transform to a sticky/fixed element is what broke this earlier -
+                translate-x-0 vs -translate-x-full is enough for the mobile slide in/out. */}
+            <aside
+                className={`fixed top-0 bottom-0 left-0 w-72 shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out
+                    lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            >
+                        <div className="p-6 pb-0 shrink-0">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+                                        <SafeIcon icon={FiUsers} className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-gray-900 dark:text-white">{child.name}</h4>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{child.grade}</p>
+                                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Parent Portal</h2>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Parent: {user?.name || 'Parent'}</p>
                                     </div>
                                 </div>
-                                <Link
-                                    to={`/parent/child/${child.id}`}
-                                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-medium text-amber-600 hover:bg-amber-50 dark:hover:bg-gray-700 transition"
+                                <button
+                                    onClick={() => setSidebarOpen(false)}
+                                    className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                                 >
-                                    View Report <SafeIcon icon={FiChevronRight} />
-                                </Link>
-                            </motion.div>
-                        ))
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
+                                    <SafeIcon icon={FiX} className="w-5 h-5" />
+                                </button>
+                            </div>
 
-// 2. Child Courses Report
-const ChildCoursesReport = () => {
-    const { studentId } = useParams();
-    const navigate = useNavigate();
-    const [courses, setCourses] = useState([]);
-    const [childName, setChildName] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [overallStats, setOverallStats] = useState({
-        scores: { total: 0, math: 0, rw: 0, target: 1500 },
-        counts: { lessons: 0, tests: 0, worksheets: 14, sessions: 0 }
-    });
-
-    useEffect(() => {
-        const fetchData = async () => {
-            const timeoutId = setTimeout(() => {
-                console.warn('⏰ Child courses report timeout - showing empty state');
-                setLoading(false);
-                setCourses([]);
-                setChildName("Unknown");
-            }, 20000); // 20 second timeout
-            
-            setLoading(true);
-            try {
-                // 1. Fetch ALL data in one optimized request
-                const response = await parentService.getDashboardData(studentId);
-                const { studentName, submissions, progress, plan } = response.data;
-                
-                setChildName(studentName);
-                const diagnosticData = plan?.diagnostic_data || null;
-
-                const mappedSubmissions = (submissions || []).map(s => ({
-                    ...s,
-                    courses: s.courses || { name: 'Practice', tutor_type: 'RW' }
-                }));
-
-                // Build Course Breakdown (Sync with Student Dashboard)
-                const courseMap = {};
-
-                // A. Initialize Course Map & Process Submissions
-                (submissions || []).forEach(sub => {
-                    const cId = sub.course_id;
-                    if (!courseMap[cId]) {
-                        courseMap[cId] = {
-                            id: cId,
-                            name: sub.courses?.name || `Course ${cId}`,
-                            courses: sub.courses,
-                            levelScores: { Easy: 0, Medium: 0, Hard: 0 },
-                            latestSubmission: null,
-                            latestTestDate: 0
-                        };
-                    }
-
-                    if (sub.level) {
-                        const lvl = sub.level.charAt(0).toUpperCase() + sub.level.slice(1).toLowerCase();
-                        if (!['Easy', 'Medium', 'Hard'].includes(lvl)) return;
-                        
-                        const rawPct = Math.round(sub.raw_score_percentage || 0);
-                        if (rawPct > courseMap[cId].levelScores[lvl]) {
-                            courseMap[cId].levelScores[lvl] = rawPct;
-                        }
-
-                        // Track latest for display info
-                        const testDate = new Date(sub.test_date || sub.created_at).getTime();
-                        if (testDate >= (courseMap[cId].latestTestDate || 0)) {
-                            courseMap[cId].latestTestDate = testDate;
-                            courseMap[cId].latestSubmission = sub;
-                        }
-                    }
-                });
-
-                // B. Process Progress (Lessons)
-                (progress || []).forEach(p => {
-                    const cId = p.course_id;
-                    if (!courseMap[cId]) {
-                        courseMap[cId] = {
-                            id: cId,
-                            name: p.courses?.name || `Course ${cId}`,
-                            courses: p.courses,
-                            levelScores: { Easy: 0, Medium: 0, Hard: 0 },
-                            latestSubmission: null,
-                            latestTestDate: 0
-                        };
-                    }
-                    const lvl = p.level.charAt(0).toUpperCase() + p.level.slice(1).toLowerCase();
-                    if (['Easy', 'Medium', 'Hard'].includes(lvl) && (p.score || 0) > courseMap[cId].levelScores[lvl]) {
-                        courseMap[cId].levelScores[lvl] = p.score;
-                    }
-                });
-
-                const formattedCourses = Object.values(courseMap).map(c => {
-                    const category = getCategory(c);
-                    // Weighted SAT Calculation
-                    let courseScaledScore = calculateSatScore(
-                        c.levelScores.Easy,
-                        c.levelScores.Medium,
-                        c.levelScores.Hard
-                    );
-
-                    // Fallback to 0 if no activity yet
-                    if (courseScaledScore === 0) {
-                        courseScaledScore = 0;
-                    }
-
-                    return {
-                        ...c,
-                        category,
-                        courseScaledScore,
-                        isEstimated: !c.latestSubmission
-                    };
-                });
-                
-                setCourses(formattedCourses);
-
-                // --- Compute overall SAT scores using SAME aggregation as StudentDashboard ---
-                const mathCourses = formattedCourses.filter(c => c.category === 'MATH');
-                const rwCourses = formattedCourses.filter(c => c.category === 'RW');
-
-                const bestMathScore = mathCourses.length > 0
-                  ? Math.max(...mathCourses.map(c => c.courseScaledScore))
-                  : 0;
-                const bestRWScore = rwCourses.length > 0
-                  ? Math.max(...rwCourses.map(c => c.courseScaledScore))
-                  : 0;
-
-                const baselineMath = diagnosticData ? (parseInt(diagnosticData.mathScore) || 0) : 0;
-                const baselineRW = diagnosticData ? (parseInt(diagnosticData.rwScore) || 0) : 0;
-
-                const finalMathScore = mathCourses.length > 0 ? bestMathScore : baselineMath;
-                const finalRWScore = rwCourses.length > 0 ? bestRWScore : baselineRW;
-                const finalTotalScore = finalMathScore + finalRWScore;
-
-                const passedCount = (progress || []).filter(p => p.passed).length;
-                const lessonsCount = Math.min(50, (passedCount * 3 + 5));
-
-                setOverallStats({
-                    scores: {
-                        total: finalTotalScore,
-                        math: finalMathScore,
-                        rw: finalRWScore,
-                        target: diagnosticData && diagnosticData.targetScore
-                          ? (parseInt(diagnosticData.targetScore) || 1500)
-                          : 1500
-                    },
-                    counts: {
-                        lessons: lessonsCount,
-                        tests: (submissions || []).length,
-                        worksheets: 14,
-                        sessions: Math.floor(lessonsCount / 2)
-                    }
-                });
-            } catch (err) {
-                console.error('Failed to load child courses:', err.message);
-                setCourses([]);
-                setChildName("Unknown");
-            } finally {
-                clearTimeout(timeoutId);
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, [studentId]);
-
-    const { scores, counts } = overallStats;
-
-    return (
-        <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 pb-12">
-            <div className="p-6 max-w-7xl mx-auto space-y-8">
-                <Link to="/parent" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 transition-colors font-medium">
-                    <SafeIcon icon={FiArrowLeft} /> Back to Dashboard
-                </Link>
-
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                    <div>
-                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 capitalize">
-                            Report: <span className="text-amber-500">{childName}</span>
-                        </h2>
-                        <p className="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Real-time Performance Metrics & Diagnostic View</p>
-                    </div>
-                    {!loading && (
-                        <div className="flex flex-wrap gap-4">
-                            <SummaryBadge label="Current" value={`${scores.total}/1600`} color="bg-blue-50 text-blue-700" darkColor="dark:bg-blue-900/30 dark:text-blue-300" />
-                            <SummaryBadge label="Goal" value={`${scores.target}/1600`} color="bg-purple-50 text-purple-700" darkColor="dark:bg-purple-900/30 dark:text-purple-300" />
-                        </div>
-                    )}
-                </div>
-                
-                {/* Child-Specific Notifications */}
-                <DashboardNotifications limit={3} />
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <div className="flex justify-between items-center mb-8">
-                            <h3 className="font-bold text-lg text-gray-800 dark:text-white">Score Performance</h3>
-                            <button
-                                onClick={() => navigate(`/parent/child/${studentId}/test-history`)}
-                                className="text-xs font-bold text-white bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                Review Tests
-                            </button>
-                        </div>
-
-                        {loading ? <Skeleton className="h-40 w-full" /> : (
-                            <div className="flex flex-col sm:flex-row items-center gap-10">
-                                <div className="relative group">
-                                    <CircularProgress value={scores.total} max={1600} size={150} strokeWidth={12} color="#3B82F6" />
-                                    <div className="mt-4 text-center">
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Total Score</p>
-                                        <p className="text-3xl font-extrabold text-gray-900 dark:text-white leading-none">{scores.total}</p>
+                            {/* Student Switcher - exactly one student active at a time across the whole portal */}
+                            <div className="mb-6">
+                                <p className="px-1 text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Students</p>
+                                {loadingChildren ? (
+                                    <div className="px-3 py-2 text-xs text-gray-400">Loading...</div>
+                                ) : noChildren ? (
+                                    <div className="px-3 py-2 text-xs text-gray-400">No students linked yet.</div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {children.map(child => {
+                                            const active = String(child.id) === String(selectedStudentId);
+                                            return (
+                                                <button
+                                                    key={child.id}
+                                                    onClick={() => selectChild(child.id)}
+                                                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${active
+                                                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent'}`}
+                                                >
+                                                    <span className="flex items-center gap-2 truncate">
+                                                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                                                        <span className="truncate">{child.name || 'Student'}</span>
+                                                    </span>
+                                                    {active && <SafeIcon icon={FiCheck} className="w-4 h-4 flex-shrink-0" />}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <nav className="flex-1 overflow-y-auto px-6 space-y-1">
+                            {menuItems.map((item) => (
+                                <button
+                                    key={item.path}
+                                    onClick={() => navigate(item.path)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left ${isActivePath(item.path, item.exact)
+                                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-200 dark:shadow-none'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                        }`}
+                                >
+                                    <SafeIcon icon={item.icon} className="w-5 h-5" />
+                                    <span className="font-medium">{item.label}</span>
+                                </button>
+                            ))}
+                        </nav>
+
+                        <div className="p-6 pt-6 shrink-0 border-t border-gray-100 dark:border-gray-800">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 font-bold">
+                                    {(user?.name || 'P').charAt(0).toUpperCase()}
                                 </div>
-                                <div className="flex-1 w-full space-y-8">
-                                    <div>
-                                        <div className="flex justify-between text-[11px] font-bold mb-2 uppercase tracking-wider">
-                                            <span className="text-gray-500">SAT Math</span>
-                                            <span className="text-blue-600">{scores.math} / 800</span>
-                                        </div>
-                                        <div className="h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
-                                            <motion.div initial={{ width: 0 }} animate={{ width: `${(scores.math / 800) * 100}%` }} className="h-full bg-blue-500 rounded-full" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-[11px] font-bold mb-2 uppercase tracking-wider">
-                                            <span className="text-gray-500">Reading & Writing</span>
-                                            <span className="text-green-600">{scores.rw} / 800</span>
-                                        </div>
-                                        <div className="h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
-                                            <motion.div initial={{ width: 0 }} animate={{ width: `${(scores.rw / 800) * 100}%` }} className="h-full bg-green-500 rounded-full" />
-                                        </div>
-                                    </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user?.name || 'Parent'}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
                                 </div>
                             </div>
-                        )}
-                    </div>
+                            <button
+                                onClick={handleLogout}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
+                            >
+                                <SafeIcon icon={FiLogOut} className="w-5 h-5" />
+                                <span className="font-medium">Logout</span>
+                            </button>
+                        </div>
+            </aside>
 
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-8">Engagement Activity</h3>
-                        <div className="space-y-7">
-                            {loading ? Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-xl" />) : (
-                                <>
-                                    <ProgressRow icon={FiBook} color="text-blue-500" bg="bg-blue-600" label="Curriculum Lessons" count={counts.lessons} max={50} />
-                                    <ProgressRow icon={FiCheckSquare} color="text-purple-500" bg="bg-purple-600" label="Assessment Quizzes" count={counts.tests} max={20} />
-                                    <ProgressRow icon={FiFileText} color="text-yellow-500" bg="bg-yellow-600" label="Supportive Worksheets" count={counts.worksheets} max={30} />
-                                    <ProgressRow icon={FiActivity} color="text-orange-500" bg="bg-orange-600" label="Tutoring Sessions" count={counts.sessions} max={24} />
-                                </>
+            {/* Content column - offset by the sidebar's fixed width on lg+, full width below
+                that (sidebar overlays as a slide-in panel there). */}
+            <div className="lg:ml-72 flex flex-col min-h-screen">
+                <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 z-30">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                            <SafeIcon icon={sidebarOpen ? FiX : FiMenu} className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+                        </button>
+                        <div>
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                                {menuItems.find(item => isActivePath(item.path, item.exact))?.label || 'Dashboard'}
+                            </h1>
+                            {location.pathname !== '/parent/settings' && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Viewing: {selectedChild?.name || (loadingChildren ? 'Loading...' : 'No student selected')}
+                                </p>
                             )}
                         </div>
                     </div>
-                </div>
+                </header>
 
-                <div className="mt-12">
-                    <h3 className="font-bold text-xl text-gray-800 dark:text-white mb-6 uppercase tracking-wider">
-                        Course Breakdown
-                    </h3>
-
-                    {loading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-64 w-full rounded-2xl shadow-sm" />)}
-                        </div>
-                    ) : courses.length === 0 ? (
+                <main className="flex-1 p-6 overflow-auto">
+                    {location.pathname === '/parent/settings' ? (
+                        // Account-level, not student-scoped - always reachable, even before any
+                        // child is linked/selected.
+                        <Suspense fallback={<LoadingSpinner fullPage={false} />}>
+                            <Routes>
+                                <Route path="settings" element={<ParentProfileSettings />} />
+                            </Routes>
+                        </Suspense>
+                    ) : noChildren ? (
                         <div className="py-16 text-center bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
-                            No courses have been attempted yet.
+                            <p className="text-gray-500 dark:text-gray-400 font-medium">No student accounts are linked to this parent profile yet.</p>
                         </div>
+                    ) : loadingChildren || !selectedStudentId ? (
+                        <LoadingSpinner fullPage={false} />
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {courses.map((course, index) => {
-                                const isMath = course.category === 'MATH';
-                                const themeColor = isMath ? 'text-blue-600' : 'text-green-600';
-                                const themeBg = isMath ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-green-50 dark:bg-green-900/20';
-                                const themeIconBg = isMath ? 'bg-blue-600' : 'bg-green-600';
-
-                                return (
-                                    <motion.div
-                                        key={course.id}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: index * 0.1 }}
-                                        onClick={() => navigate(`/parent/child/${studentId}/course/${course.id}`)}
-                                        className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all group flex flex-col h-full cursor-pointer relative"
-                                    >
-                                        <div className="flex items-start justify-between mb-5 relative z-10">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${themeIconBg} text-white`}>
-                                                    <SafeIcon icon={FiBook} className="w-6 h-6" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-gray-800 dark:text-white leading-tight">{course.name}</h4>
-                                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{isMath ? 'Quant' : 'Verbal'}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-0.5 tracking-wider">{course.isEstimated ? 'Est. Score' : 'Actual Score'}</span>
-                                                <span className={`text-xl font-bold ${themeColor}`}>{course.courseScaledScore}</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 space-y-4 mb-4 pt-2 relative z-10">
-                                            <LevelScore label="Easy" score={course.levelScores?.Easy} color={isMath ? 'bg-blue-400' : 'bg-green-400'} />
-                                            <LevelScore label="Medium" score={course.levelScores?.Medium} color={isMath ? 'bg-blue-500' : 'bg-green-500'} />
-                                            <LevelScore label="Hard" score={course.levelScores?.Hard} color={isMath ? 'bg-blue-600' : 'bg-green-600'} />
-                                        </div>
-                                        <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between relative z-10">
-                                            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Analytics</span>
-                                            <SafeIcon icon={FiChevronRight} className="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-all" />
-                                        </div>
-                                    </motion.div>
-                                );
-                            })}
-                        </div>
+                        <Suspense fallback={<LoadingSpinner fullPage={false} />}>
+                            <Routes>
+                                <Route index element={<StudentDashboard studentId={selectedStudentId} student={selectedChild} />} />
+                                <Route path="overview" element={<ParentDashboardHome studentId={selectedStudentId} student={selectedChild} />} />
+                                <Route path="courses" element={<ParentCourseBreakdown studentId={selectedStudentId} student={selectedChild} />} />
+                                <Route path="test-history" element={<TestReview studentId={selectedStudentId} basePath="/parent" parentMode />} />
+                                <Route path="topic-report/:studentId/:courseId" element={<TopicReportReview parentMode />} />
+                                <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
+                                <Route path="report/:submissionId" element={<FullTestReport adminMode={true} />} />
+                                <Route
+                                    path="leaderboard"
+                                    element={
+                                        <UniversalLeaderboard
+                                            role="parent"
+                                            targetStudentId={selectedStudentId}
+                                            title={`${selectedChild?.name || 'Student'}'s Leaderboard Rank`}
+                                            subtitle="Compare performance with peer rankings across SAT, AP, and Full-Length Tests."
+                                        />
+                                    }
+                                />
+                                <Route path="analytics" element={<ParentStudentAnalytics studentId={selectedStudentId} student={selectedChild} />} />
+                                {/* Reached from weekly-digest emails (notificationOutbox.js), independent of the
+                                    sidebar's currently-selected student - keeps its own studentId from the URL. */}
+                                <Route path="weekly-report/:studentId/:weekStart" element={<WeeklyReport isParentView={true} />} />
+                            </Routes>
+                        </Suspense>
                     )}
-                </div>
-
-                {/* Leaderboard Section for Child */}
-                <div className="mt-12">
-                    <UniversalLeaderboard 
-                        role="parent" 
-                        targetStudentId={studentId} 
-                        title={`${childName}'s Leaderboard Rank`}
-                        subtitle={`Compare ${childName}'s performance with peer rankings across SAT, AP, and Full-Length Tests.`}
-                    />
-                </div>
+                </main>
             </div>
-        </div>
-    );
-};
-
-// 3. Child Difficulty Report
-const ChildDifficultyReport = () => {
-    const { studentId, courseId } = useParams();
-    const [courseName, setCourseName] = useState("");
-
-    useEffect(() => {
-        const fetchDetails = async () => {
-            try {
-                const { data } = await supabase.from('courses').select('name').eq('id', courseId).single();
-                setCourseName(data?.name || 'Course');
-            } catch (err) { setCourseName(courseId); }
-        };
-        if (courseId) fetchDetails();
-    }, [courseId]);
-
-    return (
-        <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 pb-12 font-sans text-gray-900 dark:text-gray-100">
-            <div className="p-6 max-w-5xl mx-auto">
-                <Link to={`/parent/child/${studentId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 mb-6 transition-colors font-bold uppercase tracking-wider">
-                    <SafeIcon icon={FiArrowLeft} /> Back to Report
-                </Link>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-1">{courseName} Analytics</h2>
-                <p className="text-sm text-gray-500 font-medium mb-8">Select a difficulty level to view detailed performance.</p>
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 pb-2 border-b border-gray-100">Difficulty Levels</h3>
-                    <div className="space-y-3">
-                        {DIFFICULTY_LEVELS.map((level, index) => (
-                            <Link key={level.id} to={`/parent/child/${studentId}/course/${courseId}/difficulty/${level.id}`}>
-                                <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }} className="flex items-center justify-between p-5 rounded-2xl bg-gray-50/50 dark:bg-gray-750 border border-gray-100 hover:border-amber-400 hover:bg-white hover:shadow-md transition-all">
-                                    <div className="flex items-center gap-5">
-                                        <div className="text-3xl">{level.icon}</div>
-                                        <h4 className="font-bold text-gray-900 dark:text-white text-lg">{level.name}</h4>
-                                    </div>
-                                    <SafeIcon icon={FiChevronRight} className="text-gray-400" />
-                                </motion.div>
-                            </Link>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// 4. Child Performance Report (Test List)
-const ChildPerformanceReport = () => {
-    const { studentId, courseId, difficultyId } = useParams();
-    const navigate = useNavigate();
-    const [tests, setTests] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchDetails = async () => {
-            try {
-                const response = await parentService.getStudentReports(studentId);
-                const submissions = (response.data?.submissions || []).filter(sub => String(sub.course_id) === String(courseId) && sub.level?.toLowerCase() === difficultyId.toLowerCase());
-                setTests(submissions.map(sub => ({
-                    id: sub.id,
-                    courseName: sub.courses?.name || `Course ${courseId}`,
-                    subject: 'Practice',
-                    score: sub.raw_score || 0,
-                    maxScore: sub.total_questions || 0,
-                    date: sub.test_date || new Date().toISOString()
-                })));
-            } catch (err) { console.error(err); }
-            setLoading(false);
-        };
-        fetchDetails();
-    }, [studentId, courseId, difficultyId]);
-
-    return (
-        <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 pb-12 font-sans text-gray-900 dark:text-gray-100">
-            <div className="p-6 max-w-5xl mx-auto">
-                <Link to={`/parent/child/${studentId}/course/${courseId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 mb-6 transition-colors">
-                    <SafeIcon icon={FiArrowLeft} /> Back to Difficulty
-                </Link>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-6">Performance Report</h2>
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm responsive-table-container">
-                    <table className="w-full text-left">
-                        <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
-                            <tr>
-                                <th className="py-4 px-8 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Assessment</th>
-                                <th className="py-4 px-8 font-bold text-gray-400 uppercase text-[10px] tracking-wider text-center">Score</th>
-                                <th className="py-4 px-8 font-bold text-gray-400 uppercase text-[10px] tracking-wider text-center">Date</th>
-                                <th className="py-4 px-8 font-bold text-gray-400 uppercase text-[10px] tracking-wider text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-750">
-                            {loading ? (
-                                <tr><td colSpan="4" className="p-10 text-center text-gray-500">Loading assessments...</td></tr>
-                            ) : tests.length === 0 ? (
-                                <tr><td colSpan="4" className="p-10 text-center text-gray-500">No assessments found.</td></tr>
-                            ) : tests.map(test => (
-                                <tr key={test.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-all group border-b border-gray-50 dark:border-gray-750">
-                                    <td className="py-5 px-8">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center">
-                                                <SafeIcon icon={FiFileText} />
-                                            </div>
-                                            <div>
-                                                <h5 className="font-bold text-gray-800 dark:text-white group-hover:text-blue-600 transition-all">{test.courseName}</h5>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase">Assessment Record</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="py-5 px-8 text-center">
-                                        <span className="font-bold text-gray-900 dark:text-white">{test.score} / {test.maxScore}</span>
-                                    </td>
-                                    <td className="py-5 px-8 text-center">
-                                        <span className="text-sm font-bold text-gray-500 dark:text-gray-400">
-                                            {new Date(test.date).toLocaleDateString()}
-                                        </span>
-                                    </td>
-                                    <td className="py-5 px-8 text-right">
-                                        <button
-                                            onClick={() => navigate(`/parent/child/${studentId}/course/${courseId}/difficulty/${difficultyId}/test/${test.id}`)}
-                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
-                                        >
-                                            View Report
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// 5. Detailed Test Report
-const DetailedTestReport = () => {
-    const { studentId, courseId, difficultyId, testId } = useParams();
-    const [details, setDetails] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchDetails = async () => {
-            try {
-                const response = await gradingService.getSubmission(testId);
-                const sub = response.data?.submission;
-                if (sub) {
-                    const subLevel = sub.level?.charAt(0).toUpperCase() + sub.level?.slice(1).toLowerCase();
-                    const subPct = Math.round((sub.raw_score / sub.total_questions) * 100);
-                    const courseName = sub.course?.name || sub.courses?.name || 'Test Report';
-                    const cat = getCategory(sub);
-                    const calcScale = sub.scaled_score || calculateSessionScore(cat, subLevel, subPct);
-                    setDetails({
-                        id: sub.id,
-                        name: courseName,
-                        subject: courseName,
-                        attemptDate: sub.test_date,
-                        totalQuestions: sub.total_questions || 0,
-                        correct: sub.raw_score || 0,
-                        incorrect: (sub.total_questions || 0) - (sub.raw_score || 0),
-                        unanswered: sub.skipped_questions?.length || 0,
-                        scaleScore: calcScale
-                    });
-                }
-            } catch (err) { console.error(err); }
-            setLoading(false);
-        };
-        fetchDetails();
-    }, [testId]);
-
-    if (loading) return <div className="p-6 text-center">Loading detailed report...</div>;
-    if (!details) return <div className="p-6 text-center text-red-500">Report details not found.</div>;
-
-    const subPct = Math.round((details.correct / details.totalQuestions) * 100);
-
-    return (
-        <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 pb-12">
-            <div className="p-6 max-w-7xl mx-auto space-y-8">
-                <div className="flex justify-between items-center">
-                    <Link to={`/parent/child/${studentId}/course/${courseId}/difficulty/${difficultyId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 transition-colors font-bold uppercase tracking-wider">
-                        <SafeIcon icon={FiArrowLeft} /> Back to List
-                    </Link>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                        Live Analytics Record
-                    </div>
-                </div>
-
-                {/* Premium Result Header */}
-                <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 md:p-10 text-white overflow-hidden shadow-lg border border-white/10">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative z-10 md:divide-x md:divide-white/10">
-                        <div className="flex items-center gap-6 px-4">
-                            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30">
-                                <SafeIcon icon={FiBook} className="w-7 h-7" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider opacity-80">Subject</p>
-                                <h2 className="text-xl font-extrabold tracking-tight uppercase">{details.name}</h2>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-6 px-4 md:px-8">
-                            <div>
-                                <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider opacity-80">Date</p>
-                                <h2 className="text-lg font-bold">
-                                    {new Date(details.attemptDate).toLocaleDateString()}
-                                </h2>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-6 px-4 md:px-8">
-                            <div>
-                                <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider opacity-80">Duration</p>
-                                <h2 className="text-xl font-bold tracking-tight">15 min</h2>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center px-8">
-                            <div className="text-center">
-                                <p className="text-[10px] font-bold text-blue-100 uppercase tracking-wider opacity-80">Total Score</p>
-                                <h2 className="text-4xl font-extrabold tracking-tight text-white">
-                                    {details.correct}<span className="text-lg opacity-60">/{details.totalQuestions}</span>
-                                </h2>
-                                <p className="text-[10px] font-bold text-green-300 uppercase tracking-widest mt-1 opacity-90">{subPct}% Accuracy</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Stats Cards Section */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <StatCard label="Questions" value={details.totalQuestions} icon={FiFileText} color="text-gray-500" bg="bg-gray-50" />
-                    <StatCard label="Correct" value={details.correct} icon={FiCheckCircle} color="text-green-600" bg="bg-green-50" borderColor="border-green-100" />
-                    <StatCard label="Incorrect" value={details.incorrect} icon={FiXCircle} color="text-red-600" bg="bg-red-50" borderColor="border-red-100" />
-                    <StatCard label="Accuracy" value={`${subPct}%`} icon={FiActivity} color="text-blue-600" bg="bg-blue-50" borderColor="border-blue-100" />
-                </div>
-
-                <div className="flex justify-center mt-4">
-                    <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center max-w-sm w-full">
-                        <CircularProgress value={details.scaleScore} max={800} size={150} strokeWidth={12} color="#3B82F6" />
-                        <h4 className="mt-6 text-lg font-bold text-gray-800 dark:text-white uppercase tracking-wider">Estimated SAT Score</h4>
-                        <p className="text-xs font-bold text-gray-400 mt-2 uppercase tracking-widest">Section Performance Index</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const StatCard = ({ label, value, icon, color, bg, borderColor = "border-gray-100" }) => (
-    <div className={`p-6 rounded-2xl bg-white dark:bg-gray-800 border-2 ${borderColor} dark:border-gray-700 shadow-sm relative overflow-hidden`}>
-        <div className="relative z-10">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-            <div className="flex items-center justify-between">
-                <h3 className={`text-2xl font-bold ${color} tracking-tight`}>{value}</h3>
-                <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center ${color}`}>
-                    <SafeIcon icon={icon} className="w-5 h-5" />
-                </div>
-            </div>
-        </div>
-    </div>
-);
-
-const MetricItem = ({ label, value, color }) => (
-    <div>
-        <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-bold text-gray-500 uppercase tracking-wider">{label}</span>
-            <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{value}</span>
-        </div>
-        <div className="h-1.5 bg-gray-50 dark:bg-gray-900 rounded-full overflow-hidden">
-            <motion.div initial={{ width: 0 }} animate={{ width: "70%" }} className={`h-full ${color} rounded-full`} />
-        </div>
-    </div>
-);
-
-// 6. Consolidated Test History
-const ChildTestHistory = () => {
-    const { studentId } = useParams();
-    const navigate = useNavigate();
-    const [tests, setTests] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchHistory = async () => {
-            try {
-                const response = await parentService.getStudentReports(studentId);
-                const submissions = response.data?.submissions || [];
-                setTests(submissions.map(sub => ({
-                    id: sub.id,
-                    courseId: sub.course_id,
-                    difficultyId: sub.level?.toLowerCase() || 'medium',
-                    courseName: sub.courses?.name || 'Practice Test',
-                    score: sub.raw_score || 0,
-                    maxScore: sub.total_questions || 0,
-                    date: sub.test_date || new Date().toISOString(),
-                    level: sub.level?.toUpperCase() || 'MEDIUM',
-                    accuracy: Math.round(((sub.raw_score || 0) / (sub.total_questions || 1)) * 100)
-                })));
-            } catch (err) { console.error(err); }
-            setLoading(false);
-        };
-        fetchHistory();
-    }, [studentId]);
-
-    return (
-        <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 pb-12">
-            <div className="p-8 max-w-6xl mx-auto space-y-10">
-                <Link to={`/parent/child/${studentId}`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-amber-600 transition-colors font-bold uppercase tracking-wider">
-                    <SafeIcon icon={FiArrowLeft} /> Return to Report
-                </Link>
-
-                <div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">Test History</h2>
-                    <p className="text-gray-500 font-medium">Analyze past performance and learn from mistakes.</p>
-                </div>
-
-                <div className="space-y-4">
-                    {loading ? Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-2xl" />) :
-                        tests.length === 0 ? <p className="text-center py-20 text-gray-400 font-bold uppercase text-xs border-2 border-dashed rounded-3xl">No tests found in records.</p> :
-                            tests.map(test => (
-                                <div
-                                    key={test.id}
-                                    className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center justify-between shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group"
-                                >
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center shadow-lg shadow-blue-200">
-                                            <SafeIcon icon={FiFileText} className="w-7 h-7" />
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <h4 className="text-lg font-bold text-gray-800 dark:text-white uppercase">{test.courseName}</h4>
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${test.level === 'HARD' ? 'bg-red-50 text-red-600' : test.level === 'MEDIUM' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
-                                                    {test.level}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-xs font-bold text-gray-500 uppercase tracking-widest">
-                                                <span>Accuracy: {test.accuracy}%</span>
-                                                <span>{new Date(test.date).toLocaleDateString()}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-10 mt-4 md:mt-0">
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Score</p>
-                                            <p className="text-2xl font-bold text-blue-600 leading-none">{calculateSessionScore(getCategory(test), test.level, test.accuracy)}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => navigate(`/parent/child/${studentId}/course/${test.courseId}/difficulty/${test.difficultyId}/test/${test.id}`)}
-                                            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase hover:bg-blue-700 transition-all flex items-center gap-2"
-                                        >
-                                            Review <SafeIcon icon={FiChevronRight} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                    }
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// Main Component
-const ParentDashboard = () => {
-    const { logout, user } = useAuth();
-    const navigate = useNavigate();
-
-    useEffect(() => { if (!user) navigate('/login'); }, [user, navigate]);
-
-    const handleLogout = async () => { await logout(); navigate('/login'); };
-
-    return (
-        <div className="min-h-screen bg-[#FAFAFA] dark:bg-gray-900 flex flex-col font-sans text-gray-900 dark:text-gray-100">
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-6 py-4 sticky top-0 z-30 shadow-sm">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between max-w-7xl mx-auto w-full gap-4">
-                    <div className="flex items-center gap-3 font-semibold">
-                        <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-100">
-                            <SafeIcon icon={FiUsers} className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h1 className="text-lg font-extrabold leading-tight">Parent <span className="text-amber-500">Portal</span></h1>
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-gray-400">Account: {user?.name || 'Parent'}</p>
-                        </div>
-                    </div>
-                    <button onClick={handleLogout} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold uppercase transition-all hover:bg-red-100">
-                        <SafeIcon icon={FiLogOut} className="w-4 h-4" /> Logout
-                    </button>
-                </div>
-            </header>
-            <main className="flex-1 overflow-auto bg-[#FAFAFA] dark:bg-gray-900 flex flex-col relative">
-                {/* Scrolling Announcement / Marquee Bar */}
-                <div className="mx-auto mt-4 mb-2 max-w-5xl w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 shadow-sm px-4">
-                    <div className="animate-marquee whitespace-nowrap text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold tracking-wide">
-                        “Certain instructional materials and practice content used by our tutors may include officially licensed or authorized resources from the College Board. All copyrights and trademarks related to such materials remain the property of their respective owners and are used solely for educational purposes.”
-                    </div>
-                </div>
-                <AnimatePresence mode="wait">
-                    <Routes>
-                        <Route path="/" element={<ChildrenOverview />} />
-                        <Route path="/child/:studentId" element={<ChildCoursesReport />} />
-                        <Route path="/child/:studentId/test-history" element={<ChildTestHistory />} />
-                        <Route path="/child/:studentId/course/:courseId" element={<ChildDifficultyReport />} />
-                        <Route path="/child/:studentId/course/:courseId/difficulty/:difficultyId" element={<ChildPerformanceReport />} />
-                        <Route path="/child/:studentId/course/:courseId/difficulty/:difficultyId/test/:testId" element={<DetailedTestReport />} />
-                        <Route path="/weekly-report/:studentId/:weekStart" element={<WeeklyReport isParentView={true} />} />
-                    </Routes>
-                </AnimatePresence>
-            </main>
         </div>
     );
 };

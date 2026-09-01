@@ -2,9 +2,16 @@ import supabase from '../../supabase/supabaseAdmin.js';
 
 export const analyticsService = {
     /**
-     * Helper to get assigned course IDs from a group
+     * Helper to get assigned course IDs from a group. groupId === null means "unscoped" (e.g. a
+     * parent viewing a linked student, who has no Student Group) - assignedCourseIds is null
+     * (not []) in that case so callers can tell "no group to scope to" apart from "a real group
+     * that assigns zero courses", which must keep showing nothing.
      */
     async _getGroupScope(groupId) {
+        if (!groupId) {
+            return { groupName: null, assignedCourseIds: null, assignedContent: {} };
+        }
+
         const { data: group } = await supabase
             .from('student_groups')
             .select('assigned_content, assigned_course_ids, name')
@@ -12,10 +19,10 @@ export const analyticsService = {
             .single();
 
         if (!group) throw new Error('Group not found');
-        return { 
+        return {
             groupName: group.name,
-            assignedCourseIds: group.assigned_course_ids || [], 
-            assignedContent: group.assigned_content || {} 
+            assignedCourseIds: group.assigned_course_ids || [],
+            assignedContent: group.assigned_content || {}
         };
     },
 
@@ -383,11 +390,18 @@ export const analyticsService = {
             .eq('user_id', studentId)
             .order('created_at', { ascending: true });
 
-        if (assignedCourseIds.length > 0) {
+        if (assignedCourseIds === null) {
+            // Unscoped (no group, e.g. a parent viewing a linked student) - no course filter.
+        } else if (assignedCourseIds.length > 0) {
             submissionsQuery = submissionsQuery.in('course_id', assignedCourseIds);
         } else {
             submissionsQuery = submissionsQuery.in('course_id', [-1]);
         }
+
+        // Only meaningful relative to a group's assignment count - 0 when unscoped, since
+        // "assigned vs remaining" has no meaning without a group (StudentLevelView never
+        // renders these fields today regardless).
+        const assignedCourseCount = assignedCourseIds === null ? 0 : assignedCourseIds.length;
 
         const { data: submissions } = await submissionsQuery;
 
@@ -545,7 +559,7 @@ export const analyticsService = {
                 averageSatScore: overallHasData ? currentSatScore : null,
                 scoreImprovement: scoreDiff >= 0 ? `+${scoreDiff}` : `${scoreDiff}`,
                 overallAccuracy: totalQ > 0 ? Math.round((totalCorrect / totalQ) * 100) : 0,
-                totalTests: assignedCourseIds.length,
+                totalTests: assignedCourseCount,
                 completedTests: totalSubs,
                 totalQuestions: totalQ,
                 correct: totalCorrect,
@@ -562,8 +576,8 @@ export const analyticsService = {
                 averageScore: mathHasData ? currentMathScore : null,
                 scoreImprovement: mathCompletedCount > 1 ? `+${currentMathScore - (trend[0]?.mathScore || currentMathScore)}` : '0',
                 testsCompleted: mathCompletedCount,
-                testsAssigned: Math.round(assignedCourseIds.length / 2),
-                testsRemaining: Math.max(0, Math.round(assignedCourseIds.length / 2) - mathCompletedCount),
+                testsAssigned: Math.round(assignedCourseCount / 2),
+                testsRemaining: Math.max(0, Math.round(assignedCourseCount / 2) - mathCompletedCount),
                 accuracy: mathQ > 0 ? Math.round((mathCorrect / mathQ) * 100) : 0,
                 totalQuestions: mathQ,
                 correct: mathCorrect,
@@ -579,8 +593,8 @@ export const analyticsService = {
                 averageScore: rwHasData ? currentRwScore : null,
                 scoreImprovement: rwCompletedCount > 1 ? `+${currentRwScore - (trend[0]?.rwScore || currentRwScore)}` : '0',
                 testsCompleted: rwCompletedCount,
-                testsAssigned: Math.round(assignedCourseIds.length / 2),
-                testsRemaining: Math.max(0, Math.round(assignedCourseIds.length / 2) - rwCompletedCount),
+                testsAssigned: Math.round(assignedCourseCount / 2),
+                testsRemaining: Math.max(0, Math.round(assignedCourseCount / 2) - rwCompletedCount),
                 accuracy: rwQ > 0 ? Math.round((rwCorrect / rwQ) * 100) : 0,
                 totalQuestions: rwQ,
                 correct: rwCorrect,
@@ -861,6 +875,183 @@ export const analyticsService = {
 
         categories.sort((a, b) => b.score - a.score);
         return { topScores: categories };
+    },
+
+    /**
+     * STRONG / WEAK TOPICS
+     *
+     * Shared by the student's own Weakness Drills feature (weak topics only, self-scoped) and
+     * the Parent Portal's Student Analytics (both lists, for a linked student) - one calculation,
+     * two callers, matching this file's established pattern (getStudentTopScores etc.).
+     *
+     * Prefers question-level test_responses accuracy per topic (last 10 submissions); if no
+     * question-level data exists at all, falls back to course-level submission scores instead -
+     * same two-tier strategy the original weak-topics-only route used, just computed once and
+     * reused symmetrically for the strong side too.
+     */
+    async getStudentTopicPerformance(studentId) {
+        const classifySubject = (section, topic, courseName) => {
+            const s = (section || '').toLowerCase();
+            const t = (topic || '').toLowerCase();
+            const c = (courseName || '').toLowerCase();
+
+            const mathTopicKeywords = [
+                'math', 'sat math', 'algebra', 'arithmetic', 'calculus',
+                'geometry', 'trig', 'triangle', 'angle', 'circle', 'line', 'polygon', 'sine', 'cosine',
+                'right triangle', 'pythagor', 'coordinate', 'slope', 'parallell', 'perpendicular',
+                'linear', 'equation', 'inequalit', 'expression', 'equivalent', 'quadratic',
+                'polynomial', 'function', 'variable', 'system of equation', 'exponent', 'radical',
+                'statistic', 'data', 'probability', 'ratio', 'proportion', 'percent', 'rate',
+                'average', 'mean', 'median', 'mode', 'spread', 'distribution',
+                'number', 'integer', 'fraction', 'decimal', 'prime', 'factor', 'multiple',
+                'arithmetic operation', 'absolute value', 'complex number',
+                'area', 'volume', 'perimeter', 'surface area', 'unit', 'conversion',
+                'scatterplot', 'two-way table', 'inference', 'sample', 'margin of error',
+                'nonlinear', 'parabola', 'vertex', 'modeling', 'word problem',
+                'heart of algebra', 'passport to advanced math', 'problem solving',
+                'full length', 'test', 'practice test'
+            ];
+
+            const engTopicKeywords = [
+                'english', 'reading', 'writing', 'sat english', 'reading & writing',
+                'craft', 'structure', 'words in context', 'text structure', 'rhetoric',
+                'purpose', 'point of view', 'author', 'tone', 'diction', 'word choice',
+                'information', 'ideas', 'central idea', 'command of evidence', 'detail',
+                'summary', 'argument', 'claim', 'support', 'conclusion', 'inference',
+                'grammar', 'convention', 'punctuation', 'sentence', 'clause', 'modifier',
+                'subject-verb', 'pronoun', 'agreement', 'tense', 'parallel', 'transition',
+                'expression', 'development', 'organization', 'style', 'cohesion', 'vocabulary',
+                'literature', 'passage', 'comprehension', 'evidence', 'synthesis',
+                'full length', 'test', 'practice test'
+            ];
+
+            const topicIsMatch = (keywords) => keywords.some(k => t.includes(k));
+            const sectionIsMatch = (keywords) => keywords.some(k => s.includes(k));
+
+            if (topicIsMatch(mathTopicKeywords)) return 'Math';
+            if (topicIsMatch(engTopicKeywords)) return 'English';
+            if (sectionIsMatch(mathTopicKeywords)) return 'Math';
+            if (sectionIsMatch(engTopicKeywords)) return 'English';
+
+            if (mathTopicKeywords.some(k => c.includes(k))) return 'Math';
+            if (engTopicKeywords.some(k => c.includes(k))) return 'English';
+
+            return 'Other Subjects';
+        };
+
+        // 1. Last 10 submissions for this student (no is_practice filter - include all courses)
+        const { data: submissions, error: subError } = await supabase
+            .from('test_submissions')
+            .select('id, course_id, level, raw_score, total_questions, raw_score_percentage, courses(id, name, is_practice)')
+            .eq('user_id', studentId)
+            .order('test_date', { ascending: false })
+            .limit(10);
+
+        // 2. Question-level responses for deeper per-topic analysis
+        let responseBasedWeak = [];
+        let responseBasedStrong = [];
+        if (!subError && submissions?.length) {
+            const subIds = submissions.map(s => s.id);
+            const { data: responses } = await supabase
+                .from('test_responses')
+                .select('is_correct, question:questions(id, section, topic, level)')
+                .in('submission_id', subIds);
+
+            if (responses?.length) {
+                const topicStats = {};
+                responses.forEach(r => {
+                    if (!r.question) return;
+                    const topic = r.question.topic || 'General';
+                    const section = r.question.section || 'general';
+                    const key = `${section}:${topic}`;
+                    if (!topicStats[key]) {
+                        topicStats[key] = { topic, section, correct: 0, total: 0, level: r.question.level };
+                    }
+                    topicStats[key].total++;
+                    if (r.is_correct) topicStats[key].correct++;
+                });
+
+                const courseName = submissions.find(s => s.id)?.courses?.name;
+
+                responseBasedWeak = Object.values(topicStats)
+                    .filter(s => {
+                        const acc = (s.correct / s.total) * 100;
+                        return acc < 70 && (s.total - s.correct) >= 1;
+                    })
+                    .map(stats => {
+                        const wrongCount = stats.total - stats.correct;
+                        const subject = classifySubject(stats.section, stats.topic, courseName);
+                        return {
+                            topic: stats.topic,
+                            subject,
+                            reason: `Missed ${wrongCount} questions in recent tests`,
+                            priority: wrongCount > 2 ? 'Critical' : 'High',
+                            level: stats.level
+                        };
+                    })
+                    .filter(wt => wt.subject === 'Math' || wt.subject === 'English');
+
+                responseBasedStrong = Object.values(topicStats)
+                    .filter(s => (s.correct / s.total) * 100 >= 80)
+                    .map(stats => {
+                        const accuracy = Math.round((stats.correct / stats.total) * 100);
+                        const subject = classifySubject(stats.section, stats.topic, courseName);
+                        return {
+                            topic: stats.topic,
+                            subject,
+                            reason: `${accuracy}% accuracy in recent tests`,
+                            accuracy,
+                            level: stats.level
+                        };
+                    })
+                    .filter(st => st.subject === 'Math' || st.subject === 'English');
+            }
+        }
+
+        // 3. Course-level fallback (low/high-scoring submissions, course name as the topic) -
+        //    computed once, but WEAK and STRONG each independently decide whether to use their
+        //    own response-based result or fall back to it, exactly mirroring the original
+        //    weak-topics route's own independent "use response-based if non-empty, else
+        //    course-level" decision (so GET /weak-topics stays byte-identical to before).
+        let scoreBasedWeak = [];
+        let scoreBasedStrong = [];
+        if (!subError && submissions?.length) {
+            const seenWeak = new Set();
+            const seenStrong = new Set();
+
+            for (const sub of submissions) {
+                const percentage = sub.raw_score_percentage || ((sub.raw_score / sub.total_questions) * 100);
+                const courseName = sub.courses?.name || 'General';
+                const courseKey = `${courseName}:${sub.level}`;
+                const subject = classifySubject('', '', courseName);
+                if (subject !== 'Math' && subject !== 'English') continue;
+
+                if (percentage <= 50 && !seenWeak.has(courseKey)) {
+                    seenWeak.add(courseKey);
+                    scoreBasedWeak.push({
+                        topic: `${courseName} – ${sub.level} Level`,
+                        subject,
+                        reason: `Low accuracy (${Math.round(percentage)}%) on ${sub.level} test`,
+                        priority: percentage < 30 ? 'Critical' : 'High',
+                        level: sub.level
+                    });
+                } else if (percentage >= 80 && !seenStrong.has(courseKey)) {
+                    seenStrong.add(courseKey);
+                    scoreBasedStrong.push({
+                        topic: `${courseName} – ${sub.level} Level`,
+                        subject,
+                        reason: `Strong accuracy (${Math.round(percentage)}%) on ${sub.level} test`,
+                        accuracy: Math.round(percentage),
+                        level: sub.level
+                    });
+                }
+            }
+        }
+
+        return {
+            weakTopics: responseBasedWeak.length > 0 ? responseBasedWeak : scoreBasedWeak,
+            strongTopics: responseBasedStrong.length > 0 ? responseBasedStrong : scoreBasedStrong
+        };
     },
 
     /**

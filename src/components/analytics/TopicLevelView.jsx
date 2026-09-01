@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import CombinedRegularCourseReport from '../common/CombinedRegularCourseReport';
-import { tutorService, adminService } from '../../services/api';
+import { tutorService, adminService, parentService } from '../../services/api';
 
 const { FiArrowLeft, FiClock, FiChevronRight, FiBarChart2, FiDownload, FiCheckCircle } = FiIcons;
 
-const TopicLevelView = ({ groupId, topic, student, onBack, onAttemptSelect, adminMode = false }) => {
+const TopicLevelView = ({ groupId, topic, student, onBack, onAttemptSelect, adminMode = false, parentMode = false }) => {
     const [combinedData, setCombinedData] = useState(null);
     const [loadingCombined, setLoadingCombined] = useState(false);
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'combined'
@@ -36,7 +36,7 @@ const TopicLevelView = ({ groupId, topic, student, onBack, onAttemptSelect, admi
 
         setLoadingCombined(true);
         try {
-            const service = adminMode ? adminService : tutorService;
+            const service = parentMode ? parentService : (adminMode ? adminService : tutorService);
             const res = await service.getTopicReport(groupId, student.id, topic.courseId);
             setCombinedData(res.data);
             setViewMode('combined');

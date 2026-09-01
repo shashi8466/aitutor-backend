@@ -1402,6 +1402,12 @@ export const tutorService = {
     clearTutorCache();
     return axios.delete(`/api/tutor/groups/${groupId}/members/${studentId}`);
   },
+  // Bulk variant - one query server-side instead of one request per student, for removing many
+  // members at once (e.g. 50 out of 100) from Manage Students.
+  removeGroupMembers: async (groupId, studentIds) => {
+    clearTutorCache();
+    return axios.delete(`/api/tutor/groups/${groupId}/members`, { data: { studentIds } });
+  },
   deleteGroup: async (groupId) => {
     clearTutorCache();
     return axios.delete(`/api/tutor/groups/${groupId}`);
@@ -1751,6 +1757,50 @@ export const parentService = {
   },
   getMyChildren: async () => {
     return axios.get('/api/grading/parent/my-children');
+  },
+  // Analytics - thin wrappers around the same analyticsService functions tutorService/
+  // adminService call, scoped by linked_students instead of a Student Group. Method names match
+  // tutorService/adminService where the underlying call is equivalent, so the shared analytics
+  // chain (StudentLevelView, CourseLevelView, TopicLevelView, TopicReportReview) can select
+  // this service via a `parentMode` prop exactly like it already selects adminService/
+  // tutorService via `adminMode`.
+  getStudentDashboard: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/analytics/dashboard`);
+  },
+  getCourseAnalytics: async (studentId, courseName) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/analytics/courses/${encodeURIComponent(courseName)}`);
+  },
+  getStudentTopicReport: async (studentId, courseId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/analytics/topic-report/${courseId}`);
+  },
+  // groupId is accepted (and ignored) so TopicLevelView's existing service.getTopicReport(groupId,
+  // studentId, courseId) call shape needs no special-casing for the parentMode branch.
+  getTopicReport: async (groupId, studentId, courseId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/analytics/topic-report/${courseId}`);
+  },
+  getTopScores: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/top-scores`);
+  },
+  getTopicPerformance: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/topic-performance`);
+  },
+  // Parent-safe equivalents of the direct client-side (RLS-gated) queries StudentDashboard.jsx
+  // uses for itself (enrollmentService/progressService/planService/gradingService) - lets
+  // StudentDashboard render exactly for a linked student when given a studentId prop.
+  getStudentEnrollments: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/enrollments`);
+  },
+  getStudentProgress: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/progress`);
+  },
+  getStudentPlan: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/plan`);
+  },
+  getTargetProgress: async (studentId, target) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/target-progress?target=${target}`);
+  },
+  getNotifications: async (studentId) => {
+    return axios.get(`/api/grading/parent/student/${studentId}/notifications`);
   }
 };
 export const feedbackService = {

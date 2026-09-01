@@ -52,6 +52,10 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [editGroupStatus, setEditGroupStatus] = useState('active');
     const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' | 'students' | 'tutors'
     const [inviteLink, setInviteLink] = useState('');
+    // Bulk-remove selection for Current Members - separate from selectedStudentIds, which is the
+    // Available Students (add-to-group) selection.
+    const [selectedMemberIdsToRemove, setSelectedMemberIdsToRemove] = useState([]);
+    const [removingMembers, setRemovingMembers] = useState(false);
 
     // Co-Tutor management state
     const [groupTutors, setGroupTutors] = useState({ owner: null, coTutors: [] });
@@ -241,6 +245,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         setEditGroupStatus(group.status || 'active');
         setActiveEditTab('settings');
         setSelectedStudentIds([]);
+        setSelectedMemberIdsToRemove([]);
         setShowAddMemberModal(true);
         setShowAddCoTutorForm(false);
         setNewCoTutorEmail('');
@@ -278,6 +283,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         setSelectedGroup(group);
         setActiveEditTab('students');
         setSelectedStudentIds([]);
+        setSelectedMemberIdsToRemove([]);
         setShowAddMemberModal(true);
         setShowAddCoTutorForm(false);
         setNewCoTutorEmail('');
@@ -299,6 +305,31 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
             loadData();
         } catch (error) {
             console.error('Error removing member:', error);
+        }
+    };
+
+    const toggleMemberRemoveSelection = (studentId) => {
+        setSelectedMemberIdsToRemove(prev =>
+            prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
+        );
+    };
+
+    const handleBulkRemoveMembers = async (groupId) => {
+        if (selectedMemberIdsToRemove.length === 0) return;
+        const count = selectedMemberIdsToRemove.length;
+        if (!window.confirm(`Remove ${count} student${count === 1 ? '' : 's'} from this group?`)) return;
+
+        setRemovingMembers(true);
+        try {
+            await tutorService.removeGroupMembers(groupId, selectedMemberIdsToRemove);
+            setSelectedMemberIdsToRemove([]);
+            await fetchGroupMembers(groupId);
+            loadData();
+        } catch (error) {
+            console.error('Error bulk-removing members:', error);
+            alert('Failed to remove selected students.');
+        } finally {
+            setRemovingMembers(false);
         }
     };
 
@@ -760,11 +791,48 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                                 {/* Current Members Section */}
                                                 {currentMembers.length > 0 && (
                                                     <div className="mb-6">
-                                                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Current Members ({currentMembers.length})</h4>
+                                                        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                                                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Current Members ({currentMembers.length})</h4>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSelectedMemberIdsToRemove(
+                                                                    selectedMemberIdsToRemove.length === currentMembers.length
+                                                                        ? []
+                                                                        : currentMembers.map(m => m.id)
+                                                                )}
+                                                                className="text-xs font-bold text-blue-600 hover:underline"
+                                                            >
+                                                                {selectedMemberIdsToRemove.length === currentMembers.length && currentMembers.length > 0 ? 'Deselect All' : 'Select All'}
+                                                            </button>
+                                                        </div>
+
+                                                        {selectedMemberIdsToRemove.length > 0 && (
+                                                            <div className="flex items-center justify-between gap-3 mb-3 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                                                                <span className="text-xs font-bold text-red-700 dark:text-red-300">
+                                                                    {selectedMemberIdsToRemove.length} student{selectedMemberIdsToRemove.length === 1 ? '' : 's'} selected
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleBulkRemoveMembers(selectedGroup.id)}
+                                                                    disabled={removingMembers}
+                                                                    className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                >
+                                                                    <SafeIcon icon={FiIcons.FiUserMinus} />
+                                                                    {removingMembers ? 'Removing...' : 'Remove Selected'}
+                                                                </button>
+                                                            </div>
+                                                        )}
+
                                                         <div className="space-y-2">
                                                             {currentMembers.map(member => (
                                                                 <div key={member.id} className="flex items-center justify-between p-3 rounded-xl border bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800 transition-all">
                                                                     <div className="flex items-center gap-3">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedMemberIdsToRemove.includes(member.id)}
+                                                                            onChange={() => toggleMemberRemoveSelection(member.id)}
+                                                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                                                                        />
                                                                         <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase bg-blue-600 text-white">
                                                                             {member.name?.charAt(0)}
                                                                         </div>
@@ -793,7 +861,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                                     <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">Available Students</h4>
                                                     <div className="space-y-2">
                                                         {(() => {
-                                                            const availableStudents = filteredStudents.filter(s => !currentMembers.some(m => m.student_id === s.id));
+                                                            const availableStudents = filteredStudents.filter(s => !currentMembers.some(m => m.id === s.id));
                                                             if (availableStudents.length === 0) {
                                                                 return <p className="text-center py-4 text-gray-500 text-sm">No available students found.</p>;
                                                             }
@@ -949,7 +1017,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                         <div className="flex items-center gap-4">
                                             <button
                                                 onClick={() => {
-                                                    const available = filteredStudents.filter(s => !currentMembers.some(m => m.student_id === s.id));
+                                                    const available = filteredStudents.filter(s => !currentMembers.some(m => m.id === s.id));
                                                     if (selectedStudentIds.length === available.length && available.length > 0) {
                                                         setSelectedStudentIds([]); // Deselect all
                                                     } else {
@@ -958,7 +1026,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                                 }}
                                                 className="text-xs font-bold text-blue-600 hover:underline"
                                             >
-                                                {selectedStudentIds.length > 0 && selectedStudentIds.length === filteredStudents.filter(s => !currentMembers.some(m => m.student_id === s.id)).length ? 'Deselect All' : 'Select All'}
+                                                {selectedStudentIds.length > 0 && selectedStudentIds.length === filteredStudents.filter(s => !currentMembers.some(m => m.id === s.id)).length ? 'Deselect All' : 'Select All'}
                                             </button>
                                             {selectedStudentIds.length > 0 && (
                                                 <button

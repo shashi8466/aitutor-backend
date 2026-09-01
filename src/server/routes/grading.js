@@ -12,6 +12,7 @@ import { analyticsService } from '../services/analyticsService.js';
 import { TAXONOMY } from '../../utils/taxonomy.js';
 import { isAnswerCorrect } from '../../utils/answerGrading.js';
 import { assertCourseAccessible } from '../utils/contentAccess.js';
+import { verifyParentAccess } from '../utils/parentAccess.js';
 
 const router = express.Router();
 
@@ -119,7 +120,7 @@ router.get('/parent/student/:studentId/submissions', async (req, res) => {
         // 2. Fetch submissions for the student (using admin client to bypass RLS)
         const { data: submissions, error } = await supabase
             .from('test_submissions')
-            .select('*, courses:courses(id, name, is_practice, tutor_type)')
+            .select('*, courses:courses(id, name, is_practice, tutor_type, main_category, category, is_adaptive)')
             .eq('user_id', studentId)
             .order('test_date', { ascending: false });
 
@@ -276,6 +277,202 @@ router.get('/parent/student/:studentId/dashboard-data', async (req, res) => {
     }
 });
 
+/**
+ * Parent Portal analytics routes - each a thin wrapper around the SAME analyticsService
+ * functions the tutor/admin Student Analytics chain uses (StudentLevelView/CourseLevelView/
+ * TopicLevelView), called with groupId = null ("unscoped" - see analyticsService._getGroupScope)
+ * since a parent's linked student has no Student Group to scope to. Authorization is
+ * verifyParentAccess (role === 'parent' + studentId in linked_students) instead of group
+ * membership - no new scoring/aggregation logic here.
+ */
+router.get('/parent/student/:studentId/analytics/dashboard', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const data = await analyticsService.getStudentDashboard(null, studentId);
+        res.json(data);
+    } catch (error) {
+        console.error('Parent student dashboard error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/analytics/courses/:courseName', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId, courseName } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const data = await analyticsService.getCourseAnalytics(null, studentId, decodeURIComponent(courseName));
+        res.json(data);
+    } catch (error) {
+        console.error('Parent course analytics error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/analytics/topic-report/:courseId', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId, courseId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const data = await analyticsService.getTopicCombinedReport(null, studentId, courseId);
+        res.json(data);
+    } catch (error) {
+        console.error('Parent topic report error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/top-scores', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const data = await analyticsService.getStudentTopScores(studentId);
+        res.json(data);
+    } catch (error) {
+        console.error('Parent top scores error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/topic-performance', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const data = await analyticsService.getStudentTopicPerformance(studentId);
+        res.json(data);
+    } catch (error) {
+        console.error('Parent topic performance error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * Parent-safe equivalents of the direct client-side (RLS-gated) queries the student's own
+ * StudentDashboard.jsx makes via enrollmentService/progressService/planService - these use the
+ * service-role client + verifyParentAccess instead of relying on RLS admitting a parent to a
+ * different user's rows, matching this codebase's established convention of inline Express
+ * authorization rather than RLS for cross-user access (see grading.js's other /parent/* routes).
+ */
+router.get('/parent/student/:studentId/enrollments', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const { data, error } = await supabase.from('enrollments').select('*').eq('user_id', studentId);
+        if (error) throw error;
+        res.json({ enrollments: data || [] });
+    } catch (error) {
+        console.error('Parent enrollments error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/progress', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const { data, error } = await supabase.from('student_progress').select('*').eq('user_id', studentId);
+        if (error) throw error;
+        res.json({ progress: data || [] });
+    } catch (error) {
+        console.error('Parent progress error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/plan', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const { data, error } = await supabase.from('student_plans').select('*').eq('user_id', studentId).maybeSingle();
+        if (error) throw error;
+        res.json({ plan: data || null });
+    } catch (error) {
+        console.error('Parent plan error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/target-progress', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const target = parseInt(req.query.target, 10) || 0;
+        const data = await analyticsService.getStudentTargetProgress(studentId, target);
+        res.json(data);
+    } catch (error) {
+        console.error('Parent target progress error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+router.get('/parent/student/:studentId/notifications', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const access = await verifyParentAccess(supabase, userId, studentId);
+        if (!access.ok) return res.status(access.status).json({ error: access.error });
+
+        const { data, error } = await supabase
+            .from('notification_outbox')
+            .select('id,event_type,status,created_at,payload,recipient_profile_id,recipient_type')
+            .eq('recipient_profile_id', studentId)
+            .in('event_type', ['TEST_COMPLETED'])
+            .in('status', ['pending', 'processing', 'sent'])
+            .order('created_at', { ascending: false })
+            .limit(20);
+        if (error) throw error;
+        res.json({ notifications: data || [] });
+    } catch (error) {
+        console.error('Parent notifications error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 /**
  * POST /api/grading/submit-test
@@ -2661,172 +2858,13 @@ router.get('/weak-topics', async (req, res) => {
         const userId = req.user?.id;
         if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-        // 1. Get all test submissions for this student (no is_practice filter - include all courses)
-        const { data: submissions, error: subError } = await supabase
-            .from('test_submissions')
-            .select('id, course_id, level, raw_score, total_questions, raw_score_percentage, courses(id, name, is_practice)')
-            .eq('user_id', userId)
-            .order('test_date', { ascending: false })
-            .limit(10);
-
-        // 2. Try to get question-level responses for deeper analysis
-        let responseBasedTopics = [];
-        if (!subError && submissions?.length) {
-            const subIds = submissions.map(s => s.id);
-            const { data: responses } = await supabase
-                .from('test_responses')
-                .select('is_correct, question:questions(id, section, topic, level)')
-                .in('submission_id', subIds);
-
-            if (responses?.length) {
-                const topicStats = {};
-                responses.forEach(r => {
-                    if (!r.question) return;
-                    const topic = r.question.topic || 'General';
-                    const section = r.question.section || 'general';
-                    const key = `${section}:${topic}`;
-                    if (!topicStats[key]) {
-                        topicStats[key] = { topic, section, correct: 0, total: 0, level: r.question.level };
-                    }
-                    topicStats[key].total++;
-                    if (r.is_correct) topicStats[key].correct++;
-                });
-
-                responseBasedTopics = Object.values(topicStats)
-                    .filter(s => {
-                        const acc = (s.correct / s.total) * 100;
-                        return acc < 70 && (s.total - s.correct) >= 1;
-                    })
-                    .map(stats => {
-                        const wrongCount = stats.total - stats.correct;
-                        const sec = (stats.section || '').toLowerCase();
-                        const top = (stats.topic || '').toLowerCase();
-                        const subject = classifySubject(sec, top, submissions.find(s => s.id)?.courses?.name);
-                        return {
-                            topic: stats.topic,
-                            subject,
-                            reason: `Missed ${wrongCount} questions in recent tests`,
-                            priority: wrongCount > 2 ? 'Critical' : 'High',
-                            level: stats.level
-                        };
-                    })
-                    .filter(wt => wt.subject === 'Math' || wt.subject === 'English');
-            }
-        }
-
-        // 3. If we have question-level data, use it
-        if (responseBasedTopics.length > 0) {
-            return res.json({ weakTopics: responseBasedTopics });
-        }
-
-        // 4. Fallback: Use course-level score data from test_submissions
-        //    Treat low-scoring tests (<= 50%) as weak areas, using the course name as topic
-        if (!subError && submissions?.length) {
-            const scoreBasedTopics = [];
-            const seenCourses = new Set();
-
-            for (const sub of submissions) {
-                const percentage = sub.raw_score_percentage || ((sub.raw_score / sub.total_questions) * 100);
-                if (percentage <= 50) {
-                    const courseName = sub.courses?.name || 'General';
-                    const courseKey = `${courseName}:${sub.level}`;
-                    if (seenCourses.has(courseKey)) continue;
-                    seenCourses.add(courseKey);
-
-                    const subject = classifySubject('', '', courseName);
-                    if (subject !== 'Math' && subject !== 'English') continue;
-
-                    scoreBasedTopics.push({
-                        topic: `${courseName} – ${sub.level} Level`,
-                        subject,
-                        reason: `Low accuracy (${Math.round(percentage)}%) on ${sub.level} test`,
-                        priority: percentage < 30 ? 'Critical' : 'High',
-                        level: sub.level
-                    });
-                }
-            }
-
-            if (scoreBasedTopics.length > 0) {
-                return res.json({ weakTopics: scoreBasedTopics });
-            }
-        }
-
-        // 5. Nothing found
-        res.json({ weakTopics: [] });
-
+        const { weakTopics } = await analyticsService.getStudentTopicPerformance(userId);
+        res.json({ weakTopics });
     } catch (error) {
         console.error('Weak topics detection error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
-
-/**
- * Classify a topic into Math or English based on topic name, section, and course name.
- * Priority: topic > section > courseName (to avoid course name polluting topic-level classification)
- */
-function classifySubject(section, topic, courseName) {
-    const s = (section || '').toLowerCase();
-    const t = (topic || '').toLowerCase();
-    const c = (courseName || '').toLowerCase();
-
-    // Expanded Math keywords — covers all SAT Math topic categories
-    const mathTopicKeywords = [
-        // General math
-        'math', 'sat math', 'algebra', 'arithmetic', 'calculus',
-        // Geometry & Trig
-        'geometry', 'trig', 'triangle', 'angle', 'circle', 'line', 'polygon', 'sine', 'cosine',
-        'right triangle', 'pythagor', 'coordinate', 'slope', 'parallell', 'perpendicular',
-        // Algebra
-        'linear', 'equation', 'inequalit', 'expression', 'equivalent', 'quadratic',
-        'polynomial', 'function', 'variable', 'system of equation', 'exponent', 'radical',
-        // Statistics & Data
-        'statistic', 'data', 'probability', 'ratio', 'proportion', 'percent', 'rate',
-        'average', 'mean', 'median', 'mode', 'spread', 'distribution',
-        // Numbers & Operations
-        'number', 'integer', 'fraction', 'decimal', 'prime', 'factor', 'multiple',
-        'arithmetic operation', 'absolute value', 'complex number',
-        // SAT Math specific topics
-        'area', 'volume', 'perimeter', 'surface area', 'unit', 'conversion',
-        'scatterplot', 'two-way table', 'inference', 'sample', 'margin of error',
-        'nonlinear', 'parabola', 'vertex', 'modeling', 'word problem',
-        'heart of algebra', 'passport to advanced math', 'problem solving',
-        'full length', 'test', 'practice test'
-    ];
-
-    // English keywords — covers all SAT Reading & Writing topic categories
-    const engTopicKeywords = [
-        // General
-        'english', 'reading', 'writing', 'sat english', 'reading & writing',
-        // Craft & Structure
-        'craft', 'structure', 'words in context', 'text structure', 'rhetoric',
-        'purpose', 'point of view', 'author', 'tone', 'diction', 'word choice',
-        // Information & Ideas
-        'information', 'ideas', 'central idea', 'command of evidence', 'detail',
-        'summary', 'argument', 'claim', 'support', 'conclusion', 'inference',
-        // Standard English Conventions
-        'grammar', 'convention', 'punctuation', 'sentence', 'clause', 'modifier',
-        'subject-verb', 'pronoun', 'agreement', 'tense', 'parallel', 'transition',
-        // Expression of Ideas
-        'expression', 'development', 'organization', 'style', 'cohesion', 'vocabulary',
-        'literature', 'passage', 'comprehension', 'evidence', 'synthesis',
-        'full length', 'test', 'practice test'
-    ];
-
-    // Step 1: Check topic and section FIRST (never use courseName at this stage)
-    const topicIsMatch = (keywords) => keywords.some(k => t.includes(k));
-    const sectionIsMatch = (keywords) => keywords.some(k => s.includes(k));
-
-    if (topicIsMatch(mathTopicKeywords)) return 'Math';
-    if (topicIsMatch(engTopicKeywords)) return 'English';
-    if (sectionIsMatch(mathTopicKeywords)) return 'Math';
-    if (sectionIsMatch(engTopicKeywords)) return 'English';
-
-    // Step 2: Only fall back to courseName when topic/section give no signal
-    if (mathTopicKeywords.some(k => c.includes(k))) return 'Math';
-    if (engTopicKeywords.some(k => c.includes(k))) return 'English';
-
-    return 'Other Subjects';
-}
 
 /**
  * GET /api/grading/topic-report/:courseId

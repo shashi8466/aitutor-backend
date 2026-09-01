@@ -892,6 +892,65 @@ router.delete('/groups/:groupId/members/:studentId', async (req, res) => {
 });
 
 /**
+ * DELETE /api/tutor/groups/:groupId/members
+ * Bulk-remove multiple students from a group in one query (body: { studentIds: [...] }) - same
+ * authorization as the single-student DELETE above, just applied once instead of per-request so
+ * removing e.g. 50 students out of 100 doesn't need 50 round-trips.
+ */
+router.delete('/groups/:groupId/members', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { groupId } = req.params;
+        const { studentIds } = req.body; // Array of UUIDs
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        if (!Array.isArray(studentIds) || studentIds.length === 0) {
+            return res.status(400).json({ error: 'studentIds must be a non-empty array' });
+        }
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        const { data: group } = await supabase
+            .from('student_groups')
+            .select('created_by')
+            .eq('id', groupId)
+            .single();
+
+        const isAdmin = profile?.role === 'admin';
+        const isOwner = group?.created_by === userId;
+        const isCoTutor = !isAdmin && !isOwner && !!group && await isCoTutorOf(supabase, groupId, userId);
+
+        if (!group || (!isAdmin && !isOwner && !isCoTutor)) {
+            return res.status(403).json({ error: 'Not authorized for this group' });
+        }
+
+        const { error } = await supabase
+            .from('group_members')
+            .delete()
+            .eq('group_id', groupId)
+            .in('student_id', studentIds);
+
+        if (error) {
+            console.error('Error bulk-removing members:', error);
+            return res.status(500).json({ error: 'Failed to remove members' });
+        }
+
+        res.json({ success: true, removed: studentIds.length });
+
+    } catch (error) {
+        console.error('Bulk remove members error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * DELETE /api/tutor/groups/:groupId
  * Delete a group
  */

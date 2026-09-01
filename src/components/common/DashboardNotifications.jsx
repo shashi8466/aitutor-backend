@@ -5,14 +5,19 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-
-import axios from 'axios';
+import { parentService } from '../../services/api';
 
 const { FiBell, FiCheckCircle, FiChevronRight, FiClock, FiX, FiCheck } = FiIcons;
 
-const DashboardNotifications = ({ limit = 3 }) => {
+// studentId, when provided (Parent Portal's Dashboard, rendering the exact StudentDashboard for
+// a linked student), scopes this to THAT student's own notification stream via the
+// linked_students-authorized parentService route, instead of the logged-in user's own
+// notifications - so a parent viewing one child never sees another child's activity mixed in,
+// and the content matches exactly what that student would see on their own dashboard.
+const DashboardNotifications = ({ limit = 3, studentId = null, basePath = '/student' }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const isParentView = !!studentId;
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showFullHistory, setShowFullHistory] = useState(false);
@@ -20,25 +25,31 @@ const DashboardNotifications = ({ limit = 3 }) => {
     useEffect(() => {
         if (!user?.id) return;
         fetchNotifications();
-    }, [user]);
+    }, [user, studentId]);
 
     const fetchNotifications = async () => {
         setLoading(true);
         try {
-            // Direct Supabase query to bypass API routing issues
-            const { data, error } = await supabase
-                .from('notification_outbox')
-                .select('id,event_type,status,created_at,payload,recipient_profile_id,recipient_type')
-                .eq('recipient_profile_id', user.id)
-                .in('event_type', ['TEST_COMPLETED'])
-                .in('status', ['pending', 'processing', 'sent'])
-                .order('created_at', { ascending: false })
-                .limit(20);
-
-            if (error) throw error;
+            let rows;
+            if (isParentView) {
+                const res = await parentService.getNotifications(studentId);
+                rows = res.data?.notifications || [];
+            } else {
+                // Direct Supabase query to bypass API routing issues
+                const { data, error } = await supabase
+                    .from('notification_outbox')
+                    .select('id,event_type,status,created_at,payload,recipient_profile_id,recipient_type')
+                    .eq('recipient_profile_id', user.id)
+                    .in('event_type', ['TEST_COMPLETED'])
+                    .in('status', ['pending', 'processing', 'sent'])
+                    .order('created_at', { ascending: false })
+                    .limit(20);
+                if (error) throw error;
+                rows = data || [];
+            }
 
             // Sort by most recent first
-            const sorted = (data || []).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            const sorted = [...rows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
             setNotifications(sorted.map(row => ({
                 id: row.id,
@@ -60,11 +71,7 @@ const DashboardNotifications = ({ limit = 3 }) => {
         if (!payload?.submissionId) return;
 
         setShowFullHistory(false);
-        if (user.role === 'parent') {
-            navigate(`/parent/child/${payload.studentId}/course/${payload.courseId}/difficulty/${(payload.level || 'medium').toLowerCase()}/test/${payload.submissionId}`);
-        } else {
-            navigate(`/student/detailed-review/${payload.submissionId}`);
-        }
+        navigate(`${basePath}/detailed-review/${payload.submissionId}`);
     };
 
     if (loading && notifications.length === 0) {
@@ -86,18 +93,18 @@ const DashboardNotifications = ({ limit = 3 }) => {
     const displayedNotifications = notifications.slice(0, limit);
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mb-8 overflow-hidden">
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center">
-                        <SafeIcon icon={FiBell} className="w-5 h-5" />
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 mb-5 overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center">
+                        <SafeIcon icon={FiBell} className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-lg text-slate-900 dark:text-white leading-tight">Recent Updates</h3>
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Activity Feed</p>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">Recent Updates</h3>
+                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Activity Feed</p>
                     </div>
                 </div>
-                
+
                 {notifications.length > limit && (
                     <button 
                         onClick={() => setShowFullHistory(true)}
@@ -109,10 +116,10 @@ const DashboardNotifications = ({ limit = 3 }) => {
                 )}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2">
                 <AnimatePresence initial={false}>
                     {displayedNotifications.map((n) => (
-                        <NotificationCard key={n.id} n={n} handleAction={handleAction} userRole={user.role} />
+                        <NotificationCard key={n.id} n={n} handleAction={handleAction} />
                     ))}
                 </AnimatePresence>
             </div>
@@ -154,7 +161,7 @@ const DashboardNotifications = ({ limit = 3 }) => {
                             
                             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                                 {notifications.map((n) => (
-                                    <NotificationCard key={n.id} n={n} handleAction={handleAction} userRole={user.role} isModal />
+                                    <NotificationCard key={n.id} n={n} handleAction={handleAction} isModal />
                                 ))}
                             </div>
                             
@@ -170,49 +177,44 @@ const DashboardNotifications = ({ limit = 3 }) => {
 };
 
 // Internal Sub-component for clarity
-const NotificationCard = ({ n, handleAction, userRole, isModal = false }) => {
+const NotificationCard = ({ n, handleAction, isModal = false }) => {
     return (
         <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                n.type === 'TEST_COMPLETED' 
-                ? 'bg-green-50/30 dark:bg-green-900/10 border-green-100 dark:border-green-800/50' 
+            className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
+                n.type === 'TEST_COMPLETED'
+                ? 'bg-green-50/30 dark:bg-green-900/10 border-green-100 dark:border-green-800/50'
                 : 'bg-sky-50/30 dark:bg-sky-900/10 border-sky-100 dark:border-sky-800/50'
-            } hover:shadow-md hover:scale-[1.01] transition-all`}
+            } hover:shadow-md transition-all`}
         >
-            <div className="flex items-center gap-4 flex-1">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+            <div className="flex items-center gap-2.5 flex-1">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                     n.type === 'TEST_COMPLETED' ? 'bg-green-100 dark:bg-green-900/30 text-green-600' : 'bg-sky-100 dark:bg-sky-900/30 text-sky-600'
                 }`}>
-                    <SafeIcon icon={FiCheckCircle} className="w-5 h-5" />
+                    <SafeIcon icon={FiCheckCircle} className="w-4 h-4" />
                 </div>
                 <div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-0.5">
-                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">
-                            {userRole === 'parent' 
-                                ? `${n.payload?.studentName || 'Student'} Completed: ${n.payload?.courseName || 'Test'}` 
-                                : (n.payload?.courseName ? `Test Completed: ${n.payload.courseName}` : 'Test Completed')
-                            }
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mb-0.5">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-xs">
+                            {n.payload?.courseName ? `Test Completed: ${n.payload.courseName}` : 'Test Completed'}
                         </h4>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter">
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter">
                             <SafeIcon icon={FiClock} className="w-3 h-3" />
                             {n.created_at && (
                                 `${new Date(n.created_at).toLocaleDateString()} ${new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                             )}
                         </span>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                        {userRole === 'parent'
-                            ? `${n.payload?.studentName || 'Your child'} scored ${Math.round(n.payload?.rawPercentage || 0)}%`
-                            : `Achieved Score: ${Math.round(n.payload?.rawPercentage || 0)}% in ${n.payload?.level || 'Practice'}`}
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                        Achieved Score: {Math.round(n.payload?.rawPercentage || 0)}% in {n.payload?.level || 'Practice'}
                     </p>
                 </div>
             </div>
 
             <button
                 onClick={() => handleAction(n)}
-                className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 group shadow-sm"
+                className="w-full sm:w-auto px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[9px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 group shadow-sm flex-shrink-0"
             >
                 View Full Report
                 <SafeIcon icon={FiChevronRight} className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
