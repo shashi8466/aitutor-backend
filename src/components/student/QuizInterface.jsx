@@ -700,63 +700,18 @@ const QuizInterface = () => {
             ? Math.round(400 + (percentage / 100) * 1200)
             : percentage;
     const isPassed = percentage >= 5;
-    const isRWCourse = (courseInfo?.category || '').toLowerCase().includes('reading') || (courseInfo?.name || '').toLowerCase().includes('rhetorical') || (courseInfo?.name || '').toLowerCase().includes('reading');
-    const isMathCourse = (courseInfo?.category || '').toLowerCase().includes('math') || (courseInfo?.name || '').toLowerCase().includes('math');
-
-    const testedSections = new Set();
-    questions.forEach(q => {
-      const s = (q.section || q.topic || '').toLowerCase();
-      if (s.includes('read') || s.includes('writ') || s.includes('rw') || s.includes('vocab') || s.includes('rhetorical') || s.includes('synthesis') || s.includes('english')) testedSections.add('rw');
-      if (s.includes('math') || s.includes('algebra') || s.includes('geometry') || s.includes('problem')) testedSections.add('math');
-    });
-    
-    // If we couldn't parse the questions, rely on the course metadata
-    if (testedSections.size === 0) {
-      if (isRWCourse) testedSections.add('rw');
-      else if (isMathCourse) testedSections.add('math');
-      else {
-        testedSections.add('rw');
-        testedSections.add('math');
-      }
-    }
-
-    const processedSectionScores = [];
-    if (!isAdaptive && res?.sectionScores) {
-      let rwTotal = 0, rwCorrect = 0, rwScaled = 0, rwCount = 0;
-      let mathData = null;
-
-      Object.entries(res.sectionScores).forEach(([section, data]) => {
-        const sec = section.toLowerCase();
-        if (sec.includes('read') || sec.includes('writ') || sec.includes('rw')) {
-          rwTotal += data.total || 0;
-          rwCorrect += data.correct || 0;
-          if (data.scaled_score) {
-            rwScaled += data.scaled_score;
-            rwCount += 1;
-          }
-        } else if (sec.includes('math')) {
-          mathData = data;
-        }
-      });
-
-      if (testedSections.has('rw') && rwTotal > 0) {
-        processedSectionScores.push({
-          name: 'Reading & Writing',
-          total: rwTotal,
-          correct: rwCorrect,
-          scaled_score: rwCount > 0 ? Math.round(rwScaled / rwCount) : 200
-        });
-      }
-
-      if (testedSections.has('math') && mathData && mathData.total > 0) {
-        processedSectionScores.push({
-          name: 'Math',
-          total: mathData.total,
-          correct: mathData.correct,
-          scaled_score: mathData.scaled_score || 200
-        });
-      }
-    }
+    // tutor_type is the authoritative subject signal used everywhere else in this app
+    // (analyticsService.js etc.) - unlike category (which is actually the domain name, e.g.
+    // "Algebra") or a name-substring check, both of which fail to match narrower topic names
+    // like "Words in Context" or "Craft and Structure" and previously caused this screen to
+    // fall through to "neither detected" and show both a Math and a Reading & Writing card on
+    // a single-subject topic quiz.
+    const courseTutorType = (courseInfo?.tutor_type || '').toLowerCase();
+    const isRWCourse = courseTutorType.includes('reading') || courseTutorType.includes('writing') ||
+      (courseInfo?.category || '').toLowerCase().includes('reading') ||
+      (courseInfo?.name || '').toLowerCase().includes('rhetorical') ||
+      (courseInfo?.name || '').toLowerCase().includes('reading');
+    const isMathCourse = courseTutorType.includes('math') || (courseInfo?.category || '').toLowerCase().includes('math') || (courseInfo?.name || '').toLowerCase().includes('math');
 
     const isSATRegular = isSAT && !isAdaptive && !isSequential && !isACTFullLengthCourse(courseInfo);
 
@@ -970,9 +925,13 @@ const QuizInterface = () => {
             const answeredCount = questions.filter((q, idx) => userAnswers[idx]).length;
             const incorrectCount = answeredCount - correctCount;
             const timeSpent = Math.floor((Date.now() - quizStartTime) / 1000);
+            // Single-subject result (Overall + one subject card, 2 total) gets a narrow,
+            // centered 2-column layout instead of stretching across the same 4-column grid
+            // used for the 3-4 card cases, which left the two cards bunched on the left.
+            const isSingleSubjectResult = !isAdaptive && (isMathCourse || isRWCourse);
 
             return (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-7">
+              <div className={isSingleSubjectResult ? "grid grid-cols-2 gap-3.5 mb-7 max-w-md mx-auto" : "grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-7"}>
                 <div className="bg-blue-50/60 dark:bg-blue-950/30 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/40 text-center flex flex-col items-center justify-center">
                   <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-2 shadow-xs">
                     <SafeIcon icon={FiBarChart2} className="w-4 h-4" />
@@ -993,14 +952,17 @@ const QuizInterface = () => {
                             <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">{res?.mathScore || 0}</p>
                         </div>
                     </>
-                ) : processedSectionScores.length > 0 ? (
-                  processedSectionScores.map((data) => (
-                    <div key={data.name} className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider mb-1">{data.name}</p>
-                      <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{data.scaled_score || 0}</p>
-                      <p className="text-xs font-bold text-slate-400">{data.correct}/{data.total} Correct</p>
-                    </div>
-                  ))
+                ) : isMathCourse || isRWCourse ? (
+                  // A single topic-level quiz (this branch) is always exactly one subject -
+                  // never both. Uses the SAME correctCount/questions.length/displayScore ground
+                  // truth already shown on the OVERALL card, not the backend's per-section
+                  // breakdown (which always returns math/reading/writing keys regardless of
+                  // what was actually tested, and previously caused a spurious second card).
+                  <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider mb-1">{isMathCourse ? 'Math' : 'Reading & Writing'}</p>
+                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{res?.totalScore || res?.scaledScore || scaledScore}</p>
+                    <p className="text-xs font-bold text-slate-400">{correctCount}/{questions.length} Correct</p>
+                  </div>
                 ) : (
                   <>
                     <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center flex flex-col items-center justify-center">
