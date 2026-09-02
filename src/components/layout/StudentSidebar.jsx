@@ -106,7 +106,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         end={item.exact}
         onClick={(e) => handleLinkClick(e, item)}
         className={({ isActive }) => `
-          flex items-center justify-between px-3 py-1 rounded-lg transition-all duration-200 group mb-0.5
+          flex items-center justify-between px-3 py-1.5 rounded-lg transition-all duration-200 group mb-1
           ${!isEnabled ? 'opacity-70 grayscale' : ''}
           ${isActive
             ? 'bg-red-50 dark:bg-red-900/20 text-[#E53935] font-bold shadow-sm border-l-4 border-[#E53935]'
@@ -145,14 +145,14 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         overflow-hidden
       `}>
-        <div className="h-14 flex items-center px-5 border-b border-gray-100 dark:border-gray-800 justify-center flex-shrink-0 relative">
+        <div className="h-12 flex items-center px-5 border-b border-gray-100 dark:border-gray-800 justify-center flex-shrink-0 relative">
           <div className="flex items-center justify-center w-full">
-            <div className="h-9 w-auto max-w-[200px] flex items-center justify-center overflow-hidden text-black dark:text-white">
+            <div className="h-8 w-auto max-w-[200px] flex items-center justify-center overflow-hidden text-black dark:text-white">
             {appSettings.logoUrl ? (
               <img src={appSettings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
             ) : (
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
-                <span className="text-lg">🤖</span>
+              <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
+                <span className="text-base">🤖</span>
               </div>
             )}
             </div>
@@ -179,12 +179,12 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* User Footer */}
-        <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 flex-shrink-0">
+        <div className="p-2.5 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 flex-shrink-0">
           {!isPremium && !isPending && (
             <NavLink
               to="/student/upgrade"
               onClick={onClose}
-              className="mb-2 flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 group"
+              className="mb-1.5 flex items-center gap-3 px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 group"
             >
               <div className="bg-white/20 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
                 <SafeIcon icon={FiIcons.FiGift} className="w-5 h-5 text-white" />
