@@ -279,8 +279,14 @@ Return JSON ONLY: {"concept": "...", "explanation": "...", "steps": ["..."]}
 // 3. Generate Similar (STRICT KB-ONLY VERSION with IMAGE CONSISTENCY)
 router.post('/generate-similar', async (req, res) => {
   try {
-    const { question, previousQuestions, isACT } = req.body;
+    const { question, previousQuestions, isACT, subjectGroup } = req.body;
     if (!question) return res.status(400).json({ error: "Missing question content" });
+
+    // Hard subject filter ('math' | 'reading_writing' | 'science'), threaded in from the
+    // frontend's current question/course context. null means no reliable subject signal was
+    // available - falls back to the prior topic-only matching rather than risk excluding
+    // everything on a bad guess.
+    const safeSubjectGroup = (typeof subjectGroup === 'string' && subjectGroup.trim()) ? subjectGroup.trim().toLowerCase() : null;
 
     const qStr = typeof question === 'string' ? question : (question.question || JSON.stringify(question));
     const anchorDifficulty = (typeof question === 'object' && question.level) ? question.level : 'Medium';
@@ -297,17 +303,33 @@ router.post('/generate-similar', async (req, res) => {
     const originalHasDiagram = isDiagram(qStr) || isDiagram(question.imageUrl);
     const originalHasAnyImage = originalHasChart || originalHasDiagram || !!question.imageUrl || !!question.image_url || !!question.image;
     
-    console.log(`🎯 [Generate Similar] KB-ONLY Mode | Topic: "${topic}" | Image: ${originalHasAnyImage} | Chart: ${originalHasChart} | isACT: ${isACT}`);
+    console.log(`🎯 [Generate Similar] KB-ONLY Mode | Topic: "${topic}" | Image: ${originalHasAnyImage} | Chart: ${originalHasChart} | isACT: ${isACT} | Subject: ${safeSubjectGroup || 'any'}`);
 
     const safePreviousQuestions = Array.isArray(previousQuestions) ? previousQuestions : [];
 
     // 🟢 FETCH EXACT KB QUESTIONS
-    const { searchExactKBQuestions } = await import('../utils/prep365KB.js');
-    const kbQuestions = await searchExactKBQuestions(topic, anchorDifficulty, 50, [], isACT); // High limit for granular filtering
+    const { searchExactKBQuestions, getCourseIdsForSubjectGroup } = await import('../utils/prep365KB.js');
+    let kbQuestions = await searchExactKBQuestions(topic, anchorDifficulty, 50, [], isACT, safeSubjectGroup); // High limit for granular filtering
+
+    // 🔒 VALIDATE: hard subject check, independent of whatever filtering the KB search itself
+    // applied - never let a wrong-subject question (e.g. Math for a Reading & Writing request)
+    // through, even if a bug upstream let one slip past the query-level filter. Validated by
+    // course_id (via the same cached subject->course resolution the search itself used), not
+    // questions.section - that column is populated too inconsistently to trust on its own (a
+    // large "general" bucket spans multiple subjects).
+    if (safeSubjectGroup) {
+      const allowedCourseIds = new Set(await getCourseIdsForSubjectGroup(safeSubjectGroup));
+      const before = kbQuestions?.length || 0;
+      kbQuestions = (kbQuestions || []).filter(q => q.courseId != null && allowedCourseIds.has(q.courseId));
+      const after = kbQuestions.length;
+      if (after < before) {
+        console.warn(`⚠️ [Generate Similar] Validation dropped ${before - after} cross-subject question(s) that should not have reached this point.`);
+      }
+    }
 
     if (!kbQuestions || kbQuestions.length === 0) {
-      return res.status(404).json({ 
-        error: `I've exhausted all available practice questions for "${topic}" at the ${anchorDifficulty} level.` 
+      return res.status(404).json({
+        error: `I've exhausted all available practice questions for "${topic}" at the ${anchorDifficulty} level${safeSubjectGroup ? ` in ${safeSubjectGroup.replace('_', ' & ')}` : ''}.`
       });
     }
 

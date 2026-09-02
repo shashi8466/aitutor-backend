@@ -870,17 +870,22 @@ export const aiService = {
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
     return axios.post('/api/ai/explain', { question, userAnswer, correctAnswer }, { headers });
   },
-  generateSimilarQuestion: async (question, previousQuestions = [], isACT = false) => {
+  generateSimilarQuestion: async (question, previousQuestions = [], isACT = false, subjectGroup = null) => {
     const { data: { session } } = await supabase.auth.getSession();
     const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-    
+
     // Normalize level to ensure backend compatibility (Moderate -> Medium)
     const normalizedLevel = question.level === 'moderate' || question.level === 'Moderate' ? 'Medium' : (question.level || 'Medium');
-    
+
     const payload = {
       question: { ...question, level: normalizedLevel },
       previousQuestions: previousQuestions.slice(-5),
-      isACT
+      isACT,
+      // Hard subject filter ('math' | 'reading_writing' | 'science') so the Knowledge Base
+      // lookup can never cross into another subject's questions - null means no reliable
+      // subject signal was available on the frontend, so the backend falls back to its prior
+      // topic-only matching instead of risking a false-negative filter.
+      subjectGroup
     };
     return axios.post('/api/ai/generate-similar', payload, { headers });
   },

@@ -171,7 +171,7 @@ const AIQuestionCard = ({ data, onComplete }) => {
   );
 };
 
-const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fallbackQuestions = [], courseTopic }) => {
+const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fallbackQuestions = [], courseTopic, subjectGroup = null }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [featureEnabled, setFeatureEnabled] = useState(true);
@@ -273,7 +273,8 @@ const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, is
           const response = await aiService.generateSimilarQuestion(
             questionPayload,
             previousQuestions,
-            isACT
+            isACT,
+            subjectGroup
           );
           newQuestion = response.data;
         } catch (e) {
@@ -401,7 +402,8 @@ const PracticeAITutorModal = ({ question, userAnswer, correctAnswer, onClose, is
               topic
             },
             chatMessages.filter(m => m.isQuestion).map(m => m.questionData?.question || ""),
-            isACT
+            isACT,
+            subjectGroup
           );
           newQuestion = response.data;
         } catch (e) {

@@ -125,6 +125,49 @@ const getAllDistinctTopics = async () => {
     return topicsCache.topics;
 };
 
+// ============================================================
+//  SUBJECT (COURSE) RESOLUTION FOR HARD FILTERING
+// ============================================================
+// questions.section is NOT a reliable subject signal on its own - a live-data check found ~5,100
+// rows tagged 'general' (the column's default), and that bucket alone spans both Math (77% of a
+// sample) and Reading & Writing (22%) courses. The one field that's always populated and always
+// correct is questions.course_id, joined against courses.tutor_type/category/name - the same
+// signal already trusted elsewhere in this app (QuizInterface.jsx's isRWCourse/isMathCourse,
+// analyticsService.js). So subject filtering here resolves a subject group to the matching set of
+// course_ids, not to questions.section values.
+let coursesCache = { courses: null, fetchedAt: 0 };
+const COURSES_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const getAllCourses = async () => {
+    if (coursesCache.courses && (Date.now() - coursesCache.fetchedAt) < COURSES_CACHE_TTL_MS) {
+        return coursesCache.courses;
+    }
+    const { data, error } = await supabase.from('courses').select('id, tutor_type, category, name');
+    if (error) throw error;
+    coursesCache = { courses: data || [], fetchedAt: Date.now() };
+    return coursesCache.courses;
+};
+
+/**
+ * Resolves a subject group ('math' | 'reading_writing' | 'science') to the array of course_ids
+ * belonging to it. Returns null for an unrecognized/missing subjectGroup (meaning "don't filter"),
+ * or an array (possibly empty) otherwise - an empty array is intentional: if a subject was
+ * requested but no course matches it, the caller must find zero questions, not fall back to
+ * showing every subject.
+ */
+const getCourseIdsForSubjectGroup = async (subjectGroup) => {
+    if (!subjectGroup) return null;
+    const courses = await getAllCourses();
+    const matches = courses.filter((c) => {
+        const combined = `${c.tutor_type || ''} ${c.category || ''} ${c.name || ''}`.toLowerCase();
+        if (subjectGroup === 'math') return combined.includes('math');
+        if (subjectGroup === 'reading_writing') return combined.includes('reading') || combined.includes('writing') || combined.includes('rhetorical');
+        if (subjectGroup === 'science') return combined.includes('science');
+        return false;
+    });
+    return matches.map((c) => c.id);
+};
+
 const matchTopicToKB = async (userTopic) => {
     const topicNorm = normalizeTopic(userTopic);
     console.log(`🧠 [KB Match] Normalizing "${userTopic}" -> "${topicNorm}"`);
@@ -137,8 +180,9 @@ const matchTopicToKB = async (userTopic) => {
         for (const topic of uniqueTopics) {
             if (topic.length > 150) continue; // Skip suspected junk topics
             const tNorm = normalizeTopic(topic);
-            if (tNorm === '___JUNK___') continue;
-            
+            if (tNorm === '___JUNK___' || tNorm.length === 0) continue; // A blank/filler-only DB topic
+            // would otherwise "precise match" every query, since "anything".includes("") is always true.
+
             // Check if user exactly named this topic or the topic is a significant part of the query
             if (topicNorm === tNorm || (topicNorm.length > 5 && topicNorm.includes(tNorm))) {
                 console.log(`🎯 [KB Match] Precise match: "${topic}"`);
@@ -188,6 +232,7 @@ const matchTopicToKB = async (userTopic) => {
         let bestScore = -1;
         for (const topic of uniqueTopics) {
             const tNorm = normalizeTopic(topic);
+            if (tNorm.length === 0) continue; // Same blank-topic guard as Priority 1.
             if (tNorm.includes(topicNorm) || topicNorm.includes(tNorm)) {
                 const score = 100 - Math.abs(tNorm.length - topicNorm.length);
                 if (score > bestScore) {
@@ -232,14 +277,23 @@ const matchTopicToKB = async (userTopic) => {
  * - Match: topic + difficulty (Easy/Medium/Hard)
  * - If level not specified → return mixed from same topic only
  */
-const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimit = null, excludeIds = [], isACT = false) => {
+const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimit = null, excludeIds = [], isACT = false, courseIds = null) => {
     try {
-        console.log(`🔍 [KB Filter] Topic: "${topic}" | Diff: ${difficulty} | Limit: ${returnLimit} | Excl: ${excludeIds.length} | isACT: ${isACT}`);
-        
+        console.log(`🔍 [KB Filter] Topic: "${topic}" | Diff: ${difficulty} | Limit: ${returnLimit} | Excl: ${excludeIds.length} | isACT: ${isACT} | CourseIds: ${courseIds ? courseIds.length : 'any'}`);
+
         let query = supabase
             .from('questions')
             .select('*')
             .eq('topic', topic);
+
+        // Hard subject filter - applied before difficulty/exclusion so a topic-name match can
+        // never surface a question from the wrong subject (e.g. Math leaking into a Reading &
+        // Writing request). Keyed on course_id (via getCourseIdsForSubjectGroup), not
+        // questions.section, since that column is populated inconsistently (see the comment on
+        // getCourseIdsForSubjectGroup).
+        if (Array.isArray(courseIds)) {
+            query = query.in('course_id', courseIds.length > 0 ? courseIds : [-1]);
+        }
 
         // Apply exclusion filter if IDs are provided
         if (excludeIds && excludeIds.length > 0) {
@@ -287,12 +341,16 @@ const filterByDifficulty = async (topic, difficulty, returnLimit = 50, fetchLimi
         // If no questions found, try partial match
         if (!questions || questions.length === 0) {
             console.log(`⚠️ [KB Filter] Exact match returned 0. Trying partial match...`);
-            
-            const { data: partialData, error: partialError } = await supabase
+
+            let partialQuery = supabase
                 .from('questions')
                 .select('*')
                 .ilike('topic', `%${topic}%`);
-            
+            if (Array.isArray(courseIds)) {
+                partialQuery = partialQuery.in('course_id', courseIds.length > 0 ? courseIds : [-1]);
+            }
+            const { data: partialData, error: partialError } = await partialQuery;
+
             if (!partialError && partialData && partialData.length > 0) {
                 console.log(`✅ [KB Filter] Partial match found ${partialData.length} questions`);
                 
@@ -376,12 +434,17 @@ const processAndReturnQuestions = (questions, returnLimit, excludeIds = []) => {
  * Main search function for 24/7 AI Prep365 Chat
  * Returns exact KB questions only - no AI generation
  */
-export const searchExactKBQuestions = async (userTopic, difficulty = null, count = null, excludeIds = [], isACT = false) => {
+export { getCourseIdsForSubjectGroup };
+
+export const searchExactKBQuestions = async (userTopic, difficulty = null, count = null, excludeIds = [], isACT = false, subjectGroup = null) => {
     try {
         const requestedCount = Number(count) || 10;
         const safeExcludeIds = Array.isArray(excludeIds) ? excludeIds : [];
-        
-        console.log(`🚀 [Prep365 KB] Search initiated for: "${userTopic}" | Difficulty: ${difficulty || 'Mixed'} | Count: ${requestedCount} | Excl: ${safeExcludeIds.length} | isACT: ${isACT}`);
+        // Resolve once - every tier below (including both fallbacks) reuses the same course_id set
+        // so the subject boundary never loosens as the search broadens.
+        const courseIds = await getCourseIdsForSubjectGroup(subjectGroup);
+
+        console.log(`🚀 [Prep365 KB] Search initiated for: "${userTopic}" | Difficulty: ${difficulty || 'Mixed'} | Count: ${requestedCount} | Excl: ${safeExcludeIds.length} | isACT: ${isACT} | Subject: ${subjectGroup || 'any'} | CourseIds: ${courseIds ? courseIds.length : 'any'}`);
 
         // Step 1: Match topic to KB (returns array of topics)
         const matchedTopics = isACT ? [userTopic] : await matchTopicToKB(userTopic);
@@ -398,7 +461,7 @@ export const searchExactKBQuestions = async (userTopic, difficulty = null, count
             for (const topic of shuffledTopics) {
                 // Fetch a small batch from each topic to ensure variety
                 const perTopicLimit = Math.max(2, Math.ceil(requestedCount / 3));
-                const topicQuestions = await filterByDifficulty(topic, difficulty, perTopicLimit, perTopicLimit * 5, safeExcludeIds, isACT);
+                const topicQuestions = await filterByDifficulty(topic, difficulty, perTopicLimit, perTopicLimit * 5, safeExcludeIds, isACT, courseIds);
                 allPotentialQuestions = [...allPotentialQuestions, ...topicQuestions];
                 
                 // Keep fetching until we have a healthy pool for variety, but don't over-fetch
@@ -423,11 +486,17 @@ export const searchExactKBQuestions = async (userTopic, difficulty = null, count
                 .from('questions')
                 .select('*')
                 .ilike('topic', `%${fallbackTopic}%`);
-            
+
+            // Subject filter stays hard even in this broadened fallback - a topic-match miss
+            // must never be "recovered" by pulling in another subject's questions.
+            if (Array.isArray(courseIds)) {
+                widerQuery = widerQuery.in('course_id', courseIds.length > 0 ? courseIds : [-1]);
+            }
+
             if (isACT && difficulty && difficulty !== 'Mixed') {
                 widerQuery = widerQuery.ilike('level', difficulty);
             }
-            
+
             if (currentExcludeIds.length > 0) {
                 const idList = buildSupabaseInList(currentExcludeIds);
                 if (idList) {
@@ -455,11 +524,18 @@ export const searchExactKBQuestions = async (userTopic, difficulty = null, count
                 .from('questions')
                 .select('*')
                 .or(`topic.ilike.%${topicNorm}%,question.ilike.%${topicNorm}%`);
-            
+
+            // Same hard subject boundary as every other tier - this is the broadest fallback
+            // (it ORs against raw question text), so it's the one most likely to cross subjects
+            // if left unfiltered.
+            if (Array.isArray(courseIds)) {
+                fallbackQuery = fallbackQuery.in('course_id', courseIds.length > 0 ? courseIds : [-1]);
+            }
+
             if (isACT && difficulty && difficulty !== 'Mixed') {
                 fallbackQuery = fallbackQuery.ilike('level', difficulty);
             }
-            
+
             if (currentExcludeIds.length > 0) {
                 const idList = buildSupabaseInList(currentExcludeIds);
                 if (idList) {
@@ -481,6 +557,8 @@ export const searchExactKBQuestions = async (userTopic, difficulty = null, count
         return questions.map(q => ({
             id: q.id,
             topic: q.topic,
+            section: q.section,
+            courseId: q.course_id,
             difficulty: q.level,
             type: q.type || 'mcq', // MCQ or short_answer
             text: q.question || q.text, // Exact text as stored

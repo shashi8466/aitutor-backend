@@ -51,6 +51,33 @@ const getCleanQuestionText = (text, imageUrl) => {
   return cleaned.trim();
 };
 
+// The AI Tutor's "Generate a similar practice question" Knowledge Base lookup used to have no
+// subject boundary at all, so a Reading & Writing question could return a Math question (or vice
+// versa) whenever its topic-matching fell through to a broad fallback. This computes the subject
+// group ('math' | 'reading_writing' | 'science') the current question legitimately belongs to,
+// so the backend can hard-filter the KB query by course_id.
+//
+// courseInfo.tutor_type/category/name is the primary signal - the same authoritative course-level
+// subject field trusted everywhere else in this app (see isRWCourse/isMathCourse below) - because
+// the per-question questions.section column turned out to be populated too inconsistently to
+// trust on its own (a live-data check found its large "general" bucket spans both Math and
+// Reading & Writing content). question.section is only used as a quick-path when it happens to
+// hold one of the unambiguous clean values. null means no reliable signal was found - callers
+// should treat that as "don't apply a subject filter" rather than guess wrong.
+const getAITutorSubjectGroup = (question, course) => {
+  const combined = `${course?.tutor_type || ''} ${course?.category || ''} ${course?.name || ''}`.toLowerCase();
+  if (combined.includes('math')) return 'math';
+  if (combined.includes('reading') || combined.includes('writing') || combined.includes('rhetorical')) return 'reading_writing';
+  if (combined.includes('science')) return 'science';
+
+  const qSection = (question?.section || '').toLowerCase().trim();
+  if (qSection === 'math') return 'math';
+  if (qSection === 'reading' || qSection === 'writing') return 'reading_writing';
+  if (qSection === 'science') return 'science';
+
+  return null;
+};
+
 const QuizInterface = () => {
   const { courseId, level } = useParams();
   const { user } = useAuth();
@@ -1262,6 +1289,7 @@ const QuizInterface = () => {
               userAnswer={userAnswers[currentQuestionIndex]}
               correctAnswer={currentQuestion.correct_answer || currentQuestion.correctAnswer}
               courseTopic={courseInfo?.name}
+              subjectGroup={getAITutorSubjectGroup(currentQuestion, courseInfo)}
             />
           )}
           {showQuestionGrid && (
@@ -1684,7 +1712,7 @@ const QuizInterface = () => {
           </React.Fragment>
         )}
       </AnimatePresence>
-      {showAITutor && <AITutorModal question={currentQuestion} userAnswer={selectedAnswer} correctAnswer={currentQuestion.correct_answer} onClose={() => setShowAITutor(false)} courseTopic={courseInfo?.name} />}
+      {showAITutor && <AITutorModal question={currentQuestion} userAnswer={selectedAnswer} correctAnswer={currentQuestion.correct_answer} onClose={() => setShowAITutor(false)} courseTopic={courseInfo?.name} subjectGroup={getAITutorSubjectGroup(currentQuestion, courseInfo)} />}
     </div>
     </div>
   );
