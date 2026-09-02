@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import axios from 'axios';
 import supabase from '../../supabase/supabaseAdmin.js';
 import { enqueueNotification } from '../utils/notificationOutbox.js';
+import { analyticsService } from './analyticsService.js';
 
 // ─── Process-level singleton guard ───────────────────────────────────────────
 // This lives on `process` (not the class instance) so it survives HMR module
@@ -225,31 +226,61 @@ class NotificationScheduler {
 
       // ── Layer 3: Enqueue exactly ONE row per unique email ─────────────────
       // enqueueNotification itself also does a DB dedup check internally.
+      //
+      // A regular topic course (Easy/Medium/Hard) is graded as three separate
+      // submissions, each independently reaching this function - sending a
+      // TEST_COMPLETED email per level would mean 3 emails per recipient for
+      // one course. modularScores is only ever populated for a single mixed-
+      // difficulty "comprehensive" submission (ExamInterface.jsx), so its
+      // absence combined with a literal Easy/Medium/Hard level is a reliable
+      // signal that this is one leg of a 3-level regular course.
+      const isPerLevelRegularSubmission = !modularScores && ['Easy', 'Medium', 'Hard'].includes(submission.level);
+
       let enqueuedCount = 0;
-      for (const [email, recipient] of emailToProfileMap.entries()) {
-        await enqueueNotification({
-          eventType: 'TEST_COMPLETED',
-          recipientProfileId: recipient.id,
-          recipientType: recipient.type,
-          payload: {
-            submissionId: numericId, // Store consistently as number
-            studentId,
-            recipientEmail: email,
-            studentName: studentProfile?.name || 'Student',
-            courseId: submission.course_id,
-            courseName: course?.name || 'Course',
-            level: modularScores ? 'Comprehensive' : submission.level,
-            rawScore: submission.raw_score,
-            totalQuestions: submission.total_questions,
-            rawPercentage: submission.raw_score_percentage,
-            scaledScore: submission.scaled_score,
-            testDate: submission.test_date,
-            metadata: submission.metadata,
-            modularScores
-          },
-          scheduledFor: new Date().toISOString()
-        });
-        enqueuedCount++;
+      if (isPerLevelRegularSubmission) {
+        try {
+          const combined = await analyticsService.getTopicCombinedReport(null, submission.user_id || studentId, submission.course_id);
+          if (combined?.isFullyCompleted) {
+            const result = await this.triggerCombinedCourseCompletionNotification({
+              studentId: submission.user_id || studentId,
+              courseId: submission.course_id,
+              combined,
+              emailToProfileMap
+            });
+            enqueuedCount = result?.emailsEnqueued || 0;
+          } else {
+            console.log(`ℹ️ [Notification] Course ${submission.course_id} not yet fully completed (missing: ${combined?.missingLevels?.join(', ')}) - no email sent for submission ${submissionId}.`);
+          }
+        } catch (combinedErr) {
+          console.error('❌ [Notification] Combined course-completion check failed:', combinedErr.message);
+        }
+      } else {
+        for (const [email, recipient] of emailToProfileMap.entries()) {
+          await enqueueNotification({
+            eventType: 'TEST_COMPLETED',
+            recipientProfileId: recipient.id,
+            recipientType: recipient.type,
+            payload: {
+              submissionId: numericId, // Store consistently as number
+              studentId,
+              recipientEmail: email,
+              studentName: studentProfile?.name || 'Student',
+              courseId: submission.course_id,
+              courseName: course?.name || 'Course',
+              level: modularScores ? 'Comprehensive' : submission.level,
+              rawScore: submission.raw_score,
+              totalQuestions: submission.total_questions,
+              rawPercentage: submission.raw_score_percentage,
+              scaledScore: submission.scaled_score,
+              testDate: submission.test_date,
+              metadata: submission.metadata,
+              modularScores,
+              isSATFullLength: submission.level === 'Adaptive'
+            },
+            scheduledFor: new Date().toISOString()
+          });
+          enqueuedCount++;
+        }
       }
 
       console.log(`✅ [Notification] Enqueued ${enqueuedCount} notifications for submission ${submissionId}.`);
@@ -279,6 +310,61 @@ class NotificationScheduler {
       return { success: true, emailsEnqueued: enqueuedCount };
     } catch (error) {
       console.error('❌ [Notification] Error in triggerTestCompletionNotification:', error);
+    } finally {
+      this._processingSubmissions.delete(lockKey);
+    }
+  }
+
+  /**
+   * Fires exactly once when a regular topic course's Easy/Medium/Hard levels are all
+   * completed - sends ONE combined email per recipient instead of one per level.
+   * Idempotent: enqueueNotification's TOPIC_COURSE_COMPLETED dedup (keyed on
+   * courseId+studentId+recipient) blocks any re-send even if this is called again
+   * later (e.g. a retake of an already-completed level).
+   */
+  async triggerCombinedCourseCompletionNotification({ studentId, courseId, combined, emailToProfileMap }) {
+    const lockKey = `course:${studentId}:${courseId}`;
+    if (this._processingSubmissions.has(lockKey)) {
+      console.log(`⚠️ [Notification] Concurrent duplicate suppressed for course ${courseId} (student ${studentId})`);
+      return;
+    }
+    this._processingSubmissions.add(lockKey);
+
+    try {
+      let enqueuedCount = 0;
+      for (const [email, recipient] of emailToProfileMap.entries()) {
+        await enqueueNotification({
+          eventType: 'TOPIC_COURSE_COMPLETED',
+          recipientProfileId: recipient.id,
+          recipientType: recipient.type,
+          payload: {
+            courseId,
+            studentId,
+            recipientEmail: email,
+            studentName: combined.studentName,
+            courseName: combined.topicName,
+            levels: {
+              Easy: { totalQ: combined.levels.Easy.totalQ, correct: combined.levels.Easy.correct, score: combined.levels.Easy.score },
+              Medium: { totalQ: combined.levels.Medium.totalQ, correct: combined.levels.Medium.correct, score: combined.levels.Medium.score },
+              Hard: { totalQ: combined.levels.Hard.totalQ, correct: combined.levels.Hard.correct, score: combined.levels.Hard.score }
+            },
+            overall: {
+              totalQuestions: combined.overall.totalQuestions,
+              correct: combined.overall.correct,
+              accuracy: combined.overall.accuracy,
+              scaledScore: combined.overall.scaledScore
+            },
+            testDate: combined.date
+          },
+          scheduledFor: new Date().toISOString()
+        });
+        enqueuedCount++;
+      }
+
+      console.log(`✅ [Notification] Enqueued ${enqueuedCount} combined course-completion notifications for course ${courseId} (student ${studentId}).`);
+      return { success: true, emailsEnqueued: enqueuedCount };
+    } catch (error) {
+      console.error('❌ [Notification] Error in triggerCombinedCourseCompletionNotification:', error);
     } finally {
       this._processingSubmissions.delete(lockKey);
     }

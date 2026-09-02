@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { gradingService, tutorService, parentService } from '../../services/api';
@@ -18,13 +18,27 @@ const TopicReportReview = ({ parentMode = false }) => {
     const { courseId, studentId } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const [searchParams] = useSearchParams();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [topicReportData, setTopicReportData] = useState(null);
 
+    const autoDownload = searchParams.get('download') === 'true';
+
     useEffect(() => {
         loadTopicData();
     }, [courseId, studentId]);
+
+    // If autoDownload is true, trigger print once the combined report has finished loading -
+    // reuses CombinedRegularCourseReport's existing "Download PDF" button (window.print()).
+    useEffect(() => {
+        if (topicReportData && autoDownload) {
+            const timer = setTimeout(() => {
+                window.print();
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [topicReportData, autoDownload]);
 
     const loadTopicData = async () => {
         try {

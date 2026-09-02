@@ -7,6 +7,8 @@ import {
   buildWelcomeEmail,
   buildContactSubmissionEmail,
   buildACTFullLengthCompletionEmail,
+  buildFullLengthTestCompletionEmail,
+  buildCombinedRegularCourseCompletionEmail,
   buildDemoResultEmail,
   sanitizeAppUrl
 } from './notificationEngine.js';
@@ -85,6 +87,9 @@ function channelsFromPrefs(prefs, channelsRequested, eventType, profile = null) 
     // mandatory result email, always allowed, same treatment as WELCOME_EMAIL.
     (eventType === 'DEMO_TEST_COMPLETED') ||
     (eventType === 'TEST_COMPLETED' && testCompEnabled) ||
+    // Combined regular-course (Easy/Medium/Hard) completion email - same "test completion"
+    // preference category as TEST_COMPLETED, just a different event type/payload shape.
+    (eventType === 'TOPIC_COURSE_COMPLETED' && testCompEnabled) ||
     (eventType === 'WEEKLY_REPORT' && weeklyRepEnabled) ||
     (eventType === 'DUE_DATE_REMINDER' && dueDateEnabled);
 
@@ -151,6 +156,14 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     // so we should NOT insert an extra `/` before `?redirect=`.
     const finalUrl = appUrl ? `${appUrl}${redirectParam}${hashPart}` : `/${redirectParam}${hashPart}`;
 
+    // Same report page, with `?download=true` appended so it auto-triggers window.print()
+    // once loaded (see FullTestReport.jsx) - "Download Report" reuses the existing report,
+    // no separate PDF-generation path.
+    const downloadPath = `${reportPath}?download=true`;
+    const downloadRedirectParam = `?redirect=${encodeURIComponent(downloadPath)}`;
+    const downloadHashPart = `#${downloadPath}`;
+    const downloadUrl = appUrl ? `${appUrl}${downloadRedirectParam}${downloadHashPart}` : `/${downloadRedirectParam}${downloadHashPart}`;
+
     const metadata = typeof payload.metadata === 'string' ? JSON.parse(payload.metadata) : (payload.metadata || {});
     const isACTFullLength = metadata.isACTFullLength === true || 
                             (typeof payload.metadata === 'string' && payload.metadata.includes('isACTFullLength')) ||
@@ -191,11 +204,34 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
         totalQuestions,
         accuracyPercentage,
         performanceStatus,
-        reportUrl: finalUrl
+        reportUrl: finalUrl,
+        downloadUrl
       });
-      
+
       const smsMessage = `${appName}: Hello ${payload.studentName}, congratulations on completing your ACT Full-Length Test. Your Composite Score is ${compositeScore}/36. View report: ${finalUrl}`;
-      
+
+      return { subject, emailHtml, smsMessage };
+    }
+
+    // SAT Full-Length (adaptive) test - single submission, level 'Adaptive', flagged by
+    // NotificationScheduler. Dedicated template adds the Download button + explicit
+    // completion time that the generic buildTestCompletionEmail doesn't have.
+    if (payload.isSATFullLength === true) {
+      const subject = 'Your SAT Full-Length Test Results Are Ready!';
+      console.log(`✨ [NotificationOutbox] Using dedicated SAT Full-Length subject: "${subject}"`);
+
+      const emailHtml = buildFullLengthTestCompletionEmail({
+        studentName: payload.studentName,
+        testName: payload.courseName,
+        testDate: payload.testDate,
+        scaledScore: payload.scaledScore,
+        correctAnswers: payload.rawScore,
+        totalQuestions: payload.totalQuestions,
+        viewUrl: finalUrl,
+        downloadUrl
+      });
+      const smsMessage = `${appName}: Hello ${payload.studentName}, congratulations on completing your SAT Full-Length Test. Your Score is ${payload.scaledScore || 'N/A'}/1600. View report: ${finalUrl}`;
+
       return { subject, emailHtml, smsMessage };
     }
 
@@ -219,6 +255,43 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
       `${appName}: ${payload.studentName || 'Student'} completed ${payload.courseName || 'a test'} (Comprehensive). ` +
       `Status: Completed | Score: ${Math.round(payload.rawPercentage || 0)}% | Scaled: ${payload.scaledScore || 'N/A'} | ` +
       `Time: ${new Date(payload.testDate || Date.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}.`;
+    return { subject, emailHtml, smsMessage };
+  }
+
+  if (normalizedEventType === 'TOPIC_COURSE_COMPLETED') {
+    // One combined email for a regular course's Easy+Medium+Hard levels, sent once all
+    // three are done (see NotificationScheduler.triggerCombinedCourseCompletionNotification).
+    // Links point at the existing combined report - no new report page.
+    const reportPath = isParent
+      ? `/parent/topic-report/${payload.studentId}/${payload.courseId}`
+      : `/student/topic-report/${payload.courseId}`;
+
+    const buildLinkUrl = (path) => {
+      const redirectParam = `?redirect=${encodeURIComponent(path)}`;
+      const hashPart = `#${path}`;
+      return appUrl ? `${appUrl}${redirectParam}${hashPart}` : `/${redirectParam}${hashPart}`;
+    };
+
+    const viewUrl = buildLinkUrl(reportPath);
+    const downloadUrl = buildLinkUrl(`${reportPath}?download=true`);
+
+    const subject = `🎉 Test Completed – ${payload.courseName || 'Course'}`;
+    console.log(`✨ [NotificationOutbox] Using subject: "${subject}" for event: "${eventType}"`);
+
+    const emailHtml = buildCombinedRegularCourseCompletionEmail({
+      recipientName,
+      studentName: payload.studentName,
+      isParent,
+      courseName: payload.courseName,
+      testDate: payload.testDate,
+      levels: payload.levels,
+      overall: payload.overall,
+      viewUrl,
+      downloadUrl
+    });
+    const smsMessage =
+      `${appName}: ${payload.studentName || 'Student'} completed ${payload.courseName || 'a course'}. ` +
+      `Overall: ${payload.overall?.scaledScore ?? 'N/A'}/800 (${payload.overall?.accuracy ?? 0}%). View: ${viewUrl}`;
     return { subject, emailHtml, smsMessage };
   }
 
@@ -418,6 +491,63 @@ export async function enqueueNotification({
         // Max attempts exhausted — do NOT create a new row.
         console.log(`⚠️ [Outbox] Sub ${submissionId} → ${recipientProfileId} exhausted retries. Blocking.`);
         return row.id;
+      }
+    }
+  }
+
+  // Regular-course combined completion has no single representative submissionId (it
+  // represents the Easy+Medium+Hard trio as a whole) — dedupe by courseId+studentId
+  // instead, per recipient. This is what guarantees "one notification event" even if a
+  // student retakes an already-completed level later (isFullyCompleted becomes true again).
+  if (eventType === 'TOPIC_COURSE_COMPLETED') {
+    const courseId = payload?.courseId ?? null;
+    const studentIdForDedup = payload?.studentId ?? null;
+
+    if (courseId != null && studentIdForDedup != null) {
+      const profileIdClause = recipientProfileId
+        ? `recipient_profile_id.eq.${recipientProfileId}`
+        : `recipient_profile_id.is.null`;
+
+      const { data: existing, error: existingErr } = await supabase
+        .from('notification_outbox')
+        .select('id, status, attempts, scheduled_for')
+        .eq('event_type', eventType)
+        .or(
+          recipientEmail
+            ? `${profileIdClause},payload->>recipientEmail.eq.${recipientEmail}`
+            : profileIdClause
+        )
+        .filter('payload->>courseId', 'eq', String(courseId))
+        .filter('payload->>studentId', 'eq', String(studentIdForDedup))
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!existingErr && existing?.length) {
+        const row = existing[0];
+
+        if (row.status === 'sent') {
+          console.log(`✅ [Outbox] Already SENT TOPIC_COURSE_COMPLETED for course ${courseId} → ${recipientProfileId}. Blocked.`);
+          return row.id;
+        }
+
+        if (row.status === 'pending' || row.status === 'processing') {
+          console.log(`ℹ️ [Outbox] Duplicate TOPIC_COURSE_COMPLETED skipped for ${recipientProfileId} (Status: ${row.status})`);
+          return row.id;
+        }
+
+        const maxAttempts = Number(process.env.NOTIFICATION_MAX_ATTEMPTS || 5);
+        if (row.status === 'failed' && (row.attempts || 0) < maxAttempts) {
+          const { data: requeued, error: requeueErr } = await supabase
+            .from('notification_outbox')
+            .update({ status: 'pending', scheduled_for: scheduledFor, last_error: null })
+            .eq('id', row.id)
+            .select('id')
+            .single();
+          if (!requeueErr && requeued?.id) return requeued.id;
+        } else if (row.status === 'failed') {
+          console.log(`⚠️ [Outbox] Course ${courseId} → ${recipientProfileId} exhausted retries. Blocking.`);
+          return row.id;
+        }
       }
     }
   }

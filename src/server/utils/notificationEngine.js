@@ -838,9 +838,10 @@ export function buildContactSubmissionEmail({ name, email, mobile, subject, type
     </div></div></body></html>`;
 }
 
-export function buildACTFullLengthCompletionEmail({ studentName, testDate, compositeScore, englishScore, mathScore, readingScore, scienceScore, totalCorrect, totalQuestions, accuracyPercentage, performanceStatus, reportUrl }) {
+export function buildACTFullLengthCompletionEmail({ studentName, testDate, compositeScore, englishScore, mathScore, readingScore, scienceScore, totalCorrect, totalQuestions, accuracyPercentage, performanceStatus, reportUrl, downloadUrl }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const formattedDate = new Date(testDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const formattedTime = new Date(testDate || Date.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     
     const showReading = readingScore !== undefined && readingScore !== null;
     const showScience = scienceScore !== undefined && scienceScore !== null;
@@ -925,7 +926,8 @@ export function buildACTFullLengthCompletionEmail({ studentName, testDate, compo
       <div class="body">
         <p class="intro-heading">Hello ${studentName || 'Student'},</p>
         <p class="intro-text">Congratulations on completing your ACT Full-Length Test. Your performance report is now available.</p>
-        
+        <p style="color:#94a3b8; font-size:14px; margin: -12px 0 20px;">Completed: ${formattedDate} at ${formattedTime}</p>
+
         <p class="section-title">Overall Performance Summary</p>
         
         <div class="act-score-grid">
@@ -980,6 +982,7 @@ export function buildACTFullLengthCompletionEmail({ studentName, testDate, compo
         </div>
 
         <a class="cta" href="${reportUrl || '#'}">View Full ACT Report →</a>
+        <a class="cta" style="background:#1e293b;" href="${downloadUrl || reportUrl || '#'}">Download Report ↓</a>
       </div>
       <div class="footer">
         ${appName} • This is an automated email sent to you upon completion of your test.
@@ -988,5 +991,93 @@ export function buildACTFullLengthCompletionEmail({ studentName, testDate, compo
   </div>
 </body>
 </html>`;
+}
+
+/**
+ * SAT Full-Length (adaptive) test completion - a single submission, so this always fires
+ * exactly once per recipient already; this template just adds the Download button and
+ * explicit completion time that the generic buildTestCompletionEmail doesn't have.
+ */
+export function buildFullLengthTestCompletionEmail({ studentName, testName, testDate, scaledScore, correctAnswers, totalQuestions, viewUrl, downloadUrl }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const formattedDate = new Date(testDate || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    const formattedTime = new Date(testDate || Date.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const accuracyPct = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card">
+      <div class="header"><h1>📋 Full-Length Test Completed!</h1><p>${appName} — ${formattedDate}</p></div>
+      <div class="body">
+        <p class="intro-heading">Hello ${studentName || 'Student'},</p>
+        <p class="intro-text">Congratulations on completing ${testName || 'your Full-Length Test'}. Your performance report is now available.</p>
+        <p style="color:#94a3b8; font-size:14px; margin: -12px 0 20px;">Completed: ${formattedDate} at ${formattedTime}</p>
+        <p class="section-title">📊 Overall Performance</p>
+        <div class="score-row">
+          <div class="score-box"><div class="val">${scaledScore ?? '--'} <span style="font-size:14px; font-weight:400; color:#64748b;">/ 1600</span></div><div class="lbl">TOTAL SCORE</div></div>
+          <div class="score-box"><div class="val">${accuracyPct}%</div><div class="lbl">ACCURACY</div></div>
+          <div class="score-box"><div class="val">${correctAnswers ?? 0}/${totalQuestions ?? 0}</div><div class="lbl">CORRECT ANSWERS</div></div>
+        </div>
+        <div class="tip-box">💡 Review your detailed report to identify strengths and areas for improvement.</div>
+        <a class="cta" href="${viewUrl || '#'}">View Report →</a>
+        <a class="cta" style="background:#1e293b;" href="${downloadUrl || viewUrl || '#'}">Download Report ↓</a>
+      </div>
+      <div class="footer">${appName} • This is an automated email sent to you upon completion of your test.</div>
+    </div></div></body></html>`;
+}
+
+/**
+ * One combined email for a regular course's Easy+Medium+Hard levels - reuses the same
+ * combined data (analyticsService.getTopicCombinedReport) that powers the on-screen
+ * combined report; View/Download both link to that existing report, no new report page.
+ */
+export function buildCombinedRegularCourseCompletionEmail({ recipientName, studentName, isParent, courseName, testDate, levels, overall, viewUrl, downloadUrl }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const formattedDateTime = new Date(testDate || Date.now()).toLocaleString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+    });
+    const greetingName = recipientName || (isParent ? 'Parent' : (studentName || 'Student'));
+    const introText = isParent
+        ? `${studentName || 'Your child'} has successfully completed ${courseName || 'the course'}.`
+        : `You have completed ${courseName || 'the course'} successfully.`;
+
+    const levelRow = (label, data) => `<tr>
+        <td style="font-weight:bold;">${label}</td>
+        <td>${data?.totalQ ?? 0}</td>
+        <td>${data?.correct ?? 0}</td>
+        <td>${data?.score ?? 0}%</td>
+      </tr>`;
+    const rows = [
+        levelRow('Easy', levels?.Easy),
+        levelRow('Medium', levels?.Medium),
+        levelRow('Hard', levels?.Hard)
+    ].join('');
+    const totalRow = `<tr style="font-weight:800;">
+        <td>Total</td>
+        <td>${overall?.totalQuestions ?? 0}</td>
+        <td>${overall?.correct ?? 0}</td>
+        <td>${overall?.accuracy ?? 0}%</td>
+      </tr>`;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card">
+      <div class="header"><h1>🎉 Test Completed – ${courseName || 'Course'}</h1><p>${appName} — ${formattedDateTime}</p></div>
+      <div class="body">
+        <p class="intro-heading">Hi ${greetingName},</p>
+        <p class="intro-text">${introText}</p>
+        <p style="color:#94a3b8; font-size:14px; margin-bottom:20px;">Completed: ${formattedDateTime}</p>
+        <p class="section-title">📊 Test Performance</p>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Level</th><th>Questions</th><th>Correct</th><th>Score</th></tr></thead>
+            <tbody>${rows}${totalRow}</tbody>
+          </table>
+        </div>
+        <div class="score-row">
+          <div class="score-box" style="width:100%;"><div class="val">${overall?.scaledScore ?? '--'} <span style="font-size:14px; font-weight:400; color:#64748b;">/ 800</span></div><div class="lbl">TOTAL / SCALED SCORE</div></div>
+        </div>
+        <div class="tip-box">💡 View the combined report for a full breakdown across Easy, Medium, and Hard, plus your strengths and areas to improve.</div>
+        <a class="cta" href="${viewUrl || '#'}">View Combined Report →</a>
+        <a class="cta" style="background:#1e293b;" href="${downloadUrl || viewUrl || '#'}">Download Combined Report ↓</a>
+      </div>
+      <div class="footer">${appName} • Combined performance across Easy, Medium, and Hard levels.</div>
+    </div></div></body></html>`;
 }
 
