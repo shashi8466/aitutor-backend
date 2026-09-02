@@ -7,7 +7,7 @@ import express from 'express';
 import crypto from 'crypto';
 import supabase from '../../supabase/supabaseAdmin.js';
 import { analyticsService } from '../services/analyticsService.js';
-import { isCoTutorOf, getCoTutorGroupIds } from '../utils/groupTutors.js';
+import { isCoTutorOf, getCoTutorGroupIds, getTutorGroupStudentIds } from '../utils/groupTutors.js';
 
 const router = express.Router();
 
@@ -106,6 +106,7 @@ router.get('/dashboard', async (req, res) => {
             });
         }
 
+        const isAdmin = profile.role === 'admin';
         const assignedCourses = getAssignedCourses(profile);
         console.log(`📊 [TUTOR DASHBOARD] User: ${userId}, Role: ${profile.role}, Optimized Assigned Courses:`, assignedCourses);
 
@@ -123,11 +124,11 @@ router.get('/dashboard', async (req, res) => {
             try {
                 // PARALLELIZE OPTIMIZED FLOW
                 // 1. Courses with counts via RPC (Single call, fast)
-                // 2. Global enrollment data for unique student count
+                // 2. Global enrollment data (admin's "total students" and totalEnrollments)
                 // 3. Recent activity
                 const [coursesRes, enrollmentDataRes, submissionsRes] = await Promise.all([
                     supabase.rpc('get_tutor_courses', { requested_user_id: userId }),
-                    
+
                     supabase
                         .from('enrollments')
                         .select('user_id')
@@ -143,12 +144,15 @@ router.get('/dashboard', async (req, res) => {
 
                 // Process Courses
                 courses = coursesRes.data || [];
-                
-                // Process Overall Stats
+
+                // Process Overall Stats. For a tutor, "total students" is overridden below by
+                // group membership - this assigned_courses-based count is only used for admins.
                 if (enrollmentDataRes.data) {
-                    const uniqueIds = new Set(enrollmentDataRes.data.map(e => String(e.user_id)));
-                    stats.totalStudents = uniqueIds.size;
                     stats.totalEnrollments = enrollmentDataRes.data.length;
+                    if (isAdmin) {
+                        const uniqueIds = new Set(enrollmentDataRes.data.map(e => String(e.user_id)));
+                        stats.totalStudents = uniqueIds.size;
+                    }
                 }
 
                 stats.totalCourses = courses.length;
@@ -159,6 +163,19 @@ router.get('/dashboard', async (req, res) => {
 
             } catch (innerError) {
                 console.error('❌ [TUTOR DASHBOARD] Query error:', innerError);
+            }
+        }
+
+        // "Total/Active Students" (sidebar stat + Dashboard Overview card) reflects the tutor's
+        // own Student Groups, same "my students" definition as the Student Roster - not the
+        // broader assigned_courses enrollment count. Independent of the assignedCourses gate
+        // above, since a tutor can have groups/students without any directly assigned course.
+        if (!isAdmin) {
+            try {
+                const groupStudentIds = await getTutorGroupStudentIds(supabase, userId);
+                stats.totalStudents = groupStudentIds.length;
+            } catch (groupErr) {
+                console.error('❌ [TUTOR DASHBOARD] Group student count error:', groupErr);
             }
         }
 
@@ -208,8 +225,11 @@ router.get('/courses', async (req, res) => {
 
 /**
  * GET /api/tutor/students
- * Get students in tutor's courses - one row per student, courses/tests/progress
- * aggregated across all of their enrollments (not one row per enrollment).
+ * Get students in the tutor's own Student Groups (owned or co-tutored) - one row per student,
+ * courses/tests/progress aggregated across all of their enrollments (not one row per enrollment).
+ * Deliberately scoped to group membership, not profiles.assigned_courses - a tutor may be
+ * assigned to teach a course with far more enrolled students than they've actually organized
+ * into their own groups. Admins remain unscoped.
  */
 router.get('/students', async (req, res) => {
     try {
@@ -231,17 +251,24 @@ router.get('/students', async (req, res) => {
         }
 
         const isAdmin = profile.role === 'admin';
-        const assignedCourses = getAssignedCourses(profile);
-
-        if (!isAdmin && assignedCourses.length === 0) {
-            return res.json({ students: [] });
-        }
-
         const parsedCourseId = courseId ? parseInt(courseId) : null;
+
+        // Tutor Student Roster is scoped to students who are members of a Student Group this
+        // tutor owns or co-tutors - NOT every student enrolled in a course the tutor happens to
+        // be assigned to teach (profiles.assigned_courses is a broader course-staffing concept
+        // that can include students the tutor has never actually grouped/organized). Admins stay
+        // unscoped, matching every other admin bypass in this file.
+        let rosterStudentIds = null; // null = unscoped (admin)
+        if (!isAdmin) {
+            rosterStudentIds = await getTutorGroupStudentIds(supabase, userId);
+            if (rosterStudentIds.length === 0) {
+                return res.json({ students: [] });
+            }
+        }
 
         const { data: enrollments, error: enrollError } = await fetchAllRows(() => {
             let q = supabase.from('enrollments').select('user_id, course_id, enrolled_at');
-            if (!isAdmin) q = q.in('course_id', assignedCourses);
+            if (rosterStudentIds) q = q.in('user_id', rosterStudentIds);
             if (parsedCourseId) q = q.eq('course_id', parsedCourseId);
             return q;
         });
@@ -251,12 +278,25 @@ router.get('/students', async (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch students', details: enrollError.message });
         }
 
-        if (!enrollments || enrollments.length === 0) {
+        // The roster set to render: the group's full membership when no course filter is
+        // active (so a group member with zero enrollments yet still shows up, with 0
+        // courses/tests - the per-student fallback below already handles that), narrowed to
+        // just the enrolled-in-that-course subset when a courseId filter is active. Admins have
+        // no group scope, so they're exactly the set of enrolled students, as before.
+        const studentIds = rosterStudentIds
+            ? (parsedCourseId ? [...new Set((enrollments || []).map(e => e.user_id))] : rosterStudentIds)
+            : [...new Set((enrollments || []).map(e => e.user_id))];
+
+        if (studentIds.length === 0) {
             return res.json({ students: [] });
         }
 
-        const studentIds = [...new Set(enrollments.map(e => e.user_id))];
-        const courseIdsForSubmissions = isAdmin ? [...new Set(enrollments.map(e => e.course_id))] : assignedCourses;
+        const distinctEnrolledCourseIds = [...new Set((enrollments || []).map(e => e.course_id))];
+        // An empty .in() array is unreliable across supabase-js/PostgREST versions (some treat it
+        // as "no filter" rather than "match nothing") - the [-1] sentinel guarantees "show
+        // nothing" instead of risking every test_submissions row in the system, same convention
+        // used elsewhere in this codebase (analyticsService.js) for the identical scenario.
+        const courseIdsForSubmissions = distinctEnrolledCourseIds.length > 0 ? distinctEnrolledCourseIds : [-1];
 
         const [{ data: profiles, error: profilesError }, { data: submissions, error: submissionsError }] = await Promise.all([
             fetchAllRows(() => supabase.from('profiles').select('id, name, email').in('id', studentIds).eq('role', 'student')),
@@ -276,7 +316,7 @@ router.get('/students', async (req, res) => {
         }
 
         const byStudent = {};
-        enrollments.forEach(e => {
+        (enrollments || []).forEach(e => {
             if (!byStudent[e.user_id]) {
                 byStudent[e.user_id] = { courseIds: new Set(), lastEnrolled: e.enrolled_at, tests: 0, scoreSum: 0, lastActivity: null };
             }
@@ -507,7 +547,14 @@ router.get('/students/:studentId/recent-tests', async (req, res) => {
             const { data: enrollments } = await fetchAllRows(() =>
                 supabase.from('enrollments').select('course_id').eq('user_id', studentId).in('course_id', assignedCourses)
             );
-            if (!enrollments || enrollments.length === 0) {
+            const hasEnrollmentAccess = Boolean(enrollments && enrollments.length > 0);
+            // Fallback path: the Student Roster now lists students by group membership, not
+            // assigned_courses enrollment, so a group member without a matching enrollment must
+            // still be allowed to open here - purely additive, never removes the check above.
+            const hasGroupAccess = hasEnrollmentAccess
+                ? true
+                : (await getTutorGroupStudentIds(supabase, userId)).includes(studentId);
+            if (!hasEnrollmentAccess && !hasGroupAccess) {
                 return res.status(403).json({ error: 'Not authorized for this student' });
             }
         }
