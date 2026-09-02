@@ -714,14 +714,19 @@ export const analyticsService = {
     /**
      * RECENT COMPLETED TESTS
      *
-     * A student's completed test_submissions, most-recently-completed first, scoped to whichever
+     * A student's completed test_submissions, most-recently-active first, scoped to whichever
      * course IDs the caller passes (a tutor's assigned_courses, or one group's assigned_course_ids
      * via _getGroupScope) - the caller decides the scope, this function never widens it. Used by
      * the Tutor Student Roster (unscoped to any one group, capped to 10) and the Student Groups
      * Analytics "Student Performance" table (scoped to that specific group's assigned content, no
-     * cap). Deliberately NOT the same thing as completedAttempts/getStudentDashboard, which
-     * combines Easy+Medium+Hard into one row per topic - this returns one row per individual
-     * completed submission, matching what both of those UIs actually asked for.
+     * cap).
+     *
+     * A regular topic course's Easy/Medium/Hard are three separate test_submissions rows, but they
+     * are ONE topic to a tutor - so unlike a raw submission list, this groups them into a single
+     * row per course_id (same REQUIRED_LEVELS/"latest submission per level" rule as
+     * getTopicCombinedReport, just computed from already-selected columns instead of a full
+     * per-question fetch, since this is a lightweight summary list, not the report itself).
+     * Full-Length Test submissions have no such levels concept and stay one row per attempt.
      */
     async getRecentCompletedTests(studentId, courseIds, limit) {
         let q = supabase
@@ -742,28 +747,81 @@ export const analyticsService = {
         } else {
             q = q.in('id', [-1]);
         }
-        if (limit) q = q.limit(limit);
+        // No .limit() here - grouping happens below, and capping the raw submission fetch could
+        // cut off a topic's Easy/Medium/Hard mid-group or hide other topics entirely. The
+        // requested `limit` is applied to the final topic-row count instead.
 
         const { data, error } = await q;
         if (error) throw error;
 
-        return (data || []).map(sub => {
-            const isFLT = this._isFullLengthCourse(sub.course);
-            const tutorType = (sub.course?.tutor_type || '').toLowerCase();
+        const REQUIRED_LEVELS = ['Easy', 'Medium', 'Hard'];
+        const rows = [];
+        const topicBuckets = new Map(); // course_id -> { course, levels: { Easy/Medium/Hard: sub } }
+
+        for (const sub of (data || [])) {
+            if (this._isFullLengthCourse(sub.course)) {
+                rows.push({
+                    submissionId: sub.id,
+                    courseId: sub.course_id,
+                    testName: sub.course?.name || 'Full-Length Test',
+                    date: sub.test_date || sub.created_at,
+                    score: (sub.math_scaled_score || 0) + (sub.reading_scaled_score || 0),
+                    maxScore: 1600,
+                    isFullLengthTest: true
+                });
+                continue;
+            }
+
+            const rawLevel = sub.level || '';
+            const levelKey = rawLevel.charAt(0).toUpperCase() + rawLevel.slice(1).toLowerCase();
+            if (!REQUIRED_LEVELS.includes(levelKey)) continue; // not a regular Easy/Medium/Hard attempt
+
+            if (!topicBuckets.has(sub.course_id)) {
+                topicBuckets.set(sub.course_id, { course: sub.course, levels: {} });
+            }
+            const bucket = topicBuckets.get(sub.course_id);
+            // Submissions are already ordered newest-first, so the first one seen per level is
+            // that level's latest attempt - later duplicates for the same level are ignored.
+            if (!bucket.levels[levelKey]) {
+                bucket.levels[levelKey] = sub;
+            }
+        }
+
+        for (const [courseId, bucket] of topicBuckets.entries()) {
+            const activeLevels = REQUIRED_LEVELS.filter(lvl => bucket.levels[lvl]);
+            const contributingSubs = activeLevels.map(lvl => bucket.levels[lvl]);
+            const isFullyCompleted = activeLevels.length === REQUIRED_LEVELS.length;
+
+            const totalQuestions = contributingSubs.reduce((sum, s) => sum + (s.total_questions || 0), 0);
+            const correct = contributingSubs.reduce((sum, s) => sum + (s.raw_score || 0), 0);
+            const scaledScore = totalQuestions > 0 ? Math.round(200 + (correct / totalQuestions) * 600) : 200;
+
+            const mostRecentDate = contributingSubs.reduce((latest, s) => {
+                const d = s.test_date || s.created_at;
+                return (!latest || new Date(d) > new Date(latest)) ? d : latest;
+            }, null);
+
+            const tutorType = (bucket.course?.tutor_type || '').toLowerCase();
             const subjectPrefix = tutorType.includes('math')
                 ? 'Math: '
                 : (tutorType.includes('reading') || tutorType.includes('writing')) ? 'Reading & Writing: ' : '';
 
-            return {
-                submissionId: sub.id,
-                courseId: sub.course_id,
-                testName: isFLT ? (sub.course?.name || 'Full-Length Test') : `${subjectPrefix}${sub.course?.name || 'Test'}`,
-                date: sub.test_date || sub.created_at,
-                score: isFLT ? (sub.math_scaled_score || 0) + (sub.reading_scaled_score || 0) : (sub.scaled_score || 0),
-                maxScore: isFLT ? 1600 : 800,
-                isFullLengthTest: isFLT
-            };
-        });
+            rows.push({
+                courseId,
+                testName: `${subjectPrefix}${bucket.course?.name || 'Test'}`,
+                date: mostRecentDate,
+                // A combined score is only meaningful once every required level is done - same
+                // rule getTopicCombinedReport applies (never show a misleading partial score).
+                score: isFullyCompleted ? scaledScore : null,
+                maxScore: 800,
+                isFullLengthTest: false,
+                isFullyCompleted,
+                activeLevels
+            });
+        }
+
+        rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return limit ? rows.slice(0, limit) : rows;
     },
 
     async _getStudentSubmissionsSplit(studentId) {

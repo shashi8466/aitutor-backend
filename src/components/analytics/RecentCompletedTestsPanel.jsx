@@ -3,21 +3,27 @@ import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
-const { FiFileText, FiDownload, FiClock } = FiIcons;
+const { FiFileText, FiDownload, FiClock, FiCheck, FiMinus } = FiIcons;
+
+const LEVELS = ['Easy', 'Medium', 'Hard'];
 
 /**
- * Shared expandable-row detail panel: fetches and lists a student's completed tests (one row per
- * completed submission, newest first) with View Report / Download actions. Reused by both the
- * Tutor Student Roster (fetchTests scoped to the tutor's assigned_courses, capped at 10) and the
- * Student Groups Analytics "Student Performance" table (fetchTests scoped to one group's
- * assigned content, uncapped) - only the data source passed in via `fetchTests` differs; this
- * component has no scoping logic of its own.
+ * Shared expandable-row detail panel: fetches and lists a student's completed tests, newest
+ * first, with View Report / Download actions. Reused by both the Tutor Student Roster
+ * (fetchTests scoped to the tutor's assigned_courses, capped at 10) and the Student Groups
+ * Analytics "Student Performance" table (fetchTests scoped to one group's assigned content,
+ * uncapped) - only the data source passed in via `fetchTests` differs; this component has no
+ * scoping logic of its own.
  *
- * View Report / Download both reuse the existing report/:submissionId route (FullTestReport),
- * already confirmed to render correctly for both Full-Length and regular topic-level
- * submissions - no new report UI.
+ * A row is either a Full-Length Test attempt (one row per submission, `submissionId` present) or
+ * a regular topic course (one row per course_id, its Easy/Medium/Hard already combined by
+ * analyticsService.getRecentCompletedTests - `activeLevels`/`isFullyCompleted` present instead).
+ * Full-Length rows link to the existing report/:submissionId route (FullTestReport); topic rows
+ * link to the existing topic-report/:studentId/:courseId route (TopicReportReview /
+ * CombinedRegularCourseReport), which already renders a "Test In Progress" placeholder when not
+ * every level is done - no new report UI needed either way.
  */
-const RecentCompletedTestsPanel = ({ fetchTests, basePath, title, emptyMessage }) => {
+const RecentCompletedTestsPanel = ({ fetchTests, basePath, studentId, title, emptyMessage }) => {
     const navigate = useNavigate();
     const [tests, setTests] = useState(null);
     const [error, setError] = useState(null);
@@ -62,12 +68,21 @@ const RecentCompletedTestsPanel = ({ fetchTests, basePath, title, emptyMessage }
                                 <th className="py-2 pr-4">Test Name</th>
                                 <th className="py-2 pr-4">Date &amp; Time</th>
                                 <th className="py-2 pr-4">Score</th>
+                                <th className="py-2 pr-4">Levels</th>
                                 <th className="py-2 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                            {tests.map(t => (
-                                <tr key={t.submissionId} className="text-gray-700 dark:text-gray-300">
+                            {tests.map((t, idx) => {
+                                const viewUrl = t.isFullLengthTest
+                                    ? `${basePath}/report/${t.submissionId}`
+                                    : `${basePath}/topic-report/${studentId}/${t.courseId}`;
+                                const viewLabel = t.isFullLengthTest
+                                    ? 'View Report'
+                                    : (t.isFullyCompleted ? 'View Combined Report' : 'View Progress');
+
+                                return (
+                                <tr key={t.submissionId || `topic-${t.courseId}-${idx}`} className="text-gray-700 dark:text-gray-300">
                                     <td className="py-3 pr-4 font-bold text-gray-900 dark:text-white">{t.testName}</td>
                                     <td className="py-3 pr-4 whitespace-nowrap">
                                         <span className="inline-flex items-center gap-1.5">
@@ -75,17 +90,38 @@ const RecentCompletedTestsPanel = ({ fetchTests, basePath, title, emptyMessage }
                                             {formatDateTime(t.date)}
                                         </span>
                                     </td>
-                                    <td className="py-3 pr-4 font-bold whitespace-nowrap">{t.score} / {t.maxScore}</td>
+                                    <td className="py-3 pr-4 font-bold whitespace-nowrap">
+                                        {t.score !== null && t.score !== undefined
+                                            ? `${t.score} / ${t.maxScore}`
+                                            : <span className="text-gray-500 dark:text-gray-400 font-medium">Progress: {t.activeLevels?.length || 0} / 3</span>}
+                                    </td>
+                                    <td className="py-3 pr-4 whitespace-nowrap">
+                                        {t.isFullLengthTest ? (
+                                            <span className="text-gray-300 dark:text-gray-600">&mdash;</span>
+                                        ) : (
+                                            <div className="inline-flex items-center gap-2">
+                                                {LEVELS.map(lvl => {
+                                                    const done = t.activeLevels?.includes(lvl);
+                                                    return (
+                                                        <span key={lvl} className={`inline-flex items-center gap-0.5 ${done ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                                                            <SafeIcon icon={done ? FiCheck : FiMinus} className="w-3 h-3" />
+                                                            {lvl}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </td>
                                     <td className="py-3 text-right whitespace-nowrap">
                                         <div className="inline-flex items-center gap-2">
                                             <button
-                                                onClick={() => navigate(`${basePath}/report/${t.submissionId}`)}
+                                                onClick={() => navigate(viewUrl)}
                                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                                             >
-                                                <SafeIcon icon={FiFileText} className="w-3 h-3" /> View Report
+                                                <SafeIcon icon={FiFileText} className="w-3 h-3" /> {viewLabel}
                                             </button>
                                             <button
-                                                onClick={() => navigate(`${basePath}/report/${t.submissionId}?download=true`)}
+                                                onClick={() => navigate(`${viewUrl}?download=true`)}
                                                 className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-lg font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
                                             >
                                                 <SafeIcon icon={FiDownload} className="w-3 h-3" /> Download
@@ -93,7 +129,8 @@ const RecentCompletedTestsPanel = ({ fetchTests, basePath, title, emptyMessage }
                                         </div>
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

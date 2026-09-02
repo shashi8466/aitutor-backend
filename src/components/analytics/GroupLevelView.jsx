@@ -517,6 +517,7 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                                                     <RecentCompletedTestsPanel
                                                         fetchTests={() => service.getGroupStudentRecentTests(groupId, student.id)}
                                                         basePath={adminMode ? '/admin' : '/tutor'}
+                                                        studentId={student.id}
                                                         title="Recent Completed Tests — This Group"
                                                         emptyMessage="No completed tests in this group."
                                                     />

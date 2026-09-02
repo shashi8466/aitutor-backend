@@ -368,6 +368,7 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                                     <RecentCompletedTestsPanel
                                                         fetchTests={() => tutorService.getStudentRecentTests(student.id)}
                                                         basePath="/tutor"
+                                                        studentId={student.id}
                                                         title="Recent Completed Tests"
                                                         emptyMessage="No completed tests yet."
                                                     />
