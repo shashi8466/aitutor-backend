@@ -76,11 +76,11 @@ const DashboardNotifications = ({ limit = 3, studentId = null, basePath = '/stud
 
     if (loading && notifications.length === 0) {
         return (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 animate-pulse">
-                <div className="h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 animate-pulse">
+                <div className="h-4 w-32 bg-gray-100 dark:bg-gray-700 rounded mb-4"></div>
                 <div className="space-y-3">
-                    <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl"></div>
-                    <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded-xl"></div>
+                    <div className="h-16 bg-gray-100 dark:bg-gray-700 rounded-xl"></div>
+                    <div className="h-16 bg-gray-100 dark:bg-gray-700 rounded-xl"></div>
                 </div>
             </div>
         );
@@ -93,15 +93,15 @@ const DashboardNotifications = ({ limit = 3, studentId = null, basePath = '/stud
     const displayedNotifications = notifications.slice(0, limit);
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 mb-5 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-5 overflow-hidden">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center">
                         <SafeIcon icon={FiBell} className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">Recent Updates</h3>
-                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Activity Feed</p>
+                        <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">Recent Updates</h3>
+                        <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activity Feed</p>
                     </div>
                 </div>
 
@@ -133,27 +133,27 @@ const DashboardNotifications = ({ limit = 3, studentId = null, basePath = '/stud
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             onClick={() => setShowFullHistory(false)}
-                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+                            className="absolute inset-0 bg-gray-900/80 backdrop-blur-md"
                         />
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl overflow-hidden relative z-[101] border border-slate-200 dark:border-slate-800 flex flex-col"
+                            className="bg-white dark:bg-gray-800 w-full max-w-2xl max-h-[85vh] rounded-3xl shadow-2xl overflow-hidden relative z-[101] border border-gray-100 dark:border-gray-700 flex flex-col"
                         >
-                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/20">
+                            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/20">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-900/30 text-sky-600 flex items-center justify-center">
                                         <SafeIcon icon={FiBell} className="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-xl text-slate-900 dark:text-white">Full Activity History</h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">Chronological record of all updates</p>
+                                        <h3 className="font-bold text-xl text-gray-900 dark:text-white">Full Activity History</h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Chronological record of all updates</p>
                                     </div>
                                 </div>
                                 <button 
                                     onClick={() => setShowFullHistory(false)}
-                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-400 transition-colors"
                                 >
                                     <SafeIcon icon={FiX} className="w-6 h-6" />
                                 </button>
@@ -165,8 +165,8 @@ const DashboardNotifications = ({ limit = 3, studentId = null, basePath = '/stud
                                 ))}
                             </div>
                             
-                            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 text-center">
-                                <p className="text-xs text-slate-500 font-medium">Showing {notifications.length} activity records</p>
+                            <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/20 text-center">
+                                <p className="text-xs text-gray-500 font-medium">Showing {notifications.length} activity records</p>
                             </div>
                         </motion.div>
                     </div>
@@ -196,17 +196,17 @@ const NotificationCard = ({ n, handleAction, isModal = false }) => {
                 </div>
                 <div>
                     <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 mb-0.5">
-                        <h4 className="font-bold text-slate-900 dark:text-white text-xs">
+                        <h4 className="font-bold text-gray-900 dark:text-white text-xs">
                             {n.payload?.courseName ? `Test Completed: ${n.payload.courseName}` : 'Test Completed'}
                         </h4>
-                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter">
+                        <span className="text-[9px] text-gray-400 dark:text-gray-500 font-bold flex items-center gap-1 uppercase tracking-tighter">
                             <SafeIcon icon={FiClock} className="w-3 h-3" />
                             {n.created_at && (
                                 `${new Date(n.created_at).toLocaleDateString()} ${new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                             )}
                         </span>
                     </div>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                    <p className="text-[11px] text-gray-600 dark:text-gray-400 font-medium">
                         Achieved Score: {Math.round(n.payload?.rawPercentage || 0)}% in {n.payload?.level || 'Practice'}
                     </p>
                 </div>
@@ -214,7 +214,7 @@ const NotificationCard = ({ n, handleAction, isModal = false }) => {
 
             <button
                 onClick={() => handleAction(n)}
-                className="w-full sm:w-auto px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[9px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center justify-center gap-2 group shadow-sm flex-shrink-0"
+                className="w-full sm:w-auto px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-100 dark:border-gray-600 rounded-lg text-[9px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition flex items-center justify-center gap-2 group shadow-sm flex-shrink-0"
             >
                 View Full Report
                 <SafeIcon icon={FiChevronRight} className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />

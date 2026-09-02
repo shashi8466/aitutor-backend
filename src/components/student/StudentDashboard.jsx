@@ -47,11 +47,11 @@ function ProgressRow({ icon, color, bg, label, count, max }) {
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <SafeIcon icon={icon} className={"w-4 h-4 " + color} />
-          <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{label}</span>
+          <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{label}</span>
         </div>
-        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{count}/{max}</span>
+        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{count}/{max}</span>
       </div>
-      <div className="h-2.5 bg-slate-100 dark:bg-slate-800/50 rounded-full overflow-hidden shadow-inner">
+      <div className="h-2.5 bg-gray-100 dark:bg-gray-700/50 rounded-full overflow-hidden shadow-inner">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: percent + "%" }}
@@ -274,10 +274,10 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
 
   if (authLoading || (!user && loading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] dark:bg-gray-900">
         <div className="flex flex-col items-center gap-4">
           <SafeIcon icon={FiLoader} className="w-12 h-12 animate-spin text-sky-500" />
-          <p className="text-slate-600 font-medium">Loading your dashboard...</p>
+          <p className="text-gray-600 font-medium">Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -285,11 +285,11 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-lg border border-orange-200 dark:border-orange-900 max-w-lg w-full">
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] dark:bg-gray-900 p-4">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-orange-200 dark:border-orange-900 max-w-lg w-full">
           <h1 className="text-2xl font-bold text-orange-600 mb-4">Dashboard Error</h1>
-          <p className="text-slate-600 dark:text-slate-300 mb-4">Failed to load student dashboard:</p>
-          <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded text-xs font-mono mb-4 text-orange-500 overflow-auto max-h-48">
+          <p className="text-gray-600 dark:text-gray-300 mb-4">Failed to load student dashboard:</p>
+          <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded text-xs font-mono mb-4 text-orange-500 overflow-auto max-h-48">
             {error}
           </div>
           <button onClick={() => window.location.reload()} className="w-full bg-sky-600 text-white py-2 rounded-lg">Reload Page</button>
@@ -314,7 +314,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
     // In parentView mode this is embedded inside the Parent Portal's own gray-50/gray-900
     // page background (ParentDashboard.jsx) - no competing full-bleed background or forced
     // min-h-screen here, so it blends into that shell instead of reading as a separate block.
-    <div className={`${isParentView ? '' : 'min-h-screen bg-slate-50 dark:bg-slate-950'} pb-12 font-sans text-slate-900 dark:text-slate-100`}>
+    <div className={`${isParentView ? '' : 'min-h-screen bg-[#FAFAFA] dark:bg-gray-900'} pb-12 font-sans text-gray-900 dark:text-gray-100`}>
       <div className="max-w-7xl mx-auto py-8">
         
         {loading && (
@@ -325,15 +325,15 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
         )}
 
         <div className="mb-8 px-4 sm:px-0">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white">
             Welcome back, {displayName.split(' ')[0]}!
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 mt-1">Here is your daily progress overview.</p>
+          <p className="text-sm sm:text-base text-gray-500 mt-1">Here is your daily progress overview.</p>
         </div>
 
         {targetProgress?.reached && (
           <div className="mb-5 px-4 sm:px-0">
-            <div className="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-[#1a1140] via-[#150f38] to-[#0d0a26] p-4 sm:p-5 shadow-[0_0_35px_-18px_rgba(139,92,246,0.3)]">
+            <div className="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-[#1a1140] via-[#150f38] to-[#0d0a26] p-6 shadow-[0_0_35px_-18px_rgba(139,92,246,0.3)]">
               {/* Ambient glows - kept subtle so the purple stays a soft premium accent, not a
                   strong hover-like glow */}
               <div className="pointer-events-none absolute -top-16 -left-16 w-64 h-64 rounded-full bg-purple-600/12 blur-3xl" />
@@ -469,14 +469,14 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
         <DashboardNotifications limit={3} studentId={viewStudentId} basePath={isParentView ? '/parent' : '/student'} />
 
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 mx-4 sm:mx-0">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 mx-4 sm:mx-0">
           <div className="flex items-center gap-5 w-full md:w-auto">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500 to-orange-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
               {displayName.charAt(0) || 'S'}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">{displayName}</h2>
-              <p className="text-sm text-slate-500">{displayEmail}</p>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{displayName}</h2>
+              <p className="text-sm text-gray-500">{displayEmail}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 lg:flex gap-4 w-full md:w-auto">
@@ -488,16 +488,16 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
 
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mx-4 sm:mx-0">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Score Performance</h3>
+                <h3 className="font-bold text-lg text-gray-800 dark:text-white">Score Performance</h3>
                 <button onClick={() => navigate(isParentView ? '/parent/test-history' : '/student/test-review')} className="px-4 py-2 bg-sky-600 text-white text-xs font-bold rounded-lg">Review Tests</button>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-8">
                 <div className="flex flex-col items-center">
                   <CircularProgress value={scores.total} max={1600} size={140} strokeWidth={12} color="#0ea5e9" />
                   <div className="mt-4 text-center">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Best Score</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Best Score</p>
                     <p className="text-2xl font-extrabold">{scores.total}</p>
                   </div>
                 </div>
@@ -507,7 +507,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
                       <span>Math</span>
                       <span>{scores.latestMath}/800</span>
                     </div>
-                    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                       <motion.div initial={{ width: 0 }} animate={{ width: (scores.latestMath / 8) + "%" }} className="h-full bg-sky-500" />
                     </div>
                   </div>
@@ -516,7 +516,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
                       <span>Reading & Writing</span>
                       <span>{scores.latestRw}/800</span>
                     </div>
-                    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                       <motion.div initial={{ width: 0 }} animate={{ width: (scores.latestRw / 8) + "%" }} className="h-full bg-green-500" />
                     </div>
                   </div>
@@ -524,17 +524,17 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mx-4 sm:mx-0">
-              <p className="text-xs font-bold text-slate-400 uppercase">Goal Progress</p>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
+              <p className="text-xs font-bold text-gray-400 uppercase">Goal Progress</p>
               <p className="text-2xl font-bold text-orange-600 mb-2">{scores.target}</p>
-              <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                 <motion.div initial={{ width: 0 }} animate={{ width: progressPercent + "%" }} className="h-full bg-orange-500" />
               </div>
-              <p className="text-right text-[10px] text-slate-400 mt-1">{Math.max(0, scores.target - scores.total)} points to goal</p>
+              <p className="text-right text-[10px] text-gray-400 mt-1">{Math.max(0, scores.target - scores.total)} points to goal</p>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mx-4 sm:mx-0">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
             <h3 className="font-bold text-lg mb-6">Learning Activity</h3>
             <div className="space-y-6">
               <ProgressRow key="row-lessons" icon={FiBook} color="text-sky-500" bg="bg-sky-500" label="Lessons" count={counts.lessons} max={maxCounts.lessons} />
@@ -544,9 +544,9 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 mx-4 sm:mx-0">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
             <div className="flex justify-between items-center mb-6 gap-2">
-              <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white">Top Scores</h3>
+              <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-white">Top Scores</h3>
               <button onClick={() => navigate(isParentView ? '/parent/test-history' : '/student/test-review')} className="text-sky-600 text-xs sm:text-sm font-bold hover:underline whitespace-nowrap flex-shrink-0">View All</button>
             </div>
             {topScores === null ? (
@@ -554,7 +554,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
                 {[0, 1, 2].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
               </div>
             ) : topScores.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400 py-6 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
                 Complete a topic or Full-Length Test to see your top scores here.
               </p>
             ) : (
@@ -562,19 +562,19 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
                 {topScores.map((result, idx) => (
                   <div
                     key={result.type}
-                    className="flex items-center gap-4 p-4 border border-slate-100 dark:border-slate-800 rounded-2xl"
+                    className="flex items-center gap-4 p-4 border border-gray-100 dark:border-gray-700 rounded-2xl"
                   >
                     <div className="w-9 h-9 rounded-full bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 flex items-center justify-center font-black text-sm flex-shrink-0">
                       {String(idx + 1).padStart(2, '0')}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-bold truncate text-sm sm:text-base">{result.label}</h4>
-                      <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-medium">
+                      <p className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-medium">
                         {result.description}
                       </p>
                     </div>
                     <span className="text-base sm:text-lg font-black text-sky-600 dark:text-sky-400 flex-shrink-0">
-                      {result.score} <span className="text-xs font-bold text-slate-400 dark:text-slate-500">/ {result.maxScore}</span>
+                      {result.score} <span className="text-xs font-bold text-gray-400 dark:text-gray-500">/ {result.maxScore}</span>
                     </span>
                   </div>
                 ))}
