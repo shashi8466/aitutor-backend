@@ -172,19 +172,19 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
             {/* REGULAR COURSE TOP 10 - sourced only from regular topic/course attempts, never
                 mixed with Full-Length Test results below. */}
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Regular Course — Top 10</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                 {/* 1. SAT MATH — TOP 10 */}
-                <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-blue-500/40 text-white shadow-xl flex flex-col justify-between">
+                <div className="p-4 bg-[#0a0e24] rounded-2xl border-2 border-blue-500/40 text-white shadow-xl flex flex-col justify-between">
                     <div>
-                        <div className="flex justify-between items-center mb-4">
-                            <span className="px-3 py-1 bg-blue-600/30 text-blue-300 font-black text-xs uppercase tracking-wider rounded-lg border border-blue-500/40">
+                        <div className="flex justify-between items-start gap-2 mb-3">
+                            <span className="flex-1 min-w-0 break-words leading-tight px-2.5 py-1 bg-blue-600/30 text-blue-300 font-black text-[10px] uppercase tracking-wider rounded-lg border border-blue-500/40">
                                 SAT MATH — TOP 10
                             </span>
-                            <span className="text-xs font-bold text-slate-400">Max 800</span>
+                            <span className="shrink-0 pt-0.5 text-xs font-bold text-slate-400">Max 800</span>
                         </div>
 
                         {(!overview.topMathStudents || overview.topMathStudents.length === 0) ? (
-                            <p className="text-xs text-slate-400 py-6 text-center">No completed Math attempts yet.</p>
+                            <p className="text-xs text-slate-400 py-4 text-center">No completed Math attempts yet.</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs">
@@ -211,17 +211,17 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                 </div>
 
                 {/* 2. SAT READING & WRITING — TOP 10 */}
-                <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-purple-500/40 text-white shadow-xl flex flex-col justify-between">
+                <div className="p-4 bg-[#0a0e24] rounded-2xl border-2 border-purple-500/40 text-white shadow-xl flex flex-col justify-between">
                     <div>
-                        <div className="flex justify-between items-center mb-4">
-                            <span className="px-3 py-1 bg-purple-600/30 text-purple-300 font-black text-xs uppercase tracking-wider rounded-lg border border-purple-500/40">
+                        <div className="flex justify-between items-start gap-2 mb-3">
+                            <span className="flex-1 min-w-0 break-words leading-tight px-2.5 py-1 bg-purple-600/30 text-purple-300 font-black text-[10px] uppercase tracking-wider rounded-lg border border-purple-500/40">
                                 SAT READING & WRITING — TOP 10
                             </span>
-                            <span className="text-xs font-bold text-slate-400">Max 800</span>
+                            <span className="shrink-0 pt-0.5 text-xs font-bold text-slate-400">Max 800</span>
                         </div>
 
                         {(!overview.topRwStudents || overview.topRwStudents.length === 0) ? (
-                            <p className="text-xs text-slate-400 py-6 text-center">No completed R&W attempts yet.</p>
+                            <p className="text-xs text-slate-400 py-4 text-center">No completed R&W attempts yet.</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs">
@@ -248,17 +248,17 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                 </div>
 
                 {/* 3. OVERALL SAT — TOP 10 */}
-                <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-amber-500/40 text-white shadow-xl flex flex-col justify-between">
+                <div className="p-4 bg-[#0a0e24] rounded-2xl border-2 border-amber-500/40 text-white shadow-xl flex flex-col justify-between">
                     <div>
-                        <div className="flex justify-between items-center mb-4">
-                            <span className="px-3 py-1 bg-amber-600/30 text-amber-300 font-black text-xs uppercase tracking-wider rounded-lg border border-amber-500/40">
+                        <div className="flex justify-between items-start gap-2 mb-3">
+                            <span className="flex-1 min-w-0 break-words leading-tight px-2.5 py-1 bg-amber-600/30 text-amber-300 font-black text-[10px] uppercase tracking-wider rounded-lg border border-amber-500/40">
                                 OVERALL SAT — TOP 10
                             </span>
-                            <span className="text-xs font-bold text-slate-400">Max 1600</span>
+                            <span className="shrink-0 pt-0.5 text-xs font-bold text-slate-400">Max 1600</span>
                         </div>
 
                         {(!overview.topOverallStudents || overview.topOverallStudents.length === 0) ? (
-                            <p className="text-xs text-slate-400 py-6 text-center">No completed SAT attempts yet.</p>
+                            <p className="text-xs text-slate-400 py-4 text-center">No completed SAT attempts yet.</p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs">
@@ -290,19 +290,19 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                 assigned at all (e.g. a group with only a Full-Length Test), and vice versa. */}
             <div>
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">Full-Length Test — Top 10</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                     {/* SAT Math - Full-Length Test Top 10 */}
-                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-blue-500/40 text-white shadow-xl flex flex-col justify-between">
+                    <div className="p-4 bg-[#0a0e24] rounded-2xl border-2 border-blue-500/40 text-white shadow-xl flex flex-col justify-between">
                         <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <span className="px-3 py-1 bg-blue-600/30 text-blue-300 font-black text-xs uppercase tracking-wider rounded-lg border border-blue-500/40">
+                            <div className="flex justify-between items-start gap-2 mb-3">
+                                <span className="flex-1 min-w-0 break-words leading-tight px-2.5 py-1 bg-blue-600/30 text-blue-300 font-black text-[10px] uppercase tracking-wider rounded-lg border border-blue-500/40">
                                     SAT MATH — FULL-LENGTH TEST TOP 10
                                 </span>
-                                <span className="text-xs font-bold text-slate-400">Max 800</span>
+                                <span className="shrink-0 pt-0.5 text-xs font-bold text-slate-400">Max 800</span>
                             </div>
 
                             {(!overview.topMathStudentsFullLength || overview.topMathStudentsFullLength.length === 0) ? (
-                                <p className="text-xs text-slate-400 py-6 text-center">No completed Full-Length Test attempts yet.</p>
+                                <p className="text-xs text-slate-400 py-4 text-center">No completed Full-Length Test attempts yet.</p>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs">
@@ -329,17 +329,17 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                     </div>
 
                     {/* SAT Reading & Writing - Full-Length Test Top 10 */}
-                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-purple-500/40 text-white shadow-xl flex flex-col justify-between">
+                    <div className="p-4 bg-[#0a0e24] rounded-2xl border-2 border-purple-500/40 text-white shadow-xl flex flex-col justify-between">
                         <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <span className="px-3 py-1 bg-purple-600/30 text-purple-300 font-black text-xs uppercase tracking-wider rounded-lg border border-purple-500/40">
+                            <div className="flex justify-between items-start gap-2 mb-3">
+                                <span className="flex-1 min-w-0 break-words leading-tight px-2.5 py-1 bg-purple-600/30 text-purple-300 font-black text-[10px] uppercase tracking-wider rounded-lg border border-purple-500/40">
                                     SAT READING & WRITING — FULL-LENGTH TEST TOP 10
                                 </span>
-                                <span className="text-xs font-bold text-slate-400">Max 800</span>
+                                <span className="shrink-0 pt-0.5 text-xs font-bold text-slate-400">Max 800</span>
                             </div>
 
                             {(!overview.topRwStudentsFullLength || overview.topRwStudentsFullLength.length === 0) ? (
-                                <p className="text-xs text-slate-400 py-6 text-center">No completed Full-Length Test attempts yet.</p>
+                                <p className="text-xs text-slate-400 py-4 text-center">No completed Full-Length Test attempts yet.</p>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs">
@@ -366,17 +366,17 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                     </div>
 
                     {/* Overall SAT - Full-Length Test Top 10 */}
-                    <div className="p-6 bg-[#0a0e24] rounded-2xl border-2 border-amber-500/40 text-white shadow-xl flex flex-col justify-between">
+                    <div className="p-4 bg-[#0a0e24] rounded-2xl border-2 border-amber-500/40 text-white shadow-xl flex flex-col justify-between">
                         <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <span className="px-3 py-1 bg-amber-600/30 text-amber-300 font-black text-xs uppercase tracking-wider rounded-lg border border-amber-500/40">
+                            <div className="flex justify-between items-start gap-2 mb-3">
+                                <span className="flex-1 min-w-0 break-words leading-tight px-2.5 py-1 bg-amber-600/30 text-amber-300 font-black text-[10px] uppercase tracking-wider rounded-lg border border-amber-500/40">
                                     OVERALL SAT — FULL-LENGTH TEST TOP 10
                                 </span>
-                                <span className="text-xs font-bold text-slate-400">Max 1600</span>
+                                <span className="shrink-0 pt-0.5 text-xs font-bold text-slate-400">Max 1600</span>
                             </div>
 
                             {(!overview.topOverallStudentsFullLength || overview.topOverallStudentsFullLength.length === 0) ? (
-                                <p className="text-xs text-slate-400 py-6 text-center">No completed Full-Length Test attempts yet.</p>
+                                <p className="text-xs text-slate-400 py-4 text-center">No completed Full-Length Test attempts yet.</p>
                             ) : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs">
