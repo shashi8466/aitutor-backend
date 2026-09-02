@@ -475,6 +475,52 @@ router.get('/student-progress/:studentId', async (req, res) => {
 });
 
 /**
+ * GET /api/tutor/students/:studentId/recent-tests
+ * A student's 10 most recently completed tests, for the Student Roster's expandable row - same
+ * "scoped to the tutor's assigned_courses, admin bypass" authorization as /student-progress above
+ * (a separate, additive check - that existing route is not modified), one row per completed
+ * submission (not combined Easy+Medium+Hard like completedAttempts/getStudentDashboard).
+ */
+router.get('/students/:studentId/recent-tests', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { studentId } = req.params;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('assigned_courses, role')
+            .eq('id', userId)
+            .single();
+
+        if (profileError || !profile) {
+            return res.status(404).json({ error: 'User profile not found' });
+        }
+
+        const isAdmin = profile.role === 'admin';
+        const assignedCourses = getAssignedCourses(profile);
+
+        if (!isAdmin) {
+            const { data: enrollments } = await fetchAllRows(() =>
+                supabase.from('enrollments').select('course_id').eq('user_id', studentId).in('course_id', assignedCourses)
+            );
+            if (!enrollments || enrollments.length === 0) {
+                return res.status(403).json({ error: 'Not authorized for this student' });
+            }
+        }
+
+        const tests = await analyticsService.getRecentCompletedTests(studentId, isAdmin ? null : assignedCourses, 10);
+        res.json({ tests });
+    } catch (error) {
+        console.error('Recent completed tests error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * GET /api/tutor/student-topic-report/:studentId/:courseId
  * Combined Easy+Medium+Hard report for one of the tutor's students, reached from Test History -
  * same authorization as GET /student-progress/:studentId (assigned_courses, or admin bypass) and
@@ -1289,6 +1335,23 @@ router.get('/groups/:groupId/analytics/students/:studentId', verifyTutorAccess, 
         res.json(data);
     } catch (error) {
         console.error('Student Dashboard error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/tutor/groups/:groupId/analytics/students/:studentId/recent-tests
+ * A student's completed tests for the Student Performance table's expandable row, scoped
+ * STRICTLY to this group's assigned_course_ids via the same _getGroupScope every other
+ * group-analytics route in this file uses - never the student's tests from any other group.
+ */
+router.get('/groups/:groupId/analytics/students/:studentId/recent-tests', verifyTutorAccess, async (req, res) => {
+    try {
+        const { assignedCourseIds } = await analyticsService._getGroupScope(req.params.groupId);
+        const tests = await analyticsService.getRecentCompletedTests(req.params.studentId, assignedCourseIds, null);
+        res.json({ tests });
+    } catch (error) {
+        console.error('Group recent completed tests error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

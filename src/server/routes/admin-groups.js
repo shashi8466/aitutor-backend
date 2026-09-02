@@ -1076,6 +1076,23 @@ router.get('/groups/:groupId/analytics/students/:studentId', verifyAdminAccess, 
     }
 });
 
+/**
+ * GET /api/admin/groups/:groupId/analytics/students/:studentId/recent-tests
+ * Admin mirror of the tutor route of the same name - GroupLevelView.jsx is one shared component
+ * for both callers via adminMode, so this must exist for admin's view of that page to work.
+ * Same strict group-scoping via _getGroupScope.
+ */
+router.get('/groups/:groupId/analytics/students/:studentId/recent-tests', verifyAdminAccess, async (req, res) => {
+    try {
+        const { assignedCourseIds } = await analyticsService._getGroupScope(req.params.groupId);
+        const tests = await analyticsService.getRecentCompletedTests(req.params.studentId, assignedCourseIds, null);
+        res.json({ tests });
+    } catch (error) {
+        console.error('Admin group recent completed tests error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // 3. Course Level
 router.get('/groups/:groupId/analytics/students/:studentId/courses/:courseName', verifyAdminAccess, async (req, res) => {
     try {

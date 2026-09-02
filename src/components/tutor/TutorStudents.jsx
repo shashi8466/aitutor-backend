@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { tutorService } from '../../services/api';
 import { useLocation, Link } from 'react-router-dom';
+import RecentCompletedTestsPanel from '../analytics/RecentCompletedTestsPanel';
 
 const { FiUsers, FiSearch, FiFilter, FiMail, FiBarChart2, FiCalendar, FiBook, FiArrowDown, FiArrowUp, FiChevronDown, FiCheck } = FiIcons;
 
@@ -113,6 +115,9 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortBy, setSortBy] = useState('last_activity');
     const [sortDir, setSortDir] = useState('desc');
+    // Only one student's Recent Completed Tests panel expanded at a time; clicking the same
+    // student again collapses it.
+    const [expandedStudentId, setExpandedStudentId] = useState(null);
 
     useEffect(() => {
         if (dashboardData?.courses) {
@@ -277,10 +282,16 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                 filteredStudents.map(student => {
                                     const status = getStudentStatus(student);
                                     const meta = STATUS_META[status];
+                                    const isExpanded = expandedStudentId === student.id;
                                     return (
-                                    <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors group">
+                                    <React.Fragment key={student.id}>
+                                    <tr
+                                        onClick={() => setExpandedStudentId(isExpanded ? null : student.id)}
+                                        className={`hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors group cursor-pointer ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                                    >
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
+                                                <SafeIcon icon={isExpanded ? FiIcons.FiChevronUp : FiChevronDown} className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                                                 <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-black text-sm uppercase">
                                                     {student.name?.charAt(0) || 'S'}
                                                 </div>
@@ -324,7 +335,7 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                                 {student.last_activity ? new Date(student.last_activity).toLocaleDateString() : 'Never'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex justify-center gap-2">
                                                 <button
                                                     onClick={() => window.location.href = `mailto:${student.email}`}
@@ -343,6 +354,25 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                             </div>
                                         </td>
                                     </tr>
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.tr
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                            >
+                                                <td colSpan="7" className="px-6 pb-5 pt-0 bg-gray-50/50 dark:bg-gray-900/20">
+                                                    <RecentCompletedTestsPanel
+                                                        fetchTests={() => tutorService.getStudentRecentTests(student.id)}
+                                                        basePath="/tutor"
+                                                        title="Recent Completed Tests"
+                                                        emptyMessage="No completed tests yet."
+                                                    />
+                                                </td>
+                                            </motion.tr>
+                                        )}
+                                    </AnimatePresence>
+                                    </React.Fragment>
                                     );
                                 })
                             )}

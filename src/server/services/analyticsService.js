@@ -711,6 +711,61 @@ export const analyticsService = {
         return best;
     },
 
+    /**
+     * RECENT COMPLETED TESTS
+     *
+     * A student's completed test_submissions, most-recently-completed first, scoped to whichever
+     * course IDs the caller passes (a tutor's assigned_courses, or one group's assigned_course_ids
+     * via _getGroupScope) - the caller decides the scope, this function never widens it. Used by
+     * the Tutor Student Roster (unscoped to any one group, capped to 10) and the Student Groups
+     * Analytics "Student Performance" table (scoped to that specific group's assigned content, no
+     * cap). Deliberately NOT the same thing as completedAttempts/getStudentDashboard, which
+     * combines Easy+Medium+Hard into one row per topic - this returns one row per individual
+     * completed submission, matching what both of those UIs actually asked for.
+     */
+    async getRecentCompletedTests(studentId, courseIds, limit) {
+        let q = supabase
+            .from('test_submissions')
+            .select('id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, test_date, created_at, course:courses(name, tutor_type, category, main_category, is_adaptive)')
+            .eq('user_id', studentId)
+            .eq('is_completed', true)
+            .order('created_at', { ascending: false });
+
+        // Same null-vs-[] convention as _getGroupScope: courseIds === null means unscoped (e.g.
+        // an admin caller) - no filter at all. A real (possibly empty) array means "restrict to
+        // exactly these courses", and an empty array must show nothing, never fall through to
+        // unscoped.
+        if (courseIds === null) {
+            // unscoped - no course filter
+        } else if (courseIds.length > 0) {
+            q = q.in('course_id', courseIds);
+        } else {
+            q = q.in('id', [-1]);
+        }
+        if (limit) q = q.limit(limit);
+
+        const { data, error } = await q;
+        if (error) throw error;
+
+        return (data || []).map(sub => {
+            const isFLT = this._isFullLengthCourse(sub.course);
+            const tutorType = (sub.course?.tutor_type || '').toLowerCase();
+            const subjectPrefix = tutorType.includes('math')
+                ? 'Math: '
+                : (tutorType.includes('reading') || tutorType.includes('writing')) ? 'Reading & Writing: ' : '';
+
+            return {
+                submissionId: sub.id,
+                courseId: sub.course_id,
+                testName: isFLT ? (sub.course?.name || 'Full-Length Test') : `${subjectPrefix}${sub.course?.name || 'Test'}`,
+                date: sub.test_date || sub.created_at,
+                score: isFLT ? (sub.math_scaled_score || 0) + (sub.reading_scaled_score || 0) : (sub.scaled_score || 0),
+                maxScore: isFLT ? 1600 : 800,
+                isFullLengthTest: isFLT
+            };
+        });
+    },
+
     async _getStudentSubmissionsSplit(studentId) {
         const { data: submissions } = await supabase
             .from('test_submissions')

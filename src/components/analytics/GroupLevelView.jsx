@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import PdfExportWrapper from './PdfExportWrapper';
+import RecentCompletedTestsPanel from './RecentCompletedTestsPanel';
 import { tutorService, adminService, courseService } from '../../services/api';
 import { buildGroupContentTree } from '../../utils/groupContentTree';
 
-const { FiUsers, FiTarget, FiTrendingUp, FiActivity, FiChevronRight, FiClock, FiBookOpen } = FiIcons;
+const { FiUsers, FiTarget, FiTrendingUp, FiActivity, FiChevronRight, FiChevronDown, FiChevronUp, FiClock, FiBookOpen } = FiIcons;
 
 // Mirrors the eventual page layout (header stats row, three Top-10 card rows, table) so the
 // page reads as "already open, still populating" rather than a blank screen behind a spinner.
@@ -36,6 +38,7 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
     const [error, setError] = useState(null);
     const [contentTree, setContentTree] = useState(null);
     const [retryToken, setRetryToken] = useState(0);
+    const [expandedStudentId, setExpandedStudentId] = useState(null);
 
     const service = adminMode ? adminService : tutorService;
 
@@ -453,9 +456,11 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800 text-xs font-bold">
-                                {students.map((student) => (
-                                    <tr 
-                                        key={student.id} 
+                                {students.map((student) => {
+                                    const isExpanded = expandedStudentId === student.id;
+                                    return (
+                                    <React.Fragment key={student.id}>
+                                    <tr
                                         onClick={() => onStudentSelect(student)}
                                         className="hover:bg-blue-600/10 cursor-pointer transition-all group"
                                     >
@@ -488,10 +493,40 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
                                                 >
                                                     Test History <SafeIcon icon={FiClock} className="w-3.5 h-3.5" />
                                                 </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setExpandedStudentId(isExpanded ? null : student.id);
+                                                    }}
+                                                    className="text-slate-300 font-black text-xs inline-flex items-center gap-1 hover:underline cursor-pointer"
+                                                    title="Recent Completed Tests (this group)"
+                                                >
+                                                    Recent Tests <SafeIcon icon={isExpanded ? FiChevronUp : FiChevronDown} className="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.tr
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                            >
+                                                <td colSpan="6" className="p-4 bg-slate-900/40">
+                                                    <RecentCompletedTestsPanel
+                                                        fetchTests={() => service.getGroupStudentRecentTests(groupId, student.id)}
+                                                        basePath={adminMode ? '/admin' : '/tutor'}
+                                                        title="Recent Completed Tests — This Group"
+                                                        emptyMessage="No completed tests in this group."
+                                                    />
+                                                </td>
+                                            </motion.tr>
+                                        )}
+                                    </AnimatePresence>
+                                    </React.Fragment>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

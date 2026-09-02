@@ -753,6 +753,34 @@ export const uploadService = {
   },
   update: async (id, updates) => {
     return await supabase.from('uploads').update(updates).eq('id', id);
+  },
+  /**
+   * Downloads a .docx regenerated from this upload's CURRENT question records (reflecting any
+   * edits made through Edit Question), not the original uploaded file - which stays untouched
+   * at uploads.file_url. Triggers a normal browser file-save via a temporary blob link, the
+   * same pattern used elsewhere in this app for generated downloads.
+   */
+  downloadCurrentQuestions: async (uploadId, suggestedFileName) => {
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    const headers = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+
+    const response = await axios.get(`/api/upload/${uploadId}/download`, {
+      headers,
+      responseType: 'blob'
+    });
+
+    const blobUrl = URL.createObjectURL(response.data);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    const baseName = (suggestedFileName || `upload-${uploadId}`).replace(/\.[^/.]+$/, '');
+    link.download = `${baseName}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
   }
 };
 
@@ -1453,6 +1481,11 @@ export const tutorService = {
   getStudentProgress: async (studentId) => {
     return cachedTutorGet(`studentProgress_${studentId}`, `/api/tutor/student-progress/${studentId}`);
   },
+  // Student Roster's expandable row - 10 most recent completed tests, scoped to the tutor's
+  // assigned_courses (not tied to any one group).
+  getStudentRecentTests: async (studentId) => {
+    return axios.get(`/api/tutor/students/${studentId}/recent-tests`);
+  },
   getStudentTopicReport: async (studentId, courseId) => {
     return axios.get(`/api/tutor/student-topic-report/${studentId}/${courseId}`);
   },
@@ -1462,6 +1495,11 @@ export const tutorService = {
   },
   getStudentDashboard: async (groupId, studentId) => {
     return axios.get(`/api/tutor/groups/${groupId}/analytics/students/${studentId}`);
+  },
+  // Student Performance table's expandable row - completed tests scoped STRICTLY to this
+  // group's assigned content (server-side, via _getGroupScope), never all of the student's tests.
+  getGroupStudentRecentTests: async (groupId, studentId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/analytics/students/${studentId}/recent-tests`);
   },
   getCourseAnalytics: async (groupId, studentId, courseName) => {
     return axios.get(`/api/tutor/groups/${groupId}/analytics/students/${studentId}/courses/${encodeURIComponent(courseName)}`);
@@ -1671,6 +1709,11 @@ export const adminService = {
   },
   getStudentDashboard: async (groupId, studentId) => {
     return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}`);
+  },
+  // Student Performance table's expandable row - completed tests scoped STRICTLY to this
+  // group's assigned content (server-side, via _getGroupScope), never all of the student's tests.
+  getGroupStudentRecentTests: async (groupId, studentId) => {
+    return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}/recent-tests`);
   },
   getCourseAnalytics: async (groupId, studentId, courseName) => {
     return axios.get(`/api/admin/groups/${groupId}/analytics/students/${studentId}/courses/${encodeURIComponent(courseName)}`);
