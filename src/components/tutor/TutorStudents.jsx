@@ -6,7 +6,7 @@ import { tutorService } from '../../services/api';
 import { useLocation, Link } from 'react-router-dom';
 import RecentCompletedTestsPanel from '../analytics/RecentCompletedTestsPanel';
 
-const { FiUsers, FiSearch, FiFilter, FiMail, FiBarChart2, FiCalendar, FiBook, FiArrowDown, FiArrowUp, FiChevronDown, FiCheck } = FiIcons;
+const { FiUsers, FiSearch, FiFilter, FiMail, FiBarChart2, FiCalendar, FiBook, FiArrowDown, FiArrowUp, FiChevronDown, FiCheck, FiCheckCircle, FiClock, FiAlertTriangle } = FiIcons;
 
 // Status thresholds, based on the student's most recent MEANINGFUL activity
 // (test start/submit/completion - never just a login). A student with no such
@@ -193,6 +193,21 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
         return sorted;
     }, [students, searchQuery, statusFilter, sortBy, sortDir]);
 
+    // Counts always reflect the FULL roster (never the search/status filter), so the numbers at
+    // the top stay a stable reference point no matter what the table below is currently showing.
+    const statusCounts = useMemo(() => {
+        const counts = { active: 0, inactive: 0, attention: 0 };
+        students.forEach(s => { counts[getStudentStatus(s)]++; });
+        return { all: students.length, ...counts };
+    }, [students]);
+
+    const STAT_CARDS = [
+        { key: 'all', label: 'Total Students', value: statusCounts.all, icon: FiUsers, text: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+        { key: 'active', label: 'Active', value: statusCounts.active, icon: FiCheckCircle, text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+        { key: 'inactive', label: 'Inactive', value: statusCounts.inactive, icon: FiClock, text: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
+        { key: 'attention', label: 'Needs Attention', value: statusCounts.attention, icon: FiAlertTriangle, text: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20' }
+    ];
+
     if (loading && students.length === 0) return <div className="p-8 text-center text-blue-600 font-bold animate-pulse">Loading students...</div>;
 
     return (
@@ -239,6 +254,29 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                         </button>
                     </div>
                 </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {STAT_CARDS.map(stat => (
+                    <button
+                        key={stat.key}
+                        type="button"
+                        onClick={() => setStatusFilter(stat.key)}
+                        className={`text-left bg-white dark:bg-gray-800 rounded-2xl p-4 border shadow-sm flex items-center gap-3 transition-all ${
+                            statusFilter === stat.key
+                                ? 'border-blue-500 ring-1 ring-blue-500'
+                                : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'
+                        }`}
+                    >
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${stat.bg} ${stat.text}`}>
+                            <SafeIcon icon={stat.icon} className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-2xl font-black text-gray-900 dark:text-white leading-tight">{stat.value}</p>
+                            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide truncate">{stat.label}</p>
+                        </div>
+                    </button>
+                ))}
             </div>
 
             <div className="flex flex-wrap gap-2">
