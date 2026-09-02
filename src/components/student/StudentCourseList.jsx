@@ -845,23 +845,16 @@ const getCourseStatusInfo = (course, submissions = []) => {
     const hasHard = completedLevels.has('hard');
     const distinctLevelsCount = [hasEasy, hasMedium, hasHard].filter(Boolean).length;
 
-    if (
-      distinctLevelsCount >= 3 || 
-      (hasEasy && hasMedium && hasHard) || 
-      submissions.length >= 3 || 
-      course.user_progress === 100 || 
-      course.progress === 100 ||
-      submissions.some(s => s.level === 'combined' || s.is_completed === true)
-    ) {
+    // The course as a whole is "Completed" only once every required level (Easy, Medium, Hard)
+    // has been completed - matching the REQUIRED_LEVELS/isFullyCompleted rule already
+    // established in analyticsService.getTopicCombinedReport(). A single completed submission
+    // (even several retakes of the same level) must never flip the whole card to "Completed".
+    if (hasEasy && hasMedium && hasHard) {
       isCompleted = true;
       progressPct = 100;
-    } else if (distinctLevelsCount > 0 || submissions.length > 0 || Number(course.user_progress) > 0 || Number(course.progress) > 0) {
+    } else if (distinctLevelsCount > 0) {
       isInProgress = true;
-      if (distinctLevelsCount === 2 || submissions.length === 2) {
-        progressPct = 67;
-      } else {
-        progressPct = 33;
-      }
+      progressPct = distinctLevelsCount === 2 ? 67 : 33;
     } else {
       isNotAttempted = true;
       progressPct = 0;
