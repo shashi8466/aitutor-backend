@@ -181,17 +181,17 @@ const TutorDashboard = () => {
                 its positioning - translate-x-0 vs -translate-x-full is enough for the mobile
                 slide in/out. */}
             <aside
-                className={`fixed top-0 bottom-0 left-0 w-72 shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out
+                className={`fixed top-0 bottom-0 left-0 w-72 h-screen shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-50 flex flex-col overflow-hidden transition-transform duration-300 ease-in-out
                     lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
             >
-                        <div className="p-6 pb-0 shrink-0">
-                            <div className="flex items-center justify-between mb-8">
+                        <div className="p-3 pb-0 shrink-0">
+                            <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                                        <SafeIcon icon={FiUsers} className="w-6 h-6 text-white" />
+                                    <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                                        <SafeIcon icon={FiUsers} className="w-5 h-5 text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Tutor Panel</h2>
+                                        <h2 className="text-base font-bold text-gray-900 dark:text-white">Tutor Panel</h2>
                                         <p className="text-xs text-gray-500 dark:text-gray-400">Manage & Track</p>
                                     </div>
                                 </div>
@@ -203,13 +203,13 @@ const TutorDashboard = () => {
                                 </button>
                             </div>
 
-                            <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                            <div className="mb-3 p-2.5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0">
                                         {user?.name?.charAt(0) || 'T'}
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-gray-900 dark:text-white truncate">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm text-gray-900 dark:text-white truncate">
                                             {user?.name || 'Tutor'}
                                         </p>
                                         <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
@@ -218,44 +218,45 @@ const TutorDashboard = () => {
                                     </div>
                                 </div>
                                 {dashboardData && (
-                                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-blue-200 dark:border-blue-800">
                                         <div className="text-center">
-                                            <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                                            <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
                                                 {dashboardData.stats?.totalCourses || 0}
                                             </p>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400">Courses</p>
+                                            <p className="text-[11px] text-gray-600 dark:text-gray-400">Courses</p>
                                         </div>
                                         <div className="text-center">
-                                            <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                                            <p className="text-sm font-bold text-blue-600 dark:text-blue-400">
                                                 {typeof dashboardData.stats?.totalStudents === 'object' ? (dashboardData.stats.totalStudents.count || 0) : (dashboardData.stats?.totalStudents || 0)}
                                             </p>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400">Students</p>
+                                            <p className="text-[11px] text-gray-600 dark:text-gray-400">Students</p>
                                         </div>
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <nav className="flex-1 overflow-y-auto px-6 space-y-1">
+                        {/* Nav - no overflow container, fills remaining space, never scrolls */}
+                        <nav className="flex-1 min-h-0 overflow-hidden px-3 space-y-0.5">
                             {menuItems.map((item) => (
                                 <Link
                                     key={item.path}
                                     to={item.path}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActivePath(item.path, item.exact)
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isActivePath(item.path, item.exact)
                                         ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200 dark:shadow-none'
                                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                         }`}
                                 >
                                     <SafeIcon icon={item.icon} className="w-5 h-5" />
-                                    <span className="font-medium">{item.label}</span>
+                                    <span className="text-sm font-medium">{item.label}</span>
                                 </Link>
                             ))}
                         </nav>
 
-                        <div className="p-6 pt-6 shrink-0">
+                        <div className="p-3 pt-3 shrink-0">
                             <button
                                 onClick={handleLogout}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-200 dark:border-red-800"
                             >
                                 <SafeIcon icon={FiLogOut} className="w-5 h-5" />
                                 <span className="font-medium">Logout</span>

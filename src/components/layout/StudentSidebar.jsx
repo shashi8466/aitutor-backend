@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import BrandName from '../../common/BrandName';
@@ -20,19 +20,6 @@ const StudentSidebar = ({ isOpen, onClose }) => {
 
   const isPremium = user?.plan_type === 'premium' && user?.plan_status === 'active';
   const isPending = user?.plan_status === 'pending_upgrade';
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    // Restore scroll position on mount
-    const savedScroll = sessionStorage.getItem('studentSidebarScrollPos');
-    if (savedScroll && scrollRef.current) {
-      scrollRef.current.scrollTop = parseInt(savedScroll, 10);
-    }
-  }, []);
-
-  const handleScroll = (e) => {
-    sessionStorage.setItem('studentSidebarScrollPos', e.target.scrollTop);
-  };
 
   useEffect(() => {
     if (user?.plan_type) {
@@ -119,7 +106,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         end={item.exact}
         onClick={(e) => handleLinkClick(e, item)}
         className={({ isActive }) => `
-          flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group mb-1
+          flex items-center justify-between px-3 py-1 rounded-lg transition-all duration-200 group mb-0.5
           ${!isEnabled ? 'opacity-70 grayscale' : ''}
           ${isActive
             ? 'bg-red-50 dark:bg-red-900/20 text-[#E53935] font-bold shadow-sm border-l-4 border-[#E53935]'
@@ -150,20 +137,22 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         onClick={onClose}
       />
 
-      {/* Sidebar Container */}
+      {/* Sidebar Container - fixed, spans the full viewport height, and never scrolls itself
+          (overflow-hidden). Every internal region below is sized to fit within 100vh - the
+          menu list has no independent scroll container, unlike the old overflow-y-auto build. */}
       <div className={`
-        fixed top-0 left-0 bottom-0 z-50 w-72 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none
+        fixed top-0 left-0 bottom-0 z-50 w-72 h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none
         lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        overflow-hidden flex flex-col
+        overflow-hidden
       `}>
-        <div className="h-20 flex items-center px-6 border-b border-gray-100 dark:border-gray-800 justify-center flex-shrink-0 relative">
+        <div className="h-14 flex items-center px-5 border-b border-gray-100 dark:border-gray-800 justify-center flex-shrink-0 relative">
           <div className="flex items-center justify-center w-full">
-            <div className="h-12 w-auto max-w-[200px] flex items-center justify-center overflow-hidden text-black dark:text-white">
+            <div className="h-9 w-auto max-w-[200px] flex items-center justify-center overflow-hidden text-black dark:text-white">
             {appSettings.logoUrl ? (
               <img src={appSettings.logoUrl} alt="Logo" className="h-full w-auto object-contain rounded-[6px]" />
             ) : (
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
-                <span className="text-2xl">🤖</span>
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg border border-white/20">
+                <span className="text-lg">🤖</span>
               </div>
             )}
             </div>
@@ -174,15 +163,13 @@ const StudentSidebar = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Scrollable Menu */}
-        <div 
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto py-6 px-4 space-y-6 custom-scrollbar"
-        >
+        {/* Menu - no overflow container, fills remaining space, never scrolls. Top-aligned
+            (not centered/justified) so that on an unusually short viewport any residual
+            overflow clips only the bottom-most (least-used) items, never the top ones. */}
+        <div className="flex-1 min-h-0 overflow-hidden py-2.5 px-3 flex flex-col gap-2">
           {menuGroups.map((group, idx) => (
-            <div key={idx} className="mb-6 last:mb-0">
-              <p className="px-4 text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <div key={idx}>
+              <p className="px-3 text-[9px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"></span>
                 {group.title}
               </p>
@@ -192,12 +179,12 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* User Footer */}
-        <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20">
+        <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-black/20 flex-shrink-0">
           {!isPremium && !isPending && (
             <NavLink
               to="/student/upgrade"
               onClick={onClose}
-              className="mb-4 flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 group"
+              className="mb-2 flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 group"
             >
               <div className="bg-white/20 p-1.5 rounded-lg group-hover:rotate-12 transition-transform">
                 <SafeIcon icon={FiIcons.FiGift} className="w-5 h-5 text-white" />
@@ -211,7 +198,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
           )}
 
           {isPending && (
-            <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-100 dark:border-blue-800">
+            <div className="mb-2 flex items-center gap-3 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-100 dark:border-blue-800">
               <SafeIcon icon={FiIcons.FiClock} className="w-5 h-5 animate-pulse" />
               <div className="flex-1">
                 <p className="text-xs font-bold">Upgrade Pending</p>
@@ -220,9 +207,9 @@ const StudentSidebar = ({ isOpen, onClose }) => {
             </div>
           )}
 
-          <div className="rounded-xl p-2 flex items-center justify-between group">
+          <div className="rounded-xl p-1.5 flex items-center justify-between group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 ring-2 ring-white dark:ring-gray-800 shadow-sm relative">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-300 ring-2 ring-white dark:ring-gray-800 shadow-sm relative">
                 <SafeIcon icon={FiUser} className="w-5 h-5" />
                 {isPremium && (
                   <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-0.5 border-2 border-white dark:border-gray-800">
