@@ -219,7 +219,7 @@ const UniversalLeaderboard = ({
     const effectiveStudentId = targetStudentId || (role === 'student' ? user?.id : null);
 
     return (
-        <div className="w-full bg-[#0B0D14] text-white p-4 sm:p-8 rounded-[32px] font-sans border border-slate-800 shadow-2xl">
+        <div className="w-full bg-gray-900 text-white p-4 sm:p-8 rounded-[32px] font-sans border border-slate-800 shadow-2xl">
             {/* Header Title Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-slate-800 pb-6">
                 <div>
@@ -508,7 +508,7 @@ const UniversalLeaderboard = ({
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm">
-                                    <thead className="bg-[#0B0D14] text-[10px] uppercase tracking-widest text-slate-400 border-b border-slate-800">
+                                    <thead className="bg-gray-900 text-[10px] uppercase tracking-widest text-slate-400 border-b border-slate-800">
                                         <tr>
                                             <th className="py-4 px-6 font-black">Rank</th>
                                             <th className="py-4 px-6 font-black">Student</th>
