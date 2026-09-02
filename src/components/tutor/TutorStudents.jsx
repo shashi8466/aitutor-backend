@@ -268,7 +268,7 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Progress</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Last Active</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Actions</th>
+                                <th className="sticky right-0 z-10 px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-center bg-gray-50 dark:bg-gray-900/50 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
@@ -335,7 +335,10 @@ const TutorStudents = ({ dashboardData, isParentLoading }) => {
                                                 {student.last_activity ? new Date(student.last_activity).toLocaleDateString() : 'Never'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                        <td
+                                            className={`sticky right-0 z-10 px-6 py-4 text-center shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] group-hover:bg-gray-50 dark:group-hover:bg-gray-900/30 ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'bg-white dark:bg-gray-800'}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <div className="flex justify-center gap-2">
                                                 <button
                                                     onClick={() => window.location.href = `mailto:${student.email}`}
