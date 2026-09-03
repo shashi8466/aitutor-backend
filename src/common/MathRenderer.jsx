@@ -60,6 +60,23 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
     processedText = processedText.replace(/(^|[^\\])text(?=\{)/g, '$1\\text');
     processedText = processedText.replace(/\\text\{\s*\}/g, '');
 
+    // FIX: Unwrap prose accidentally merged into a math run (an occasional import/
+    // generation artifact where a whole sentence ends up inside \text{...} directly
+    // touching real math with no separator, e.g. "(x-4)\text{The function is given...}").
+    // Only fires when \text{ is immediately preceded by actual math content (not an
+    // opening delimiter/brace, which is the normal, correct way \text{} is used) AND
+    // its content is multi-word prose (contains whitespace, so short single-word
+    // labels/units like \text{cm} are left untouched). Pulling the prose out into
+    // plain text - instead of just adding a space - also lets it word-wrap normally,
+    // since MathJax renders an inline \(...\) run as one atomic, non-wrapping element.
+    processedText = processedText.replace(
+      /([)\]0-9a-zA-Z;=.,+-])\\text\{((?=[^{}]*\s)[^{}]*)\}/g,
+      (match, prefix, content) => `${prefix}\\) ${content.trim()} \\(`
+    );
+    // Clean up empty math pairs left behind when the unwrap above lands at the very
+    // start/end of a \(...\) run (e.g. a trailing "\(\)" once its last \text{} is pulled out).
+    processedText = processedText.replace(/\\\(\s*\\\)/g, '');
+
     // FIX: Clean up spaces inside delimiters to help MathJax detection
     processedText = processedText.replace(/\\\(\s+/g, '\\(').replace(/\s+\\\)/g, '\\)');
     processedText = processedText.replace(/\\\\(\(|\)|\[|\])/g, '\\$1');
