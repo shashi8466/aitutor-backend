@@ -786,7 +786,7 @@ router.post('/submit-test', async (req, res) => {
                     selected_answer,
                     is_correct,
                     time_spent,
-                    question:questions(id, question, correct_answer, explanation, topic, section, difficulty, concept)
+                    question:questions(id, question, correct_answer, explanation, topic, section, level, concept)
                 `)
                 .eq('submission_id', result.submission_id);
 
@@ -1013,7 +1013,7 @@ router.post('/submit-adaptive-test', async (req, res) => {
                     selected_answer,
                     is_correct,
                     time_spent,
-                    question:questions(id, question, correct_answer, explanation, topic, section, difficulty, concept)
+                    question:questions(id, question, correct_answer, explanation, topic, section, level, concept)
                 `)
                 .eq('submission_id', submission.id);
 
@@ -1336,7 +1336,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                 
                 const { data: questions } = await supabase
                     .from('questions')
-                    .select('id, question, correct_answer, explanation, topic, section, difficulty')
+                    .select('id, question, correct_answer, explanation, topic, section, level')
                     .in('id', meta.questionIds);
                 
                 if (questions) {
@@ -1358,7 +1358,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                                     subject: q.section || q.topic,
                                     section: q.section,
                                     topic: q.topic,
-                                    difficulty: q.difficulty
+                                    difficulty: q.level
                                 };
                                 if (isCorrect) submission.correct_responses.push(resp);
                                 else submission.incorrect_responses.push(resp);
@@ -1383,10 +1383,14 @@ router.get('/submission/:submissionId', async (req, res) => {
 
                 if (missingIds.length > 0) {
                     console.log(`🔍 [GRADING] Fetching ${missingIds.length} missing incorrect questions for sub ${sid}`);
-                    const { data: fallback } = await supabase
+                    const { data: fallback, error: fallbackError } = await supabase
                         .from('questions')
-                        .select('id, question, correct_answer, explanation, topic, section, difficulty')
+                        .select('id, question, correct_answer, explanation, topic, section, level')
                         .in('id', missingIds);
+
+                    if (fallbackError) {
+                        console.error(`❌ [GRADING] Failed to fetch missing incorrect questions for sub ${sid}:`, fallbackError);
+                    }
 
                     if (fallback) {
                         submission.incorrect_responses = [
@@ -1400,7 +1404,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                                 subject: q.section || q.topic,
                                 section: q.section,
                                 topic: q.topic,
-                                difficulty: q.difficulty
+                                difficulty: q.level
                             }))
                         ];
                     }
@@ -1413,10 +1417,14 @@ router.get('/submission/:submissionId', async (req, res) => {
 
                 if (missingIds.length > 0) {
                     console.log(`🔍 [GRADING] Fetching ${missingIds.length} missing correct questions for sub ${sid}`);
-                    const { data: fallback } = await supabase
+                    const { data: fallback, error: fallbackError } = await supabase
                         .from('questions')
-                        .select('id, question, correct_answer, explanation, topic, section, difficulty')
+                        .select('id, question, correct_answer, explanation, topic, section, level')
                         .in('id', missingIds);
+
+                    if (fallbackError) {
+                        console.error(`❌ [GRADING] Failed to fetch missing correct questions for sub ${sid}:`, fallbackError);
+                    }
 
                     if (fallback) {
                         submission.correct_responses = [
@@ -1430,7 +1438,7 @@ router.get('/submission/:submissionId', async (req, res) => {
                                 subject: q.section || q.topic,
                                 section: q.section,
                                 topic: q.topic,
-                                difficulty: q.difficulty
+                                difficulty: q.level
                             }))
                         ];
                     }
@@ -1560,44 +1568,16 @@ router.get('/submission/:submissionId', async (req, res) => {
                 }
             }
             
-            // LAST RESORT: Create dummy data if nothing found (for testing purposes)
+            // Genuinely no per-question detail could be recovered for this submission (test_responses
+            // was empty AND the referenced question_ids no longer exist, e.g. the course's questions
+            // were re-uploaded/replaced after this attempt). Never fabricate placeholder data here -
+            // that actively misleads students/tutors into thinking it's the real question-by-question
+            // breakdown. Leave the arrays honestly empty and flag it so the frontend can show a clear
+            // "not available" message instead, matching how CombinedRegularCourseReport already
+            // handles the equivalent gap for regular-course attempts.
             if (submission.incorrect_responses.length === 0 && submission.correct_responses.length === 0) {
-                console.log(`🚨 [GRADING] Still no data found, creating minimal response structure`);
-                
-                // Create a basic response based on available score data
-                const score = submission.scaled_score || submission.total_score || submission.score || 0;
-                const totalQuestions = submission.total_questions || 100; // Default assumption
-                
-                // Estimate correct answers based on score (very rough approximation)
-                let estimatedCorrect = 0;
-                if (submission.course?.tutor_type === 'Full-Length SAT Test') {
-                    // SAT scoring: 400 base + 10 points per correct answer (rough estimate)
-                    estimatedCorrect = Math.max(0, Math.floor((score - 400) / 10));
-                } else {
-                    // Percentage-based scoring
-                    estimatedCorrect = Math.max(0, Math.floor((score / 100) * totalQuestions));
-                }
-                
-                const estimatedIncorrect = Math.max(0, totalQuestions - estimatedCorrect);
-                
-                console.log(`🔧 [GRADING] Creating estimated responses: ${estimatedCorrect} correct, ${estimatedIncorrect} incorrect`);
-                
-                // Create basic response objects
-                submission.correct_responses = Array.from({ length: Math.min(estimatedCorrect, 5) }, (_, i) => ({
-                    selected_answer: 'A',
-                    question_text: `Sample correct question ${i + 1}`,
-                    correct_answer: 'A',
-                    explanation: 'This is a sample explanation',
-                    subject: 'Sample Subject'
-                }));
-                
-                submission.incorrect_responses = Array.from({ length: Math.min(estimatedIncorrect, 5) }, (_, i) => ({
-                    selected_answer: 'B',
-                    question_text: `Sample incorrect question ${i + 1}`,
-                    correct_answer: 'A',
-                    explanation: 'This is a sample explanation',
-                    subject: 'Sample Subject'
-                }));
+                console.warn(`⚠️ [GRADING] No real question-wise detail available for submission ${sid} - reporting as unavailable, not fabricating data.`);
+                submission.question_detail_unavailable = true;
             }
         }
 

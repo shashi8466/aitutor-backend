@@ -142,7 +142,7 @@ class DrillGeneratorService {
             .from('questions')
             .select('*')
             .eq('course_id', courseId)
-            .eq('difficulty', difficulty)
+            .eq('level', difficulty)
             .neq('id', analysis.submissionId)
             .limit(config.questionCount * 2);
 
@@ -343,9 +343,9 @@ class DrillGeneratorService {
      * Select questions with specific difficulty distribution
      */
     selectQuestionsByDifficulty(questions, difficultyMix, targetCount) {
-        const easy = questions.filter(q => q.difficulty === 'Easy');
-        const medium = questions.filter(q => q.difficulty === 'Medium');
-        const hard = questions.filter(q => q.difficulty === 'Hard');
+        const easy = questions.filter(q => q.level === 'Easy');
+        const medium = questions.filter(q => q.level === 'Medium');
+        const hard = questions.filter(q => q.level === 'Hard');
 
         const [easyRatio, mediumRatio, hardRatio] = difficultyMix;
         const easyCount = Math.floor(targetCount * easyRatio);

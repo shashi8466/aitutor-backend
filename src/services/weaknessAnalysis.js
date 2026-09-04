@@ -86,7 +86,7 @@ class WeaknessAnalysisService {
                 selected_answer,
                 is_correct,
                 time_spent,
-                question:questions(id, question, correct_answer, explanation, topic, section, difficulty, concept)
+                question:questions(id, question, correct_answer, explanation, topic, section, level, concept)
             `)
             .in('submission_id', submissions.map(s => s.id));
 
@@ -171,7 +171,7 @@ class WeaknessAnalysisService {
                 questionId: response.question?.id,
                 isCorrect,
                 timeSpent: response.time_spent,
-                difficulty: response.difficulty || response.question?.difficulty
+                difficulty: response.difficulty || response.question?.level
             });
             
             if (isCorrect) {
@@ -196,7 +196,7 @@ class WeaknessAnalysisService {
         const difficultyStats = {};
         
         responses.forEach(response => {
-            const difficulty = response.difficulty || response.question?.difficulty || 'Medium';
+            const difficulty = response.difficulty || response.question?.level || 'Medium';
             const isCorrect = response.is_correct;
             
             if (!difficultyStats[difficulty]) {
