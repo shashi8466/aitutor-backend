@@ -60,6 +60,52 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
     processedText = processedText.replace(/(^|[^\\])text(?=\{)/g, '$1\\text');
     processedText = processedText.replace(/\\text\{\s*\}/g, '');
 
+    // FIX: Repair bare "&"/"#"/"%" leaking unescaped into math mode - a DOCX/OMML import
+    // artifact (Word's manual equation-alignment tabs, or a literal "#"/"%" typed inside a
+    // math zone) that MathJax's TeX parser rejects outright ("Misplaced &", "You can't use
+    // macro parameter character '#'"), rendering its own error message in place of the
+    // equation instead of the intended content. This app's OMML converter never legitimately
+    // emits these characters (no align/array environment is ever produced), so a bare one at
+    // the outer (brace-depth 0) level of a math span is always an accidental alignment
+    // artifact - split the span into separate equations there, matching what the author's
+    // stacked/multi-step equation actually meant. Any bare &/#/% that can't be split without
+    // breaking brace matching (e.g. nested inside a \text{} argument) is swapped for its
+    // Unicode fullwidth lookalike (＆/＃/％) instead of a "\&"-style backslash escape -
+    // confirmed via isolated testing that MathJax's \text{} argument parser does NOT expand
+    // \&/\#/\% (renders the literal backslash character instead), while a plain printable
+    // Unicode character needs no escaping and renders correctly in every context.
+    const fixBareMathSpecials = (mathBody) => {
+      const parts = [];
+      let depth = 0;
+      let current = '';
+      for (let i = 0; i < mathBody.length; i++) {
+        const ch = mathBody[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') depth--;
+        if (ch === '&' && depth === 0 && mathBody[i - 1] !== '\\') {
+          parts.push(current);
+          current = '';
+          continue;
+        }
+        current += ch;
+      }
+      parts.push(current);
+
+      const FULLWIDTH = { '&': '＆', '#': '＃', '%': '％' };
+      return parts
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0)
+        .map((p) => p.replace(/(?<!\\)([&#%])/g, (m, c) => FULLWIDTH[c]));
+    };
+    processedText = processedText.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
+      const pieces = fixBareMathSpecials(inner);
+      return pieces.length > 0 ? pieces.map((p) => `\\(${p}\\)`).join(' ') : '';
+    });
+    processedText = processedText.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+      const pieces = fixBareMathSpecials(inner);
+      return pieces.length > 0 ? pieces.map((p) => `\\[${p}\\]`).join(' ') : '';
+    });
+
     // FIX: Unwrap prose accidentally merged into a math run (an occasional import/
     // generation artifact where a whole sentence ends up inside \text{...} directly
     // touching real math with no separator, e.g. "(x-4)\text{The function is given...}").

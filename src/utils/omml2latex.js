@@ -135,6 +135,20 @@ export const convertToLatex = (node) => {
         const safeVal = val.replace(/}/g, '\\}').replace(/{/g, '\\{');
         return `\\text{${safeVal}}`;
       }
+
+      // A lone LaTeX-reserved character typed as literal text inside a Word math zone
+      // (e.g. "#" for "number of", "&" from a manual equation-alignment tab, a literal
+      // "%" or "_") is not a structural math command here - emitting it raw crashes
+      // MathJax's parser ("Misplaced &", "macro parameter character '#'") instead of
+      // rendering. Swap it for its Unicode fullwidth lookalike rather than a "\&"-style
+      // backslash escape - confirmed via isolated testing that MathJax's \text{} argument
+      // parser does not expand \&/\#/\%/\_ (renders the literal backslash character
+      // instead), while a plain printable Unicode character needs no escaping at all and
+      // renders correctly in every context, nested or not.
+      const FULLWIDTH = { '&': '＆', '%': '％', '#': '＃', '_': '＿' };
+      if (FULLWIDTH[val]) {
+        return FULLWIDTH[val];
+      }
       return val;
 
     default: // Recurse for unknown/container tags (like num, den, e, etc.)
