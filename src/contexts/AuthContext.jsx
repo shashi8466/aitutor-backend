@@ -73,16 +73,40 @@ const getInitialState = () => {
     return { user: null, loading: hasPossibleSession }; 
 };
 
+// A trustworthy preview_user must be a full profile row (id + role at minimum) - anything
+// less (e.g. a partial/corrupted localStorage value) would silently render the previewed
+// dashboard with wrong/default data (wrong plan badge, empty leaderboard/history/drills)
+// instead of that user's real data, with no obvious error to explain why.
+const isValidPreviewUser = (u) => !!(u && typeof u === 'object' && u.id && u.role);
+
 export const AuthProvider = ({ children }) => {
   const [state, setState] = useState(getInitialState);
   const [previewUser, setPreviewUser] = useState(() => {
     if (typeof window === 'undefined') return null;
-    const stored = localStorage.getItem('preview_user');
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem('preview_user');
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (parsed && !isValidPreviewUser(parsed)) {
+        console.warn('[Auth] Discarding malformed preview_user from localStorage:', parsed);
+        localStorage.removeItem('preview_user');
+        localStorage.removeItem('preview_user_id');
+        return null;
+      }
+      return parsed;
+    } catch (e) {
+      console.warn('[Auth] Failed to parse stored preview_user, clearing it', e);
+      localStorage.removeItem('preview_user');
+      localStorage.removeItem('preview_user_id');
+      return null;
+    }
   });
   const { user, loading } = state;
 
   const handleSetPreviewUser = (u) => {
+    if (u && !isValidPreviewUser(u)) {
+      console.error('[Auth] Refusing to enter preview mode with an incomplete user object:', u);
+      return;
+    }
     setPreviewUser(u);
     if (u) {
       localStorage.setItem('preview_user', JSON.stringify(u));
