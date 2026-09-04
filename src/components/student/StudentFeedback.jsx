@@ -126,7 +126,7 @@ Comments: ${formData.message || 'None'}`;
         email: formData.anonymous ? 'anonymous@example.com' : (user.email || 'N/A'),
         subject: `Student Feedback: ${selectedAttempt.course_name}`,
         message: messageBody,
-      });
+      }, 'student_support');
 
       setToast({ message: "Feedback submitted successfully! Thank you.", type: "success" });
       setFormData({

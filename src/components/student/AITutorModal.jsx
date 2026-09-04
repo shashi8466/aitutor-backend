@@ -5,8 +5,9 @@ import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
 import { aiService, planService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import ChatbotIssueModal from './ChatbotIssueModal';
 
-const { FiX, FiUser, FiCpu, FiSend, FiLightbulb, FiRefreshCw, FiCheck, FiAlertCircle, FiAward } = FiIcons;
+const { FiX, FiUser, FiCpu, FiSend, FiLightbulb, FiRefreshCw, FiCheck, FiAlertCircle, FiAward, FiFlag } = FiIcons;
 
 const AIQuestionCard = ({ data, onComplete }) => {
   const [selected, setSelected] = useState('');
@@ -190,6 +191,7 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [featureEnabled, setFeatureEnabled] = useState(true);
+  const [reportingMessage, setReportingMessage] = useState(null);
   const [chatMessages, setChatMessages] = useState([
     {
       id: 1,
@@ -661,6 +663,15 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
                           ))}
                         </div>
                       )}
+
+                      {msg.sender !== 'user' && (
+                        <button
+                          onClick={() => setReportingMessage(msg.text)}
+                          className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-gray-400 hover:text-[#E53935] transition-colors"
+                        >
+                          <SafeIcon icon={FiFlag} className="w-3 h-3" /> Report
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -699,6 +710,12 @@ const AITutorModal = ({ question, userAnswer, correctAnswer, onClose, isACT, fal
           </div>
         </div>
       </motion.div>
+
+      <ChatbotIssueModal
+        isOpen={!!reportingMessage}
+        onClose={() => setReportingMessage(null)}
+        chatMessage={reportingMessage}
+      />
     </motion.div>
   );
 };

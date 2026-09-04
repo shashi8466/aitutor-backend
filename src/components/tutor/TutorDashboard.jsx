@@ -10,7 +10,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import {
     FiHome, FiBook, FiUsers, FiKey, FiMail, FiBarChart2,
     FiSettings, FiLogOut, FiMenu, FiX, FiAward, FiClock,
-    FiTrendingUp, FiCheckCircle, FiLayers, FiGrid
+    FiTrendingUp, FiCheckCircle, FiLayers, FiGrid, FiFlag
 } from 'react-icons/fi';
 
 // Lazy load tutor components
@@ -38,6 +38,7 @@ const TestReview = lazy(() => import('../student/agents/TestReview'));
 const DetailedTestReview = lazy(() => import('../student/DetailedTestReview'));
 const FullTestReport = lazy(() => import('../common/FullTestReport'));
 const UniversalLeaderboard = lazy(() => import('../common/UniversalLeaderboard'));
+const TutorSupport = lazy(() => import('./TutorSupport'));
 
 import Skeleton from '../common/Skeleton';
 
@@ -156,6 +157,7 @@ const TutorDashboard = () => {
         { path: '/tutor/invitations', icon: FiMail, label: 'Invitations' },
         { path: '/tutor/grades', icon: FiBarChart2, label: 'Grade Reports' },
         { path: '/tutor/leaderboard', icon: FiAward, label: 'Leaderboard' },
+        { path: '/tutor/support', icon: FiFlag, label: 'Help & Support' },
         { path: '/tutor/settings', icon: FiSettings, label: 'Settings' },
     ];
 
@@ -342,6 +344,7 @@ const TutorDashboard = () => {
                             <Route path="topic-report/:studentId/:courseId" element={<TopicReportReview />} />
                             <Route path="detailed-review/:submissionId" element={<DetailedTestReview />} />
                             <Route path="report/:submissionId" element={<FullTestReport adminMode={true} />} />
+                            <Route path="support" element={<TutorSupport />} />
                             <Route path="settings" element={<TutorSettings dashboardData={dashboardData} isParentLoading={loading} />} />
                         </Routes>
                     </Suspense>

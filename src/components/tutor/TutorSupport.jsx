@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const { FiHelpCircle, FiMessageSquare, FiMail, FiChevronDown, FiChevronUp, FiSend, FiLoader } = FiIcons;
 
-const Support = () => {
+const TutorSupport = () => {
   const { user } = useAuth();
   const [activeAccordion, setActiveAccordion] = useState(null);
   const [ticketForm, setTicketForm] = useState({ subject: '', message: '' });
@@ -17,20 +17,20 @@ const Support = () => {
 
   const faqs = [
     {
-      question: "How do I unlock the next difficulty level?",
-      answer: "You need to complete the current level's quiz with a score of at least 70% to unlock the next difficulty level."
+      question: "How do I manage my assigned students?",
+      answer: "Use the Students tab to view your roster, and Student Groups to organize students into groups for analytics and content assignment."
     },
     {
-      question: "Can I retake a quiz?",
-      answer: "Yes, you can retake quizzes as many times as you want. Your highest score will be recorded for progress tracking."
+      question: "How do I assign content to a group?",
+      answer: "Open a group under Student Groups, use the Manage Students/Content flow to assign courses and tests to that group."
     },
     {
-      question: "How does the AI Tutor work?",
-      answer: "When you answer a question incorrectly, you can click 'Chat with AI Tutor'. The AI analyzes your mistake and provides a personalized explanation or a similar practice question."
+      question: "Where can I see a student's test results?",
+      answer: "Open Students, select a student, and use the Test History or Analytics tabs to view their completed tests and performance."
     },
     {
-      question: "Are the courses free?",
-      answer: "Currently, all courses listed on your dashboard are included in your student access plan."
+      question: "Who do I contact for account or billing issues?",
+      answer: "Use the Contact Support form here - it goes directly to the admin team."
     }
   ];
 
@@ -41,12 +41,12 @@ const Support = () => {
 
     try {
       await contactService.submit({
-        name: user?.name || 'Logged-in Student',
-        email: user?.email || 'unknown@student.com',
+        name: user?.name || 'Tutor',
+        email: user?.email || 'unknown@tutor.com',
         subject: ticketForm.subject,
         message: ticketForm.message,
         mobile: user?.mobile || user?.phone || user?.user_metadata?.mobile || user?.user_metadata?.phone || ''
-      }, 'student_support');
+      }, 'tutor_support');
       setSubmitted(true);
       setTicketForm({ subject: '', message: '' });
     } catch (err) {
@@ -153,6 +153,7 @@ const Support = () => {
                     <option value="Technical Issue" className="bg-white dark:bg-gray-800">Technical Issue</option>
                     <option value="Content Error" className="bg-white dark:bg-gray-800">Report Incorrect Content</option>
                     <option value="Account Help" className="bg-white dark:bg-gray-800">Account Help</option>
+                    <option value="Student/Group Issue" className="bg-white dark:bg-gray-800">Student/Group Issue</option>
                     <option value="Feedback" className="bg-white dark:bg-gray-800">Feature Suggestion</option>
                     <option value="Other" className="bg-white dark:bg-gray-800">Other</option>
                   </select>
@@ -182,7 +183,7 @@ const Support = () => {
             <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
               <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 text-sm font-medium">
                 <SafeIcon icon={FiMail} className="w-4 h-4" />
-                <span>support@eduplatform.com</span>
+                <span>support@aiprep365.com</span>
               </div>
             </div>
           </motion.div>
@@ -192,4 +193,4 @@ const Support = () => {
   );
 };
 
-export default Support;
+export default TutorSupport;

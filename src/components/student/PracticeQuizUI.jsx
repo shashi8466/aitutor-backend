@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
+import ReportQuestionModal from './ReportQuestionModal';
 
 const {
   FiArrowLeft, FiGrid, FiClock, FiTarget, FiFlag, FiCheck, FiX, FiMessageCircle, FiArrowRight, FiLoader
@@ -59,6 +60,7 @@ const PracticeQuizUI = ({
   user,
   savingResult
 }) => {
+  const [showReportModal, setShowReportModal] = useState(false);
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
   const isCorrect = isCorrectAnswer();
   const correctAnswerLetter = currentQuestion?.correct_answer;
@@ -148,7 +150,10 @@ const PracticeQuizUI = ({
             )}
 
             <div className="mt-auto pt-6">
-              <button className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium text-sm transition-colors px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50">
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium text-sm transition-colors px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
+              >
                 <SafeIcon icon={FiFlag} className="w-4 h-4" /> Report
               </button>
             </div>
@@ -367,6 +372,17 @@ const PracticeQuizUI = ({
         )}
 
       </div>
+
+      <ReportQuestionModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        question={currentQuestion}
+        questionNumber={currentQuestionIndex + 1}
+        courseId={courseId}
+        courseInfo={courseInfo}
+        level={level}
+        user={user}
+      />
     </div>
   );
 };

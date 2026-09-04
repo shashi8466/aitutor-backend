@@ -68,6 +68,7 @@ import sendEmailRoute from './routes/send-email.js';
 import kbQuizRoutes from './routes/kb-quiz.js';
 import { demoRouter } from './routes/demo.js';
 import feedbackRoutes from './routes/feedback.js';
+import supportIssuesRoutes from './routes/supportIssues.js';
 import supabaseAdmin from '../supabase/supabaseAdmin.js';
 
 // Background Processors
@@ -258,6 +259,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/send-email', sendEmailRoute);
 app.use('/api/kb-quiz', kbQuizRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/support-issues', supportIssuesRoutes);
 
 // 9. Root API Info
 app.get('/api', (req, res) => {

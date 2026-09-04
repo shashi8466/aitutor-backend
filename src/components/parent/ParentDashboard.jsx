@@ -7,7 +7,7 @@ import { parentService } from '../../services/api';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const {
-    FiHome, FiGrid, FiBook, FiPieChart, FiBarChart2, FiActivity, FiSettings, FiLogOut, FiMenu, FiX, FiUsers, FiCheck
+    FiHome, FiGrid, FiBook, FiPieChart, FiBarChart2, FiActivity, FiSettings, FiLogOut, FiMenu, FiX, FiUsers, FiCheck, FiFlag
 } = FiIcons;
 
 // Reused as-is from the Student/Tutor sides - the whole point of this shell is that every page
@@ -26,6 +26,7 @@ const ParentDashboardHome = lazy(() => import('./ParentDashboardHome'));
 const ParentCourseBreakdown = lazy(() => import('./ParentCourseBreakdown'));
 const ParentStudentAnalytics = lazy(() => import('./ParentStudentAnalytics'));
 const ParentProfileSettings = lazy(() => import('./ParentProfileSettings'));
+const ParentSupport = lazy(() => import('./ParentSupport'));
 
 const SELECTED_STUDENT_KEY_PREFIX = 'parent_selected_student_';
 
@@ -84,6 +85,7 @@ const ParentDashboard = () => {
         { path: '/parent/test-history', icon: FiPieChart, label: 'Test History & Review' },
         { path: '/parent/leaderboard', icon: FiBarChart2, label: 'Leaderboard' },
         { path: '/parent/analytics', icon: FiActivity, label: 'Student Analytics' },
+        { path: '/parent/support', icon: FiFlag, label: 'Help & Support' },
         { path: '/parent/settings', icon: FiSettings, label: 'Profile Settings' },
     ];
 
@@ -215,7 +217,7 @@ const ParentDashboard = () => {
                             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                                 {menuItems.find(item => isActivePath(item.path, item.exact))?.label || 'Dashboard'}
                             </h1>
-                            {location.pathname !== '/parent/settings' && (
+                            {location.pathname !== '/parent/settings' && location.pathname !== '/parent/support' && (
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                     Viewing: {selectedChild?.name || (loadingChildren ? 'Loading...' : 'No student selected')}
                                 </p>
@@ -225,12 +227,13 @@ const ParentDashboard = () => {
                 </header>
 
                 <main className="flex-1 p-6 overflow-auto">
-                    {location.pathname === '/parent/settings' ? (
+                    {location.pathname === '/parent/settings' || location.pathname === '/parent/support' ? (
                         // Account-level, not student-scoped - always reachable, even before any
                         // child is linked/selected.
                         <Suspense fallback={<LoadingSpinner fullPage={false} />}>
                             <Routes>
                                 <Route path="settings" element={<ParentProfileSettings />} />
+                                <Route path="support" element={<ParentSupport />} />
                             </Routes>
                         </Suspense>
                     ) : noChildren ? (

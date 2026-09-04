@@ -1293,23 +1293,35 @@ export const settingsService = {
   }
 };
 
+// --- SUPPORT ISSUES SERVICE ---
+// Single centralized destination for every report/support/contact submission
+// in the app - question reports, student/tutor/parent support tickets,
+// chatbot issues, and the public Contact Us form all funnel through this.
+export const supportIssueService = {
+  submit: (data) => axios.post('/api/support-issues/submit', data),
+  getAll: (params) => axios.get('/api/support-issues/all', { params }),
+  updateStatus: (id, data) => axios.patch(`/api/support-issues/${id}/status`, data),
+  remove: (id) => axios.delete(`/api/support-issues/${id}`)
+};
+
 // --- CONTACT SERVICE ---
+// Thin adapter over supportIssueService so every existing "contact-style"
+// caller (public Contact Us, student Feedback, student/tutor/parent Support
+// pages) keeps its existing call shape while landing in the one unified
+// support_issues table. issueType defaults to 'contact_us' for the public
+// form; callers pass a more specific type (e.g. 'student_support').
 export const contactService = {
-  submit: async (formData) => {
+  submit: async (formData, issueType = 'contact_us') => {
     try {
-      console.log('📬 [api] Submitting contact form...', formData);
-      
-      // 1. Post to backend which handles DB storage (admin) and Email notifications
-      const response = await axios.post('/api/contact', {
+      const response = await supportIssueService.submit({
+        issue_type: issueType,
         name: formData.fullName || formData.name,
         email: formData.email,
-        mobile: formData.mobile,
-        subject: formData.subject || 'Direct Contact',
-        message: formData.message,
-        type: formData.subject ? 'Support Ticket' : 'General Inquiry'
+        phone: formData.mobile || formData.phone,
+        subject: formData.subject,
+        category: formData.subject || null,
+        description: formData.message
       });
-      
-      console.log('✅ [api] Contact form submitted successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error("❌ Contact service encountered an error:", error);
@@ -1855,3 +1867,4 @@ export const feedbackService = {
   submit: (data) => axios.post('/api/feedback/submit', data),
   getAll: () => axios.get('/api/feedback/all')
 };
+
