@@ -7,8 +7,8 @@ const router = express.Router();
 
 const SELECT_WITH_JOINS = `
   *,
-  courses:related_course_id (name),
-  questions:related_question_id (question, options, correct_answer)
+  courses:related_course_id (name, category, tutor_type),
+  questions:related_question_id (question, options, correct_answer, question_number, topic, level, section, course_id)
 `;
 
 // req.user (from the auth middleware in index.js) is the raw Supabase Auth

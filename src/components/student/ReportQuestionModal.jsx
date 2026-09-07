@@ -60,10 +60,12 @@ const ReportQuestionModal = ({
         related_course_id: courseId,
         related_submission_id: submissionId || null,
         metadata: {
-          question_number: questionNumber,
+          question_number: questionNumber || null,
           topic: question?.topic || null,
-          difficulty: level || null,
-          subject: courseInfo?.tutor_type || courseInfo?.category || null
+          difficulty: question?.level || level || null,
+          subject: courseInfo?.tutor_type || courseInfo?.category || null,
+          section: question?.section || null,
+          course_name: courseInfo?.name || null
         }
       });
       setSubmitted(true);

@@ -32,6 +32,34 @@ const STATUS_STYLES = {
 
 const formatStatus = (s) => s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
+const SECTION_LABELS = {
+  math: 'Math',
+  reading_writing: 'Reading & Writing',
+  reading: 'Reading',
+  writing: 'Writing',
+  general: 'General'
+};
+
+// Question identification details for a `question_report` issue - prefers the live question/
+// course record (via the joined `questions`/`courses` rows) so an admin always sees the current
+// state, falling back to the metadata snapshot captured at submission time (e.g. if the question
+// or its section field has since been removed).
+const getQuestionDetails = (item) => {
+  const q = item.questions || {};
+  const meta = item.metadata || {};
+  if (!item.related_question_id && !meta.question_number) return null;
+
+  return {
+    number: meta.question_number || q.question_number || '—',
+    subject: meta.subject || item.courses?.category || item.courses?.tutor_type || '—',
+    topic: q.topic || meta.topic || '—',
+    difficulty: q.level || meta.difficulty || '—',
+    testName: item.courses?.name || meta.course_name || '—',
+    section: (q.section && (SECTION_LABELS[q.section] || q.section)) || (meta.section && (SECTION_LABELS[meta.section] || meta.section)) || '—',
+    questionId: item.related_question_id
+  };
+};
+
 const IssuesAndSupport = () => {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +165,11 @@ const IssuesAndSupport = () => {
   );
 
   const relatedLabel = (item) => {
-    if (item.related_question_id) return `Question #${item.related_question_id}${item.courses?.name ? ` · ${item.courses.name}` : ''}`;
+    const details = getQuestionDetails(item);
+    if (details) {
+      const bits = [details.number !== '—' ? `Q${details.number}` : null, details.subject !== '—' ? details.subject : null, item.courses?.name].filter(Boolean);
+      return bits.length > 0 ? bits.join(' · ') : `Question #${item.related_question_id}`;
+    }
     if (item.courses?.name) return item.courses.name;
     if (item.related_submission_id) return `Submission #${item.related_submission_id}`;
     return '—';
@@ -334,6 +366,34 @@ const IssuesAndSupport = () => {
                     <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{selectedItem.subject}</p>
                   </div>
                 )}
+
+                {getQuestionDetails(selectedItem) && (() => {
+                  const d = getQuestionDetails(selectedItem);
+                  const fields = [
+                    { label: 'Question #', value: d.number },
+                    { label: 'Subject', value: d.subject },
+                    { label: 'Topic', value: d.topic },
+                    { label: 'Difficulty', value: d.difficulty },
+                    { label: 'Test/Course', value: d.testName },
+                    { label: 'Section', value: d.section },
+                    { label: 'Question ID', value: `#${d.questionId}` }
+                  ];
+                  return (
+                    <div className="p-6 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-3xl border border-indigo-100 dark:border-indigo-900/20">
+                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                        <FiBook className="w-3 h-3" /> Question Details
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {fields.map((f) => (
+                          <div key={f.label}>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{f.label}</p>
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{f.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {selectedItem.related_question_id && (
                   <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-800">

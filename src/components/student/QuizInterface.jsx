@@ -295,7 +295,8 @@ const QuizInterface = () => {
           const { data: qData, error: qError } = await supabase
             .from('questions')
             .select('*')
-            .in('upload_id', latestUploadIds);
+            .in('upload_id', latestUploadIds)
+            .order('id', { ascending: true });
 
           if (qError) throw qError;
 
