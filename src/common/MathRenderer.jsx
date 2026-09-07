@@ -60,6 +60,35 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
     processedText = processedText.replace(/(^|[^\\])text(?=\{)/g, '$1\\text');
     processedText = processedText.replace(/\\text\{\s*\}/g, '');
 
+    // FIX: Auto-repair brace-depth mismatches inside a math span (a common DOCX/OCR/AI
+    // generation artifact - a lost or duplicated brace deep in a nested \frac{}{}/\sqrt{}
+    // expression). Left alone, MathJax's TeX parser rejects the whole span and renders its
+    // own "Extra close brace or missing open brace" error message in place of the equation -
+    // this repairs the brace count instead so the equation still typesets. A stray closing
+    // brace with nothing left to close is dropped; any brace still open at the end of the
+    // span is closed automatically.
+    const balanceBraces = (mathBody) => {
+      let depth = 0;
+      let out = '';
+      for (let i = 0; i < mathBody.length; i++) {
+        const ch = mathBody[i];
+        const escaped = mathBody[i - 1] === '\\';
+        if (ch === '{' && !escaped) {
+          depth++;
+          out += ch;
+        } else if (ch === '}' && !escaped) {
+          if (depth === 0) continue; // stray closing brace - drop it
+          depth--;
+          out += ch;
+        } else {
+          out += ch;
+        }
+      }
+      return out + '}'.repeat(depth);
+    };
+    processedText = processedText.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => `\\(${balanceBraces(inner)}\\)`);
+    processedText = processedText.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => `\\[${balanceBraces(inner)}\\]`);
+
     // FIX: Repair bare "&"/"#"/"%" leaking unescaped into math mode - a DOCX/OMML import
     // artifact (Word's manual equation-alignment tabs, or a literal "#"/"%" typed inside a
     // math zone) that MathJax's TeX parser rejects outright ("Misplaced &", "You can't use
@@ -109,16 +138,49 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
     // FIX: Unwrap prose accidentally merged into a math run (an occasional import/
     // generation artifact where a whole sentence ends up inside \text{...} directly
     // touching real math with no separator, e.g. "(x-4)\text{The function is given...}").
-    // Only fires when \text{ is immediately preceded by actual math content (not an
-    // opening delimiter/brace, which is the normal, correct way \text{} is used) AND
-    // its content is multi-word prose (contains whitespace, so short single-word
-    // labels/units like \text{cm} are left untouched). Pulling the prose out into
-    // plain text - instead of just adding a space - also lets it word-wrap normally,
+    // Only unwraps a \text{} sitting at the TOP LEVEL of its \(...\)/\[...\] span (not
+    // nested inside another command's brace argument, e.g. a unit label like
+    // \frac{0.555\text{ ounce}}{1\text{ cubic inch}}) AND whose content is multi-word
+    // prose (short labels/units like \text{cm} are left untouched either way). A previous,
+    // purely regex-based version ignored brace nesting entirely and would unwrap a
+    // \text{unit} sitting INSIDE a \frac{}{}'s numerator/denominator, shredding the
+    // fraction's brace structure and producing literal, unrendered LaTeX (or a MathJax
+    // "Extra close brace" error) instead of the equation. Pulling qualifying prose out
+    // into plain text - instead of just adding a space - also lets it word-wrap normally,
     // since MathJax renders an inline \(...\) run as one atomic, non-wrapping element.
-    processedText = processedText.replace(
-      /([)\]0-9a-zA-Z;=.,+-])\\text\{((?=[^{}]*\s)[^{}]*)\}/g,
-      (match, prefix, content) => `${prefix}\\) ${content.trim()} \\(`
-    );
+    const unwrapTopLevelProse = (mathBody) => {
+      let depth = 0;
+      let out = '';
+      let i = 0;
+      while (i < mathBody.length) {
+        if (mathBody.startsWith('\\text{', i) && mathBody[i - 1] !== '\\') {
+          let j = i + 6; // just past "\text{"
+          let innerDepth = 1;
+          const start = j;
+          while (j < mathBody.length && innerDepth > 0) {
+            if (mathBody[j] === '{' && mathBody[j - 1] !== '\\') innerDepth++;
+            else if (mathBody[j] === '}' && mathBody[j - 1] !== '\\') innerDepth--;
+            if (innerDepth > 0) j++;
+          }
+          const content = mathBody.slice(start, j);
+          const trimmed = content.trim();
+          const prevChar = out.length > 0 ? out[out.length - 1] : '';
+          const qualifies = depth === 0 && /[)\]0-9a-zA-Z;=.,+-]/.test(prevChar) && /\S\s+\S/.test(trimmed);
+          out += qualifies ? `\\) ${trimmed} \\(` : `\\text{${trimmed}}`;
+          i = j + 1; // skip past the matching "}"
+          continue;
+        }
+        const ch = mathBody[i];
+        const escaped = mathBody[i - 1] === '\\';
+        if (ch === '{' && !escaped) depth++;
+        else if (ch === '}' && !escaped) depth = Math.max(0, depth - 1);
+        out += ch;
+        i++;
+      }
+      return out;
+    };
+    processedText = processedText.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => `\\(${unwrapTopLevelProse(inner)}\\)`);
+    processedText = processedText.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => `\\[${unwrapTopLevelProse(inner)}\\]`);
     // Clean up empty math pairs left behind when the unwrap above lands at the very
     // start/end of a \(...\) run (e.g. a trailing "\(\)" once its last \text{} is pulled out).
     processedText = processedText.replace(/\\\(\s*\\\)/g, '');
@@ -276,9 +338,30 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
       nodeRef.current.innerHTML = processedText;
 
       window.MathJax.typesetPromise([nodeRef.current])
+        .then(() => {
+          if (!nodeRef.current) return;
+          // A single malformed expression doesn't reject the whole typeset promise - MathJax
+          // renders its own inline error node (e.g. "Extra close brace or missing open brace")
+          // in place of just that equation instead. Strip those out so no parser/debug text
+          // ever reaches the student UI; everything else that DID typeset is left untouched.
+          nodeRef.current.querySelectorAll('mjx-merror, merror, [data-mjx-error]').forEach((node) => {
+            node.remove();
+          });
+        })
         .catch((err) => {
           console.warn('MathJax processing error:', err);
-          nodeRef.current.innerText = processedText.replace(/\$/g, '');
+          if (!nodeRef.current) return;
+          // Whole-batch typeset failure (rare) - degrade to plain text stripped of LaTeX
+          // control sequences/delimiters/braces rather than dumping raw markup on screen.
+          const plainFallback = processedText
+            .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
+            .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '$1/$2')
+            .replace(/\\sqrt\{([^{}]*)\}/g, '√($1)')
+            .replace(/\\text\{([^{}]*)\}/g, '$1')
+            .replace(/\\[a-zA-Z]+/g, '')
+            .replace(/[{}]/g, '')
+            .replace(/\$/g, '');
+          nodeRef.current.innerText = plainFallback;
         });
     } else {
       nodeRef.current.innerHTML = processedText;
