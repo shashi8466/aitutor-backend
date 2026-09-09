@@ -636,7 +636,11 @@ export const analyticsService = {
 
         const topicReports = await Promise.all(courseIds.map(async (courseId) => {
             try {
-                const tr = await this.getTopicCombinedReport(groupId, studentId, courseId);
+                // Lightweight mode: every consumer of this list (_summarizeTopicReports and the
+                // Math/R&W aggregation in getStudentDashboard) only reads aggregate overall/
+                // isFullyCompleted/activeLevels fields, never per-question detail - skip the
+                // expensive per-submission question join for each of the student's courses.
+                const tr = await this.getTopicCombinedReport(groupId, studentId, courseId, { skipQuestionDetails: true });
                 return { ...tr, courseId };
             } catch (err) {
                 console.error(`Failed to build combined report for course ${courseId}`, err);
@@ -1460,7 +1464,8 @@ export const analyticsService = {
     /**
      * LEVEL 3.5: TOPIC COMBINED ANALYTICS (SAT Regular Course)
      */
-    async getTopicCombinedReport(groupId, studentId, courseId) {
+    async getTopicCombinedReport(groupId, studentId, courseId, options = {}) {
+        const { skipQuestionDetails = false } = options;
         // course, submissions, and the student's profile are all independent of each other -
         // fetch concurrently instead of as separate sequential round-trips (the profile fetch
         // in particular used to happen last, at the very end of this function, for no reason).
@@ -1512,7 +1517,21 @@ export const analyticsService = {
             });
         });
 
-        // Compute level stats from latest submission of each level
+        // Compute level stats from latest submission of each level. When skipQuestionDetails is
+        // set, the per-submission question join below (getAttemptQuestions - a test_responses
+        // -> questions join pulling full question text/options/explanation) is skipped entirely
+        // and the same totals are derived directly from the submission's own stored count
+        // columns instead. This is safe ONLY because both current callers of that flag -
+        // getGroupContentAnalytics and _getTopicReportsForSubmissions - never read
+        // data.questions/combinedResponses/subskillPerformance/strengths/weaknesses from the
+        // report they get back, just overall.{correct,incorrect,unanswered,totalQuestions,
+        // scaledScore,accuracy,totalTime}, isFullyCompleted, activeLevels and attemptHistory -
+        // all of which are computed from these same stored counts either way. A submission with
+        // an unpopulated (0) total_questions - the one case the non-lightweight path uses the
+        // question join to recover a real count for - still falls through to that same join, so
+        // the produced numbers can never differ from calling this without the flag. This is what
+        // turns an N-students x M-courses drill-down (see getGroupContentAnalytics) from a fan-
+        // out of per-submission joins into pure in-memory arithmetic on data already fetched.
         const promises = [];
         for (const [lvl, data] of Object.entries(levels)) {
             if (data.latest) {
@@ -1522,7 +1541,17 @@ export const analyticsService = {
                 data.incorrect = sub.incorrect_questions?.length || 0;
                 data.timeSpent = sub.test_duration_seconds || 0;
                 data.date = sub.created_at;
-                
+
+                if (skipQuestionDetails && data.totalQ > 0) {
+                    data.questions = [];
+                    data.unanswered = Math.max(0, data.totalQ - (data.correct + data.incorrect));
+                    data.score = Math.round((data.correct / data.totalQ) * 100);
+                    data.scaledScore = sub.scaled_score || Math.round(200 + (data.score / 100) * 600);
+                    data.passStatus = data.score >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT';
+                    if (data.score > highestAccuracy) highestAccuracy = data.score;
+                    continue;
+                }
+
                 // Fetch questions for this latest submission
                 promises.push(this.getAttemptQuestions(sub.id).then(qs => {
                     data.questions = qs.map(q => ({ ...q, section: lvl }));
@@ -1530,16 +1559,16 @@ export const analyticsService = {
                     if (data.correct === 0) data.correct = qs.filter(q => q.isCorrect).length;
                     if (data.incorrect === 0) data.incorrect = qs.filter(q => !q.isCorrect && q.studentAnswer !== 'Not recorded' && q.studentAnswer !== 'Unattempted').length;
                     data.unanswered = qs.filter(q => q.studentAnswer === 'Not recorded' || q.studentAnswer === 'Unattempted' || q.isCorrect === null).length;
-                    
+
                     data.score = data.totalQ > 0 ? Math.round((data.correct / data.totalQ) * 100) : Math.round(sub.raw_score_percentage || 0);
                     data.scaledScore = sub.scaled_score || Math.round(200 + (data.score / 100) * 600);
                     data.passStatus = data.score >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT';
-                    
+
                     if (data.score > highestAccuracy) highestAccuracy = data.score;
                 }));
             }
         }
-        
+
         await Promise.all(promises);
 
         // Compute Overall Stats across Easy + Medium + Hard
@@ -1684,7 +1713,11 @@ export const analyticsService = {
             members.flatMap(m =>
                 scopedCourseIds.map(async courseId => {
                     try {
-                        const report = await this.getTopicCombinedReport(null, m.student_id, courseId);
+                        // Lightweight mode: this view only ever reads aggregate overall/
+                        // isFullyCompleted/activeLevels/attemptHistory fields (see the comment
+                        // in getTopicCombinedReport), never per-question detail, so skip the
+                        // expensive per-submission question join across this whole fan-out.
+                        const report = await this.getTopicCombinedReport(null, m.student_id, courseId, { skipQuestionDetails: true });
                         return { studentId: m.student_id, courseId, report };
                     } catch (err) {
                         console.error(`getGroupContentAnalytics: course ${courseId} for student ${m.student_id}`, err);

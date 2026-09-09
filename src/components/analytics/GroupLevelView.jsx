@@ -52,14 +52,22 @@ const GroupLevelView = ({ groupId, adminMode, onStudentSelect, onTestHistorySele
             setLoading(true);
             setError(null);
             try {
-                const res = await service.getGroupDashboard(groupId);
+                // getGroupDashboard and courseService.getAll are independent of each other (the
+                // course list only needs to be COMBINED with res.data.assignedContent once both
+                // are ready, not wait for the dashboard to resolve before even starting) - kick
+                // both requests off together instead of paying for them one after another.
+                const dashboardPromise = service.getGroupDashboard(groupId);
+                const coursesPromise = courseService.getAll();
+                coursesPromise.catch(() => {}); // avoid an unhandled-rejection warning if the dashboard call below also fails and we bail before awaiting this
+
+                const res = await dashboardPromise;
                 if (cancelled) return;
                 setData(res.data);
 
                 // Additive: builds the content drill-down tree from the group's own assigned
                 // content - failure here shouldn't break the existing dashboard, so it's isolated.
                 try {
-                    const coursesRes = await courseService.getAll();
+                    const coursesRes = await coursesPromise;
                     if (cancelled) return;
                     setContentTree(buildGroupContentTree(res.data?.assignedContent, coursesRes.data || []));
                 } catch (treeErr) {

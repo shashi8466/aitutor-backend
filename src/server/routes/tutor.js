@@ -120,6 +120,17 @@ router.get('/dashboard', async (req, res) => {
         let courses = [];
         let recentSubmissions = [];
 
+        // "Total/Active Students" below is entirely independent of the assignedCourses-scoped
+        // queries in the block below it (different tables, no shared inputs) - start it right
+        // away so it runs concurrently with them instead of only beginning once they've all
+        // resolved, which previously stacked its own round-trips on top of everything else.
+        const groupStudentIdsPromise = !isAdmin
+            ? getTutorGroupStudentIds(supabase, userId).catch((groupErr) => {
+                console.error('❌ [TUTOR DASHBOARD] Group student count error:', groupErr);
+                return null;
+            })
+            : null;
+
         if (assignedCourses.length > 0) {
             try {
                 // PARALLELIZE OPTIMIZED FLOW
@@ -171,12 +182,8 @@ router.get('/dashboard', async (req, res) => {
         // broader assigned_courses enrollment count. Independent of the assignedCourses gate
         // above, since a tutor can have groups/students without any directly assigned course.
         if (!isAdmin) {
-            try {
-                const groupStudentIds = await getTutorGroupStudentIds(supabase, userId);
-                stats.totalStudents = groupStudentIds.length;
-            } catch (groupErr) {
-                console.error('❌ [TUTOR DASHBOARD] Group student count error:', groupErr);
-            }
+            const groupStudentIds = await groupStudentIdsPromise;
+            if (groupStudentIds) stats.totalStudents = groupStudentIds.length;
         }
 
         console.log(`✅ [TUTOR DASHBOARD] Stats: ${stats.totalCourses} courses, ${stats.totalEnrollments} enrollments, ${stats.totalStudents} students`);

@@ -191,11 +191,18 @@ const StudentCourseList = () => {
         }
       };
 
-      const [coursesData, enrollmentsData, accessData, groupAccessData] = await Promise.all([
+      // gradingService.getAllMyScores doesn't depend on any of the other four calls either -
+      // it used to run in its own separate `await` after this batch resolved, stacking a full
+      // extra round-trip onto the critical path for no reason. Fold it into the same batch.
+      const [coursesData, enrollmentsData, accessData, groupAccessData, scoresRes] = await Promise.all([
         safeFetch(courseService.getAll()),
         safeFetch(enrollmentService.getStudentEnrollments(user.id)),
         safeFetch(planService.getContentAccess(user?.plan_type || 'free')),
-        safeFetch(supabase.rpc('get_my_group_granted_course_ids'))
+        safeFetch(supabase.rpc('get_my_group_granted_course_ids')),
+        gradingService.getAllMyScores(user.id).catch((e) => {
+          console.warn("API scores fetch warning:", e.message);
+          return null;
+        })
       ]);
 
       setAllCourses(coursesData);
@@ -234,12 +241,9 @@ const StudentCourseList = () => {
       // Note: this is the only submissions fetch needed - it already returns everything
       // addSubToMap uses (including the courses join), so a second raw query against
       // test_submissions for the same user was pure redundant round-trip work.
-      try {
-        const scoresRes = await gradingService.getAllMyScores(user.id);
+      if (scoresRes) {
         const apiSubs = scoresRes.data?.submissions || scoresRes.submissions || [];
         apiSubs.forEach(s => addSubToMap(s));
-      } catch (e) {
-        console.warn("API scores fetch warning:", e.message);
       }
 
       setStudentSubmissionsMap(subsMap);

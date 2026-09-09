@@ -558,28 +558,39 @@ export const courseService = {
         .is('upload_id', null)
     ]);
 
-    const uploadToCourseMap = {};
-    (uploadsRes.data || []).forEach(u => {
-      if (u.course_id) uploadToCourseMap[u.id] = String(u.course_id);
+    // Group both lookups by course (and course+level) ONCE up front instead of re-filtering the
+    // full questions/uploads arrays for every course below - that was an O(courses x questions +
+    // courses x levels x uploads) nested pass in disguise, repeating the same full-array scans
+    // once per course on every My Courses load.
+    const manualCountByCourse = new Map();
+    (questionsRes.data || []).forEach(q => {
+      if (q.upload_id) return;
+      const key = String(q.course_id);
+      manualCountByCourse.set(key, (manualCountByCourse.get(key) || 0) + 1);
     });
 
+    // Latest upload per (course, level), same "most recent created_at wins" tie-break as the
+    // original per-course sort-and-take-first.
+    const latestUploadByCourseLevel = new Map();
+    (uploadsRes.data || []).forEach(u => {
+      const key = `${u.course_id}:${u.level}`;
+      const existing = latestUploadByCourseLevel.get(key);
+      if (!existing || new Date(u.created_at) > new Date(existing.created_at)) {
+        latestUploadByCourseLevel.set(key, u);
+      }
+    });
+
+    const levels = ['Easy', 'Medium', 'Hard'];
     const enriched = (courses || []).map(c => {
       const courseIdStr = String(c.id);
-      
+
       // 1. Manual Questions for this course
-      const manualCount = (questionsRes.data || []).filter(q => 
-        String(q.course_id) === courseIdStr && !q.upload_id
-      ).length;
+      const manualCount = manualCountByCourse.get(courseIdStr) || 0;
 
       // 2. Sum questions from the LATEST upload per level (matches Student/CourseDetail view)
-      const levels = ['Easy', 'Medium', 'Hard'];
       let latestQuizQuestionsCount = 0;
-
       levels.forEach(level => {
-        const latestUpload = (uploadsRes.data || [])
-          .filter(u => String(u.course_id) === courseIdStr && u.level === level)
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-        
+        const latestUpload = latestUploadByCourseLevel.get(`${courseIdStr}:${level}`);
         if (latestUpload) {
           latestQuizQuestionsCount += (latestUpload.questions_count || 0);
         }
@@ -1404,6 +1415,11 @@ export const gradingService = {
 
 // --- TUTOR SERVICE CACHE ---
 const tutorCache = new Map();
+// De-dupes concurrent callers for the same key (e.g. the dashboard shell and a nested page both
+// requesting '/api/tutor/dashboard' on a cold navigation, before either has resolved) so they
+// share one in-flight request instead of each firing an identical one against the same slow
+// backend route.
+const tutorInFlight = new Map();
 const cachedTutorGet = async (key, url, ttl = 60000) => {
     if (tutorCache.has(key)) {
         const { data, timestamp, status, headers } = tutorCache.get(key);
@@ -1411,14 +1427,24 @@ const cachedTutorGet = async (key, url, ttl = 60000) => {
             return Promise.resolve({ data, status, headers });
         }
     }
-    const response = await axios.get(url);
-    tutorCache.set(key, { 
-        data: response.data, 
-        status: response.status, 
-        headers: response.headers, 
-        timestamp: Date.now() 
-    });
-    return response;
+    if (tutorInFlight.has(key)) {
+        return tutorInFlight.get(key);
+    }
+    const requestPromise = axios.get(url)
+        .then((response) => {
+            tutorCache.set(key, {
+                data: response.data,
+                status: response.status,
+                headers: response.headers,
+                timestamp: Date.now()
+            });
+            return response;
+        })
+        .finally(() => {
+            tutorInFlight.delete(key);
+        });
+    tutorInFlight.set(key, requestPromise);
+    return requestPromise;
 };
 export const clearTutorCache = () => tutorCache.clear();
 
