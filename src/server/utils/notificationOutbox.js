@@ -10,6 +10,7 @@ import {
   buildFullLengthTestCompletionEmail,
   buildCombinedRegularCourseCompletionEmail,
   buildDemoResultEmail,
+  buildGroupDeadlineMissedContentEmail,
   sanitizeAppUrl
 } from './notificationEngine.js';
 import { getInternalSettings } from './internalSettings.js';
@@ -91,7 +92,10 @@ function channelsFromPrefs(prefs, channelsRequested, eventType, profile = null) 
     // preference category as TEST_COMPLETED, just a different event type/payload shape.
     (eventType === 'TOPIC_COURSE_COMPLETED' && testCompEnabled) ||
     (eventType === 'WEEKLY_REPORT' && weeklyRepEnabled) ||
-    (eventType === 'DUE_DATE_REMINDER' && dueDateEnabled);
+    (eventType === 'DUE_DATE_REMINDER' && dueDateEnabled) ||
+    // Same "deadline" preference category as DUE_DATE_REMINDER - there's no dedicated toggle
+    // for this event type, and it's the closest existing semantic match.
+    (eventType === 'GROUP_DEADLINE_MISSED_CONTENT' && dueDateEnabled);
 
   if (!allowEvent) {
     console.log(`ℹ️ [NotificationOutbox] Blocked Event: ${profile?.email} | Event: ${eventType} | Student/Parent Toggles: testCompletion=${testCompEnabled}, weekly=${weeklyRepEnabled}, due=${dueDateEnabled}`);
@@ -377,6 +381,33 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     return { subject, emailHtml, smsMessage };
   }
 
+  if (normalizedEventType === 'GROUP_DEADLINE_MISSED_CONTENT') {
+    const subject = `Group Deadline Ended: ${payload.groupName || 'Student Group'}`;
+
+    const targetPath = isParent ? `/parent/child/${payload.studentId}` : `/student`;
+    const separator = appUrl.endsWith('/') ? '' : '/';
+    const redirectParam = `?redirect=${encodeURIComponent(targetPath)}`;
+    const hashPart = `#${targetPath}`;
+    const finalUrl = appUrl ? `${appUrl}${separator}${redirectParam}${hashPart}` : targetPath;
+
+    const emailHtml = buildGroupDeadlineMissedContentEmail({
+      recipientName,
+      studentName: payload.studentName,
+      isParent,
+      groupName: payload.groupName,
+      endDate: payload.endDate,
+      completed: payload.completed || [],
+      missed: payload.missed || [],
+      appUrl,
+      reportUrl: finalUrl
+    });
+    const missedCount = (payload.missed || []).length;
+    const smsMessage =
+      `${appName}: The content deadline for group "${payload.groupName || 'your group'}"${isParent ? ` (${payload.studentName})` : ''} has ended. ` +
+      `${missedCount} item(s) were not completed. Check your email for details.`;
+    return { subject, emailHtml, smsMessage };
+  }
+
   if (normalizedEventType === 'WELCOME_EMAIL') {
     const subject = `Welcome to ${appName} 🎉`;
     const emailHtml = buildWelcomeEmail({
@@ -546,6 +577,64 @@ export async function enqueueNotification({
           if (!requeueErr && requeued?.id) return requeued.id;
         } else if (row.status === 'failed') {
           console.log(`⚠️ [Outbox] Course ${courseId} → ${recipientProfileId} exhausted retries. Blocking.`);
+          return row.id;
+        }
+      }
+    }
+  }
+
+  // Group deadline emails have no per-submission id either - dedupe by groupId+studentId per
+  // recipient, same shape as TOPIC_COURSE_COMPLETED above. This is what guarantees the deadline
+  // email fires exactly once per student per group even if the daily cron somehow scans the
+  // same already-processed group twice (belt-and-suspenders alongside student_groups.
+  // deadline_processed_at, which is the primary guard against re-scanning at all).
+  if (eventType === 'GROUP_DEADLINE_MISSED_CONTENT') {
+    const groupIdForDedup = payload?.groupId ?? null;
+    const studentIdForDedup = payload?.studentId ?? null;
+
+    if (groupIdForDedup != null && studentIdForDedup != null) {
+      const profileIdClause = recipientProfileId
+        ? `recipient_profile_id.eq.${recipientProfileId}`
+        : `recipient_profile_id.is.null`;
+
+      const { data: existing, error: existingErr } = await supabase
+        .from('notification_outbox')
+        .select('id, status, attempts, scheduled_for')
+        .eq('event_type', eventType)
+        .or(
+          recipientEmail
+            ? `${profileIdClause},payload->>recipientEmail.eq.${recipientEmail}`
+            : profileIdClause
+        )
+        .filter('payload->>groupId', 'eq', String(groupIdForDedup))
+        .filter('payload->>studentId', 'eq', String(studentIdForDedup))
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!existingErr && existing?.length) {
+        const row = existing[0];
+
+        if (row.status === 'sent') {
+          console.log(`✅ [Outbox] Already SENT GROUP_DEADLINE_MISSED_CONTENT for group ${groupIdForDedup} → ${recipientProfileId}. Blocked.`);
+          return row.id;
+        }
+
+        if (row.status === 'pending' || row.status === 'processing') {
+          console.log(`ℹ️ [Outbox] Duplicate GROUP_DEADLINE_MISSED_CONTENT skipped for ${recipientProfileId} (Status: ${row.status})`);
+          return row.id;
+        }
+
+        const maxAttempts = Number(process.env.NOTIFICATION_MAX_ATTEMPTS || 5);
+        if (row.status === 'failed' && (row.attempts || 0) < maxAttempts) {
+          const { data: requeued, error: requeueErr } = await supabase
+            .from('notification_outbox')
+            .update({ status: 'pending', scheduled_for: scheduledFor, last_error: null })
+            .eq('id', row.id)
+            .select('id')
+            .single();
+          if (!requeueErr && requeued?.id) return requeued.id;
+        } else if (row.status === 'failed') {
+          console.log(`⚠️ [Outbox] Group ${groupIdForDedup} → ${recipientProfileId} exhausted retries. Blocking.`);
           return row.id;
         }
       }

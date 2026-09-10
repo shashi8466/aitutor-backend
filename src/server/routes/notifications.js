@@ -2,6 +2,7 @@ import express from 'express';
 import supabase from '../../supabase/supabaseAdmin.js';
 import { processOutboxOnce, enqueueNotification } from '../utils/notificationOutbox.js';
 import NotificationScheduler from '../services/NotificationScheduler.js';
+import { analyticsService } from '../services/analyticsService.js';
 
 const router = express.Router();
 
@@ -255,6 +256,107 @@ router.post('/run-due-reminders', async (req, res) => {
 
     const processed = await processOutboxOnce({ limit: 50 });
     res.json({ ok: true, enqueued, ...processed });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
+// POST /api/notifications/run-group-deadline-check
+//
+// Finds every Student Group whose content end_date has passed and hasn't been processed yet,
+// computes each member's completed vs missed content against that group's assigned courses,
+// and emails both the student and any linked parent(s) a summary. Idempotent per group via
+// student_groups.deadline_processed_at (set once processing finishes), and per-recipient via
+// enqueueNotification's own GROUP_DEADLINE_MISSED_CONTENT dedup - safe to run this endpoint
+// repeatedly (e.g. cron overlap, manual retrigger) without re-sending duplicate emails.
+router.post('/run-group-deadline-check', async (req, res) => {
+  try {
+    if (!requireCronSecret(req, res)) return;
+
+    // end_date is a timestamptz (may carry an explicit time-of-day) - compare against the
+    // precise current instant, not just today's date, so a same-day deadline with a specific
+    // end time (e.g. 11:59 PM) is only picked up once that exact moment has passed.
+    const nowIso = new Date().toISOString();
+
+    const { data: expiredGroups, error } = await supabase
+      .from('student_groups')
+      .select('id, name, end_date')
+      .not('end_date', 'is', null)
+      .lt('end_date', nowIso)
+      .is('deadline_processed_at', null);
+
+    if (error) throw error;
+
+    const { data: allParents } = await supabase
+      .from('profiles')
+      .select('id, name, email, linked_students')
+      .eq('role', 'parent');
+
+    let groupsProcessed = 0;
+    let studentsProcessed = 0;
+    let emailsEnqueued = 0;
+
+    for (const group of expiredGroups || []) {
+      try {
+        const report = await analyticsService.getGroupDeadlineCompletionReport(group.id);
+
+        for (const student of report.students) {
+          if (!student.email) continue; // nothing to notify
+
+          const linkedParents = (allParents || []).filter(p => {
+            const linked = p.linked_students || [];
+            return Array.isArray(linked) && linked.some(id => String(id).trim() === String(student.studentId).trim());
+          });
+
+          const basePayload = {
+            groupId: group.id,
+            groupName: report.groupName || group.name,
+            endDate: group.end_date,
+            studentId: student.studentId,
+            studentName: student.name,
+            completed: student.completed,
+            missed: student.missed
+          };
+
+          await enqueueNotification({
+            eventType: 'GROUP_DEADLINE_MISSED_CONTENT',
+            recipientProfileId: student.studentId,
+            recipientType: 'student',
+            payload: { ...basePayload, recipientEmail: student.email },
+            scheduledFor: new Date().toISOString()
+          });
+          emailsEnqueued++;
+
+          for (const parent of linkedParents) {
+            if (!parent.email) continue;
+            await enqueueNotification({
+              eventType: 'GROUP_DEADLINE_MISSED_CONTENT',
+              recipientProfileId: parent.id,
+              recipientType: 'parent',
+              payload: { ...basePayload, recipientEmail: parent.email },
+              scheduledFor: new Date().toISOString()
+            });
+            emailsEnqueued++;
+          }
+
+          studentsProcessed++;
+        }
+
+        // Mark processed regardless of per-student email outcome - the outbox handles delivery
+        // retries on its own; this flag only stops this group from being re-scanned tomorrow.
+        await supabase
+          .from('student_groups')
+          .update({ deadline_processed_at: new Date().toISOString() })
+          .eq('id', group.id);
+
+        groupsProcessed++;
+      } catch (groupErr) {
+        console.error(`❌ [GroupDeadline] Failed processing group ${group.id}:`, groupErr.message);
+      }
+    }
+
+    const processed = await processOutboxOnce({ limit: 50 });
+    res.json({ ok: true, groupsProcessed, studentsProcessed, emailsEnqueued, ...processed });
   } catch (err) {
     res.status(500).json({ error: err?.message || String(err) });
   }

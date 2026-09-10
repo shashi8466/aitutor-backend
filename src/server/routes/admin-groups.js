@@ -147,7 +147,7 @@ router.get('/groups', async (req, res) => {
 router.post('/groups', async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { name, assigned_content, assigned_course_ids, description, student_ids, tutor_id } = req.body;
+        const { name, assigned_content, assigned_course_ids, description, student_ids, tutor_id, start_date, end_date } = req.body;
 
         if (!name) {
             return res.status(400).json({ error: 'Group name is required' });
@@ -160,17 +160,37 @@ router.post('/groups', async (req, res) => {
         // (confirmed - referencing it throws "column does not exist"). The invite token
         // is stored exclusively inside the `assigned_content` jsonb, matching the
         // regenerate-token endpoint below and the tutor equivalent in tutor.js.
-        const { data: group, error } = await supabase
+        const insertData = {
+            name,
+            created_by: creatorId,
+            assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
+            assigned_course_ids: assigned_course_ids || [],
+            description: description || '',
+            start_date: start_date || null,
+            end_date: end_date || null
+        };
+
+        let { data: group, error } = await supabase
             .from('student_groups')
-            .insert({
-                name,
-                created_by: creatorId,
-                assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
-                assigned_course_ids: assigned_course_ids || [],
-                description: description || ''
-            })
+            .insert(insertData)
             .select()
             .single();
+
+        // If start_date/end_date haven't been migrated onto this environment yet, retry without
+        // them rather than hard-failing group creation entirely - but the caller MUST be told
+        // the dates were dropped (datesNotSaved) rather than getting a bare "success" that
+        // silently discarded what they entered.
+        let datesNotSaved = false;
+        if (error && (error.code === '42703' || error.code === 'PGRST204') && (insertData.start_date != null || insertData.end_date != null)) {
+            console.error('⚠️ [ADMIN GROUPS] start_date/end_date columns missing - run migration 1790300000000-group_content_deadline.sql. Creating group without dates.');
+            const { start_date: _sd, end_date: _ed, ...fallbackData } = insertData;
+            datesNotSaved = true;
+            ({ data: group, error } = await supabase
+                .from('student_groups')
+                .insert(fallbackData)
+                .select()
+                .single());
+        }
 
         if (error) {
             console.error('Database error creating group:', error);
@@ -185,7 +205,7 @@ router.post('/groups', async (req, res) => {
             await supabase.from('group_members').insert(memberInserts);
         }
 
-        res.json({ group });
+        res.json({ group, ...(datesNotSaved && { datesNotSaved: true }) });
     } catch (error) {
         console.error('Create group error:', error);
         res.status(500).json({ error: 'Failed to create group' });

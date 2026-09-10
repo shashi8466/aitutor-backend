@@ -133,6 +133,24 @@ class NotificationScheduler {
     }, { timezone: 'America/New_York' });
     this.tasks.push(remindersTask);
 
+    // Group content deadline check — once a day at 8 AM. Finds groups whose end_date passed
+    // and haven't been processed yet, and sends the missed-content email to each student/parent.
+    const groupDeadlineTask = cron.schedule('0 8 * * *', async () => {
+      console.log('📬 [Cron] Group deadline check job triggered');
+      try {
+        const port = process.env.PORT || 3001;
+        const url = `http://127.0.0.1:${port}/api/notifications/run-group-deadline-check`;
+        const response = await axios.post(url, {}, {
+          headers: { 'x-cron-secret': process.env.CRON_SECRET || '' },
+          timeout: 600000
+        });
+        console.log('✅ [Cron] Group deadline check response:', response.data);
+      } catch (e) {
+        console.error('❌ [Cron] Group deadline check error:', e.message);
+      }
+    }, { timezone: 'Asia/Kolkata' });
+    this.tasks.push(groupDeadlineTask);
+
     console.log('✅ [Scheduler] Notification scheduler started successfully (1 outbox task registered).');
   }
 

@@ -231,6 +231,71 @@ router.get('/courses', async (req, res) => {
 });
 
 /**
+ * POST /api/tutor/self-enroll
+ * Lets a tutor (or admin) directly enroll themselves in a course they're assigned to teach, so
+ * they can preview/use it exactly like a student would. Unlike the student payment/checkout flow
+ * (/api/payment/create-checkout-session), this never charges a real payment and never requires a
+ * student enrollment key - being staffed on the course by an admin (profiles.assigned_courses)
+ * already establishes the tutor's right to use it, so this bypasses price/key gating entirely
+ * rather than routing the tutor through student-only enrollment screens (/student/enroll is
+ * blocked for a tutor by ProtectedRoute role="student", which is what made "Enroll Now" silently
+ * fail here before this endpoint existed).
+ */
+router.post('/self-enroll', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { courseId } = req.body;
+
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const parsedCourseId = parseInt(courseId, 10);
+        if (!parsedCourseId || isNaN(parsedCourseId)) {
+            return res.status(400).json({ error: 'A valid courseId is required' });
+        }
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, assigned_courses')
+            .eq('id', userId)
+            .single();
+
+        if (!profile || (profile.role !== 'tutor' && profile.role !== 'admin')) {
+            return res.status(403).json({ error: 'Only tutors or admins can self-enroll' });
+        }
+
+        const isAdmin = profile.role === 'admin';
+        if (!isAdmin && !getAssignedCourses(profile).includes(parsedCourseId)) {
+            return res.status(403).json({ error: 'You are not assigned to this course' });
+        }
+
+        const { data: existing } = await supabase
+            .from('enrollments')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('course_id', parsedCourseId)
+            .maybeSingle();
+
+        if (existing) {
+            return res.json({ success: true, alreadyEnrolled: true });
+        }
+
+        const { error: enrollError } = await supabase
+            .from('enrollments')
+            .insert({ user_id: userId, course_id: parsedCourseId, enrollment_method: 'tutor_self_enroll' });
+
+        if (enrollError && enrollError.code !== '23505') { // ignore duplicate-row race
+            throw enrollError;
+        }
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ [TUTOR SELF-ENROLL] Error:', error);
+        res.status(500).json({ error: 'Failed to enroll' });
+    }
+});
+
+/**
  * GET /api/tutor/students
  * Get students in the tutor's own Student Groups (owned or co-tutored) - one row per student,
  * courses/tests/progress aggregated across all of their enrollments (not one row per enrollment).
@@ -689,7 +754,7 @@ router.get('/groups', async (req, res) => {
 router.post('/groups', async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { name, assigned_content, assigned_course_ids, description } = req.body;
+        const { name, assigned_content, assigned_course_ids, description, start_date, end_date } = req.body;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -701,18 +766,38 @@ router.post('/groups', async (req, res) => {
 
         const inviteToken = crypto.randomUUID();
 
-        const { data: group, error } = await supabase
+        const insertData = {
+            name,
+            assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
+            assigned_course_ids: assigned_course_ids || [],
+            course_id: assigned_course_ids?.[0] || 1, // Bypass NOT NULL constraint until schema is updated
+            description,
+            start_date: start_date || null,
+            end_date: end_date || null,
+            created_by: userId
+        };
+
+        let { data: group, error } = await supabase
             .from('student_groups')
-            .insert({
-                name,
-                assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
-                assigned_course_ids: assigned_course_ids || [],
-                course_id: assigned_course_ids?.[0] || 1, // Bypass NOT NULL constraint until schema is updated
-                description,
-                created_by: userId
-            })
+            .insert(insertData)
             .select()
             .single();
+
+        // If start_date/end_date haven't been migrated onto this environment yet, retry without
+        // them rather than hard-failing group creation entirely - but the caller MUST be told
+        // the dates were dropped (datesNotSaved) rather than getting a bare "success" that
+        // silently discarded what they entered.
+        let datesNotSaved = false;
+        if (error && (error.code === '42703' || error.code === 'PGRST204') && (insertData.start_date != null || insertData.end_date != null)) {
+            console.error('⚠️ [GROUPS] start_date/end_date columns missing - run migration 1790300000000-group_content_deadline.sql. Creating group without dates.');
+            const { start_date: _sd, end_date: _ed, ...fallbackData } = insertData;
+            datesNotSaved = true;
+            ({ data: group, error } = await supabase
+                .from('student_groups')
+                .insert(fallbackData)
+                .select()
+                .single());
+        }
 
         if (error) {
             console.error('❌ [GROUPS] Error creating group:', {
@@ -728,7 +813,7 @@ router.post('/groups', async (req, res) => {
             });
         }
 
-        res.json({ group });
+        res.json({ group, ...(datesNotSaved && { datesNotSaved: true }) });
 
     } catch (error) {
         console.error('Create group error:', error);
@@ -744,7 +829,7 @@ router.put('/groups/:groupId', async (req, res) => {
     try {
         const userId = req.user?.id;
         const { groupId } = req.params;
-        const { name, assigned_content, assigned_course_ids, description } = req.body;
+        const { name, assigned_content, assigned_course_ids, description, start_date, end_date } = req.body;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -765,7 +850,7 @@ router.put('/groups/:groupId', async (req, res) => {
 
         const { data: group } = await supabase
             .from('student_groups')
-            .select('created_by, assigned_content')
+            .select('created_by, assigned_content, end_date')
             .eq('id', groupId)
             .single();
 
@@ -789,6 +874,16 @@ router.put('/groups/:groupId', async (req, res) => {
             }
         }
         if (assigned_course_ids !== undefined) updateData.assigned_course_ids = assigned_course_ids;
+        if (start_date !== undefined) updateData.start_date = start_date || null;
+        if (end_date !== undefined) {
+            updateData.end_date = end_date || null;
+            // A tutor/admin changing the deadline (extending it, or setting a new one after a
+            // previous one already ran) must make this group eligible for the missed-content
+            // check again against its new date, not stay permanently skipped from the old run.
+            if (updateData.end_date !== group.end_date) {
+                updateData.deadline_processed_at = null;
+            }
+        }
 
         const { data: updatedGroup, error } = await supabase
             .from('student_groups')
@@ -799,20 +894,26 @@ router.put('/groups/:groupId', async (req, res) => {
 
         if (error) {
             console.error('❌ [GROUPS] Error updating group:', error);
-            // If the error is about a column not existing (PostgREST PGRST204 or Postgres 42703)
+            // If the error is about a column not existing (PostgREST PGRST204 or Postgres 42703),
+            // retry with only start_date/end_date/deadline_processed_at stripped out - NOT
+            // assigned_content/assigned_course_ids, which is what the old blanket fallback used
+            // to silently discard too. The caller MUST be told the dates specifically were
+            // dropped (datesNotSaved) rather than getting a bare "success".
             if (error.code === '42703' || error.code === 'PGRST204') {
-                const basicUpdateData = { name, description };
+                const hadDates = 'start_date' in updateData || 'end_date' in updateData || 'deadline_processed_at' in updateData;
+                console.error('⚠️ [GROUPS] start_date/end_date columns missing - run migration 1790300000000-group_content_deadline.sql. Updating group without dates.');
+                const { start_date: _sd, end_date: _ed, deadline_processed_at: _dp, ...basicUpdateData } = updateData;
                 const { data: basicUpdated, error: basicError } = await supabase
                     .from('student_groups')
                     .update(basicUpdateData)
                     .eq('id', groupId)
                     .select()
                     .single();
-                    
+
                 if (basicError) {
                     return res.status(500).json({ error: 'Failed to update group' });
                 }
-                return res.json({ group: basicUpdated });
+                return res.json({ group: basicUpdated, ...(hadDates && { datesNotSaved: true }) });
             }
             return res.status(500).json({ error: 'Failed to update group' });
         }

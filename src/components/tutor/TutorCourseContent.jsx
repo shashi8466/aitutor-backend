@@ -176,7 +176,7 @@ const CourseCard = ({ course, index, isEnrolled, onAction, onEnroll, isLoading, 
           {isCardLoading ? (
             <SafeIcon icon={FiLoader} className="w-4 h-4 animate-spin" />
           ) : isEnrolled ? (
-            <><SafeIcon icon={FiPlay} className="w-4 h-4" /> View Content</>
+            <><SafeIcon icon={FiPlay} className="w-4 h-4" /> Start Learning</>
           ) : (
             <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-4 h-4" /> Enroll Now</>
           )}
@@ -296,30 +296,22 @@ const TutorCourseContent = () => {
     );
   });
 
+  // Direct self-enrollment for a tutor's own assigned content - deliberately NOT the student
+  // payment/checkout flow (enrollmentService.initiateEnrollment), which either sends a tutor to
+  // a real Stripe checkout for a priced course or redirects to /student/enroll, a route
+  // ProtectedRoute blocks for a tutor role entirely (this is exactly why "Enroll Now" previously
+  // did nothing here). A tutor is only ever offered this button for a course already in their own
+  // assigned_courses, so no payment or enrollment key should ever be required to use it.
   const handleEnroll = async (courseId) => {
     try {
       setEnrollLoading(courseId);
       const cId = parseInt(courseId, 10);
-      const response = await enrollmentService.initiateEnrollment(user.id, cId);
-
-      if (response.data?.requiresKey) {
-        navigate('/student/enroll', { state: { courseId: cId, courseName: response.data.courseName || 'Course' } });
-        return;
-      }
-      if (response.data?.error && (response.data.error.includes('key') || response.data.error.includes('Key'))) {
-        navigate('/student/enroll', { state: { courseId: cId, courseName: response.data.courseName || 'Course' } });
-        return;
-      }
-      if (response.data?.free || response.data?.redirectTo) {
-        navigate(`/tutor/course-content/course/${cId}`);
-      } else if (response.data?.url) {
-        window.location.href = response.data.url;
-      } else {
-        throw new Error('No checkout URL received from server');
-      }
+      await tutorService.selfEnroll(cId);
+      setEnrolledIds(prev => new Set(prev).add(String(cId)));
     } catch (error) {
       console.error('Enrollment error:', error);
-      alert('Failed to initiate enrollment. Please try again later.');
+      const errMsg = error.response?.data?.error || 'Failed to enroll. Please try again later.';
+      alert(errMsg);
     } finally {
       setEnrollLoading(null);
     }

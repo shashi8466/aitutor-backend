@@ -496,6 +496,38 @@ export function buildDueDateReminderEmail({ recipientName, studentName, dueItems
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>⏰ Upcoming Test Reminders</h1><p>${appName} • Don't miss these deadlines!</p></div><div class="body"><p>Hello <strong>${recipientName || 'there'}</strong>,</p><p style="margin-top:8px;">This is a friendly reminder about upcoming test deadlines${isParent ? ` for <strong>${studentName}</strong>` : ''}.</p><div class="reminder-box">⚠️ Please ensure all pending tests are completed before the due date to avoid missing your progress goals.</div><p class="section-title">Pending Tests</p><div class="table-container"><table><thead><tr><th>Course</th><th>Level</th><th>Due Date</th><th>Time Left</th></tr></thead><tbody>${rows}</tbody></table></div><a class="cta" href="${finalUrl}">Take Test Now →</a></div><div class="footer">${appName} • Reminders are sent 7, 3, and 1 day(s) before due date.</div></div></div></body></html>`;
 }
 
+export function buildGroupDeadlineMissedContentEmail({ recipientName, studentName, isParent, groupName, endDate, completed = [], missed = [], appUrl, reportUrl }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const formattedEndDate = endDate ? new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A';
+    const totalAssigned = completed.length + missed.length;
+    const completionRate = totalAssigned > 0 ? Math.round((completed.length / totalAssigned) * 100) : 0;
+
+    const groupBySubject = (items) => {
+        const bySubject = new Map();
+        items.forEach(item => {
+            const subject = item.subject || 'General';
+            if (!bySubject.has(subject)) bySubject.set(subject, []);
+            bySubject.get(subject).push(item.name);
+        });
+        return bySubject;
+    };
+
+    const renderList = (items, dotColor) => {
+        if (items.length === 0) return '<p style="color:#94a3b8; font-size:14px; margin:0 0 20px;">None</p>';
+        const bySubject = groupBySubject(items);
+        return Array.from(bySubject.entries()).map(([subject, names]) => `
+            <div style="margin-bottom:14px;">
+                <div style="font-size:13px; font-weight:700; color:#94a3b8; text-transform:uppercase; margin-bottom:6px;">${subject}</div>
+                ${names.map(n => `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:14px; color:#e2e8f0;"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${dotColor}; margin-right:10px;"></span>${n}</div>`).join('')}
+            </div>
+        `).join('');
+    };
+
+    const finalUrl = reportUrl || (isParent ? (appUrl ? `${appUrl}/parent` : '#') : (appUrl ? `${appUrl}/student` : '#'));
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>⏰ Group Deadline Ended</h1><p>${appName} • ${groupName || 'Student Group'}</p></div><div class="body"><p>Hello <strong>${recipientName || 'there'}</strong>,</p><p style="margin-top:8px;">The content deadline for the group <strong>${groupName || 'this group'}</strong>${isParent ? ` assigned to <strong>${studentName}</strong>` : ''} ended on <strong>${formattedEndDate}</strong>. Here is a summary of what was completed and what remains incomplete.</p><div class="score-row"><div class="score-box"><div class="val">${completed.length}</div><div class="lbl">Completed</div></div><div class="score-box"><div class="val">${missed.length}</div><div class="lbl">Missed</div></div><div class="score-box"><div class="val">${completionRate}%</div><div class="lbl">Completion Rate</div></div></div><p class="section-title">✅ Completed Content</p>${renderList(completed, '#4ade80')}<p class="section-title">❌ Missed / Incomplete Content</p>${renderList(missed, '#f87171')}<div class="tip-box">📌 The content assigned to this group is no longer accessible now that the deadline has passed. Reach out to your tutor if you believe this needs an extension.</div><a class="cta" href="${finalUrl}">Open Dashboard →</a></div><div class="footer">${appName} • Deadline: ${formattedEndDate}</div></div></div></body></html>`;
+}
+
 export function buildWelcomeEmail({ name, appUrl }) {
     const appName = process.env.APP_NAME || 'AIPrep365';
     const finalUrl = appUrl || '#';

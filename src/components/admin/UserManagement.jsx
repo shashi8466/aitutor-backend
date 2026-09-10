@@ -6,8 +6,21 @@ import { authService, courseService } from '../../services/api';
 
 const {
   FiUser, FiMail, FiUsers, FiRefreshCw, FiLoader, FiCheck, FiX,
-  FiShield, FiBook, FiChevronRight, FiCheckCircle, FiAlertCircle, FiSettings, FiSearch, FiFilter
+  FiShield, FiBook, FiChevronRight, FiChevronDown, FiCheckCircle, FiAlertCircle, FiSettings, FiSearch, FiFilter
 } = FiIcons;
+
+// Friendly display labels for the raw `courses.main_category` values seen in this app (SAT/ACT/AP
+// are already clean; only the Full-Length/adaptive test category needs cleanup - see
+// AdaptiveCourseForm.jsx, which writes main_category: 'FULL LENGTH TESTs' for every Full-Length
+// ACT/SAT/DSAT/Linear SAT course regardless of its specific tutor_type). Anything not in this map
+// (including a missing/blank value) falls back to its raw value, or 'Other Courses' if empty -
+// so a course can never silently disappear from the matrix just because its category is unusual.
+const MAIN_CATEGORY_LABELS = {
+  'FULL LENGTH TESTs': 'Full-Length Tests'
+};
+// Preferred section order; anything else is appended after, alphabetically, with the catch-all
+// "Other Courses" bucket always last.
+const MAIN_CATEGORY_ORDER = ['SAT', 'ACT', 'AP', 'FULL LENGTH TESTs'];
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
@@ -22,6 +35,8 @@ const UserManagement = () => {
   const [roleFilter, setRoleFilter] = useState('All');
   const [planFilter, setPlanFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [courseMatrixSearch, setCourseMatrixSearch] = useState('');
+  const [collapsedMatrixSections, setCollapsedMatrixSections] = useState({});
 
   useEffect(() => {
     loadData();
@@ -169,6 +184,54 @@ const UserManagement = () => {
     });
     return counts;
   }, [users]);
+
+  // Course Assignment Matrix, grouped course/category-wise (SAT, ACT, AP, Full-Length Tests,
+  // etc.) instead of one long flat list - mirrors the grouped Assign Content structure used when
+  // creating/editing a Student Group (HierarchicalContentSelector), but at whole-course
+  // granularity since that's what profiles.assigned_courses actually stores. Grouped by the
+  // course's own main_category then tutor_type (falling back to 'Other Courses' / 'General' when
+  // either is blank) so every course lands in some section - nothing is hidden or dropped, only
+  // reorganized for display.
+  const courseMatrixGroups = useMemo(() => {
+    const byMainCategory = new Map();
+    courses.forEach(course => {
+      const mainCat = course.main_category || 'Other Courses';
+      const subCat = course.tutor_type || 'General';
+      if (!byMainCategory.has(mainCat)) byMainCategory.set(mainCat, new Map());
+      const subMap = byMainCategory.get(mainCat);
+      if (!subMap.has(subCat)) subMap.set(subCat, []);
+      subMap.get(subCat).push(course);
+    });
+
+    const mainCategories = Array.from(byMainCategory.keys()).sort((a, b) => {
+      if (a === 'Other Courses') return 1;
+      if (b === 'Other Courses') return -1;
+      const ai = MAIN_CATEGORY_ORDER.indexOf(a);
+      const bi = MAIN_CATEGORY_ORDER.indexOf(b);
+      if (ai === -1 && bi === -1) return a.localeCompare(b);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+
+    return mainCategories.map(mainCat => {
+      const subMap = byMainCategory.get(mainCat);
+      const subCategories = Array.from(subMap.keys()).sort((a, b) => {
+        if (a === 'General') return 1;
+        if (b === 'General') return -1;
+        return a.localeCompare(b);
+      });
+      return {
+        key: mainCat,
+        label: MAIN_CATEGORY_LABELS[mainCat] || mainCat,
+        subCategories: subCategories.map(subCat => ({
+          key: subCat,
+          label: subCat,
+          courses: subMap.get(subCat).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        }))
+      };
+    });
+  }, [courses]);
 
   const roleSummaryCards = [
     { label: 'Students', count: roleCounts.student, icon: FiUser, color: 'blue' },
@@ -517,7 +580,21 @@ const UserManagement = () => {
                     </div>
 
                     <div>
-                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Course Assignment Matrix</h4>
+                      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Course Assignment Matrix</h4>
+                        {courses && courses.length > 0 && (
+                          <div className="relative w-full sm:w-64">
+                            <SafeIcon icon={FiSearch} className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                            <input
+                              type="text"
+                              value={courseMatrixSearch}
+                              onChange={(e) => setCourseMatrixSearch(e.target.value)}
+                              placeholder="Search courses..."
+                              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        )}
+                      </div>
                       {(!courses || courses.length === 0) ? (
                         <div className="p-8 text-center bg-gray-50 dark:bg-gray-900 rounded-[32px] border-2 border-dashed border-gray-100 dark:border-gray-800">
                           <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
@@ -526,32 +603,95 @@ const UserManagement = () => {
                           <h4 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight">No Courses Available</h4>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {courses.map(course => {
-                            const isAssigned = (selectedUser.assigned_courses || []).includes(course.id);
-                            return (
-                              <button
-                                key={course.id}
-                                onClick={() => toggleCourseAssignment(course.id)}
-                                className={`p-4 rounded-[20px] transition-all flex items-center justify-between group border-2 ${isAssigned
-                                  ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 shadow-sm'
-                                  : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-gray-200'
-                                  }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isAssigned ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:bg-gray-200'}`}>
-                                    <SafeIcon icon={FiBook} className="w-4 h-4" />
-                                  </div>
-                                  <div className="text-left">
-                                    <p className={`text-xs font-black uppercase tracking-tight ${isAssigned ? 'text-blue-900 dark:text-blue-100' : 'text-gray-700 dark:text-gray-300'}`}>{course.name}</p>
-                                  </div>
+                        <div className="space-y-4">
+                          {(() => {
+                            const searchLower = courseMatrixSearch.trim().toLowerCase();
+                            const visibleGroups = courseMatrixGroups
+                              .map(group => ({
+                                ...group,
+                                subCategories: group.subCategories
+                                  .map(sub => ({
+                                    ...sub,
+                                    courses: searchLower
+                                      ? sub.courses.filter(c => (c.name || '').toLowerCase().includes(searchLower))
+                                      : sub.courses
+                                  }))
+                                  .filter(sub => sub.courses.length > 0)
+                              }))
+                              .filter(group => group.subCategories.length > 0);
+
+                            if (visibleGroups.length === 0) {
+                              return (
+                                <p className="text-xs text-gray-400 text-center py-6">No courses match "{courseMatrixSearch}".</p>
+                              );
+                            }
+
+                            return visibleGroups.map(group => {
+                              const totalInGroup = group.subCategories.reduce((sum, s) => sum + s.courses.length, 0);
+                              const assignedInGroup = group.subCategories.reduce(
+                                (sum, s) => sum + s.courses.filter(c => (selectedUser.assigned_courses || []).includes(c.id)).length,
+                                0
+                              );
+                              const isCollapsed = !!collapsedMatrixSections[group.key];
+
+                              return (
+                                <div key={group.key} className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => setCollapsedMatrixSections(prev => ({ ...prev, [group.key]: !prev[group.key] }))}
+                                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900/60 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+                                  >
+                                    <span className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-200">
+                                      <SafeIcon icon={isCollapsed ? FiChevronRight : FiChevronDown} className="w-3.5 h-3.5 text-gray-400" />
+                                      {group.label}
+                                    </span>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${assignedInGroup > 0 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}>
+                                      {assignedInGroup} of {totalInGroup} assigned
+                                    </span>
+                                  </button>
+
+                                  {!isCollapsed && (
+                                    <div className="p-4 space-y-4 bg-white dark:bg-gray-950/40">
+                                      {group.subCategories.map(sub => (
+                                        <div key={sub.key}>
+                                          {(group.subCategories.length > 1 || sub.key !== 'General') && (
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{sub.label}</p>
+                                          )}
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {sub.courses.map(course => {
+                                              const isAssigned = (selectedUser.assigned_courses || []).includes(course.id);
+                                              return (
+                                                <button
+                                                  key={course.id}
+                                                  onClick={() => toggleCourseAssignment(course.id)}
+                                                  className={`p-4 rounded-[20px] transition-all flex items-center justify-between group border-2 ${isAssigned
+                                                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 shadow-sm'
+                                                    : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-gray-200'
+                                                    }`}
+                                                >
+                                                  <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${isAssigned ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:bg-gray-200'}`}>
+                                                      <SafeIcon icon={FiBook} className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="text-left">
+                                                      <p className={`text-xs font-black uppercase tracking-tight ${isAssigned ? 'text-blue-900 dark:text-blue-100' : 'text-gray-700 dark:text-gray-300'}`}>{course.name}</p>
+                                                    </div>
+                                                  </div>
+                                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isAssigned ? 'bg-blue-500 scale-100' : 'bg-gray-100 dark:bg-gray-800 scale-90 opacity-0 group-hover:opacity-100'}`}>
+                                                    <SafeIcon icon={FiCheck} className="text-white w-3 h-3" />
+                                                  </div>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isAssigned ? 'bg-blue-500 scale-100' : 'bg-gray-100 dark:bg-gray-800 scale-90 opacity-0 group-hover:opacity-100'}`}>
-                                  <SafeIcon icon={FiCheck} className="text-white w-3 h-3" />
-                                </div>
-                              </button>
-                            );
-                          })}
+                              );
+                            });
+                          })()}
                         </div>
                       )}
                     </div>

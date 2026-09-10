@@ -1794,6 +1794,78 @@ export const analyticsService = {
     },
 
     /**
+     * GROUP DEADLINE COMPLETION REPORT
+     *
+     * Once a group's content end_date has passed, this evaluates every member's completion
+     * status against EVERY course_id the group assigned, splitting them into completed vs
+     * missed/incomplete - used to build the automatic "deadline ended" email (see
+     * notifications.js run-group-deadline-check). Reuses getTopicCombinedReport's
+     * isFullyCompleted rule (same one getGroupContentAnalytics and getStudentDashboard already
+     * rely on) so "missed" here can never disagree with what the rest of the app calls
+     * incomplete - a topic that's only partially done (e.g. Easy+Medium but not Hard) is
+     * correctly reported as missed, not silently treated as done.
+     */
+    async getGroupDeadlineCompletionReport(groupId) {
+        const [{ groupName, assignedCourseIds }, membersRes] = await Promise.all([
+            this._getGroupScope(groupId),
+            supabase
+                .from('group_members')
+                .select('student_id, student:profiles!group_members_student_id_fkey(id, name, email)')
+                .eq('group_id', groupId)
+        ]);
+        const members = membersRes.data || [];
+
+        if (assignedCourseIds.length === 0 || members.length === 0) {
+            return { groupName, students: [] };
+        }
+
+        const { data: coursesData } = await supabase
+            .from('courses')
+            .select('id, name, category, tutor_type')
+            .in('id', assignedCourseIds);
+        const courseById = new Map((coursesData || []).map(c => [c.id, c]));
+
+        // Every (student, course) pair is independent - fetch all of them concurrently, same
+        // pattern as getGroupContentAnalytics, and in the same lightweight mode (only the
+        // isFullyCompleted flag is needed here, not per-question detail).
+        const cells = await Promise.all(
+            members.flatMap(m =>
+                assignedCourseIds.map(async courseId => {
+                    try {
+                        const report = await this.getTopicCombinedReport(null, m.student_id, courseId, { skipQuestionDetails: true });
+                        return { studentId: m.student_id, courseId, isFullyCompleted: report.isFullyCompleted };
+                    } catch (err) {
+                        console.error(`getGroupDeadlineCompletionReport: course ${courseId} for student ${m.student_id}`, err);
+                        return { studentId: m.student_id, courseId, isFullyCompleted: false };
+                    }
+                })
+            )
+        );
+
+        const byStudent = new Map(members.map(m => [m.student_id, {
+            studentId: m.student_id,
+            name: m.student?.name || 'Student',
+            email: m.student?.email || '',
+            completed: [],
+            missed: []
+        }]));
+
+        cells.forEach(({ studentId, courseId, isFullyCompleted }) => {
+            const entry = byStudent.get(studentId);
+            if (!entry) return;
+            const course = courseById.get(courseId);
+            const item = {
+                courseId,
+                name: course?.name || `Course ${courseId}`,
+                subject: course?.tutor_type || course?.category || 'General'
+            };
+            (isFullyCompleted ? entry.completed : entry.missed).push(item);
+        });
+
+        return { groupName, students: Array.from(byStudent.values()) };
+    },
+
+    /**
      * LEVEL 5 & 6: INDIVIDUAL ATTEMPT & QUESTION-WISE
      */
     async getAttemptAnalytics(submissionId) {

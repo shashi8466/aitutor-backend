@@ -11,6 +11,33 @@ const {
     FiUserPlus, FiInfo, FiSearch, FiBarChart2, FiRefreshCw
 } = FiIcons;
 
+// Combines a date input value (YYYY-MM-DD) with an optional time input value (HH:MM) into an
+// ISO timestamp for the backend. When no time is given, defaults to the start (00:00:00) or end
+// (23:59:59) of that day, so a date-only selection still covers the whole day - "full-day
+// behavior" when time isn't specified.
+const combineDateTime = (date, time, endOfDay) => {
+    if (!date) return null;
+    const t = time || (endOfDay ? '23:59:59' : '00:00:00');
+    const withSeconds = t.length === 5 ? `${t}:00` : t;
+    const d = new Date(`${date}T${withSeconds}`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+};
+
+// Splits a stored ISO timestamp back into separate date/time input values. If the stored time
+// exactly matches the full-day default (00:00 for start, 23:59 for end), the time field is left
+// blank so reopening the form shows "no specific time was set" rather than a synthetic value.
+const splitDateTime = (isoString, endOfDay) => {
+    if (!isoString) return { date: '', time: '' };
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return { date: '', time: '' };
+    const pad = (n) => String(n).padStart(2, '0');
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const hh = pad(d.getHours());
+    const mm = pad(d.getMinutes());
+    const isDefaultTime = endOfDay ? (hh === '23' && mm === '59') : (hh === '00' && mm === '00');
+    return { date, time: isDefaultTime ? '' : `${hh}:${mm}` };
+};
+
 /**
  * Admin Group Management - mirrors the Tutor Panel's Student Groups page (see
  * src/components/tutor/GroupManager.jsx) for the same card layout, modal-based Edit/Manage
@@ -51,6 +78,10 @@ const AdminGroupManagement = () => {
     const [assignedContent, setAssignedContent] = useState({});
     const [assignedCourseIds, setAssignedCourseIds] = useState([]);
     const [groupDescription, setGroupDescription] = useState('');
+    const [groupStartDate, setGroupStartDate] = useState('');
+    const [groupStartTime, setGroupStartTime] = useState('');
+    const [groupEndDate, setGroupEndDate] = useState('');
+    const [groupEndTime, setGroupEndTime] = useState('');
     const [selectedTutorId, setSelectedTutorId] = useState('');
     const [selectedStudentIds, setSelectedStudentIds] = useState([]);
 
@@ -59,6 +90,10 @@ const AdminGroupManagement = () => {
     const [editAssignedContent, setEditAssignedContent] = useState({});
     const [editAssignedCourseIds, setEditAssignedCourseIds] = useState([]);
     const [editGroupDescription, setEditGroupDescription] = useState('');
+    const [editGroupStartDate, setEditGroupStartDate] = useState('');
+    const [editGroupStartTime, setEditGroupStartTime] = useState('');
+    const [editGroupEndDate, setEditGroupEndDate] = useState('');
+    const [editGroupEndTime, setEditGroupEndTime] = useState('');
     const [editGroupStatus, setEditGroupStatus] = useState('active');
     const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' | 'students' | 'tutors'
     const [inviteLink, setInviteLink] = useState('');
@@ -102,18 +137,27 @@ const AdminGroupManagement = () => {
     const handleCreateGroup = async (e) => {
         e.preventDefault();
         try {
-            await adminService.createGroup({
+            const res = await adminService.createGroup({
                 name: newGroupName,
                 assigned_content: assignedContent,
                 assigned_course_ids: assignedCourseIds,
                 description: groupDescription,
+                start_date: combineDateTime(groupStartDate, groupStartTime, false),
+                end_date: combineDateTime(groupEndDate, groupEndTime, true),
                 tutor_id: selectedTutorId || (tutors.length > 0 ? tutors[0].id : null)
             });
+            if (res.data?.datesNotSaved) {
+                alert('Group created, but the Content Start/End Date could not be saved - the database has not been migrated for this feature yet. Contact support before relying on the content deadline.');
+            }
             setShowCreateModal(false);
             setNewGroupName('');
             setAssignedContent({});
             setAssignedCourseIds([]);
             setGroupDescription('');
+            setGroupStartDate('');
+            setGroupStartTime('');
+            setGroupEndDate('');
+            setGroupEndTime('');
             setSelectedTutorId('');
             loadData();
         } catch (error) {
@@ -253,6 +297,12 @@ const AdminGroupManagement = () => {
         setEditAssignedContent(group.assigned_content || {});
         setEditAssignedCourseIds(group.assigned_course_ids || []);
         setEditGroupDescription(group.description || '');
+        const startParts = splitDateTime(group.start_date, false);
+        const endParts = splitDateTime(group.end_date, true);
+        setEditGroupStartDate(startParts.date);
+        setEditGroupStartTime(startParts.time);
+        setEditGroupEndDate(endParts.date);
+        setEditGroupEndTime(endParts.time);
         setEditGroupStatus(group.status || 'active');
         setActiveEditTab('settings');
         setSelectedStudentIds([]);
@@ -273,15 +323,21 @@ const AdminGroupManagement = () => {
     const handleUpdateGroup = async (e) => {
         e.preventDefault();
         try {
-            await adminService.updateGroup(selectedGroup.id, {
+            const res = await adminService.updateGroup(selectedGroup.id, {
                 name: editGroupName,
                 assigned_content: editAssignedContent,
                 assigned_course_ids: editAssignedCourseIds,
                 description: editGroupDescription,
+                start_date: combineDateTime(editGroupStartDate, editGroupStartTime, false),
+                end_date: combineDateTime(editGroupEndDate, editGroupEndTime, true),
                 status: editGroupStatus
             });
             loadData();
-            alert('Group updated successfully!');
+            if (res.data?.datesNotSaved) {
+                alert('Group updated, but the Content Start/End Date could not be saved - the database has not been migrated for this feature yet. Contact support before relying on the content deadline.');
+            } else {
+                alert('Group updated successfully!');
+            }
             // We do not close the modal so they can continue managing students if needed
         } catch (error) {
             console.error('Error updating group:', error);
@@ -683,6 +739,54 @@ const AdminGroupManagement = () => {
                                             }}
                                         />
                                     </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Content Start Date (Optional)</label>
+                                            <input
+                                                type="date"
+                                                value={groupStartDate}
+                                                onChange={(e) => setGroupStartDate(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Content End Date (Optional)</label>
+                                            <input
+                                                type="date"
+                                                value={groupEndDate}
+                                                min={groupStartDate || undefined}
+                                                onChange={(e) => setGroupEndDate(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Start Time (Optional)</label>
+                                            <input
+                                                type="time"
+                                                value={groupStartTime}
+                                                disabled={!groupStartDate}
+                                                onChange={(e) => setGroupStartTime(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">End Time (Optional)</label>
+                                            <input
+                                                type="time"
+                                                value={groupEndTime}
+                                                disabled={!groupEndDate}
+                                                onChange={(e) => setGroupEndTime(e.target.value)}
+                                                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                            />
+                                        </div>
+                                    </div>
+                                    {(groupStartDate || groupEndDate) && (
+                                        <p className="text-xs text-gray-500 -mt-2">
+                                            Assigned content will only be accessible {groupStartDate ? `from ${groupStartDate}${groupStartTime ? ` ${groupStartTime}` : ''}` : ''} {groupEndDate ? `through ${groupEndDate}${groupEndTime ? ` ${groupEndTime}` : ' (end of day)'}` : 'onward'}.
+                                        </p>
+                                    )}
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description (Optional)</label>
                                         <textarea
@@ -853,6 +957,54 @@ const AdminGroupManagement = () => {
                                                 }}
                                             />
                                         </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Content Start Date (Optional)</label>
+                                                <input
+                                                    type="date"
+                                                    value={editGroupStartDate}
+                                                    onChange={(e) => setEditGroupStartDate(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Content End Date (Optional)</label>
+                                                <input
+                                                    type="date"
+                                                    value={editGroupEndDate}
+                                                    min={editGroupStartDate || undefined}
+                                                    onChange={(e) => setEditGroupEndDate(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Start Time (Optional)</label>
+                                                <input
+                                                    type="time"
+                                                    value={editGroupStartTime}
+                                                    disabled={!editGroupStartDate}
+                                                    onChange={(e) => setEditGroupStartTime(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">End Time (Optional)</label>
+                                                <input
+                                                    type="time"
+                                                    value={editGroupEndTime}
+                                                    disabled={!editGroupEndDate}
+                                                    onChange={(e) => setEditGroupEndTime(e.target.value)}
+                                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                                                />
+                                            </div>
+                                        </div>
+                                        {(editGroupStartDate || editGroupEndDate) && (
+                                            <p className="text-xs text-gray-500 -mt-2">
+                                                Assigned content will only be accessible {editGroupStartDate ? `from ${editGroupStartDate}${editGroupStartTime ? ` ${editGroupStartTime}` : ''}` : ''} {editGroupEndDate ? `through ${editGroupEndDate}${editGroupEndTime ? ` ${editGroupEndTime}` : ' (end of day)'}` : 'onward'}.
+                                            </p>
+                                        )}
                                         <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description</label>
                                             <textarea

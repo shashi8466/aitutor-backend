@@ -1558,6 +1558,12 @@ export const tutorService = {
   },
   getGroupContentAnalytics: async (groupId, courseIds) => {
     return axios.get(`/api/tutor/groups/${groupId}/analytics/content?courseIds=${courseIds.join(',')}`);
+  },
+  // Direct, no-payment/no-key self-enrollment for the Tutor Panel's Course Content "Enroll Now" -
+  // see tutor.js POST /self-enroll for why this is a separate endpoint from the student
+  // payment/checkout flow.
+  selfEnroll: async (courseId) => {
+    return axios.post('/api/tutor/self-enroll', { courseId });
   }
 };
 
