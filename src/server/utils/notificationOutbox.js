@@ -382,7 +382,11 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   }
 
   if (normalizedEventType === 'GROUP_DEADLINE_MISSED_CONTENT') {
-    const subject = `Group Deadline Ended: ${payload.groupName || 'Student Group'}`;
+    // Student gets a direct "you missed" subject; parent gets a "<name>'s missed" subject -
+    // deliberately different wording per the spec, not just a role-swapped template.
+    const subject = isParent
+      ? `Content Deadline Completed – ${payload.studentName || 'Student'}'s Missed Topics`
+      : `Group Content Deadline Completed – Missed Content`;
 
     const targetPath = isParent ? `/parent/child/${payload.studentId}` : `/student`;
     const separator = appUrl.endsWith('/') ? '' : '/';
@@ -394,16 +398,15 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
       recipientName,
       studentName: payload.studentName,
       isParent,
-      groupName: payload.groupName,
-      endDate: payload.endDate,
-      completed: payload.completed || [],
-      missed: payload.missed || [],
+      groups: payload.groups || [],
+      grandTotals: payload.grandTotals || { assigned: 0, completed: 0, missed: 0 },
       appUrl,
       reportUrl: finalUrl
     });
-    const missedCount = (payload.missed || []).length;
+    const missedCount = payload.grandTotals?.missed ?? 0;
+    const groupNames = (payload.groups || []).map(g => g.groupName).filter(Boolean).join(', ');
     const smsMessage =
-      `${appName}: The content deadline for group "${payload.groupName || 'your group'}"${isParent ? ` (${payload.studentName})` : ''} has ended. ` +
+      `${appName}: The content deadline${(payload.groups || []).length > 1 ? 's' : ''} for ${groupNames || 'your group'}${isParent ? ` (${payload.studentName})` : ''} ${(payload.groups || []).length > 1 ? 'have' : 'has'} ended. ` +
       `${missedCount} item(s) were not completed. Check your email for details.`;
     return { subject, emailHtml, smsMessage };
   }
@@ -583,16 +586,17 @@ export async function enqueueNotification({
     }
   }
 
-  // Group deadline emails have no per-submission id either - dedupe by groupId+studentId per
-  // recipient, same shape as TOPIC_COURSE_COMPLETED above. This is what guarantees the deadline
-  // email fires exactly once per student per group even if the daily cron somehow scans the
-  // same already-processed group twice (belt-and-suspenders alongside student_groups.
+  // Group deadline emails have no per-submission id either - dedupe by dedupeKey (the sorted
+  // list of group ids this email covers) + studentId per recipient, same shape as
+  // TOPIC_COURSE_COMPLETED above. This is what guarantees the deadline email fires exactly once
+  // per student per set of expired groups even if the daily cron somehow scans an
+  // already-processed group twice (belt-and-suspenders alongside student_groups.
   // deadline_processed_at, which is the primary guard against re-scanning at all).
   if (eventType === 'GROUP_DEADLINE_MISSED_CONTENT') {
-    const groupIdForDedup = payload?.groupId ?? null;
+    const dedupeKey = payload?.dedupeKey ?? null;
     const studentIdForDedup = payload?.studentId ?? null;
 
-    if (groupIdForDedup != null && studentIdForDedup != null) {
+    if (dedupeKey && studentIdForDedup != null) {
       const profileIdClause = recipientProfileId
         ? `recipient_profile_id.eq.${recipientProfileId}`
         : `recipient_profile_id.is.null`;
@@ -606,7 +610,7 @@ export async function enqueueNotification({
             ? `${profileIdClause},payload->>recipientEmail.eq.${recipientEmail}`
             : profileIdClause
         )
-        .filter('payload->>groupId', 'eq', String(groupIdForDedup))
+        .filter('payload->>dedupeKey', 'eq', dedupeKey)
         .filter('payload->>studentId', 'eq', String(studentIdForDedup))
         .order('created_at', { ascending: false })
         .limit(1);
@@ -615,7 +619,7 @@ export async function enqueueNotification({
         const row = existing[0];
 
         if (row.status === 'sent') {
-          console.log(`✅ [Outbox] Already SENT GROUP_DEADLINE_MISSED_CONTENT for group ${groupIdForDedup} → ${recipientProfileId}. Blocked.`);
+          console.log(`✅ [Outbox] Already SENT GROUP_DEADLINE_MISSED_CONTENT for groups [${dedupeKey}] → ${recipientProfileId}. Blocked.`);
           return row.id;
         }
 
@@ -634,7 +638,7 @@ export async function enqueueNotification({
             .single();
           if (!requeueErr && requeued?.id) return requeued.id;
         } else if (row.status === 'failed') {
-          console.log(`⚠️ [Outbox] Group ${groupIdForDedup} → ${recipientProfileId} exhausted retries. Blocking.`);
+          console.log(`⚠️ [Outbox] Groups [${dedupeKey}] → ${recipientProfileId} exhausted retries. Blocking.`);
           return row.id;
         }
       }

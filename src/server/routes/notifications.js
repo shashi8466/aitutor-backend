@@ -264,11 +264,14 @@ router.post('/run-due-reminders', async (req, res) => {
 // POST /api/notifications/run-group-deadline-check
 //
 // Finds every Student Group whose content end_date has passed and hasn't been processed yet,
-// computes each member's completed vs missed content against that group's assigned courses,
-// and emails both the student and any linked parent(s) a summary. Idempotent per group via
-// student_groups.deadline_processed_at (set once processing finishes), and per-recipient via
-// enqueueNotification's own GROUP_DEADLINE_MISSED_CONTENT dedup - safe to run this endpoint
-// repeatedly (e.g. cron overlap, manual retrigger) without re-sending duplicate emails.
+// computes each member's completion status against that group's assigned content (per-subject
+// breakdown, distinguishing Not Started from Partially Completed), and emails both the student
+// and any linked parent(s) a summary. A student who belongs to more than one group whose
+// deadline expired in the SAME run gets exactly one combined email (per the "don't send
+// multiple emails for several content deadlines" requirement), not one per group. Idempotent
+// per group via student_groups.deadline_processed_at (set once processing finishes), and
+// per-recipient via enqueueNotification's own GROUP_DEADLINE_MISSED_CONTENT dedup - safe to run
+// this endpoint repeatedly (e.g. cron overlap, manual retrigger) without re-sending duplicates.
 router.post('/run-group-deadline-check', async (req, res) => {
   try {
     if (!requireCronSecret(req, res)) return;
@@ -292,9 +295,12 @@ router.post('/run-group-deadline-check', async (req, res) => {
       .select('id, name, email, linked_students')
       .eq('role', 'parent');
 
+    // Build every expired group's completion report first, then aggregate BY STUDENT across
+    // all of them, so a student in more than one newly-expired group gets one combined email.
+    const byStudent = new Map(); // studentId -> { name, email, groups: [...] }
     let groupsProcessed = 0;
-    let studentsProcessed = 0;
-    let emailsEnqueued = 0;
+
+    const processedGroupIds = [];
 
     for (const group of expiredGroups || []) {
       try {
@@ -303,56 +309,84 @@ router.post('/run-group-deadline-check', async (req, res) => {
         for (const student of report.students) {
           if (!student.email) continue; // nothing to notify
 
-          const linkedParents = (allParents || []).filter(p => {
-            const linked = p.linked_students || [];
-            return Array.isArray(linked) && linked.some(id => String(id).trim() === String(student.studentId).trim());
-          });
-
-          const basePayload = {
+          if (!byStudent.has(student.studentId)) {
+            byStudent.set(student.studentId, { name: student.name, email: student.email, groups: [] });
+          }
+          byStudent.get(student.studentId).groups.push({
             groupId: group.id,
             groupName: report.groupName || group.name,
             endDate: group.end_date,
-            studentId: student.studentId,
-            studentName: student.name,
-            completed: student.completed,
-            missed: student.missed
-          };
-
-          await enqueueNotification({
-            eventType: 'GROUP_DEADLINE_MISSED_CONTENT',
-            recipientProfileId: student.studentId,
-            recipientType: 'student',
-            payload: { ...basePayload, recipientEmail: student.email },
-            scheduledFor: new Date().toISOString()
+            subjects: student.subjects,
+            totals: student.totals
           });
-          emailsEnqueued++;
-
-          for (const parent of linkedParents) {
-            if (!parent.email) continue;
-            await enqueueNotification({
-              eventType: 'GROUP_DEADLINE_MISSED_CONTENT',
-              recipientProfileId: parent.id,
-              recipientType: 'parent',
-              payload: { ...basePayload, recipientEmail: parent.email },
-              scheduledFor: new Date().toISOString()
-            });
-            emailsEnqueued++;
-          }
-
-          studentsProcessed++;
         }
 
-        // Mark processed regardless of per-student email outcome - the outbox handles delivery
-        // retries on its own; this flag only stops this group from being re-scanned tomorrow.
-        await supabase
-          .from('student_groups')
-          .update({ deadline_processed_at: new Date().toISOString() })
-          .eq('id', group.id);
-
+        processedGroupIds.push(group.id);
         groupsProcessed++;
       } catch (groupErr) {
         console.error(`❌ [GroupDeadline] Failed processing group ${group.id}:`, groupErr.message);
       }
+    }
+
+    let studentsProcessed = 0;
+    let emailsEnqueued = 0;
+
+    for (const [studentId, info] of byStudent.entries()) {
+      const linkedParents = (allParents || []).filter(p => {
+        const linked = p.linked_students || [];
+        return Array.isArray(linked) && linked.some(id => String(id).trim() === String(studentId).trim());
+      });
+
+      const grandTotals = info.groups.reduce((acc, g) => ({
+        assigned: acc.assigned + g.totals.assigned,
+        completed: acc.completed + g.totals.completed,
+        missed: acc.missed + g.totals.missed
+      }), { assigned: 0, completed: 0, missed: 0 });
+
+      const basePayload = {
+        studentId,
+        studentName: info.name,
+        groups: info.groups,
+        grandTotals,
+        // Which group deadlines this email covers - used by enqueueNotification's dedup so a
+        // retried/duplicate run for the SAME newly-expired set doesn't double-send. The primary
+        // guard is deadline_processed_at below; this is belt-and-suspenders at the outbox layer.
+        dedupeKey: info.groups.map(g => g.groupId).sort((a, b) => a - b).join(',')
+      };
+
+      await enqueueNotification({
+        eventType: 'GROUP_DEADLINE_MISSED_CONTENT',
+        recipientProfileId: studentId,
+        recipientType: 'student',
+        payload: { ...basePayload, recipientEmail: info.email },
+        scheduledFor: new Date().toISOString()
+      });
+      emailsEnqueued++;
+
+      for (const parent of linkedParents) {
+        if (!parent.email) continue;
+        await enqueueNotification({
+          eventType: 'GROUP_DEADLINE_MISSED_CONTENT',
+          recipientProfileId: parent.id,
+          recipientType: 'parent',
+          payload: { ...basePayload, recipientEmail: parent.email },
+          scheduledFor: new Date().toISOString()
+        });
+        emailsEnqueued++;
+      }
+
+      studentsProcessed++;
+    }
+
+    // Mark every successfully-processed group now that its students' notifications have been
+    // enqueued - the outbox handles delivery retries on its own; this flag only stops these
+    // groups from being re-scanned tomorrow. A group that threw above is deliberately left
+    // unmarked so it's retried on the next run instead of silently skipped forever.
+    if (processedGroupIds.length > 0) {
+      await supabase
+        .from('student_groups')
+        .update({ deadline_processed_at: new Date().toISOString() })
+        .in('id', processedGroupIds);
     }
 
     const processed = await processOutboxOnce({ limit: 50 });

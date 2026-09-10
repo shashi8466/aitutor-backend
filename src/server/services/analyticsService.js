@@ -1797,13 +1797,16 @@ export const analyticsService = {
      * GROUP DEADLINE COMPLETION REPORT
      *
      * Once a group's content end_date has passed, this evaluates every member's completion
-     * status against EVERY course_id the group assigned, splitting them into completed vs
-     * missed/incomplete - used to build the automatic "deadline ended" email (see
+     * status against EVERY course_id the group assigned, classifying each one as completed,
+     * partially completed (some but not all of Easy/Medium/Hard attempted), or not started -
+     * then groups that into a per-subject (SAT Math / SAT Reading & Writing / etc.) breakdown,
+     * each with the actual item names, for the automatic "deadline ended" email (see
      * notifications.js run-group-deadline-check). Reuses getTopicCombinedReport's
-     * isFullyCompleted rule (same one getGroupContentAnalytics and getStudentDashboard already
-     * rely on) so "missed" here can never disagree with what the rest of the app calls
-     * incomplete - a topic that's only partially done (e.g. Easy+Medium but not Hard) is
-     * correctly reported as missed, not silently treated as done.
+     * isFullyCompleted/activeLevels (same ones getGroupContentAnalytics and getStudentDashboard
+     * already rely on) so this can never disagree with what the rest of the app calls complete -
+     * a topic that's only partially done (e.g. Easy+Medium but not Hard) is correctly reported
+     * as incomplete, never silently folded into "completed", and never blindly lumped in with
+     * a topic that was never attempted at all.
      */
     async getGroupDeadlineCompletionReport(groupId) {
         const [{ groupName, assignedCourseIds }, membersRes] = await Promise.all([
@@ -1827,16 +1830,19 @@ export const analyticsService = {
 
         // Every (student, course) pair is independent - fetch all of them concurrently, same
         // pattern as getGroupContentAnalytics, and in the same lightweight mode (only the
-        // isFullyCompleted flag is needed here, not per-question detail).
+        // isFullyCompleted/activeLevels flags are needed here, not per-question detail).
         const cells = await Promise.all(
             members.flatMap(m =>
                 assignedCourseIds.map(async courseId => {
                     try {
                         const report = await this.getTopicCombinedReport(null, m.student_id, courseId, { skipQuestionDetails: true });
-                        return { studentId: m.student_id, courseId, isFullyCompleted: report.isFullyCompleted };
+                        let status = 'not_started';
+                        if (report.isFullyCompleted) status = 'completed';
+                        else if ((report.activeLevels || []).length > 0) status = 'partial';
+                        return { studentId: m.student_id, courseId, status };
                     } catch (err) {
                         console.error(`getGroupDeadlineCompletionReport: course ${courseId} for student ${m.student_id}`, err);
-                        return { studentId: m.student_id, courseId, isFullyCompleted: false };
+                        return { studentId: m.student_id, courseId, status: 'not_started' };
                     }
                 })
             )
@@ -1846,23 +1852,52 @@ export const analyticsService = {
             studentId: m.student_id,
             name: m.student?.name || 'Student',
             email: m.student?.email || '',
-            completed: [],
-            missed: []
+            subjects: new Map() // subject -> { completedItems: [], partialItems: [], notStartedItems: [] }
         }]));
 
-        cells.forEach(({ studentId, courseId, isFullyCompleted }) => {
+        cells.forEach(({ studentId, courseId, status }) => {
             const entry = byStudent.get(studentId);
             if (!entry) return;
             const course = courseById.get(courseId);
-            const item = {
-                courseId,
-                name: course?.name || `Course ${courseId}`,
-                subject: course?.tutor_type || course?.category || 'General'
-            };
-            (isFullyCompleted ? entry.completed : entry.missed).push(item);
+            const subjectName = course?.tutor_type || course?.category || 'General';
+            if (!entry.subjects.has(subjectName)) {
+                entry.subjects.set(subjectName, { completedItems: [], partialItems: [], notStartedItems: [] });
+            }
+            const bucket = entry.subjects.get(subjectName);
+            const name = course?.name || `Course ${courseId}`;
+            if (status === 'completed') bucket.completedItems.push(name);
+            else if (status === 'partial') bucket.partialItems.push(name);
+            else bucket.notStartedItems.push(name);
         });
 
-        return { groupName, students: Array.from(byStudent.values()) };
+        const students = Array.from(byStudent.values()).map(s => {
+            const subjects = Array.from(s.subjects.entries()).map(([subject, b]) => ({
+                subject,
+                assigned: b.completedItems.length + b.partialItems.length + b.notStartedItems.length,
+                completed: b.completedItems.length,
+                missed: b.partialItems.length + b.notStartedItems.length,
+                partiallyCompleted: b.partialItems.length,
+                notStarted: b.notStartedItems.length,
+                completedItems: b.completedItems,
+                // Missed items carry their status so the email can label each one (e.g.
+                // "Topic A (Not Started)" vs "Topic B (Partially Completed)") instead of a flat
+                // undifferentiated list.
+                missedItems: [
+                    ...b.notStartedItems.map(name => ({ name, status: 'not_started' })),
+                    ...b.partialItems.map(name => ({ name, status: 'partial' }))
+                ]
+            }));
+
+            const totals = subjects.reduce((acc, s2) => ({
+                assigned: acc.assigned + s2.assigned,
+                completed: acc.completed + s2.completed,
+                missed: acc.missed + s2.missed
+            }), { assigned: 0, completed: 0, missed: 0 });
+
+            return { studentId: s.studentId, name: s.name, email: s.email, subjects, totals };
+        });
+
+        return { groupName, students };
     },
 
     /**

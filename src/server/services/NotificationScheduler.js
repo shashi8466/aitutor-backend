@@ -133,10 +133,17 @@ class NotificationScheduler {
     }, { timezone: 'America/New_York' });
     this.tasks.push(remindersTask);
 
-    // Group content deadline check — once a day at 8 AM. Finds groups whose end_date passed
-    // and haven't been processed yet, and sends the missed-content email to each student/parent.
-    const groupDeadlineTask = cron.schedule('0 8 * * *', async () => {
-      console.log('📬 [Cron] Group deadline check job triggered');
+    // Group content deadline check — every 10 minutes. A group's end_date can now carry an exact
+    // time of day (not just a date), so a once-a-day check missed deadlines that expired anytime
+    // after that day's run - a student whose deadline passed at 2:10 PM would otherwise wait
+    // until the NEXT day's run for their missed-content email. The check itself is cheap (one
+    // query for expired-and-unprocessed groups; a no-op when there are none) and fully
+    // idempotent (student_groups.deadline_processed_at + the outbox's own dedup), so running it
+    // frequently is safe - it will simply find nothing to do on most ticks.
+    let groupDeadlineRunning = false;
+    const groupDeadlineTask = cron.schedule('*/10 * * * *', async () => {
+      if (groupDeadlineRunning) return; // prevent overlap if a previous run is still in flight
+      groupDeadlineRunning = true;
       try {
         const port = process.env.PORT || 3001;
         const url = `http://127.0.0.1:${port}/api/notifications/run-group-deadline-check`;
@@ -144,11 +151,15 @@ class NotificationScheduler {
           headers: { 'x-cron-secret': process.env.CRON_SECRET || '' },
           timeout: 600000
         });
-        console.log('✅ [Cron] Group deadline check response:', response.data);
+        if (response.data?.groupsProcessed > 0) {
+          console.log('✅ [Cron] Group deadline check response:', response.data);
+        }
       } catch (e) {
         console.error('❌ [Cron] Group deadline check error:', e.message);
+      } finally {
+        groupDeadlineRunning = false;
       }
-    }, { timezone: 'Asia/Kolkata' });
+    });
     this.tasks.push(groupDeadlineTask);
 
     console.log('✅ [Scheduler] Notification scheduler started successfully (1 outbox task registered).');
