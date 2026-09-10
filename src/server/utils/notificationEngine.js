@@ -518,6 +518,13 @@ export function buildGroupDeadlineMissedContentEmail({ recipientName, studentNam
         </div>`;
     };
 
+    // A subject with nothing missed gets a positive callout instead of just "Missed/Incomplete:
+    // 0" - a student who finished everything should clearly see that, not just a zero next to
+    // an otherwise "missed content" framed email.
+    const allDoneNote = (s) => s.assigned > 0 && s.missed === 0
+        ? `<div style="margin-top:6px; color:#4ade80; font-size:13px; font-weight:700;">✅ All ${s.assigned} topic${s.assigned === 1 ? '' : 's'} completed!</div>`
+        : '';
+
     // Student email: each subject's missed-topic names sit right under its own counts.
     const renderSubjectBlockForStudent = (s) => `
         <div style="margin-bottom:16px;">
@@ -527,6 +534,7 @@ export function buildGroupDeadlineMissedContentEmail({ recipientName, studentNam
                 Completed: ${s.completed}<br/>
                 Missed/Incomplete: ${s.missed}${s.missed > 0 ? ` (${s.notStarted} Not Started, ${s.partiallyCompleted} Partially Completed)` : ''}
             </div>
+            ${allDoneNote(s)}
             ${renderMissedItems(s.missedItems)}
         </div>`;
 
@@ -540,6 +548,7 @@ export function buildGroupDeadlineMissedContentEmail({ recipientName, studentNam
                 Completed: ${s.completed}<br/>
                 Missed/Incomplete: ${s.missed}${s.missed > 0 ? ` (${s.notStarted} Not Started, ${s.partiallyCompleted} Partially Completed)` : ''}
             </div>
+            ${allDoneNote(s)}
         </div>`;
 
     const renderParentMissedSection = () => {
@@ -573,21 +582,29 @@ export function buildGroupDeadlineMissedContentEmail({ recipientName, studentNam
         </div>
     `).join('');
 
+    const allCompleted = grandTotals.assigned > 0 && grandTotals.missed === 0;
+
     const singleGroupName = groups.length === 1 ? groups[0].groupName : null;
     const intro = isParent
-        ? (singleGroupName
-            ? `The assigned content deadline for <strong>${studentName}</strong> in <strong>${singleGroupName}</strong> has ended.`
-            : `The assigned content deadline for <strong>${studentName}</strong> in the following groups has ended.`)
-        : (singleGroupName
-            ? `The deadline for your assigned content in <strong>${singleGroupName}</strong> has ended.`
-            : `The deadline for your assigned content in the following groups has ended.`);
+        ? (allCompleted
+            ? `Great news! The assigned content deadline${singleGroupName ? ` for <strong>${studentName}</strong> in <strong>${singleGroupName}</strong>` : ` for <strong>${studentName}</strong>`} has ended, and <strong>${studentName}</strong> completed everything that was assigned.`
+            : singleGroupName
+                ? `The assigned content deadline for <strong>${studentName}</strong> in <strong>${singleGroupName}</strong> has ended.`
+                : `The assigned content deadline for <strong>${studentName}</strong> in the following groups has ended.`)
+        : (allCompleted
+            ? `Great job! The deadline${singleGroupName ? ` for your assigned content in <strong>${singleGroupName}</strong>` : ' for your assigned content'} has ended, and you completed everything that was assigned.`
+            : singleGroupName
+                ? `The deadline for your assigned content in <strong>${singleGroupName}</strong> has ended.`
+                : `The deadline for your assigned content in the following groups has ended.`);
 
     const closingLine = isParent
         ? `Total: ${grandTotals.completed} completed / ${grandTotals.missed} missed.`
         : `Total: ${grandTotals.completed} completed / ${grandTotals.missed} missed<br/><br/>The access deadline for this assigned content has now ended.`;
 
     const finalUrl = reportUrl || (isParent ? (appUrl ? `${appUrl}/parent` : '#') : (appUrl ? `${appUrl}/student` : '#'));
-    const headerTitle = isParent ? '⏰ Content Deadline Completed' : '⏰ Group Content Deadline Completed';
+    const headerTitle = allCompleted
+        ? (isParent ? '🎉 All Assigned Content Completed' : '🎉 You Completed All Assigned Content')
+        : (isParent ? '⏰ Content Deadline Completed' : '⏰ Group Content Deadline Completed');
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>${headerTitle}</h1><p>${appName}</p></div><div class="body"><p>${isParent ? 'Hello' : 'Hi'} <strong>${recipientName || (isParent ? 'Parent' : 'there')}</strong>,</p><p style="margin-top:8px;">${intro}</p><div class="score-row"><div class="score-box"><div class="val">${grandTotals.assigned}</div><div class="lbl">Assigned</div></div><div class="score-box"><div class="val">${grandTotals.completed}</div><div class="lbl">Completed</div></div><div class="score-box"><div class="val">${grandTotals.missed}</div><div class="lbl">Missed</div></div></div>${groupsHtml}${isParent ? renderParentMissedSection() : ''}<p style="margin-top:16px; font-weight:700; color:#f8fafc;">${closingLine}</p><a class="cta" href="${finalUrl}">Open Dashboard →</a></div><div class="footer">${appName} • Automatic deadline notification</div></div></div></body></html>`;
 }

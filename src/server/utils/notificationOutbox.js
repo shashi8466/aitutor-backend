@@ -382,11 +382,20 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
   }
 
   if (normalizedEventType === 'GROUP_DEADLINE_MISSED_CONTENT') {
-    // Student gets a direct "you missed" subject; parent gets a "<name>'s missed" subject -
-    // deliberately different wording per the spec, not just a role-swapped template.
-    const subject = isParent
-      ? `Content Deadline Completed – ${payload.studentName || 'Student'}'s Missed Topics`
-      : `Group Content Deadline Completed – Missed Content`;
+    const grandTotals = payload.grandTotals || { assigned: 0, completed: 0, missed: 0 };
+    const allCompleted = grandTotals.assigned > 0 && grandTotals.missed === 0;
+
+    // Student gets a direct "you missed"/"you completed" subject; parent gets a "<name>'s
+    // missed/completed" subject - deliberately different wording per the spec, not just a
+    // role-swapped template. A fully-completed student gets a congratulatory subject instead of
+    // a "Missed Content" line advertising a zero.
+    const subject = allCompleted
+      ? (isParent
+        ? `Content Deadline Completed – ${payload.studentName || 'Student'} Completed Everything!`
+        : `Group Content Deadline Completed – All Content Completed!`)
+      : (isParent
+        ? `Content Deadline Completed – ${payload.studentName || 'Student'}'s Missed Topics`
+        : `Group Content Deadline Completed – Missed Content`);
 
     const targetPath = isParent ? `/parent/child/${payload.studentId}` : `/student`;
     const separator = appUrl.endsWith('/') ? '' : '/';
@@ -399,15 +408,15 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
       studentName: payload.studentName,
       isParent,
       groups: payload.groups || [],
-      grandTotals: payload.grandTotals || { assigned: 0, completed: 0, missed: 0 },
+      grandTotals,
       appUrl,
       reportUrl: finalUrl
     });
-    const missedCount = payload.grandTotals?.missed ?? 0;
     const groupNames = (payload.groups || []).map(g => g.groupName).filter(Boolean).join(', ');
-    const smsMessage =
-      `${appName}: The content deadline${(payload.groups || []).length > 1 ? 's' : ''} for ${groupNames || 'your group'}${isParent ? ` (${payload.studentName})` : ''} ${(payload.groups || []).length > 1 ? 'have' : 'has'} ended. ` +
-      `${missedCount} item(s) were not completed. Check your email for details.`;
+    const smsMessage = allCompleted
+      ? `${appName}: The content deadline for ${groupNames || 'your group'}${isParent ? ` (${payload.studentName})` : ''} has ended - all ${grandTotals.assigned} assigned topic(s) were completed! 🎉`
+      : `${appName}: The content deadline${(payload.groups || []).length > 1 ? 's' : ''} for ${groupNames || 'your group'}${isParent ? ` (${payload.studentName})` : ''} ${(payload.groups || []).length > 1 ? 'have' : 'has'} ended. ` +
+        `${grandTotals.missed} item(s) were not completed. Check your email for details.`;
     return { subject, emailHtml, smsMessage };
   }
 
