@@ -348,10 +348,17 @@ router.post('/run-group-deadline-check', async (req, res) => {
         studentName: info.name,
         groups: info.groups,
         grandTotals,
-        // Which group deadlines this email covers - used by enqueueNotification's dedup so a
-        // retried/duplicate run for the SAME newly-expired set doesn't double-send. The primary
-        // guard is deadline_processed_at below; this is belt-and-suspenders at the outbox layer.
-        dedupeKey: info.groups.map(g => g.groupId).sort((a, b) => a - b).join(',')
+        // Which group deadlines (group id AND its exact end_date) this email covers - used by
+        // enqueueNotification's dedup so a retried/duplicate run for the SAME newly-expired set
+        // doesn't double-send. Deliberately includes end_date, not just groupId: an admin/tutor
+        // extending a deadline (e.g. testing, or a genuine extension) resets
+        // deadline_processed_at so the group is re-scanned, but without end_date in this key the
+        // dedup would still see "already sent for this group+student" from the PREVIOUS deadline
+        // and wrongly block the new one - a real deadline change must always be able to trigger
+        // a fresh notification. The primary guard against re-scanning an unchanged deadline is
+        // deadline_processed_at on the group itself; this is belt-and-suspenders at the outbox
+        // layer for the (identical group, identical end_date) case only.
+        dedupeKey: info.groups.map(g => `${g.groupId}:${g.endDate}`).sort().join(',')
       };
 
       await enqueueNotification({
