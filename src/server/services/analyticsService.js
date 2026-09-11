@@ -1688,11 +1688,25 @@ export const analyticsService = {
      * One reusable "Analytics Resolver" for the group's assigned content, at whatever
      * granularity the caller passes in courseIds: a single course_id for a subtopic, or many
      * for a topic/domain or a whole section - the aggregation logic is identical either way.
-     * Per-student, per-course_id numbers are ALWAYS the same getTopicCombinedReport() result
-     * already used by Test Review, the per-student topic report, and the combined report page -
-     * this never recomputes a score independently, so nothing here can disagree with those.
+     *
+     * This used to call getTopicCombinedReport() once per (student, courseId) pair, and THAT
+     * function issues its own courses/test_submissions/profiles queries every time it's called -
+     * so a group of 65 students viewed at "SAT Math" (say 20 assigned course_ids) fanned out to
+     * ~3900 sequential Supabase round-trips for one page load, which is the actual root cause of
+     * Content Analytics taking many seconds to load. Fixed by fetching every relevant
+     * test_submissions row ONCE (a single .in(user_id).in(course_id) query) and computing each
+     * cell's Easy/Medium/Hard combination in memory instead - now exactly 2 queries total
+     * (group scope + members) plus this one submissions query, regardless of student/course
+     * count. The scoring arithmetic (latest submission per level, combined 200-800 scale from
+     * total correct/total questions across the three levels) is deliberately kept identical to
+     * getTopicCombinedReport's own combination logic so these numbers can't disagree with what
+     * Test Review / the per-student topic report show - only the profile/course-name fields
+     * (never read by this view) and the legacy "total_questions unpopulated -> recover via a
+     * per-question join" fallback (an already-rare data gap on very old submissions) are skipped.
      */
     async getGroupContentAnalytics(groupId, courseIds) {
+        const REQUIRED_LEVELS = ['Easy', 'Medium', 'Hard'];
+
         const [{ assignedCourseIds }, membersRes] = await Promise.all([
             this._getGroupScope(groupId),
             supabase
@@ -1706,26 +1720,51 @@ export const analyticsService = {
         // that isn't part of the group's own assignment is silently dropped, not authorized.
         const assignedSet = new Set(assignedCourseIds);
         const scopedCourseIds = [...new Set(courseIds)].filter(id => assignedSet.has(id));
+        const studentIds = members.map(m => m.student_id);
 
-        // Every (student, course) combined report is independent of every other - fetch all of
-        // them concurrently rather than per-student or per-course sequential passes.
-        const cells = await Promise.all(
-            members.flatMap(m =>
-                scopedCourseIds.map(async courseId => {
-                    try {
-                        // Lightweight mode: this view only ever reads aggregate overall/
-                        // isFullyCompleted/activeLevels/attemptHistory fields (see the comment
-                        // in getTopicCombinedReport), never per-question detail, so skip the
-                        // expensive per-submission question join across this whole fan-out.
-                        const report = await this.getTopicCombinedReport(null, m.student_id, courseId, { skipQuestionDetails: true });
-                        return { studentId: m.student_id, courseId, report };
-                    } catch (err) {
-                        console.error(`getGroupContentAnalytics: course ${courseId} for student ${m.student_id}`, err);
-                        return { studentId: m.student_id, courseId, report: null };
-                    }
-                })
-            )
-        );
+        const submissionsByKey = new Map(); // `${studentId}:${courseId}` -> raw submission rows
+        if (studentIds.length > 0 && scopedCourseIds.length > 0) {
+            const { data: submissions, error } = await supabase
+                .from('test_submissions')
+                .select('user_id, course_id, level, total_questions, correct_questions, created_at')
+                .in('user_id', studentIds)
+                .in('course_id', scopedCourseIds);
+            if (error) throw error;
+
+            (submissions || []).forEach(sub => {
+                const key = `${sub.user_id}:${sub.course_id}`;
+                if (!submissionsByKey.has(key)) submissionsByKey.set(key, []);
+                submissionsByKey.get(key).push(sub);
+            });
+        }
+
+        // Same combination rule as getTopicCombinedReport: latest submission per level, combined
+        // score from summed correct/total across whichever of Easy/Medium/Hard have an attempt.
+        const computeCell = (submissions) => {
+            const latestByLevel = { Easy: null, Medium: null, Hard: null };
+            submissions.forEach(sub => {
+                const rawLevel = sub.level || 'Medium';
+                const level = rawLevel.charAt(0).toUpperCase() + rawLevel.slice(1).toLowerCase();
+                if (!(level in latestByLevel)) return;
+                if (!latestByLevel[level] || new Date(sub.created_at) >= new Date(latestByLevel[level].created_at)) {
+                    latestByLevel[level] = sub;
+                }
+            });
+
+            let totalQuestions = 0, correct = 0;
+            const activeLevels = REQUIRED_LEVELS.filter(lvl => !!latestByLevel[lvl]);
+            activeLevels.forEach(lvl => {
+                const sub = latestByLevel[lvl];
+                totalQuestions += sub.total_questions || 0;
+                correct += sub.correct_questions?.length || 0;
+            });
+
+            const isFullyCompleted = activeLevels.length === REQUIRED_LEVELS.length;
+            const accuracy = (isFullyCompleted && totalQuestions > 0) ? Math.round((correct / totalQuestions) * 100) : null;
+            const scaledScore = (isFullyCompleted && totalQuestions > 0) ? Math.round(200 + (correct / totalQuestions) * 600) : null;
+
+            return { activeLevels, isFullyCompleted, overall: { accuracy, scaledScore }, attemptCount: submissions.length };
+        };
 
         const byStudent = new Map(members.map(m => [m.student_id, {
             id: m.student_id,
@@ -1734,8 +1773,12 @@ export const analyticsService = {
             reports: []
         }]));
 
-        cells.forEach(({ studentId, report }) => {
-            if (report) byStudent.get(studentId)?.reports.push(report);
+        members.forEach(m => {
+            scopedCourseIds.forEach(courseId => {
+                const submissions = submissionsByKey.get(`${m.student_id}:${courseId}`) || [];
+                if (submissions.length === 0) return; // never attempted - not an "active" report
+                byStudent.get(m.student_id)?.reports.push(computeCell(submissions));
+            });
         });
 
         const studentRows = Array.from(byStudent.values()).map(s => {
@@ -1743,7 +1786,7 @@ export const analyticsService = {
             const completed = s.reports.filter(r => r.isFullyCompleted);
             const completedScores = completed.map(r => r.overall.scaledScore);
             const completedAccuracies = completed.map(r => r.overall.accuracy);
-            const totalAttempts = s.reports.reduce((sum, r) => sum + r.attemptHistory.length, 0);
+            const totalAttempts = s.reports.reduce((sum, r) => sum + r.attemptCount, 0);
             const scopedTotal = scopedCourseIds.length;
 
             let status = 'Not Attempted';
