@@ -20,8 +20,8 @@ const LEVELS = ['Easy', 'Medium', 'Hard'];
  * analyticsService.getRecentCompletedTests - `activeLevels`/`isFullyCompleted` present instead).
  * Full-Length rows link to the existing report/:submissionId route (FullTestReport); topic rows
  * link to the existing topic-report/:studentId/:courseId route (TopicReportReview /
- * CombinedRegularCourseReport), which already renders a "Test In Progress" placeholder when not
- * every level is done - no new report UI needed either way.
+ * CombinedRegularCourseReport), which shows one consolidated report per topic - whichever levels
+ * are completed so far, with uncompleted ones simply omitted - no new report UI needed either way.
  */
 const RecentCompletedTestsPanel = ({ fetchTests, basePath, studentId, title, emptyMessage }) => {
     const navigate = useNavigate();

@@ -450,57 +450,31 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student', on
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons - the consolidated topic report always shows whichever levels are
+          completed so far (see CombinedRegularCourseReport), so these are never disabled -
+          a student with even one completed level can view/download it right away. */}
       <div className="flex gap-1.5 mt-auto">
-        {combined.isFullyCompleted ? (
-          <>
-            <button
-              onClick={() => navigate(topicReportPath(combined.courseId))}
-              title="View Report"
-              className="flex-1 py-2 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-black flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide transition-all shadow-md cursor-pointer"
-            >
-              <SafeIcon icon={FiFileText} className="w-3 h-3 flex-shrink-0" /> <span className="truncate">View Report</span>
-            </button>
-            <button
-              onClick={() => navigate(`${topicReportPath(combined.courseId)}?view=question-wise`)}
-              title="Question-wise Analysis"
-              className="flex-1 py-2 px-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-black flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide transition-all shadow-md cursor-pointer"
-            >
-              <SafeIcon icon={FiArrowRight} className="w-3 h-3 flex-shrink-0" /> <span className="truncate">Question-wise</span>
-            </button>
-            <button
-              onClick={() => navigate(`${topicReportPath(combined.courseId)}?download=true`)}
-              title="Download PDF"
-              className="flex-shrink-0 py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-lg font-black flex items-center justify-center transition-all cursor-pointer"
-            >
-              <SafeIcon icon={FiDownload} className="w-3.5 h-3.5" />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              disabled
-              title="Complete all levels to view the combined report"
-              className="flex-1 py-2 px-2 bg-slate-800 text-slate-500 rounded-lg font-black flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide cursor-not-allowed"
-            >
-              <SafeIcon icon={FiFileText} className="w-3 h-3 flex-shrink-0" /> <span className="truncate">View Report</span>
-            </button>
-            <button
-              disabled
-              title="Complete all levels to view question-wise analysis"
-              className="flex-1 py-2 px-2 bg-slate-800 text-slate-500 rounded-lg font-black flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide cursor-not-allowed"
-            >
-              <SafeIcon icon={FiArrowRight} className="w-3 h-3 flex-shrink-0" /> <span className="truncate">Question-wise</span>
-            </button>
-            <button
-              disabled
-              title="Complete all levels to download the PDF report"
-              className="flex-shrink-0 py-2 px-2.5 bg-slate-800 text-slate-500 border border-slate-700 rounded-lg font-black flex items-center justify-center cursor-not-allowed"
-            >
-              <SafeIcon icon={FiDownload} className="w-3.5 h-3.5" />
-            </button>
-          </>
-        )}
+        <button
+          onClick={() => navigate(topicReportPath(combined.courseId))}
+          title="View Report"
+          className="flex-1 py-2 px-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-black flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide transition-all shadow-md cursor-pointer"
+        >
+          <SafeIcon icon={FiFileText} className="w-3 h-3 flex-shrink-0" /> <span className="truncate">View Report</span>
+        </button>
+        <button
+          onClick={() => navigate(`${topicReportPath(combined.courseId)}?view=question-wise`)}
+          title="Question-wise Analysis"
+          className="flex-1 py-2 px-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-black flex items-center justify-center gap-1 text-[9px] uppercase tracking-wide transition-all shadow-md cursor-pointer"
+        >
+          <SafeIcon icon={FiArrowRight} className="w-3 h-3 flex-shrink-0" /> <span className="truncate">Question-wise</span>
+        </button>
+        <button
+          onClick={() => navigate(`${topicReportPath(combined.courseId)}?download=true`)}
+          title="Download PDF"
+          className="flex-shrink-0 py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-lg font-black flex items-center justify-center transition-all cursor-pointer"
+        >
+          <SafeIcon icon={FiDownload} className="w-3.5 h-3.5" />
+        </button>
       </div>
     </motion.div>
   );

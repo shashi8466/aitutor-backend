@@ -137,13 +137,17 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                 rawScoreText,
                 scaledScore,
                 timeSpent,
-                passStatus
+                passStatus,
+                // A level only belongs in the consolidated report once it has actually been
+                // completed - never shown as "in progress"/locked, just omitted until then.
+                completed: totalQ > 0
             };
         };
 
         const easyLevel = calculateLevel(easyQs, 'Easy');
         const mediumLevel = calculateLevel(mediumQs, 'Medium');
         const hardLevel = calculateLevel(hardQs, 'Hard');
+        const activeLevels = [easyLevel, mediumLevel, hardLevel].filter(l => l.completed).map(l => l.levelName);
 
         // Combined Overall Performance Calculations
         const totalQuestions = allResponses.length || (easyLevel.totalQ + mediumLevel.totalQ + hardLevel.totalQ);
@@ -189,11 +193,11 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
             strengths = [subskillPerformance[0].topic + ` (${subskillPerformance[0].accuracy}%)`];
         }
 
-        // A combined topic report (topicReportData) is only meaningful once every required
-        // difficulty level has actually been attempted. A single-attempt `submission` view
-        // (no topicReportData) isn't a combined report, so it's never gated by this.
-        const isFullyCompleted = topicReportData ? topicReportData.isFullyCompleted !== false : true;
-        const missingLevels = topicReportData?.missingLevels || [];
+        // A true SAT-style "Combined" score only means something once every required difficulty
+        // level has actually been attempted - used to gate the Combined row/hero score only,
+        // never to hide the whole report (see activeLevels below for what to actually display).
+        const isFullyCompleted = activeLevels.length === 3;
+        const missingLevels = ['Easy', 'Medium', 'Hard'].filter(l => !activeLevels.includes(l));
 
         return {
             student,
@@ -219,7 +223,8 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
             strengths,
             weaknesses,
             isFullyCompleted,
-            missingLevels
+            missingLevels,
+            activeLevels
         };
     }, [topicReportData, submission, propStudentName]);
 
@@ -230,9 +235,11 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
         return `${m}m ${s}s`;
     };
 
-    // Don't fabricate a combined Easy+Medium+Hard report (score, question-wise view, or PDF)
-    // until every required level has actually been completed.
-    if (!aggregated.isFullyCompleted) {
+    // One consolidated report per student + topic: whichever Easy/Medium/Hard levels are
+    // actually completed are shown (added to this same report as they're finished); levels not
+    // yet attempted are simply omitted below, never shown as "locked" or "in progress". The only
+    // case with nothing to render at all is zero completed levels.
+    if (aggregated.activeLevels.length === 0) {
         return (
             <div className="min-h-screen bg-[#0b1021] text-slate-100 font-sans flex items-center justify-center p-6">
                 <div className="max-w-md w-full bg-[#131b2e] border border-slate-800 rounded-2xl p-8 text-center">
@@ -244,15 +251,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                     </button>
                     <SafeIcon icon={FiAlertCircle} className="w-10 h-10 text-amber-400 mx-auto mb-4" />
                     <h2 className="text-xl font-black text-white mb-2">{aggregated.topic}</h2>
-                    <p className="text-sm font-bold text-amber-300 uppercase tracking-wider mb-4">Test In Progress</p>
-                    <p className="text-sm text-slate-400">
-                        This topic isn't fully completed yet. Remaining level{aggregated.missingLevels.length > 1 ? 's' : ''}:{' '}
-                        <span className="text-white font-bold">{aggregated.missingLevels.join(', ')}</span>.
-                    </p>
-                    <p className="text-xs text-slate-500 mt-3">
-                        A combined score, question-wise analysis, and PDF report will be available once all levels are completed.
-                        Your completed level results are still saved and visible in Test History.
-                    </p>
+                    <p className="text-sm text-slate-400">No report or result yet - complete a level (Easy, Medium, or Hard) to see it here.</p>
                 </div>
             </div>
         );
@@ -542,35 +541,46 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                             <span className="flex items-center gap-1.5"><SafeIcon icon={FiClock} className="text-blue-400" /> {aggregated.formattedTime}</span>
                         </div>
 
-                        {/* OVERALL SCALED SCORE */}
-                        <div className="relative w-48 h-48 sm:w-56 sm:h-56 mx-auto flex items-center justify-center">
-                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="42" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="8" fill="transparent" />
-                                <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="42"
-                                    stroke="#3b82f6"
-                                    strokeWidth="8"
-                                    fill="transparent"
-                                    strokeDasharray="263.89"
-                                    strokeDashoffset={263.89 - (263.89 * (aggregated.overallAccuracy || 10)) / 100}
-                                    strokeLinecap="round"
-                                    className="transition-all duration-1000 ease-out"
-                                />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                                <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-300 mb-1">
-                                    OVERALL SCALED SCORE
+                        {/* OVERALL SCALED SCORE - only a true "combined" number once all 3 levels are in */}
+                        {aggregated.isFullyCompleted ? (
+                            <div className="relative w-48 h-48 sm:w-56 sm:h-56 mx-auto flex items-center justify-center">
+                                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="42" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="8" fill="transparent" />
+                                    <circle
+                                        cx="50"
+                                        cy="50"
+                                        r="42"
+                                        stroke="#3b82f6"
+                                        strokeWidth="8"
+                                        fill="transparent"
+                                        strokeDasharray="263.89"
+                                        strokeDashoffset={263.89 - (263.89 * (aggregated.overallAccuracy || 10)) / 100}
+                                        strokeLinecap="round"
+                                        className="transition-all duration-1000 ease-out"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-300 mb-1">
+                                        OVERALL SCALED SCORE
+                                    </span>
+                                    <span className="text-3xl sm:text-4xl font-black text-white tracking-tighter">
+                                        {aggregated.displayScoreText}
+                                    </span>
+                                    <span className="text-[10px] text-blue-400 font-bold uppercase mt-1">
+                                        {aggregated.overallAccuracy}% Overall Accuracy
+                                    </span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="max-w-xs mx-auto py-6 px-6 rounded-2xl bg-white/5 border border-white/10">
+                                <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-300 block mb-1">
+                                    {aggregated.activeLevels.length} of 3 Levels Completed
                                 </span>
-                                <span className="text-3xl sm:text-4xl font-black text-white tracking-tighter">
-                                    {aggregated.displayScoreText}
-                                </span>
-                                <span className="text-[10px] text-blue-400 font-bold uppercase mt-1">
-                                    {aggregated.overallAccuracy}% Overall Accuracy
+                                <span className="text-xs text-slate-400">
+                                    Combined score available once Easy, Medium, and Hard are all completed.
                                 </span>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* OVERALL PERFORMANCE & LEVEL SUMMARY TABLE */}
@@ -580,8 +590,9 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                             <span className="text-xs font-bold text-blue-300 uppercase tracking-widest">FULL PERFORMANCE SUMMARY</span>
                         </div>
 
-                        {/* Level Cards */}
+                        {/* Level Cards - only completed levels are ever shown */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            {aggregated.easyLevel.completed && (
                             <div className="bg-slate-50 p-5 rounded-2xl border-2 border-green-200 shadow-sm flex flex-col justify-between">
                                 <div>
                                     <div className="flex justify-between items-center mb-3">
@@ -596,7 +607,9 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     <span>Time: {formatTime(aggregated.easyLevel.timeSpent)}</span>
                                 </div>
                             </div>
+                            )}
 
+                            {aggregated.mediumLevel.completed && (
                             <div className="bg-slate-50 p-5 rounded-2xl border-2 border-amber-200 shadow-sm flex flex-col justify-between">
                                 <div>
                                     <div className="flex justify-between items-center mb-3">
@@ -611,7 +624,9 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     <span>Time: {formatTime(aggregated.mediumLevel.timeSpent)}</span>
                                 </div>
                             </div>
+                            )}
 
+                            {aggregated.hardLevel.completed && (
                             <div className="bg-slate-50 p-5 rounded-2xl border-2 border-red-200 shadow-sm flex flex-col justify-between">
                                 <div>
                                     <div className="flex justify-between items-center mb-3">
@@ -626,6 +641,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     <span>Time: {formatTime(aggregated.hardLevel.timeSpent)}</span>
                                 </div>
                             </div>
+                            )}
                         </div>
 
                         {/* Level Summary Table on Screen */}
@@ -644,6 +660,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     </tr>
                                 </thead>
                                 <tbody className="text-xs font-extrabold divide-y divide-slate-300 bg-white">
+                                    {aggregated.easyLevel.completed && (
                                     <tr className="hover:bg-slate-50 bg-white">
                                         <td className="p-3.5 font-black border-r border-slate-300" style={{ color: '#0f172a' }}>Easy</td>
                                         <td className="p-3.5 text-center font-extrabold border-r border-slate-300" style={{ color: '#0f172a' }}>{aggregated.easyLevel.rawScoreText}</td>
@@ -654,6 +671,8 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         <td className="p-3.5 text-center font-black border-r border-slate-300" style={{ color: '#0f172a' }}>{aggregated.easyLevel.totalQ}</td>
                                         <td className="p-3.5 text-center font-bold" style={{ color: '#0f172a' }}>{formatTime(aggregated.easyLevel.timeSpent)}</td>
                                     </tr>
+                                    )}
+                                    {aggregated.mediumLevel.completed && (
                                     <tr className="hover:bg-slate-50 bg-white">
                                         <td className="p-3.5 font-black border-r border-slate-300" style={{ color: '#0f172a' }}>Medium</td>
                                         <td className="p-3.5 text-center font-extrabold border-r border-slate-300" style={{ color: '#0f172a' }}>{aggregated.mediumLevel.rawScoreText}</td>
@@ -664,6 +683,8 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         <td className="p-3.5 text-center font-black border-r border-slate-300" style={{ color: '#0f172a' }}>{aggregated.mediumLevel.totalQ}</td>
                                         <td className="p-3.5 text-center font-bold" style={{ color: '#0f172a' }}>{formatTime(aggregated.mediumLevel.timeSpent)}</td>
                                     </tr>
+                                    )}
+                                    {aggregated.hardLevel.completed && (
                                     <tr className="hover:bg-slate-50 bg-white">
                                         <td className="p-3.5 font-black border-r border-slate-300" style={{ color: '#0f172a' }}>Hard</td>
                                         <td className="p-3.5 text-center font-extrabold border-r border-slate-300" style={{ color: '#0f172a' }}>{aggregated.hardLevel.rawScoreText}</td>
@@ -674,7 +695,9 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         <td className="p-3.5 text-center font-black border-r border-slate-300" style={{ color: '#0f172a' }}>{aggregated.hardLevel.totalQ}</td>
                                         <td className="p-3.5 text-center font-bold" style={{ color: '#0f172a' }}>{formatTime(aggregated.hardLevel.timeSpent)}</td>
                                     </tr>
+                                    )}
                                 </tbody>
+                                {aggregated.isFullyCompleted && (
                                 <tfoot>
                                     <tr className="bg-[#1e3a8a] text-white text-xs font-black">
                                         <td className="p-3.5 border-r border-blue-900 text-white">Combined</td>
@@ -687,6 +710,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         <td className="p-3.5 text-center text-white font-black">{formatTime(aggregated.totalTime)}</td>
                                     </tr>
                                 </tfoot>
+                                )}
                             </table>
                         </div>
 
@@ -716,21 +740,27 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {aggregated.easyLevel.completed && (
                                 <div className="p-4 bg-green-50 rounded-xl border border-green-200 text-center">
                                     <span className="text-xs font-black text-green-800 uppercase block mb-1">EASY LEVEL PACING</span>
                                     <span className="text-xl font-black text-green-700">{formatTime(aggregated.easyLevel.timeSpent)}</span>
                                     <span className="text-[10px] text-green-700 font-bold block mt-1">Avg: {aggregated.easyLevel.totalQ > 0 ? Math.round(aggregated.easyLevel.timeSpent / aggregated.easyLevel.totalQ) : 0}s / question</span>
                                 </div>
+                                )}
+                                {aggregated.mediumLevel.completed && (
                                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-center">
                                     <span className="text-xs font-black text-amber-800 uppercase block mb-1">MEDIUM LEVEL PACING</span>
                                     <span className="text-xl font-black text-amber-700">{formatTime(aggregated.mediumLevel.timeSpent)}</span>
                                     <span className="text-[10px] text-amber-700 font-bold block mt-1">Avg: {aggregated.mediumLevel.totalQ > 0 ? Math.round(aggregated.mediumLevel.timeSpent / aggregated.mediumLevel.totalQ) : 0}s / question</span>
                                 </div>
+                                )}
+                                {aggregated.hardLevel.completed && (
                                 <div className="p-4 bg-red-50 rounded-xl border border-red-200 text-center">
                                     <span className="text-xs font-black text-red-800 uppercase block mb-1">HARD LEVEL PACING</span>
                                     <span className="text-xl font-black text-red-700">{formatTime(aggregated.hardLevel.timeSpent)}</span>
                                     <span className="text-[10px] text-red-700 font-bold block mt-1">Avg: {aggregated.hardLevel.totalQ > 0 ? Math.round(aggregated.hardLevel.timeSpent / aggregated.hardLevel.totalQ) : 0}s / question</span>
                                 </div>
+                                )}
                             </div>
                         </div>
 
@@ -979,7 +1009,8 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                         <span>Time: {aggregated.formattedTime}</span>
                     </div>
 
-                    {/* OVERALL SCALED SCORE BANNER */}
+                    {/* OVERALL SCALED SCORE BANNER - only once all 3 levels are completed */}
+                    {aggregated.isFullyCompleted ? (
                     <div style={{ marginTop: '20px', padding: '15px', backgroundColor: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '16px', display: 'inline-block', minWidth: '240px' }}>
                         <div style={{ fontSize: '11px', fontWeight: '900', color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '1px' }}>
                             OVERALL SCALED SCORE
@@ -991,6 +1022,16 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                             {aggregated.overallAccuracy}% Overall Accuracy
                         </div>
                     </div>
+                    ) : (
+                    <div style={{ marginTop: '20px', padding: '15px', backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '16px', display: 'inline-block', minWidth: '240px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '900', color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                            {aggregated.activeLevels.length} of 3 Levels Completed
+                        </div>
+                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#cbd5e1', marginTop: '4px' }}>
+                            Combined score available once all levels are completed
+                        </div>
+                    </div>
+                    )}
                 </div>
 
                 {/* PDF BODY CONTENT */}
@@ -1016,6 +1057,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                 </tr>
                             </thead>
                             <tbody style={{ backgroundColor: '#ffffff' }}>
+                                {aggregated.easyLevel.completed && (
                                 <tr style={{ borderBottom: '1px solid #cbd5e1', backgroundColor: '#ffffff' }}>
                                     <td style={{ padding: '10px', fontWeight: '900', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'left' }}>Easy</td>
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>{aggregated.easyLevel.rawScoreText}</td>
@@ -1026,6 +1068,8 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>{aggregated.easyLevel.totalQ}</td>
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', textAlign: 'center' }}>{formatTime(aggregated.easyLevel.timeSpent)}</td>
                                 </tr>
+                                )}
+                                {aggregated.mediumLevel.completed && (
                                 <tr style={{ borderBottom: '1px solid #cbd5e1', backgroundColor: '#ffffff' }}>
                                     <td style={{ padding: '10px', fontWeight: '900', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'left' }}>Medium</td>
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>{aggregated.mediumLevel.rawScoreText}</td>
@@ -1036,6 +1080,8 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>{aggregated.mediumLevel.totalQ}</td>
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', textAlign: 'center' }}>{formatTime(aggregated.mediumLevel.timeSpent)}</td>
                                 </tr>
+                                )}
+                                {aggregated.hardLevel.completed && (
                                 <tr style={{ borderBottom: '1px solid #cbd5e1', backgroundColor: '#ffffff' }}>
                                     <td style={{ padding: '10px', fontWeight: '900', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'left' }}>Hard</td>
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>{aggregated.hardLevel.rawScoreText}</td>
@@ -1046,7 +1092,9 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', borderRight: '1px solid #cbd5e1', textAlign: 'center' }}>{aggregated.hardLevel.totalQ}</td>
                                     <td style={{ padding: '10px', fontWeight: '800', color: '#0f172a', textAlign: 'center' }}>{formatTime(aggregated.hardLevel.timeSpent)}</td>
                                 </tr>
+                                )}
                             </tbody>
+                            {aggregated.isFullyCompleted && (
                             <tfoot>
                                 <tr style={{ backgroundColor: '#1e3a8a', color: '#ffffff', fontWeight: '900', fontSize: '12px' }}>
                                     <td style={{ padding: '10px', borderRight: '1px solid #1e40af', textAlign: 'left', color: '#ffffff' }}>Combined</td>
@@ -1059,6 +1107,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                     <td style={{ padding: '10px', textAlign: 'center', color: '#ffffff' }}>{formatTime(aggregated.totalTime)}</td>
                                 </tr>
                             </tfoot>
+                            )}
                         </table>
                     </div>
 
@@ -1069,18 +1118,24 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                            {aggregated.easyLevel.completed && (
                             <div style={{ padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
                                 <div style={{ fontSize: '10px', fontWeight: '900', color: '#64748b' }}>EASY TIME</div>
                                 <div style={{ fontSize: '16px', fontWeight: '900', color: '#15803d', margin: '4px 0' }}>{formatTime(aggregated.easyLevel.timeSpent)}</div>
                             </div>
+                            )}
+                            {aggregated.mediumLevel.completed && (
                             <div style={{ padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
                                 <div style={{ fontSize: '10px', fontWeight: '900', color: '#64748b' }}>MEDIUM TIME</div>
                                 <div style={{ fontSize: '16px', fontWeight: '900', color: '#b45309', margin: '4px 0' }}>{formatTime(aggregated.mediumLevel.timeSpent)}</div>
                             </div>
+                            )}
+                            {aggregated.hardLevel.completed && (
                             <div style={{ padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', textAlign: 'center', backgroundColor: '#f8fafc' }}>
                                 <div style={{ fontSize: '10px', fontWeight: '900', color: '#64748b' }}>HARD TIME</div>
                                 <div style={{ fontSize: '16px', fontWeight: '900', color: '#b91c1c', margin: '4px 0' }}>{formatTime(aggregated.hardLevel.timeSpent)}</div>
                             </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f1f5f9', borderRadius: '8px', marginTop: '10px', fontSize: '12px', fontWeight: '800', color: '#0f172a' }}>
