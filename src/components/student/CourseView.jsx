@@ -524,18 +524,11 @@ const CourseView = () => {
     });
   };
 
-  const isLevelUnlocked = (level) => {
-    if (level === 'Easy') return true;
-    if (level === 'Medium') {
-      const easy = courseProgress.find(p => p.level === 'Easy');
-      return !!(easy && easy.passed);
-    }
-    if (level === 'Hard') {
-      const medium = courseProgress.find(p => p.level === 'Medium');
-      return !!(medium && medium.passed);
-    }
-    return false;
-  };
+  // Regular course Easy/Medium/Hard levels are always unlocked - a student can start any level
+  // at any time, in any order, with no minimum score/pass requirement on a prior level. This is
+  // deliberately unconditional (not "unlocked unless X") and does not touch getLevelStatus/
+  // courseProgress/scoring below - completion and score calculation are unaffected.
+  const isLevelUnlocked = () => true;
 
   const getLevelStatus = (level) => {
     const p = courseProgress.find(p => p.level === level);
