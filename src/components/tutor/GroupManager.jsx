@@ -6,6 +6,7 @@ import { tutorService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import GroupAnalytics from './GroupAnalytics';
 import HierarchicalContentSelector from '../common/HierarchicalContentSelector';
+import SuccessToast from '../../common/SuccessToast';
 
 const {
     FiPlus, FiUsers, FiTrash2, FiEdit2, FiX, FiCheck,
@@ -57,6 +58,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [analyticsGroupId, setAnalyticsGroupId] = useState(null);
     const [analyticsGroupName, setAnalyticsGroupName] = useState('');
+    const [toast, setToast] = useState(null); // { title, message } | null
 
     // Groups list display state (search/sort/view are purely presentational over the
     // already-loaded `groups` data - no new backend calls).
@@ -158,6 +160,8 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
             });
             if (res.data?.datesNotSaved) {
                 alert('Group created, but the Content Start/End Date could not be saved - the database has not been migrated for this feature yet. Contact support before relying on the content deadline.');
+            } else {
+                setToast({ title: 'Group Created Successfully', message: 'Your group has been created successfully.' });
             }
             setShowCreateModal(false);
             setNewGroupName('');
@@ -325,7 +329,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
             if (res.data?.datesNotSaved) {
                 alert('Group updated, but the Content Start/End Date could not be saved - the database has not been migrated for this feature yet. Contact support before relying on the content deadline.');
             } else {
-                alert('Group updated successfully!');
+                setToast({ title: 'Saved Successfully', message: 'Your group changes have been saved successfully.' });
             }
             // We do not close the modal so they can continue managing students if needed
         } catch (error) {
@@ -449,6 +453,12 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
 
     return (
         <div className="space-y-6">
+            <SuccessToast
+                show={!!toast}
+                title={toast?.title}
+                message={toast?.message}
+                onClose={() => setToast(null)}
+            />
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-2xl font-bold text-white">Student Groups</h2>
