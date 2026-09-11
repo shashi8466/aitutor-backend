@@ -3,6 +3,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { parseDocument } from '../utils/parser.js';
+import { generateUploadDocx } from '../utils/questionDocxExport.js';
 import supabaseAdmin from '../../supabase/supabaseAdmin.js';
 
 const router = express.Router();
@@ -125,9 +126,12 @@ router.post('/', upload.single('file'), async (req, res) => {
     console.log('✅ [UPLOAD] File detected:', req.file.originalname);
 
     // 2. Extract metadata
-    const { courseId, category = 'source_document', level = 'All', parse = 'false', is_practice = 'false', section = 'general', uploader_name = '' } = req.body;
-    
-    console.log('📦 [UPLOAD] Metadata:', { courseId, category, level, parse, is_practice, section, uploader_name });
+    const {
+      courseId, category = 'source_document', level = 'All', parse = 'false', is_practice = 'false',
+      section = 'general', uploader_name = '', visibleToStudent = 'true', visibleToTutor = 'true'
+    } = req.body;
+
+    console.log('📦 [UPLOAD] Metadata:', { courseId, category, level, parse, is_practice, section, uploader_name, visibleToStudent, visibleToTutor });
 
     if (!courseId || courseId === 'undefined' || courseId === 'null') {
       console.error('❌ [UPLOAD] Invalid courseId:', courseId);
@@ -189,7 +193,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       file_size: req.file.size,
       file_url: fileUrl,
       is_practice: is_practice === 'true' || is_practice === true,
-      questions_count: 0
+      questions_count: 0,
+      visible_to_student: visibleToStudent === 'true' || visibleToStudent === true,
+      visible_to_tutor: visibleToTutor === 'true' || visibleToTutor === true
     };
 
     console.log('📝 [UPLOAD] Saving to DB...');
@@ -340,6 +346,82 @@ router.post('/', upload.single('file'), async (req, res) => {
       error: error.message || 'Unknown server error during upload',
       details: error.stack // Only for dev debugging, help us see the line number
     });
+  }
+});
+
+/**
+ * 🟢 DOWNLOAD CURRENT QUESTIONS FOR AN UPLOAD (regenerated .docx)
+ * Generates the .docx from the CURRENT `questions` table rows for this upload - not from the
+ * original uploaded file (uploads.file_url), which is left untouched. This is what makes an
+ * admin's saved edits (via Edit Question) show up in the downloaded file the same way they
+ * already show up in Preview.
+ */
+router.get('/:id/download', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data: upload, error: uploadError } = await supabaseAdmin
+            .from('uploads')
+            .select('id, file_name, level, course_id')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (uploadError) throw uploadError;
+        if (!upload) return res.status(404).json({ error: 'Upload record not found' });
+
+        const { data: questions, error: questionsError } = await supabaseAdmin
+            .from('questions')
+            .select('*')
+            .eq('upload_id', id)
+            .order('question_number', { ascending: true });
+
+        if (questionsError) throw questionsError;
+
+        const buffer = await generateUploadDocx({ upload, questions: questions || [] });
+
+        const baseName = (upload.file_name || `upload-${id}`).replace(/\.[^/.]+$/, '');
+        const safeName = baseName.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || `upload-${id}`;
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}.docx"`);
+        res.send(buffer);
+    } catch (error) {
+        console.error('❌ [DOWNLOAD] Failed to generate current-questions docx:', error);
+        res.status(500).json({ error: error.message || 'Failed to generate download' });
+    }
+});
+
+/**
+ * 🟢 UPDATE VISIBILITY
+ * Toggles whether an already-uploaded file (Study Guide, Answer Key, etc.) is shown to students
+ * and/or tutors, without touching the file itself. Goes through supabaseAdmin (service role)
+ * since the "Uploads are updatable by admins" RLS policy would otherwise block a tutor's own
+ * toggle - this route is the one place a tutor/admin can flip these flags.
+ */
+router.patch('/:id/visibility', async (req, res) => {
+  const { id } = req.params;
+  const { visibleToStudent, visibleToTutor } = req.body;
+
+  try {
+    const updateData = {};
+    if (visibleToStudent !== undefined) updateData.visible_to_student = !!visibleToStudent;
+    if (visibleToTutor !== undefined) updateData.visible_to_tutor = !!visibleToTutor;
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'visibleToStudent and/or visibleToTutor is required' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('uploads')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, upload: data });
+  } catch (error) {
+    console.error('❌ [VISIBILITY] Update failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to update visibility' });
   }
 });
 

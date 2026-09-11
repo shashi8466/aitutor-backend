@@ -704,6 +704,14 @@ export const uploadService = {
 
     return { data: flattened };
   },
+  /**
+   * Flips visible_to_student/visible_to_tutor on an already-uploaded file without touching the
+   * file itself - goes through the backend (service role) since a tutor's own update would
+   * otherwise be blocked by the "Uploads are updatable by admins" RLS policy.
+   */
+  updateVisibility: async (id, { visibleToStudent, visibleToTutor } = {}) => {
+    return axios.patch(`/api/upload/${id}/visibility`, { visibleToStudent, visibleToTutor });
+  },
   delete: async (id) => {
     try {
       const res = await axios.delete(`/api/upload/${id}`);

@@ -42,6 +42,11 @@ const CourseForm = ({ course, onClose, onSave }) => {
 
   const [newFiles, setNewFiles] = useState({});
   const [existingFiles, setExistingFiles] = useState({});
+  // Per-upload-slot { student, tutor } visibility - only meaningful for Study Guide and Answer
+  // Key slots (see requirement: Video/Quiz File have no visibility toggle). Seeded from each
+  // existing file's own visible_to_student/visible_to_tutor columns once loaded, and defaults to
+  // {student:true, tutor:true} for a slot with no file yet.
+  const [fileVisibility, setFileVisibility] = useState({});
   const [loading, setLoading] = useState(false);
   const [fetchingUploads, setFetchingUploads] = useState(false);
   const [error, setError] = useState('');
@@ -76,15 +81,25 @@ const CourseForm = ({ course, onClose, onSave }) => {
     try {
       const { data } = await uploadService.getAll({ courseId: course.id });
       const mapped = {};
+      const visibility = {};
       data.forEach(file => {
         const levelKey = file.level === 'All' ? 'main' : file.level.toLowerCase();
         let typeKey = '';
         if (file.category === 'study_material') typeKey = 'study';
         else if (file.category === 'video_lecture') typeKey = 'video';
         else if (file.category === 'quiz_document') typeKey = 'quiz';
-        if (levelKey && typeKey) mapped[`${levelKey}_${typeKey}`] = file;
+        else if (file.category === 'answer_key') typeKey = 'answerkey';
+        if (levelKey && typeKey) {
+          const key = `${levelKey}_${typeKey}`;
+          mapped[key] = file;
+          visibility[key] = {
+            student: file.visible_to_student !== false,
+            tutor: file.visible_to_tutor !== false
+          };
+        }
       });
       setExistingFiles(mapped);
+      setFileVisibility(prev => ({ ...visibility, ...prev }));
     } catch (err) {
       console.error("Failed to load uploads:", err);
     } finally {
@@ -156,6 +171,27 @@ const CourseForm = ({ course, onClose, onSave }) => {
   };
 
   const handleFileChange = (key, file) => setNewFiles(prev => ({ ...prev, [key]: file }));
+
+  // Toggling Student/Tutor visibility for a slot that already has an uploaded file persists
+  // immediately (no separate save step) - it's a metadata-only change on an existing row, not a
+  // new upload. For a slot with no existing file yet, this just updates local state; the chosen
+  // visibility is sent along with the file itself when the form is submitted.
+  const handleVisibilityChange = (key, role, checked) => {
+    setFileVisibility(prev => {
+      const current = prev[key] || { student: true, tutor: true };
+      return { ...prev, [key]: { ...current, [role]: checked } };
+    });
+
+    const existing = existingFiles[key];
+    if (existing && !newFiles[key]) {
+      const current = fileVisibility[key] || { student: true, tutor: true };
+      const next = { ...current, [role]: checked };
+      uploadService.updateVisibility(existing.id, {
+        visibleToStudent: next.student,
+        visibleToTutor: next.tutor
+      }).catch(err => console.error('Failed to update visibility:', err));
+    }
+  };
 
   // State for custom key
   const [customKey, setCustomKey] = useState('');
@@ -313,11 +349,25 @@ const CourseForm = ({ course, onClose, onSave }) => {
           else if (typeStr === 'quiz') {
             category = 'quiz_document';
             parse = 'true';
+          } else if (typeStr === 'answerkey') {
+            // Course-wide, not per-level - overrides whatever the "main"/"ap" level parsing above
+            // derived, since this single key covers Easy + Medium + Hard together.
+            category = 'answer_key';
+            level = 'All';
           }
         }
 
+        const visibility = fileVisibility[key] || { student: true, tutor: true };
+
         try {
-          const res = await courseService.uploadFile(savedCourse.id, file, { category, level, parse, uploader_name: formData.uploader_name });
+          const res = await courseService.uploadFile(savedCourse.id, file, {
+            category,
+            level,
+            parse,
+            uploader_name: formData.uploader_name,
+            visibleToStudent: visibility.student,
+            visibleToTutor: visibility.tutor
+          });
           if (res.data?.warning) {
             errors.push(`${file.name}: ${res.data.message}`);
           } else {
@@ -848,6 +898,8 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     existingFiles={existingFiles}
                     onFileChange={handleFileChange}
                     onDeleteExisting={handleDeleteExisting}
+                    fileVisibility={fileVisibility}
+                    onVisibilityChange={handleVisibilityChange}
                   />
                   <LevelUploadSection
                     level="Medium"
@@ -857,6 +909,8 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     existingFiles={existingFiles}
                     onFileChange={handleFileChange}
                     onDeleteExisting={handleDeleteExisting}
+                    fileVisibility={fileVisibility}
+                    onVisibilityChange={handleVisibilityChange}
                   />
                   <LevelUploadSection
                     level="Hard"
@@ -866,6 +920,16 @@ const CourseForm = ({ course, onClose, onSave }) => {
                     existingFiles={existingFiles}
                     onFileChange={handleFileChange}
                     onDeleteExisting={handleDeleteExisting}
+                    fileVisibility={fileVisibility}
+                    onVisibilityChange={handleVisibilityChange}
+                  />
+                  <AnswerKeyUploadSection
+                    newFiles={newFiles}
+                    existingFiles={existingFiles}
+                    onFileChange={handleFileChange}
+                    onDeleteExisting={handleDeleteExisting}
+                    fileVisibility={fileVisibility}
+                    onVisibilityChange={handleVisibilityChange}
                   />
                 </>
               )}
@@ -901,13 +965,14 @@ const CourseForm = ({ course, onClose, onSave }) => {
 };
 
 // Sub-components
-const LevelUploadSection = ({ level, color, icon, newFiles, existingFiles, onFileChange, onDeleteExisting }) => {
+const LevelUploadSection = ({ level, color, icon, newFiles, existingFiles, onFileChange, onDeleteExisting, fileVisibility, onVisibilityChange }) => {
   const levelKey = level.toLowerCase();
   const colors = {
     green: 'bg-green-50 border-green-200 text-green-900',
     yellow: 'bg-yellow-50 border-yellow-200 text-yellow-900',
     red: 'bg-red-50 border-red-200 text-red-900',
   };
+  const studyKey = `${levelKey}_study`;
 
   return (
     <div className={`rounded-xl border p-4 ${colors[color]}`}>
@@ -923,14 +988,16 @@ const LevelUploadSection = ({ level, color, icon, newFiles, existingFiles, onFil
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <FileUploadBox
-          id={`${levelKey}_study`}
+          id={studyKey}
           label="Study Guide (PDF)"
           icon={FiFile}
           accept=".pdf,.doc,.docx"
-          newFile={newFiles[`${levelKey}_study`]}
-          existingFile={existingFiles[`${levelKey}_study`]}
-          onChange={f => onFileChange(`${levelKey}_study`, f)}
-          onDelete={id => onDeleteExisting(`${levelKey}_study`, id)}
+          newFile={newFiles[studyKey]}
+          existingFile={existingFiles[studyKey]}
+          onChange={f => onFileChange(studyKey, f)}
+          onDelete={id => onDeleteExisting(studyKey, id)}
+          visibility={fileVisibility?.[studyKey]}
+          onVisibilityChange={(role, checked) => onVisibilityChange(studyKey, role, checked)}
         />
         <FileUploadBox
           id={`${levelKey}_video`}
@@ -952,6 +1019,39 @@ const LevelUploadSection = ({ level, color, icon, newFiles, existingFiles, onFil
           existingFile={existingFiles[`${levelKey}_quiz`]}
           onChange={f => onFileChange(`${levelKey}_quiz`, f)}
           onDelete={id => onDeleteExisting(`${levelKey}_quiz`, id)}
+        />
+      </div>
+    </div>
+  );
+};
+
+// One answer key for the WHOLE regular course (Easy + Medium + Hard together) - not per level,
+// unlike Study Guide/Video/Quiz above. Always stored at level='All', category='answer_key'.
+const AnswerKeyUploadSection = ({ newFiles, existingFiles, onFileChange, onDeleteExisting, fileVisibility, onVisibilityChange }) => {
+  const key = 'main_answerkey';
+  return (
+    <div className="rounded-xl border p-4 bg-indigo-50 border-indigo-200 text-indigo-900">
+      <h3 className="font-bold mb-4 flex items-center justify-between">
+        Answer Key
+        <span className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
+          {existingFiles[key] ? '1 file' : '0 files'}
+        </span>
+      </h3>
+      <p className="text-xs text-indigo-700 mb-4">
+        One combined answer key for this entire course (Easy + Medium + Hard) - not per level.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <FileUploadBox
+          id={key}
+          label="Answer Key (PDF)"
+          icon={FiKey}
+          accept=".pdf,.doc,.docx"
+          newFile={newFiles[key]}
+          existingFile={existingFiles[key]}
+          onChange={f => onFileChange(key, f)}
+          onDelete={id => onDeleteExisting(key, id)}
+          visibility={fileVisibility?.[key]}
+          onVisibilityChange={(role, checked) => onVisibilityChange(key, role, checked)}
         />
       </div>
     </div>
@@ -1125,8 +1225,12 @@ const SequentialUploadSection = ({ mainCategory, tutorType, newFiles, existingFi
 };
 
 
-const FileUploadBox = ({ label, icon, accept, highlight, newFile, existingFile, onChange, onDelete }) => {
+const FileUploadBox = ({ label, icon, accept, highlight, newFile, existingFile, onChange, onDelete, visibility, onVisibilityChange }) => {
   const fileInputRef = useRef(null);
+  // Only Study Guide / Answer Key boxes pass these two props - Video/Quiz File never do, so no
+  // visibility UI renders for them, matching the requirement.
+  const showVisibility = !!onVisibilityChange;
+  const vis = visibility || { student: true, tutor: true };
 
   return (
     <div className={`rounded-lg p-4 border ${highlight ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
@@ -1178,6 +1282,29 @@ const FileUploadBox = ({ label, icon, accept, highlight, newFile, existingFile, 
         accept={accept}
         onChange={e => onChange(e.target.files[0])}
       />
+
+      {showVisibility && (
+        <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-4">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={vis.student}
+              onChange={e => onVisibilityChange('student', e.target.checked)}
+              className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+            />
+            Student
+          </label>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={vis.tutor}
+              onChange={e => onVisibilityChange('tutor', e.target.checked)}
+              className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+            />
+            Tutor
+          </label>
+        </div>
+      )}
     </div>
   );
 };

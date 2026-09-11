@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useAuth } from '../../contexts/AuthContext';
@@ -41,6 +41,18 @@ const UniversalLeaderboard = lazy(() => import('../common/UniversalLeaderboard')
 const TutorSupport = lazy(() => import('./TutorSupport'));
 
 import Skeleton from '../common/Skeleton';
+
+// Mirrors App.jsx's QuizDispatcher for the student-side "course/:courseId/level/:level/quiz"
+// route: "Practice Quiz" (LevelDashboard's Start Practice Quiz button) links here with
+// ?mode=practice and must land on the practice engine (QuizInterface) - not the official
+// ExamInterface - so a tutor previewing a level's content never generates an official test
+// result. "Take the Quiz" links here with no mode param and gets the official engine, same as
+// the student flow.
+const TutorQuizDispatcher = () => {
+    const [searchParams] = useSearchParams();
+    const isPractice = searchParams.get('mode') === 'practice';
+    return isPractice ? <StudentQuizInterface /> : <StudentExamInterface />;
+};
 
 const TutorOverview = ({ dashboardData, loading }) => (
     <div className="p-6 overflow-hidden">
@@ -329,7 +341,7 @@ const TutorDashboard = () => {
                             <Route path="course-content/course/:courseId" element={<StudentCourseView />} />
                             <Route path="course-content/course/:courseId/level/:level" element={<StudentLevelDashboard />} />
                             <Route path="course-content/course/:courseId/level/:level/video" element={<StudentVideoPlayer />} />
-                            <Route path="course-content/course/:courseId/level/:level/quiz" element={<StudentExamInterface />} />
+                            <Route path="course-content/course/:courseId/level/:level/quiz" element={<TutorQuizDispatcher />} />
                             <Route path="course-content/act-full-length-test/:courseId" element={<StudentACTFullLengthExam />} />
                             <Route path="course-content/adaptive-test/:courseId" element={<StudentAdaptiveExamInterface />} />
                             <Route path="course-content/adaptive-pre-test/:courseId" element={<StudentAdaptivePreTest />} />

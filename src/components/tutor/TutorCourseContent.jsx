@@ -3,13 +3,14 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { courseService, tutorService, enrollmentService } from '../../services/api';
+import { courseService, tutorService, enrollmentService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import supabase from '../../supabase/supabase';
+import AnswerKeyViewerModal from '../common/AnswerKeyViewerModal';
 
 const {
   FiBook, FiPlay, FiLoader, FiSearch, FiCheckCircle, FiActivity,
-  FiFilter, FiRefreshCw
+  FiFilter, FiRefreshCw, FiKey
 } = FiIcons;
 
 // ─── Taxonomy (mirrors StudentCourseList) ────────────────────────────────────
@@ -113,7 +114,7 @@ const getCourseTaxonomy = (course) => {
 };
 
 // ─── Course Card ─────────────────────────────────────────────────────────────
-const CourseCard = ({ course, index, isEnrolled, onAction, onEnroll, isLoading, enrollLoading }) => {
+const CourseCard = ({ course, index, isEnrolled, onAction, onEnroll, isLoading, enrollLoading, answerKey, onViewKey }) => {
   const isCardLoading = isLoading || enrollLoading === course.id;
   return (
     <motion.div
@@ -163,11 +164,11 @@ const CourseCard = ({ course, index, isEnrolled, onAction, onEnroll, isLoading, 
         )}
       </div>
 
-      <div className="p-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-100 dark:border-gray-700">
+      <div className="p-4 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-100 dark:border-gray-700 flex gap-2">
         <button
           onClick={isEnrolled ? onAction : onEnroll}
           disabled={isCardLoading}
-          className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2
+          className={`flex-1 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2
             ${isEnrolled
               ? 'bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-600 text-gray-900 dark:text-white hover:border-blue-500 hover:text-blue-600'
               : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md shadow-blue-500/20'
@@ -181,6 +182,15 @@ const CourseCard = ({ course, index, isEnrolled, onAction, onEnroll, isLoading, 
             <><SafeIcon icon={FiIcons.FiPlusCircle} className="w-4 h-4" /> Enroll Now</>
           )}
         </button>
+        {isEnrolled && answerKey?.file_url && (
+          <button
+            onClick={() => onViewKey(course, answerKey)}
+            title="View Answer Key"
+            className="py-2.5 px-3 rounded-lg font-bold text-sm bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-600 text-gray-900 dark:text-white hover:border-amber-500 hover:text-amber-600 transition-all flex items-center justify-center gap-1.5"
+          >
+            <SafeIcon icon={FiKey} className="w-4 h-4" /> View Key
+          </button>
+        )}
       </div>
     </motion.div>
   );
@@ -200,6 +210,11 @@ const TutorCourseContent = () => {
 
   const [enrolledIds, setEnrolledIds] = useState(new Set());
   const [enrollLoading, setEnrollLoading] = useState(null);
+  // course_id (string) -> answer key upload row, only for courses that actually have one AND
+  // where visible_to_tutor is true - a course with no key, or a key hidden from tutors, is
+  // simply absent here, so "View Key" naturally never renders for it.
+  const [answerKeys, setAnswerKeys] = useState({});
+  const [viewingKey, setViewingKey] = useState(null); // { course, answerKey } | null
 
   useEffect(() => {
     if (user) loadData();
@@ -236,6 +251,18 @@ const TutorCourseContent = () => {
 
       const eIds = new Set(enrollmentsData.map(e => String(e.course_id)));
       setEnrolledIds(eIds);
+
+      if (ids.size > 0) {
+        const keysData = await safeFetch(uploadService.getAll({ courseIds: Array.from(ids), category: 'answer_key' }));
+        const keyMap = {};
+        keysData.forEach(k => {
+          const cId = String(k.course_id);
+          // Only one answer key per course is expected; if somehow more than one exists, the
+          // most recently uploaded wins (uploadService.getAll already orders by created_at desc).
+          if (!keyMap[cId] && k.visible_to_tutor) keyMap[cId] = k;
+        });
+        setAnswerKeys(keyMap);
+      }
 
     } catch (err) {
       console.error('TutorCourseContent: global error:', err);
@@ -317,6 +344,8 @@ const TutorCourseContent = () => {
     }
   };
 
+  const handleViewKey = (course, answerKey) => setViewingKey({ course, answerKey });
+
   // ── Render grid (same structure as StudentCourseList) ────────────────────
   const renderCourseGrid = (coursesList) => {
     if (activeCategory === 'SAT') {
@@ -352,6 +381,8 @@ const TutorCourseContent = () => {
                 enrollLoading={enrollLoading}
                 onAction={() => navigate(`/tutor/course-content/course/${course.id}`)}
                 onEnroll={() => handleEnroll(course.id)}
+                answerKey={answerKeys[String(course.id)]}
+                onViewKey={handleViewKey}
               />
             ))}
           </div>
@@ -371,6 +402,8 @@ const TutorCourseContent = () => {
             enrollLoading={enrollLoading}
             onAction={() => navigate(`/tutor/course-content/course/${course.id}`)}
             onEnroll={() => handleEnroll(course.id)}
+            answerKey={answerKeys[String(course.id)]}
+            onViewKey={handleViewKey}
           />
         ))}
       </div>
@@ -490,6 +523,15 @@ const TutorCourseContent = () => {
           </div>
         )}
       </section>
+
+      {viewingKey && (
+        <AnswerKeyViewerModal
+          title={`Answer Key — ${viewingKey.course.name}`}
+          fileUrl={viewingKey.answerKey?.file_url}
+          fileType={viewingKey.answerKey?.file_type}
+          onClose={() => setViewingKey(null)}
+        />
+      )}
     </div>
   );
 };

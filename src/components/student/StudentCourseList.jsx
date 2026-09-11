@@ -3,9 +3,10 @@ import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { courseService, enrollmentService, planService, gradingService } from '../../services/api';
+import { courseService, enrollmentService, planService, gradingService, uploadService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import supabase from '../../supabase/supabase';
+import AnswerKeyViewerModal from '../common/AnswerKeyViewerModal';
 
 const { FiBook, FiPlay, FiLoader, FiSearch, FiPlusCircle, FiCheckCircle } = FiIcons;
 
@@ -26,6 +27,11 @@ const StudentCourseList = () => {
   const [topicCourseIds, setTopicCourseIds] = useState(new Set());
   const [groupAccessIds, setGroupAccessIds] = useState(new Set());
   const [studentSubmissionsMap, setStudentSubmissionsMap] = useState({});
+  // course_id (string) -> answer key upload row, only for courses that actually have one AND
+  // where visible_to_student is true - absent entirely otherwise, so "View Key" naturally never
+  // renders for a course with no key or one hidden from students.
+  const [answerKeys, setAnswerKeys] = useState({});
+  const [viewingKey, setViewingKey] = useState(null); // { course, answerKey } | null
 
   const isPremium = (user?.plan_type || '').toLowerCase() === 'premium';
 
@@ -211,6 +217,18 @@ const StudentCourseList = () => {
       setEnrolledIds(ids);
       setGroupAccessIds(new Set(groupAccessData));
 
+      if (coursesData.length > 0) {
+        const keysData = await safeFetch(uploadService.getAll({ courseIds: coursesData.map(c => c.id), category: 'answer_key' }));
+        const keyMap = {};
+        keysData.forEach(k => {
+          const cId = String(k.course_id);
+          // Only one answer key per course is expected; if somehow more than one exists, the
+          // most recently uploaded wins (uploadService.getAll already orders by created_at desc).
+          if (!keyMap[cId] && k.visible_to_student) keyMap[cId] = k;
+        });
+        setAnswerKeys(keyMap);
+      }
+
       // Fetch student submissions for accurate attempt/completion tracking
       const subsMap = {};
       const addSubToMap = (s) => {
@@ -317,6 +335,8 @@ const StudentCourseList = () => {
       setEnrollLoading(null);
     }
   };
+
+  const handleViewKey = (course, answerKey) => setViewingKey({ course, answerKey });
 
   const filteredCourses = useMemo(() => allCourses.filter(c => {
     const userPlan = (user?.plan_type || 'free').toLowerCase();
@@ -513,6 +533,8 @@ const StudentCourseList = () => {
                         submissions={courseSubmissions}
                         isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
                         isLoading={enrollLoading === course.id}
+                        answerKey={answerKeys[String(course.id)]}
+                        onViewKey={handleViewKey}
                         onAction={() => {
                           if (courseIsEnrolled) {
                             navigate(`/student/course/${course.id}`);
@@ -538,6 +560,8 @@ const StudentCourseList = () => {
                         submissions={courseSubmissions}
                         isPremiumRestricted={!courseIsEnrolled && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
                         isLoading={enrollLoading === course.id}
+                        answerKey={answerKeys[String(course.id)]}
+                        onViewKey={handleViewKey}
                         onAction={() => {
                           if (courseIsEnrolled) {
                             navigate(`/student/course/${course.id}`);
@@ -568,6 +592,8 @@ const StudentCourseList = () => {
             submissions={getSubmissionsForCourse(course, studentSubmissionsMap)}
             isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
             isLoading={enrollLoading === course.id}
+            answerKey={answerKeys[String(course.id)]}
+            onViewKey={handleViewKey}
             onAction={() => {
               if (isEnrolledFlag) {
                 const isLinearSAT = course.category === 'Linear SAT' || course.tutor_type === 'Linear SAT' || (course.name || '').toLowerCase().includes('linear sat');
@@ -595,6 +621,8 @@ const StudentCourseList = () => {
             submissions={getSubmissionsForCourse(course, studentSubmissionsMap)}
             isPremiumRestricted={!isEnrolledFlag && !isPremium && !planAccess.some(a => a.content_type === 'course' && String(a.content_id) === String(course.id) && a.plan_type === 'free') && !topicCourseIds.has(course.id) && !groupAccessIds.has(course.id)}
             isLoading={enrollLoading === course.id}
+            answerKey={answerKeys[String(course.id)]}
+            onViewKey={handleViewKey}
             onAction={() => {
               if (isEnrolledFlag) {
                 const isLinearSAT = course.category === 'Linear SAT' || course.tutor_type === 'Linear SAT' || (course.name || '').toLowerCase().includes('linear sat');
@@ -798,6 +826,15 @@ const StudentCourseList = () => {
           </div>
         )}
       </section>
+
+      {viewingKey && (
+        <AnswerKeyViewerModal
+          title={`Answer Key — ${viewingKey.course.name}`}
+          fileUrl={viewingKey.answerKey?.file_url}
+          fileType={viewingKey.answerKey?.file_type}
+          onClose={() => setViewingKey(null)}
+        />
+      )}
     </div>
   );
 };
@@ -883,7 +920,7 @@ const getCourseStatusInfo = (course, submissions = []) => {
   };
 };
 
-const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted, submissions = [] }) => {
+const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted, submissions = [], answerKey, onViewKey }) => {
   const navigate = useNavigate();
   const statusInfo = getCourseStatusInfo(course, submissions);
   const { isTest, isCompleted, isInProgress, isNotAttempted, progressPct, latestSub, primaryBtnText } = statusInfo;
@@ -1009,24 +1046,35 @@ const CourseCard = ({ course, index, isEnrolled, onAction, isLoading, isPremiumR
           </button>
         </div>
       ) : (
-        <button
-          onClick={onAction}
-          disabled={isLoading}
-          className="w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 bg-transparent border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white cursor-pointer"
-        >
-          {isLoading ? (
-            <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
-          ) : (
-            <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> {primaryBtnText}</>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onAction}
+            disabled={isLoading}
+            className="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 bg-transparent border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white cursor-pointer"
+          >
+            {isLoading ? (
+              <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
+            ) : (
+              <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> {primaryBtnText}</>
+            )}
+          </button>
+          {answerKey?.file_url && (
+            <button
+              onClick={() => onViewKey(course, answerKey)}
+              title="View Answer Key"
+              className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-[#1C202B] text-gray-200 hover:border-amber-500 hover:text-amber-400 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+            >
+              <SafeIcon icon={FiIcons.FiKey} className="w-3 h-3" /> View Key
+            </button>
           )}
-        </button>
+        </div>
       )}
     </div>
   </motion.div>
   );
 };
 
-const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted, submissions = [] }) => {
+const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremiumRestricted, submissions = [], answerKey, onViewKey }) => {
   const navigate = useNavigate();
   const statusInfo = getCourseStatusInfo(course, submissions);
   const { isTest, isCompleted, isInProgress, isNotAttempted, progressPct, latestSub, primaryBtnText } = statusInfo;
@@ -1141,17 +1189,28 @@ const CourseListRow = ({ course, index, isEnrolled, onAction, isLoading, isPremi
             </button>
           </div>
         ) : (
-          <button
-            onClick={onAction}
-            disabled={isLoading}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white whitespace-nowrap"
-          >
-            {isLoading ? (
-              <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
-            ) : (
-              <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> {primaryBtnText}</>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={onAction}
+              disabled={isLoading}
+              className="flex-1 sm:flex-initial w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 border border-[#1C202B] text-gray-200 hover:border-gray-600 hover:text-white whitespace-nowrap"
+            >
+              {isLoading ? (
+                <SafeIcon icon={FiIcons.FiLoader} className="w-4 h-4 animate-spin" />
+              ) : (
+                <><SafeIcon icon={FiIcons.FiPlay} className="w-3 h-3" /> {primaryBtnText}</>
+              )}
+            </button>
+            {answerKey?.file_url && (
+              <button
+                onClick={() => onViewKey(course, answerKey)}
+                title="View Answer Key"
+                className="px-3 py-2.5 rounded-xl font-bold text-xs bg-transparent border border-[#1C202B] text-gray-200 hover:border-amber-500 hover:text-amber-400 transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
+              >
+                <SafeIcon icon={FiIcons.FiKey} className="w-3 h-3" /> View Key
+              </button>
             )}
-          </button>
+          </div>
         )}
       </div>
     </motion.div>
