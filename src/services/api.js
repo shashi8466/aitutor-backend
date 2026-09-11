@@ -1836,6 +1836,12 @@ export const calendarService = {
   },
   deleteTask: async (id) => {
     return await supabase.from('study_tasks').delete().eq('id', id);
+  },
+  // Live group-content deadlines for every group the current student belongs to (not a stored
+  // calendar row - see grading.js /my-group-deadlines - so editing or removing a group's deadline
+  // is reflected the very next time this is called, with nothing to keep in sync manually).
+  getGroupDeadlines: async () => {
+    return axios.get('/api/grading/my-group-deadlines');
   }
 };
 

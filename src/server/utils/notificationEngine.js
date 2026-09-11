@@ -496,6 +496,56 @@ export function buildDueDateReminderEmail({ recipientName, studentName, dueItems
     return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card"><div class="header"><h1>⏰ Upcoming Test Reminders</h1><p>${appName} • Don't miss these deadlines!</p></div><div class="body"><p>Hello <strong>${recipientName || 'there'}</strong>,</p><p style="margin-top:8px;">This is a friendly reminder about upcoming test deadlines${isParent ? ` for <strong>${studentName}</strong>` : ''}.</p><div class="reminder-box">⚠️ Please ensure all pending tests are completed before the due date to avoid missing your progress goals.</div><p class="section-title">Pending Tests</p><div class="table-container"><table><thead><tr><th>Course</th><th>Level</th><th>Due Date</th><th>Time Left</th></tr></thead><tbody>${rows}</tbody></table></div><a class="cta" href="${finalUrl}">Take Test Now →</a></div><div class="footer">${appName} • Reminders are sent 7, 3, and 1 day(s) before due date.</div></div></div></body></html>`;
 }
 
+// One reminder per milestone (daysRemaining: 5, 2, or 0 - "today is the last day"), sent BEFORE
+// a group's content deadline passes. Distinct from buildGroupDeadlineMissedContentEmail, which
+// only fires once the deadline has already passed. See notifications.js
+// run-group-deadline-reminders for the schedule these three milestones are computed against.
+export function buildGroupDeadlineReminderEmail({ recipientName, studentName, isParent, groupName, endDate, daysRemaining, appUrl, reportUrl }) {
+    const appName = process.env.APP_NAME || 'AIPrep365';
+    const formattedDate = endDate ? new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'the scheduled date';
+    const finalUrl = reportUrl || (appUrl ? `${appUrl}/student` : '#');
+
+    let subject;
+    let bodyHtml;
+
+    if (daysRemaining === 0) {
+        subject = isParent
+            ? `Today is the Last Day – ${groupName || 'Group'} Content Deadline`
+            : `Today is the Last Day – Group Content Deadline`;
+        bodyHtml = isParent
+            ? `<p class="intro-text">Today is the last day for <strong>${studentName}</strong> to complete the assigned content for <strong>${groupName}</strong>.</p>
+               <p class="intro-text">The deadline is <strong>${formattedDate}</strong>.</p>`
+            : `<p class="intro-text">Today is the last day to complete your assigned content for <strong>${groupName}</strong>.</p>
+               <p class="intro-text">The deadline is <strong>${formattedDate}</strong>.</p>`;
+    } else if (daysRemaining === 2) {
+        subject = `Reminder: Group Content Deadline in 2 Days`;
+        bodyHtml = isParent
+            ? `<p class="intro-text"><strong>${studentName}</strong>'s deadline for <strong>${groupName}</strong> is in 2 days.</p>
+               <p class="intro-text">Please make sure the assigned content is completed before the deadline.</p>`
+            : `<p class="intro-text">Your deadline for <strong>${groupName}</strong> is in 2 days.</p>
+               <p class="intro-text">Please complete your assigned content before <strong>${formattedDate}</strong>.</p>`;
+    } else {
+        // 5 days (the only other milestone this is ever called with)
+        subject = `Reminder: Group Content Deadline in 5 Days`;
+        bodyHtml = isParent
+            ? `<p class="intro-text"><strong>${studentName}</strong>'s assigned content for <strong>${groupName}</strong> has a deadline of <strong>${formattedDate}</strong>.</p>
+               <p class="intro-text">There are 5 days remaining to complete the assigned content.</p>`
+            : `<p class="intro-text">Your assigned content for <strong>${groupName}</strong> has a deadline of <strong>${formattedDate}</strong>.</p>
+               <p class="intro-text">You have 5 days remaining to complete your assigned content.</p>
+               <p class="intro-text">Please complete the required content before the deadline.</p>`;
+    }
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">${BASE_STYLES}</head><body><div class="wrapper"><div class="card">
+        <div class="header"><h1>⏰ Group Content Deadline Reminder</h1><p>${appName}</p></div>
+        <div class="body">
+            <p class="intro-heading">${isParent ? 'Hello Parent,' : `Hi ${recipientName || 'there'},`}</p>
+            ${bodyHtml}
+            <a class="cta" href="${finalUrl}">${isParent ? 'View Progress' : 'Complete Your Content Now'} →</a>
+        </div>
+        <div class="footer">${appName} • Reminders are sent 5 days, 2 days, and on the deadline day.</div>
+    </div></div></body></html>`;
+}
+
 // groups: [{ groupId, groupName, endDate, subjects: [{ subject, assigned, completed, missed,
 //   partiallyCompleted, notStarted, completedItems: [name], missedItems: [{name, status}] }],
 //   totals: {assigned, completed, missed} }]

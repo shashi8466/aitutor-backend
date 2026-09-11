@@ -403,6 +403,113 @@ router.post('/run-group-deadline-check', async (req, res) => {
   }
 });
 
+// Whole-calendar-day differences (UTC) between a group's end_date and "now" that should trigger
+// a reminder - 5 days before, 2 days before, and the deadline day itself. Deliberately date-based
+// (not the precise timestamp run-group-deadline-check uses), since the requirement is "in 5
+// days"/"in 2 days"/"today", not an exact-hour countdown.
+const REMINDER_MILESTONES_DAYS = [5, 2, 0];
+
+// POST /api/notifications/run-group-deadline-reminders
+//
+// Finds every Student Group with an end_date whose whole-calendar-days-remaining matches one of
+// REMINDER_MILESTONES_DAYS, and emails every member (+ linked parents) exactly one reminder for
+// that milestone. Runs BEFORE the deadline passes - once it actually passes,
+// run-group-deadline-check's existing missed-content email takes over. Idempotent per
+// (group, end_date, milestone, recipient) via enqueueNotification's own GROUP_DEADLINE_REMINDER
+// dedup, so running this on a frequent cron tick never double-sends the same milestone.
+router.post('/run-group-deadline-reminders', async (req, res) => {
+  try {
+    if (!requireCronSecret(req, res)) return;
+
+    const { data: groups, error } = await supabase
+      .from('student_groups')
+      .select('id, name, end_date')
+      .not('end_date', 'is', null);
+
+    if (error) throw error;
+
+    const now = new Date();
+    const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
+    const dueGroups = (groups || []).reduce((acc, group) => {
+      const end = new Date(group.end_date);
+      const endUTC = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+      const daysRemaining = Math.round((endUTC - todayUTC) / 86400000);
+      if (REMINDER_MILESTONES_DAYS.includes(daysRemaining)) {
+        acc.push({ ...group, daysRemaining });
+      }
+      return acc;
+    }, []);
+
+    if (dueGroups.length === 0) {
+      return res.json({ ok: true, groupsProcessed: 0, remindersEnqueued: 0 });
+    }
+
+    const { data: allParents } = await supabase
+      .from('profiles')
+      .select('id, name, email, linked_students')
+      .eq('role', 'parent');
+
+    let remindersEnqueued = 0;
+
+    for (const group of dueGroups) {
+      const { data: members } = await supabase
+        .from('group_members')
+        .select('student_id, student:profiles!group_members_student_id_fkey(id, name, email)')
+        .eq('group_id', group.id);
+
+      for (const m of (members || [])) {
+        const student = m.student;
+        if (!student?.email) continue;
+
+        // Includes daysRemaining, not just group+end_date, so the 5-day/2-day/deadline-day
+        // reminders for this SAME deadline are three distinct dedupe entries, each sent once.
+        const dedupeKey = `${group.id}:${group.end_date}:${group.daysRemaining}`;
+        const basePayload = {
+          studentId: student.id,
+          studentName: student.name,
+          groupId: group.id,
+          groupName: group.name,
+          endDate: group.end_date,
+          daysRemaining: group.daysRemaining,
+          dedupeKey
+        };
+
+        await enqueueNotification({
+          eventType: 'GROUP_DEADLINE_REMINDER',
+          recipientProfileId: student.id,
+          recipientType: 'student',
+          payload: { ...basePayload, recipientEmail: student.email },
+          scheduledFor: new Date().toISOString()
+        });
+        remindersEnqueued++;
+
+        const linkedParents = (allParents || []).filter(p => {
+          const linked = p.linked_students || [];
+          return Array.isArray(linked) && linked.some(id => String(id).trim() === String(student.id).trim());
+        });
+
+        for (const parent of linkedParents) {
+          if (!parent.email) continue;
+          await enqueueNotification({
+            eventType: 'GROUP_DEADLINE_REMINDER',
+            recipientProfileId: parent.id,
+            recipientType: 'parent',
+            payload: { ...basePayload, recipientEmail: parent.email },
+            scheduledFor: new Date().toISOString()
+          });
+          remindersEnqueued++;
+        }
+      }
+    }
+
+    const processed = await processOutboxOnce({ limit: 50 });
+    res.json({ ok: true, groupsProcessed: dueGroups.length, remindersEnqueued, ...processed });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
 // GET /api/notifications/preferences/:userId
 router.get('/preferences/:userId', async (req, res) => {
   try {

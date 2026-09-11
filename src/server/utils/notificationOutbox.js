@@ -11,6 +11,7 @@ import {
   buildCombinedRegularCourseCompletionEmail,
   buildDemoResultEmail,
   buildGroupDeadlineMissedContentEmail,
+  buildGroupDeadlineReminderEmail,
   sanitizeAppUrl
 } from './notificationEngine.js';
 import { getInternalSettings } from './internalSettings.js';
@@ -95,7 +96,8 @@ function channelsFromPrefs(prefs, channelsRequested, eventType, profile = null) 
     (eventType === 'DUE_DATE_REMINDER' && dueDateEnabled) ||
     // Same "deadline" preference category as DUE_DATE_REMINDER - there's no dedicated toggle
     // for this event type, and it's the closest existing semantic match.
-    (eventType === 'GROUP_DEADLINE_MISSED_CONTENT' && dueDateEnabled);
+    (eventType === 'GROUP_DEADLINE_MISSED_CONTENT' && dueDateEnabled) ||
+    (eventType === 'GROUP_DEADLINE_REMINDER' && dueDateEnabled);
 
   if (!allowEvent) {
     console.log(`ℹ️ [NotificationOutbox] Blocked Event: ${profile?.email} | Event: ${eventType} | Student/Parent Toggles: testCompletion=${testCompEnabled}, weekly=${weeklyRepEnabled}, due=${dueDateEnabled}`);
@@ -420,6 +422,36 @@ async function buildContent({ eventType, payload, recipientName, isParent }) {
     return { subject, emailHtml, smsMessage };
   }
 
+  if (normalizedEventType === 'GROUP_DEADLINE_REMINDER') {
+    const { groupName, endDate, daysRemaining } = payload;
+    const targetPath = isParent ? `/parent/child/${payload.studentId}` : `/student`;
+    const separator = appUrl.endsWith('/') ? '' : '/';
+    const redirectParam = `?redirect=${encodeURIComponent(targetPath)}`;
+    const hashPart = `#${targetPath}`;
+    const finalUrl = appUrl ? `${appUrl}${separator}${redirectParam}${hashPart}` : targetPath;
+
+    const emailHtml = buildGroupDeadlineReminderEmail({
+      recipientName,
+      studentName: payload.studentName,
+      isParent,
+      groupName,
+      endDate,
+      daysRemaining,
+      appUrl,
+      reportUrl: finalUrl
+    });
+
+    const subject = daysRemaining === 0
+      ? `Today is the Last Day – Group Content Deadline`
+      : `Reminder: Group Content Deadline in ${daysRemaining} Days`;
+
+    const smsMessage = daysRemaining === 0
+      ? `${appName}: Today is the last day${isParent ? ` for ${payload.studentName}` : ''} to complete the assigned content for ${groupName}.`
+      : `${appName}: ${daysRemaining} day(s) left${isParent ? ` for ${payload.studentName}` : ''} to complete the assigned content for ${groupName}.`;
+
+    return { subject, emailHtml, smsMessage };
+  }
+
   if (normalizedEventType === 'WELCOME_EMAIL') {
     const subject = `Welcome to ${appName} 🎉`;
     const emailHtml = buildWelcomeEmail({
@@ -654,6 +686,64 @@ export async function enqueueNotification({
     }
   }
 
+  // Deadline reminders: one email per (group, end_date, milestone) per recipient - dedupeKey
+  // already encodes daysRemaining (see notifications.js run-group-deadline-reminders), so the
+  // 5-day, 2-day, and deadline-day reminders for the SAME group are three distinct dedupe rows,
+  // never collapsed into one, while a cron tick re-scanning the same still-current milestone
+  // blocks a second send. Same shape as the GROUP_DEADLINE_MISSED_CONTENT block above.
+  if (eventType === 'GROUP_DEADLINE_REMINDER') {
+    const dedupeKey = payload?.dedupeKey ?? null;
+    const studentIdForDedup = payload?.studentId ?? null;
+
+    if (dedupeKey && studentIdForDedup != null) {
+      const profileIdClause = recipientProfileId
+        ? `recipient_profile_id.eq.${recipientProfileId}`
+        : `recipient_profile_id.is.null`;
+
+      const { data: existing, error: existingErr } = await supabase
+        .from('notification_outbox')
+        .select('id, status, attempts, scheduled_for')
+        .eq('event_type', eventType)
+        .or(
+          recipientEmail
+            ? `${profileIdClause},payload->>recipientEmail.eq.${recipientEmail}`
+            : profileIdClause
+        )
+        .filter('payload->>dedupeKey', 'eq', dedupeKey)
+        .filter('payload->>studentId', 'eq', String(studentIdForDedup))
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!existingErr && existing?.length) {
+        const row = existing[0];
+
+        if (row.status === 'sent') {
+          console.log(`✅ [Outbox] Already SENT GROUP_DEADLINE_REMINDER [${dedupeKey}] → ${recipientProfileId}. Blocked.`);
+          return row.id;
+        }
+
+        if (row.status === 'pending' || row.status === 'processing') {
+          console.log(`ℹ️ [Outbox] Duplicate GROUP_DEADLINE_REMINDER skipped for ${recipientProfileId} (Status: ${row.status})`);
+          return row.id;
+        }
+
+        const maxAttempts = Number(process.env.NOTIFICATION_MAX_ATTEMPTS || 5);
+        if (row.status === 'failed' && (row.attempts || 0) < maxAttempts) {
+          const { data: requeued, error: requeueErr } = await supabase
+            .from('notification_outbox')
+            .update({ status: 'pending', scheduled_for: scheduledFor, last_error: null })
+            .eq('id', row.id)
+            .select('id')
+            .single();
+          if (!requeueErr && requeued?.id) return requeued.id;
+        } else if (row.status === 'failed') {
+          console.log(`⚠️ [Outbox] Reminder [${dedupeKey}] → ${recipientProfileId} exhausted retries. Blocking.`);
+          return row.id;
+        }
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('notification_outbox')
     .insert({
@@ -692,6 +782,56 @@ export async function enqueueNotification({
 
   console.log(`📬 [Outbox] Enqueued NEW notification ${data.id} for ${recipientProfileId}`);
   return data.id;
+}
+
+/**
+ * Deletes every still-pending GROUP_DEADLINE_REMINDER / GROUP_DEADLINE_MISSED_CONTENT outbox row
+ * that references this group, so deleting a group can't leave a stray reminder/missed-content
+ * email to send itself moments later for a group that no longer exists. Called from the group
+ * deletion routes (admin-groups.js, tutor.js). `notification_outbox.status` has no "cancelled"
+ * value (only pending/processing/sent/failed), so a real delete is the only clean option -
+ * already-sent emails are history and are left alone.
+ *
+ * GROUP_DEADLINE_REMINDER payloads carry a flat `groupId`; GROUP_DEADLINE_MISSED_CONTENT payloads
+ * carry a `groups` array (a student can be in more than one group whose deadline expired in the
+ * same run, folded into one combined email) - both shapes are checked.
+ */
+export async function cancelPendingGroupDeadlineNotifications(groupId) {
+  const gid = String(groupId);
+
+  const { data: pending, error } = await supabase
+    .from('notification_outbox')
+    .select('id, event_type, payload')
+    .in('event_type', ['GROUP_DEADLINE_REMINDER', 'GROUP_DEADLINE_MISSED_CONTENT'])
+    .eq('status', 'pending');
+
+  if (error) {
+    console.error('❌ [Outbox] Failed to look up pending group-deadline notifications:', error.message);
+    return { cancelled: 0 };
+  }
+
+  const idsToCancel = (pending || [])
+    .filter(row => {
+      const p = row.payload || {};
+      if (row.event_type === 'GROUP_DEADLINE_REMINDER') return String(p.groupId) === gid;
+      return Array.isArray(p.groups) && p.groups.some(g => String(g.groupId) === gid);
+    })
+    .map(row => row.id);
+
+  if (idsToCancel.length === 0) return { cancelled: 0 };
+
+  const { error: deleteErr } = await supabase
+    .from('notification_outbox')
+    .delete()
+    .in('id', idsToCancel);
+
+  if (deleteErr) {
+    console.error('❌ [Outbox] Failed to cancel pending group-deadline notifications:', deleteErr.message);
+    return { cancelled: 0 };
+  }
+
+  console.log(`🗑️ [Outbox] Cancelled ${idsToCancel.length} pending group-deadline notification(s) for deleted group ${gid}`);
+  return { cancelled: idsToCancel.length };
 }
 
 export async function processOutboxOnce({ limit = 25 } = {}) {

@@ -162,6 +162,33 @@ class NotificationScheduler {
     });
     this.tasks.push(groupDeadlineTask);
 
+    // Group deadline REMINDERS (5 days / 2 days / deadline day, before it passes) — same 10-minute
+    // cadence as the missed-content check above: cheap when nothing is due, and running it
+    // frequently means a same-day deadline still gets its "today is the last day" reminder
+    // promptly rather than waiting for a once-a-day job. Fully idempotent via
+    // GROUP_DEADLINE_REMINDER's own outbox dedup, so overlap/retries never double-send.
+    let groupReminderRunning = false;
+    const groupReminderTask = cron.schedule('*/10 * * * *', async () => {
+      if (groupReminderRunning) return;
+      groupReminderRunning = true;
+      try {
+        const port = process.env.PORT || 3001;
+        const url = `http://127.0.0.1:${port}/api/notifications/run-group-deadline-reminders`;
+        const response = await axios.post(url, {}, {
+          headers: { 'x-cron-secret': process.env.CRON_SECRET || '' },
+          timeout: 600000
+        });
+        if (response.data?.groupsProcessed > 0) {
+          console.log('✅ [Cron] Group deadline reminder response:', response.data);
+        }
+      } catch (e) {
+        console.error('❌ [Cron] Group deadline reminder error:', e.message);
+      } finally {
+        groupReminderRunning = false;
+      }
+    });
+    this.tasks.push(groupReminderTask);
+
     console.log('✅ [Scheduler] Notification scheduler started successfully (1 outbox task registered).');
   }
 

@@ -1188,7 +1188,7 @@ router.get('/submission/:submissionId', async (req, res) => {
             .from('test_submissions')
             .select(`
         *,
-        course:courses(id, name, description),
+        course:courses(id, name, description, is_adaptive, main_category, tutor_type),
         user:profiles!user_id(id, name, email)
       `)
             .eq('id', submissionId)
@@ -2864,6 +2864,54 @@ router.get('/topic-report/:courseId', async (req, res) => {
     } catch (error) {
         console.error('Topic report error:', error);
         res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/grading/my-group-deadlines
+ * Every group deadline (student_groups.end_date) for a group the authenticated student
+ * currently belongs to - the data source the Student Calendar uses to show a live "Group Content
+ * Deadline" entry (see StudentCalendar.jsx). Deliberately NOT persisted/cached anywhere: this
+ * always reflects the group's CURRENT end_date, so an admin/tutor editing or removing a deadline
+ * is reflected immediately with no separate sync step, and a student only ever sees a deadline
+ * here if it hasn't already passed at the time they ask (a student who joins after the deadline
+ * simply gets nothing for that group).
+ */
+router.get('/my-group-deadlines', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const { data: memberships, error: memErr } = await supabase
+            .from('group_members')
+            .select('group_id')
+            .eq('student_id', userId);
+        if (memErr) throw memErr;
+
+        const groupIds = [...new Set((memberships || []).map(m => m.group_id))];
+        if (groupIds.length === 0) return res.json({ deadlines: [] });
+
+        const { data: groups, error: groupErr } = await supabase
+            .from('student_groups')
+            .select('id, name, description, start_date, end_date, assigned_course_ids')
+            .in('id', groupIds)
+            .not('end_date', 'is', null)
+            .gte('end_date', new Date().toISOString());
+        if (groupErr) throw groupErr;
+
+        res.json({
+            deadlines: (groups || []).map(g => ({
+                groupId: g.id,
+                groupName: g.name,
+                description: g.description || null,
+                startDate: g.start_date,
+                endDate: g.end_date,
+                assignedCount: (g.assigned_course_ids || []).length
+            }))
+        });
+    } catch (error) {
+        console.error('❌ [GroupDeadlines] Failed to load student group deadlines:', error);
+        res.status(500).json({ error: error.message || 'Failed to load group deadlines' });
     }
 });
 

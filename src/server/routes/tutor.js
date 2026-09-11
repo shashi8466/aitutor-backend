@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import supabase from '../../supabase/supabaseAdmin.js';
 import { analyticsService } from '../services/analyticsService.js';
 import { isCoTutorOf, getCoTutorGroupIds, getTutorGroupStudentIds } from '../utils/groupTutors.js';
+import { cancelPendingGroupDeadlineNotifications } from '../utils/notificationOutbox.js';
 
 const router = express.Router();
 
@@ -1185,6 +1186,11 @@ router.delete('/groups/:groupId', async (req, res) => {
             console.error('Error deleting group:', error);
             return res.status(500).json({ error: 'Failed to delete group' });
         }
+
+        // group_members cascades on delete, so every member's live-computed calendar entry for
+        // this group disappears on its own - the one thing that needs an explicit cleanup step
+        // is any reminder/missed-content email already sitting in the outbox waiting to send.
+        await cancelPendingGroupDeadlineNotifications(groupId);
 
         res.json({ success: true });
 

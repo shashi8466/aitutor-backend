@@ -22,13 +22,26 @@ import {
 const {
     FiCalendar, FiChevronLeft, FiChevronRight, FiCheckCircle,
     FiClock, FiPlus, FiTrash2, FiEdit2, FiX, FiInfo,
-    FiBook, FiZap, FiFlag, FiTrendingUp
+    FiBook, FiZap, FiFlag, FiTrendingUp, FiUsers
 } = FiIcons;
 
 const TASK_TYPES = {
     task: { label: 'Study Task', color: 'blue', icon: FiBook, bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     test: { label: 'Practice Test', color: 'red', icon: FiFlag, bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-    practice: { label: 'Practice Session', color: 'green', icon: FiZap, bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' }
+    practice: { label: 'Practice Session', color: 'green', icon: FiZap, bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
+    // Computed live from the student's current group memberships (see calendarService.
+    // getGroupDeadlines) - never a real study_tasks row, so it's never editable/deletable.
+    group_deadline: { label: 'Group Content Deadline', color: 'purple', icon: FiUsers, bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' }
+};
+
+// A deadline with no explicit end time set defaults to midnight (see the group content deadline
+// migration) - a real deadline would essentially never be deliberately set to exactly 00:00, so
+// treating midnight as "no time configured" and showing just the date (no time) is a safe, simple
+// rule that needs no extra "was a time explicitly chosen" flag from the backend.
+const isMidnight = (iso) => {
+    if (!iso) return true;
+    const d = new Date(iso);
+    return d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
 };
 
 const StudentCalendar = () => {
@@ -36,6 +49,7 @@ const StudentCalendar = () => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [tasks, setTasks] = useState([]);
+    const [groupDeadlines, setGroupDeadlines] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
@@ -53,6 +67,21 @@ const StudentCalendar = () => {
     useEffect(() => {
         if (user) loadTasks();
     }, [user, currentMonth]);
+
+    // Independent of month navigation - fetched once and merged into every month's grid, since
+    // it's a small, upcoming-only list (already-passed deadlines are excluded server-side).
+    useEffect(() => {
+        if (user) loadGroupDeadlines();
+    }, [user]);
+
+    const loadGroupDeadlines = async () => {
+        try {
+            const { data } = await calendarService.getGroupDeadlines();
+            setGroupDeadlines(data?.deadlines || []);
+        } catch (error) {
+            console.error("Failed to load group deadlines:", error);
+        }
+    };
 
     const loadTasks = async () => {
         setLoading(true);
@@ -146,7 +175,32 @@ const StudentCalendar = () => {
         end: endOfWeek(endOfMonth(currentMonth))
     });
 
-    const selectedDateTasks = tasks.filter(t => isSameDay(parseISO(t.date), selectedDate));
+    // Each group deadline becomes a synthetic, read-only calendar entry - never a real
+    // study_tasks row, so it always reflects the group's CURRENT name/deadline/description (see
+    // calendarService.getGroupDeadlines) with nothing to keep in sync on this side: an edit to the
+    // group shows up the next time this loads, and a removed/deleted group's deadline (or a
+    // student removed from it) simply stops being returned, with no separate delete step here.
+    const groupDeadlineItems = groupDeadlines.map(d => {
+        const deadlineDate = new Date(d.endDate);
+        const deadlineLabel = isMidnight(d.endDate)
+            ? format(deadlineDate, 'MMMM d, yyyy')
+            : `${format(deadlineDate, 'MMMM d, yyyy')} at ${deadlineDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+
+        return {
+            id: `group-deadline-${d.groupId}`,
+            title: `${d.groupName} – Group Deadline`,
+            type: 'group_deadline',
+            status: 'planned',
+            duration: 0,
+            date: format(deadlineDate, 'yyyy-MM-dd'),
+            isGroupDeadline: true,
+            groupDeadline: { ...d, deadlineLabel }
+        };
+    });
+
+    const allItems = [...tasks, ...groupDeadlineItems];
+
+    const selectedDateTasks = allItems.filter(t => isSameDay(parseISO(t.date), selectedDate));
 
     const completionStats = tasks.length > 0 ? {
         completed: tasks.filter(t => t.status === 'completed').length,
@@ -210,7 +264,7 @@ const StudentCalendar = () => {
 
                         <div className="grid grid-cols-7">
                             {days.map((day, idx) => {
-                                const dayTasks = tasks.filter(t => isSameDay(parseISO(t.date), day));
+                                const dayTasks = allItems.filter(t => isSameDay(parseISO(t.date), day));
                                 const isSelected = isSameDay(day, selectedDate);
                                 const isCurrentMonth = isSameMonth(day, currentMonth);
 
@@ -238,7 +292,12 @@ const StudentCalendar = () => {
                                             {/* Mobile: Dots only to avoid overflow */}
                                             <div className="sm:hidden flex flex-wrap gap-0.5">
                                                 {dayTasks.slice(0, 4).map(task => (
-                                                    <div key={task.id} className={`w-1.5 h-1.5 rounded-full ${TASK_TYPES[task.type].color === 'blue' ? 'bg-blue-500' : TASK_TYPES[task.type].color === 'red' ? 'bg-red-500' : 'bg-green-500'}`} />
+                                                    <div key={task.id} className={`w-1.5 h-1.5 rounded-full ${
+                                                        TASK_TYPES[task.type].color === 'blue' ? 'bg-blue-500' :
+                                                        TASK_TYPES[task.type].color === 'red' ? 'bg-red-500' :
+                                                        TASK_TYPES[task.type].color === 'purple' ? 'bg-purple-500' :
+                                                        'bg-green-500'
+                                                    }`} />
                                                 ))}
                                             </div>
                                             
@@ -285,16 +344,22 @@ const StudentCalendar = () => {
                                             key={task.id}
                                             initial={{ opacity: 0, x: 20 }}
                                             animate={{ opacity: 1, x: 0 }}
-                                            className={`group p-4 rounded-2xl border transition-all ${task.status === 'completed' ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-white dark:bg-gray-800 hover:shadow-md'}`}
+                                            className={`group p-4 rounded-2xl border transition-all ${task.isGroupDeadline ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800' : task.status === 'completed' ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-white dark:bg-gray-800 hover:shadow-md'}`}
                                         >
                                             <div className="flex gap-4">
-                                                <button
-                                                    onClick={() => handleStatusToggle(task)}
-                                                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0
+                                                {task.isGroupDeadline ? (
+                                                    <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                                                        <SafeIcon icon={FiUsers} className="w-3.5 h-3.5" />
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleStatusToggle(task)}
+                                                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0
                              ${task.status === 'completed' ? 'bg-green-500 border-green-500 text-white' : 'border-gray-200 hover:border-blue-500'}`}
-                                                >
-                                                    {task.status === 'completed' && <SafeIcon icon={FiIcons.FiCheck} className="w-4 h-4" />}
-                                                </button>
+                                                    >
+                                                        {task.status === 'completed' && <SafeIcon icon={FiIcons.FiCheck} className="w-4 h-4" />}
+                                                    </button>
+                                                )}
 
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start">
@@ -303,25 +368,39 @@ const StudentCalendar = () => {
                                                         </h3>
                                                         {/* Always visible (not opacity-0 group-hover) - touchscreens have no
                                                             hover state, so a hover-only reveal makes these untappable on
-                                                            mobile. Padding bumped up for a real tap target too. */}
-                                                        <div className="flex gap-1 shrink-0">
-                                                            <button onClick={() => openEditModal(task)} className="p-2 hover:text-blue-600 text-gray-400"><FiEdit2 className="w-3.5 h-3.5" /></button>
-                                                            <button onClick={() => handleDeleteTask(task.id)} className="p-2 hover:text-red-600 text-gray-400"><FiTrash2 className="w-3.5 h-3.5" /></button>
-                                                        </div>
+                                                            mobile. Padding bumped up for a real tap target too. A group
+                                                            deadline isn't a real study_tasks row, so it's never
+                                                            editable/deletable here. */}
+                                                        {!task.isGroupDeadline && (
+                                                            <div className="flex gap-1 shrink-0">
+                                                                <button onClick={() => openEditModal(task)} className="p-2 hover:text-blue-600 text-gray-400"><FiEdit2 className="w-3.5 h-3.5" /></button>
+                                                                <button onClick={() => handleDeleteTask(task.id)} className="p-2 hover:text-red-600 text-gray-400"><FiTrash2 className="w-3.5 h-3.5" /></button>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <div className="flex items-center gap-3 mt-2">
                                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter ${TASK_TYPES[task.type].bg} ${TASK_TYPES[task.type].text}`}>
                                                             {TASK_TYPES[task.type].label}
                                                         </span>
-                                                        {task.duration > 0 && (
+                                                        {task.duration > 0 && !task.isGroupDeadline && (
                                                             <span className="flex items-center gap-1 text-[10px] text-gray-400 font-bold">
                                                                 <FiClock className="w-3 h-3" /> {task.duration}m
                                                             </span>
                                                         )}
                                                     </div>
 
-                                                    {task.description && (
+                                                    {task.isGroupDeadline ? (
+                                                        <div className="text-xs text-gray-500 mt-2 space-y-0.5">
+                                                            <p>Group: <strong className="text-gray-700 dark:text-gray-300">{task.groupDeadline.groupName}</strong></p>
+                                                            <p>Deadline: <strong className="text-gray-700 dark:text-gray-300">{task.groupDeadline.deadlineLabel}</strong></p>
+                                                            <p>Assigned Topics: <strong className="text-gray-700 dark:text-gray-300">{task.groupDeadline.assignedCount}</strong></p>
+                                                            {task.groupDeadline.description && (
+                                                                <p className="italic">"{task.groupDeadline.description}"</p>
+                                                            )}
+                                                            <p className="not-italic">Complete all assigned content before the deadline.</p>
+                                                        </div>
+                                                    ) : task.description && (
                                                         <p className="text-xs text-gray-500 mt-2 line-clamp-2 italic">
                                                             "{task.description}"
                                                         </p>
