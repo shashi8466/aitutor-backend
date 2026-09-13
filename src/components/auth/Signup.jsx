@@ -41,16 +41,6 @@ const Signup = () => {
   const [debugOtp, setDebugOtp] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
 
-  // States for Email OTP
-  const [studentEmailOtpSent, setStudentEmailOtpSent] = useState(false);
-  const [studentEmailOtp, setStudentEmailOtp] = useState('');
-  const [studentEmailOtpLoading, setStudentEmailOtpLoading] = useState(false);
-  const [studentEmailOtpError, setStudentEmailOtpError] = useState('');
-  const [studentEmailDebugOtp, setStudentEmailDebugOtp] = useState('');
-  const [studentEmailOtpVerified, setStudentEmailOtpVerified] = useState(false);
-
-
-
   const { signup, login, user } = useAuth();
   const { settings } = useSettings();
   const navigate = useNavigate();
@@ -177,54 +167,6 @@ const Signup = () => {
       setOtpError(err?.response?.data?.error || err?.message || 'Failed to send OTP.');
     } finally {
       setOtpLoading(false);
-    }
-  };
-
-  const handleSendStudentEmailOTP = async () => {
-    if (!formData.email || !/^\S+@\S+\.\S+$/.test(formData.email)) {
-      setError('Please enter a valid student email address.');
-      return;
-    }
-    setStudentEmailOtpLoading(true);
-    setStudentEmailOtpError('');
-    setError('');
-    setStudentEmailDebugOtp('');
-    try {
-      const response = await axios.post('/api/demo/send-email-otp', { email: formData.email });
-      if (response.data.success) {
-        setStudentEmailOtpSent(true);
-        if (response.data.otpForTesting) {
-          setStudentEmailDebugOtp(response.data.otpForTesting);
-        }
-      } else {
-        setStudentEmailOtpError(response.data.error || 'Failed to send OTP.');
-      }
-    } catch (err) {
-      setStudentEmailOtpError(err?.response?.data?.error || err?.message || 'Failed to send OTP.');
-    } finally {
-      setStudentEmailOtpLoading(false);
-    }
-  };
-
-  const handleVerifyStudentEmailOTP = async () => {
-    if (studentEmailOtp.length !== 6) {
-      setStudentEmailOtpError('Please enter a 6-digit verification code.');
-      return;
-    }
-    setStudentEmailOtpLoading(true);
-    setStudentEmailOtpError('');
-    try {
-      const response = await axios.post('/api/demo/verify-email-otp', { email: formData.email, otp: studentEmailOtp });
-      if (response.data.success) {
-        setStudentEmailOtpVerified(true);
-        setStudentEmailOtpError('');
-      } else {
-        setStudentEmailOtpError(response.data.error || 'Invalid OTP.');
-      }
-    } catch (err) {
-      setStudentEmailOtpError(err?.response?.data?.error || err?.message || 'Verification failed.');
-    } finally {
-      setStudentEmailOtpLoading(false);
     }
   };
 
@@ -363,11 +305,6 @@ const Signup = () => {
       return;
     }
 
-    if (!studentEmailOtpVerified) {
-      setError("Please verify your email address.");
-      return;
-    }
-
     // Proceed to sign up
     setLoading(true);
     setSlowConnection(false);
@@ -498,22 +435,6 @@ const Signup = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  // The email field stays editable even after an OTP was sent (or verified) - editing it
-  // means the OTP that was sent (or the verification already granted) was for the old
-  // address, so it must no longer count for signup until a fresh OTP is sent and verified
-  // for the new one.
-  const handleEmailChange = (e) => {
-    const newEmail = e.target.value;
-    setFormData(prev => ({ ...prev, email: newEmail }));
-    if (studentEmailOtpSent || studentEmailOtpVerified) {
-      setStudentEmailOtpSent(false);
-      setStudentEmailOtpVerified(false);
-      setStudentEmailOtp('');
-      setStudentEmailOtpError('');
-      setStudentEmailDebugOtp('');
-    }
   };
 
   const renderTermsModal = () => {
@@ -807,67 +728,10 @@ const Signup = () => {
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder={formData.role === 'student' ? "student@example.com" : "you@example.com"}
                   value={formData.email}
-                  onChange={handleEmailChange}
+                  onChange={handleChange}
                   onFocus={handleInteraction}
                 />
               </div>
-
-              {/* STUDENT EMAIL OTP FLOW */}
-              {!studentEmailOtpVerified && (
-                <div className="mt-2 space-y-2">
-                  {!studentEmailOtpSent ? (
-                    <button
-                      type="button"
-                      disabled={studentEmailOtpLoading || !formData.email || !/^\S+@\S+\.\S+$/.test(formData.email)}
-                      onClick={handleSendStudentEmailOTP}
-                      className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
-                    >
-                      {studentEmailOtpLoading ? 'Sending...' : 'Send OTP'}
-                    </button>
-                  ) : (
-                    <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-lg">
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                        Verification code sent to {formData.email}
-                      </p>
-                      {studentEmailOtpError && (
-                        <p className="text-[10px] text-red-600 dark:text-red-400 font-extrabold uppercase tracking-wide">{studentEmailOtpError}</p>
-                      )}
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          maxLength={6}
-                          placeholder="Enter 6-Digit OTP"
-                          value={studentEmailOtp}
-                          onChange={(e) => setStudentEmailOtp(e.target.value.replace(/[^\d]/g, ''))}
-                          className="flex-1 px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-bold tracking-widest outline-none focus:ring-1 focus:ring-[#E53935]"
-                        />
-                        <button
-                          type="button"
-                          disabled={studentEmailOtpLoading || studentEmailOtp.length !== 6}
-                          onClick={handleVerifyStudentEmailOTP}
-                          className="px-4 py-2 bg-[#E53935] hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50"
-                        >
-                          {studentEmailOtpLoading ? 'Verifying...' : 'Verify OTP'}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleSendStudentEmailOTP}
-                        className="text-[10px] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-bold underline"
-                      >
-                        Resend Code
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {studentEmailOtpVerified && (
-                <div className="mt-2 p-2 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-lg border border-green-200/50 flex items-center gap-1.5">
-                  <SafeIcon icon={FiCheckCircle} className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  {formData.role === 'student' ? 'Student email verified successfully!' : 'Email verified successfully!'}
-                </div>
-              )}
             </div>
 
             {/* STUDENT MOBILE WITH COUNTRY CODE SELECTOR */}
@@ -975,7 +839,6 @@ const Signup = () => {
                 loading ||
                 redirecting ||
                 !termsAccepted ||
-                !studentEmailOtpVerified ||
                 formData.name.trim() === '' ||
                 formData.email.trim() === '' ||
                 formData.password.length < 6
