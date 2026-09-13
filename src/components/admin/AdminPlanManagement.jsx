@@ -44,8 +44,8 @@ const AdminPlanManagement = () => {
       // 2. Load settings with defaults
       const settingsRes = await planService.getSettings().catch(e => ({ data: [] }));
       const settingsMap = {
-        free: { max_questions_math: 250, max_questions_rw: 250, max_tests: 2 },
-        premium: { max_questions_math: 10000, max_questions_rw: 10000, max_tests: 10 }
+        free: { max_questions_math: 250, max_questions_rw: 250, max_tests: 2, feature_custom_prep: true },
+        premium: { max_questions_math: 10000, max_questions_rw: 10000, max_tests: 10, feature_custom_prep: true }
       };
       (settingsRes.data || []).forEach(s => {
         settingsMap[s.plan_type] = { ...settingsMap[s.plan_type], ...s };
@@ -84,7 +84,7 @@ const AdminPlanManagement = () => {
         accessCount: accessRes.data?.length,
         coursesCount: coursesRes.data?.length,
         topicsCount: uniqueTopics.length,
-        uploadsCount: uploadsRes.data?.length
+        uploadsCount: uploadsData.length
       });
 
     } catch (err) {
@@ -342,52 +342,51 @@ const AdminPlanManagement = () => {
                     />
                   </div>
 
+                  {/* Exactly the student sidebar's configurable (optional/AI-agent) features -
+                      Dashboard, My Courses, Practice Test, Calendar, Profile Settings, and Help &
+                      Support are never gated and have no toggle here, matching the sidebar itself
+                      (no settingKey on those items). Order matches the sidebar's own grouping. */}
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] pt-4">Feature Toggles</h4>
                   <div className="space-y-3">
-                    <FeatureToggle 
-                      label="AI Tutor Agent" 
-                      active={settings[plan]?.feature_ai_tutor}
-                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_ai_tutor: v}})}
-                    />
-                    <FeatureToggle 
-                      label="Study Planner" 
-                      active={settings[plan]?.feature_study_planner}
-                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_study_planner: v}})}
-                    />
-                    <FeatureToggle 
-                      label="Weakness Drills" 
-                      active={settings[plan]?.feature_weakness_drills}
-                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_weakness_drills: v}})}
-                    />
-                    <FeatureToggle 
-                      label="Test Review Agent" 
-                      active={settings[plan]?.feature_test_review}
-                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_test_review: v}})}
-                    />
-                    <FeatureToggle 
-                      label="Score Predictor" 
+                    <FeatureToggle
+                      label="Score Predictor"
                       active={settings[plan]?.feature_score_predictor}
                       onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_score_predictor: v}})}
                     />
-                    <FeatureToggle 
-                      label="Advanced Analytics" 
-                      active={settings[plan]?.feature_advanced_analytics}
-                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_advanced_analytics: v}})}
-                    />
-                    <FeatureToggle 
-                      label="College Advisor" 
-                      active={settings[plan]?.feature_college_advisor}
-                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_college_advisor: v}})}
-                    />
-                    <FeatureToggle 
-                      label="Leaderboard" 
+                    <FeatureToggle
+                      label="Leaderboard"
                       active={settings[plan]?.feature_leaderboard}
                       onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_leaderboard: v}})}
                     />
-                    <FeatureToggle 
-                      label="Study Resource Bank" 
-                      active={settings[plan]?.feature_study_resources}
-                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_study_resources: v}})}
+                    <FeatureToggle
+                      label="Study Plan Agent"
+                      active={settings[plan]?.feature_study_planner}
+                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_study_planner: v}})}
+                    />
+                    <FeatureToggle
+                      label="Weakness Drills"
+                      active={settings[plan]?.feature_weakness_drills}
+                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_weakness_drills: v}})}
+                    />
+                    <FeatureToggle
+                      label="Custom Prep"
+                      active={settings[plan]?.feature_custom_prep}
+                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_custom_prep: v}})}
+                    />
+                    <FeatureToggle
+                      label="Test Review Agent"
+                      active={settings[plan]?.feature_test_review}
+                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_test_review: v}})}
+                    />
+                    <FeatureToggle
+                      label="College Advisor"
+                      active={settings[plan]?.feature_college_advisor}
+                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_college_advisor: v}})}
+                    />
+                    <FeatureToggle
+                      label="AI Prep365"
+                      active={settings[plan]?.feature_ai_tutor}
+                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_ai_tutor: v}})}
                     />
                   </div>
 
