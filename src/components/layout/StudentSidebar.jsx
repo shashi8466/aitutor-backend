@@ -77,12 +77,21 @@ const StudentSidebar = ({ isOpen, onClose }) => {
     }
   ];
 
+  // A profile with no plan_type set at all still displays as "Free" (see the badge below), so
+  // treat that the same way here - otherwise a null/undefined plan_type falls through to the
+  // "disabled by Admin" alert instead of the free-plan upgrade prompt, even though the user is
+  // shown as being on the free plan.
+  const isFreePlan = (user?.plan_type || 'free') === 'free';
+
   const handleLinkClick = (e, item) => {
     if (item.settingKey) {
-      const isEnabled = planSettings?.[item.settingKey];
+      // Matches renderLink's own convention below: while planSettings hasn't loaded yet (or
+      // failed to), treat the feature as enabled rather than blocking the click - the same
+      // fail-open default FeatureGate.jsx uses for full-page routes.
+      const isEnabled = planSettings?.[item.settingKey] ?? true;
       if (!isEnabled) {
         e.preventDefault();
-        if (user?.plan_type === 'free') {
+        if (isFreePlan) {
           onClose();
           navigate('/student/upgrade');
         } else {
@@ -97,7 +106,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
   const renderLink = (item) => {
     const isActive = item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
     const isEnabled = item.settingKey ? (planSettings?.[item.settingKey] ?? true) : true;
-    const isLocked = !isEnabled && user?.plan_type === 'free';
+    const isLocked = !isEnabled && isFreePlan;
     
     return (
       <NavLink

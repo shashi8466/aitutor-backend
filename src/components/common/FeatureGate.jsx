@@ -16,11 +16,22 @@ const FeatureGate = ({ children, featureKey }) => {
     if (user) checkAccess();
   }, [user, featureKey]);
 
-  const checkAccess = async () => {
+  const checkAccess = async (retryCount = 0) => {
     try {
       const { data } = await planService.getSettings();
+
+      // plan_settings always has a 'free' and a 'premium' row - a genuinely empty result here
+      // means the read raced the Supabase client's own session/token hydration (this query goes
+      // straight through supabase-js, not the app's axios auth interceptor) rather than "there
+      // really are no plan settings". Retry once after a short delay instead of incorrectly
+      // locking a feature the admin actually has enabled.
+      if ((!data || data.length === 0) && retryCount === 0) {
+        setTimeout(() => checkAccess(1), 500);
+        return;
+      }
+
       const planSettings = (data || []).find(s => s.plan_type === user.plan_type);
-      
+
       if (planSettings?.[featureKey]) {
         setStatus('allowed');
       } else {
