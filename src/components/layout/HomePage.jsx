@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 
 import BrandName from '../../common/BrandName';
+import ContactUsModal from '../common/ContactUsModal';
 
 
 const { FiCheck, FiMenu, FiX } = FiIcons;
@@ -16,6 +17,7 @@ const AIPrep365LandingPage = () => {
   const navigate = useNavigate();
   const { settings } = useSettings();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isContactOpen, setIsContactOpen] = React.useState(false);
 
   const handleLoginClick = () => { navigate('/login'); };
   const handleSignupClick = () => { navigate('/signup'); };
@@ -96,6 +98,7 @@ const AIPrep365LandingPage = () => {
             {['FEATURES', 'RESULTS', 'HOW IT WORKS', 'PRICING'].map((item) => (
               <Link key={item} to={`/#${item.toLowerCase().replace(/ /g, '-')}`} onClick={() => handleScroll(item.toLowerCase().replace(/ /g, '-'))} className="hover:text-white transition-all uppercase">{item}</Link>
             ))}
+            <button onClick={() => setIsContactOpen(true)} className="hover:text-white transition-all uppercase">CONTACT US</button>
           </div>
 
           <div className="flex items-center gap-3 md:gap-6">
@@ -141,6 +144,12 @@ const AIPrep365LandingPage = () => {
                   {item}
                 </Link>
               ))}
+              <button
+                onClick={() => { setIsMobileMenuOpen(false); setIsContactOpen(true); }}
+                className="text-left text-sm font-bold tracking-widest text-slate-400 hover:text-white uppercase py-3 border-b border-white/5"
+              >
+                CONTACT US
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-4 pt-4">
               <button onClick={handleLoginClick} className="w-full py-4 rounded-2xl border border-sky-500 text-sky-500 text-[10px] font-black uppercase tracking-widest">Login</button>
@@ -149,6 +158,8 @@ const AIPrep365LandingPage = () => {
           </div>
         </motion.div>
       </header>
+
+      <ContactUsModal isOpen={isContactOpen} onClose={() => setIsContactOpen(false)} />
 
       {/* ⚡ HERO SECTION */}
       <section id="hero" aria-labelledby="hero-heading" className="relative min-h-screen pt-32 md:pt-40 pb-16 md:pb-20 overflow-hidden flex items-center px-6 md:px-12 lg:px-20">
