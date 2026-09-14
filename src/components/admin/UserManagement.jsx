@@ -496,60 +496,119 @@ const UserManagement = () => {
               </div>
 
               <div className="space-y-8">
-                {/* Contact Information Section */}
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Contact Information</h4>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800">
-                  <div className="space-y-1">
-                      <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Student Mobile Number (SMS/WhatsApp)</label>
-                      <input 
-                        type="text"
-                        placeholder="+1234567890"
-                        value={selectedUser.mobile || ''}
-                        onChange={(e) => setSelectedUser(prev => ({ ...prev, mobile: e.target.value }))}
-                        onBlur={(e) => handleUpdateUser(selectedUser.id, { mobile: e.target.value })}
-                        className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300"
-                      />
-                      <p className="text-[10px] text-gray-400 font-medium mt-1 italic">This number is entered by the student during signup and is displayed here for admin reference.</p>
+                {selectedUser.role === 'student' && (
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Student Information</h4>
+                    <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Student Name</label>
+                          <p className="mt-1 px-4 py-3 rounded-xl bg-white dark:bg-gray-800 text-sm font-bold text-gray-900 dark:text-white">{selectedUser.name || 'Not provided'}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Email Address</label>
+                          <p className="mt-1 px-4 py-3 rounded-xl bg-white dark:bg-gray-800 text-sm font-bold text-gray-900 dark:text-white truncate">{selectedUser.email || 'Not provided'}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">School Name</label>
+                        <input
+                          type="text"
+                          placeholder="Not provided"
+                          value={selectedUser.school_name || ''}
+                          onChange={(e) => setSelectedUser(prev => ({ ...prev, school_name: e.target.value }))}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { school_name: e.target.value })}
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-400 mt-1"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">City &amp; State</label>
+                          <input
+                            type="text"
+                            placeholder="Not provided"
+                            value={selectedUser.city_state || ''}
+                            onChange={(e) => setSelectedUser(prev => ({ ...prev, city_state: e.target.value }))}
+                            onBlur={(e) => handleUpdateUser(selectedUser.id, { city_state: e.target.value })}
+                            className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-400 mt-1"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Grade</label>
+                          <input
+                            type="text"
+                            placeholder="Not provided"
+                            value={selectedUser.grade || ''}
+                            onChange={(e) => setSelectedUser(prev => ({ ...prev, grade: e.target.value }))}
+                            onBlur={(e) => handleUpdateUser(selectedUser.id, { grade: e.target.value })}
+                            className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-400 mt-1"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Account Type</label>
+                        <p className="mt-1 px-4 py-3 rounded-xl bg-white dark:bg-gray-800 text-sm font-bold text-gray-900 dark:text-white capitalize">{selectedUser.role || 'Not provided'}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* Contact Information Section - tutors/admins still submit a phone number at signup; students no longer do */}
+                {selectedUser.role !== 'student' && (
+                  <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Contact Information</h4>
+                    <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800">
+                    <div className="space-y-1">
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Phone Number (SMS/WhatsApp)</label>
+                        <input
+                          type="text"
+                          placeholder="Not provided"
+                          value={selectedUser.mobile || ''}
+                          onChange={(e) => setSelectedUser(prev => ({ ...prev, mobile: e.target.value }))}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { mobile: e.target.value })}
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300"
+                        />
+                        <p className="text-[10px] text-gray-400 font-medium mt-1 italic">This number is entered during signup and is displayed here for admin reference.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {selectedUser.role === 'student' && (
                   <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Parent Details</h4>
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Parent/Guardian Information</h4>
                     <div className="bg-gray-50 dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 space-y-4">
                       <div>
                         <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Name</label>
-                        <input 
+                        <input
                           type="text"
-                          placeholder="Parent Name"
+                          placeholder="Not provided"
                           value={selectedUser.parentName || ''}
                           onChange={(e) => setSelectedUser(prev => ({ ...prev, parentName: e.target.value }))}
                           onBlur={(e) => handleUpdateUser(selectedUser.id, { parentName: e.target.value })}
-                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-400 mt-1"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Email</label>
-                        <input 
-                          type="email"
-                          placeholder="parent@example.com"
-                          value={selectedUser.parentEmail || ''}
-                          onChange={(e) => setSelectedUser(prev => ({ ...prev, parentEmail: e.target.value }))}
-                          onBlur={(e) => handleUpdateUser(selectedUser.id, { parentEmail: e.target.value })}
-                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Mobile Number</label>
-                        <input 
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Phone Number</label>
+                        <input
                           type="text"
-                          placeholder="+1234567890"
+                          placeholder="Not provided"
                           value={selectedUser.parentMobile || ''}
                           onChange={(e) => setSelectedUser(prev => ({ ...prev, parentMobile: e.target.value }))}
                           onBlur={(e) => handleUpdateUser(selectedUser.id, { parentMobile: e.target.value })}
-                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-300 mt-1"
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-400 mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">Parent Email Address</label>
+                        <input
+                          type="email"
+                          placeholder="Not provided"
+                          value={selectedUser.parentEmail || ''}
+                          onChange={(e) => setSelectedUser(prev => ({ ...prev, parentEmail: e.target.value }))}
+                          onBlur={(e) => handleUpdateUser(selectedUser.id, { parentEmail: e.target.value })}
+                          className="w-full bg-white dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-400 mt-1"
                         />
                       </div>
                     </div>

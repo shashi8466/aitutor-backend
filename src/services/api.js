@@ -325,7 +325,7 @@ export const authService = {
     try {
       let query = supabase
         .from('profiles')
-        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,assigned_courses,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email')
+        .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,school_name,city_state,grade,assigned_courses,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email')
         .order('created_at', { ascending: false });
 
       if (role) {
@@ -371,7 +371,7 @@ export const authService = {
     // Fallback: direct client query
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email,assigned_courses')
+      .select('id,email,name,role,created_at,updated_at,tutor_approved,mobile,school_name,city_state,grade,linked_students,notification_preferences,phone_number,whatsapp_number,last_active_at,status,plan_type,plan_status,payment_status,father_name,father_mobile,parent_email,assigned_courses')
       .eq('id', userId)
       .single();
     if (error) throw error;
