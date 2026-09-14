@@ -59,10 +59,10 @@ export const authService = {
       return { success: false, error: error.message };
     }
   },
-  signup: async ({ email, password, name, role, mobile, parentName, parentMobile, parentEmail }) => {
+  signup: async ({ email, password, name, role, mobile, schoolName, cityState, grade, parentName, parentMobile, parentEmail }) => {
     try {
       console.log('🔄 [SIGNUP] Starting signup for:', email);
-      
+
       // Pass metadata for trigger to pick up
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -72,6 +72,9 @@ export const authService = {
             name,
             role,
             mobile,
+            schoolName,
+            cityState,
+            grade,
             parentName,
             parentMobile,
             parentEmail,
@@ -82,19 +85,19 @@ export const authService = {
           }
         }
       });
-      
+
       if (error) {
         console.error('❌ [SIGNUP] Supabase auth error:', error.message);
         throw error;
       }
-      
+
       console.log('✅ [SIGNUP] User created:', data.user?.id);
 
       // CRITICAL: Return immediately with success
       // Background tasks run separately without blocking signup
       if (data.user) {
         // Run background tasks asynchronously without awaiting
-        authService._runSignupBackgroundTasks(data.user, { email, name, role, mobile, parentName, parentMobile, parentEmail });
+        authService._runSignupBackgroundTasks(data.user, { email, name, role, mobile, schoolName, cityState, grade, parentName, parentMobile, parentEmail });
       }
 
       return { success: true, session: data.session, user: data.user };
@@ -125,6 +128,9 @@ export const authService = {
             name: userName,
             role: normalizedRole,
             mobile: userData.mobile || null,
+            schoolName: userData.schoolName || null,
+            cityState: userData.cityState || null,
+            grade: userData.grade || null,
             parentName: userData.parentName || null,
             parentMobile: userData.parentMobile || null,
             parentEmail: userData.parentEmail || null,
@@ -1380,6 +1386,25 @@ export const testReviewService = {
 };
 
 // --- GRADING SERVICE ---
+// --- CUSTOM PREP SERVICE (Full-Length Test specific "Prepare More" plans) ---
+export const customPrepService = {
+  getAnalysis: async (submissionId) => {
+    return axios.get(`/api/custom-prep/analysis/${submissionId}`);
+  },
+  generate: async ({ submissionId, targetScore, hoursPerDay, numDays }) => {
+    return axios.post('/api/custom-prep/generate', { submissionId, targetScore, hoursPerDay, numDays });
+  },
+  getPlans: async () => {
+    return axios.get('/api/custom-prep/plans');
+  },
+  getPlan: async (planId) => {
+    return axios.get(`/api/custom-prep/plans/${planId}`);
+  },
+  updateProgress: async (planId, payload) => {
+    return axios.patch(`/api/custom-prep/plans/${planId}/progress`, payload);
+  }
+};
+
 export const gradingService = {
   submitTest: async (data) => {
     // data: { courseId, level, questionIds, answers, duration }

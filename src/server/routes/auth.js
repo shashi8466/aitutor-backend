@@ -364,7 +364,7 @@ router.put('/profile/:userId', async (req, res) => {
  */
 router.post('/save-profile', async (req, res) => {
   try {
-    const { userId, name, role, mobile, parentName, parentMobile, parentEmail } = req.body;
+    const { userId, name, role, mobile, schoolName, cityState, grade, parentName, parentMobile, parentEmail } = req.body;
 
     if (!userId) {
       return res.status(400).json({ success: false, error: 'userId is required' });
@@ -387,6 +387,9 @@ router.post('/save-profile', async (req, res) => {
         name: name || 'Student',
         role: normalizedRole,
         mobile: mobile || null,
+        school_name: schoolName || null,
+        city_state: cityState || null,
+        grade: grade || null,
         father_name: parentName || null,
         father_mobile: parentMobile || null,
         parent_email: parentEmail || null,

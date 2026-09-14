@@ -16,7 +16,13 @@ const Signup = () => {
     email: '',
     password: '',
     role: 'student',
-    mobile: ''
+    mobile: '',
+    schoolName: '',
+    cityState: '',
+    grade: '',
+    parentName: '',
+    parentMobile: '',
+    parentEmail: ''
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -324,7 +330,7 @@ const Signup = () => {
     const slowTimer = setTimeout(() => setSlowConnection(true), 2000);
 
     try {
-      const fullPhone = `${countryCode}${formData.mobile.replace(/[^\d]/g, '')}`;
+      const fullPhone = formData.mobile ? `${countryCode}${formData.mobile.replace(/[^\d]/g, '')}` : '';
       const signupPayload = {
         ...formData,
         mobile: fullPhone
@@ -692,9 +698,15 @@ const Signup = () => {
               </div>
             )}
 
+            {formData.role === 'student' && (
+              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 pb-1 border-b border-gray-200 dark:border-gray-700">Student Information</h3>
+            )}
+
             {/* FULL NAME */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                {formData.role === 'student' ? 'Student Name' : 'Full Name'}
+              </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <SafeIcon icon={FiUser} className="h-5 w-5 text-gray-400" />
@@ -734,43 +746,156 @@ const Signup = () => {
               </div>
             </div>
 
-            {/* STUDENT MOBILE WITH COUNTRY CODE SELECTOR */}
-            <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
-                {formData.role === 'student' ? 'Student Mobile Number' : 'Phone Number'}
-              </label>
-              <div className="flex gap-2">
-                <div className="w-28 shrink-0">
-                  <div className="relative">
-                    <select
-                      value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value)}
-                      className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all font-bold cursor-pointer"
-                    >
-                      <option value="+1">🇺🇸 +1</option>
-                      <option value="+91">🇮🇳 +91</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex-1 relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
-                  </div>
+            {formData.role === 'student' && (
+              <>
+                {/* SCHOOL NAME */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">School Name</label>
                   <input
-                    id="mobile"
-                    name="mobile"
-                    type="tel"
+                    id="schoolName"
+                    name="schoolName"
+                    type="text"
                     required
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder={formData.role === 'student' ? "Mobile Number" : "Phone Number"}
-                    value={formData.mobile}
+                    className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="e.g., Lincoln High School"
+                    value={formData.schoolName}
                     onChange={handleChange}
+                    onFocus={handleInteraction}
                   />
                 </div>
+
+                {/* CITY & STATE */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">City &amp; State</label>
+                  <input
+                    id="cityState"
+                    name="cityState"
+                    type="text"
+                    required
+                    className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="e.g., New York, NY"
+                    value={formData.cityState}
+                    onChange={handleChange}
+                    onFocus={handleInteraction}
+                  />
+                </div>
+
+                {/* GRADE */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Grade</label>
+                  <input
+                    id="grade"
+                    name="grade"
+                    type="text"
+                    required
+                    className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="e.g., 11th Grade"
+                    value={formData.grade}
+                    onChange={handleChange}
+                    onFocus={handleInteraction}
+                  />
+                </div>
+
+                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 pt-2 pb-1 border-b border-gray-200 dark:border-gray-700">Parent/Guardian Information</h3>
+
+                {/* PARENT NAME */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Name</label>
+                  <input
+                    id="parentName"
+                    name="parentName"
+                    type="text"
+                    required
+                    className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Parent/Guardian Full Name"
+                    value={formData.parentName}
+                    onChange={handleChange}
+                    onFocus={handleInteraction}
+                  />
+                </div>
+
+                {/* PARENT PHONE NUMBER */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Phone Number</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="parentMobile"
+                      name="parentMobile"
+                      type="tel"
+                      required
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Parent Mobile Number"
+                      value={formData.parentMobile}
+                      onChange={handleChange}
+                      onFocus={handleInteraction}
+                    />
+                  </div>
+                </div>
+
+                {/* PARENT EMAIL ADDRESS */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Parent Email Address</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <SafeIcon icon={FiMail} className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="parentEmail"
+                      name="parentEmail"
+                      type="email"
+                      required
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="parent@example.com"
+                      value={formData.parentEmail}
+                      onChange={handleChange}
+                      onFocus={handleInteraction}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* PHONE NUMBER (non-student roles only) */}
+            {formData.role !== 'student' && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                <div className="flex gap-2">
+                  <div className="w-28 shrink-0">
+                    <div className="relative">
+                      <select
+                        value={countryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
+                        className="block w-full px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all font-bold cursor-pointer"
+                      >
+                        <option value="+1">🇺🇸 +1</option>
+                        <option value="+91">🇮🇳 +91</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <SafeIcon icon={FiPhone} className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="mobile"
+                      name="mobile"
+                      type="tel"
+                      required
+                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E53935] transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Phone Number"
+                      value={formData.mobile}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ACCOUNT TYPE */}
+            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 pt-2 pb-1 border-b border-gray-200 dark:border-gray-700">Account Information</h3>
             <div>
               <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Account Type</label>
               <select
@@ -841,7 +966,15 @@ const Signup = () => {
                 !termsAccepted ||
                 formData.name.trim() === '' ||
                 formData.email.trim() === '' ||
-                formData.password.length < 6
+                formData.password.length < 6 ||
+                (formData.role === 'student' && (
+                  formData.schoolName.trim() === '' ||
+                  formData.cityState.trim() === '' ||
+                  formData.grade.trim() === '' ||
+                  formData.parentName.trim() === '' ||
+                  formData.parentMobile.trim() === '' ||
+                  formData.parentEmail.trim() === ''
+                ))
               }
               className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-sm font-bold text-white transition-all shadow-red-200 dark:shadow-none ${redirecting ? 'bg-green-600' : 'bg-[#E53935] hover:bg-[#d32f2f]'} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
