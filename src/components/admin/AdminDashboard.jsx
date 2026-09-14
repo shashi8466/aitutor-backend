@@ -21,7 +21,6 @@ const UserManagement = lazy(() => import('./UserManagement'));
 const AdminGroupManagement = lazy(() => import('./AdminGroupManagement'));
 const AdminParentManagement = lazy(() => import('./AdminParentManagement'));
 const AdminNotificationManager = lazy(() => import('./AdminNotificationManager'));
-const AdminParentNotificationManager = lazy(() => import('./AdminParentNotificationManager'));
 const AdminPlanManagement = lazy(() => import('./AdminPlanManagement'));
 const TestReview = lazy(() => import('../student/agents/TestReview'));
 const TopicReportReview = lazy(() => import('../student/TopicReportReview'));
@@ -120,7 +119,6 @@ const AdminDashboard = () => {
         { name: 'Users', path: '/admin/users', icon: FiUsers },
         { name: 'Parents', path: '/admin/parents', icon: FiUsers },
         { name: 'Notifications', path: '/admin/notifications', icon: FiBook },
-        { name: 'Parent Notifications', path: '/admin/parent-notifications', icon: FiUsers },
       ]
     },
     {
@@ -312,7 +310,6 @@ const AdminDashboard = () => {
               <Route path="/groups" element={<AdminGroupManagement />} />
               <Route path="/parents" element={<AdminParentManagement />} />
               <Route path="/notifications" element={<AdminNotificationManager />} />
-              <Route path="/parent-notifications" element={<AdminParentNotificationManager />} />
               <Route path="/questions" element={<QuestionManagement />} />
               <Route path="/issues" element={<IssuesAndSupport />} />
               <Route path="/knowledge-base" element={<KnowledgeBase />} />
