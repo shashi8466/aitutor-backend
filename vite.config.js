@@ -22,7 +22,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    // 'hidden': .map files are generated (so a minified stack trace like a production error
+    // report can actually be traced back to real file/line) but the JS bundles don't reference
+    // them, so ordinary browser devtools don't auto-load full source for every visitor.
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks: {
