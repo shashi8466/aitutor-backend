@@ -240,21 +240,50 @@ router.delete('/user/:userId', async (req, res) => {
 
     console.log(`🗑️ [AUTH] Admin ${requestingUser.email} initiating permanent deletion for user ${userId}`);
 
-    // 1. Delete user from Supabase Auth (this completely purges their auth.users record)
-    // Note: ON DELETE CASCADE on profiles table in postgres handles the profile deletion automatically.
-    const { data, error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    // 1. Clean up every table that references this user BEFORE calling Supabase Auth's
+    // deleteUser(). Some of these foreign keys are not (or are no longer, after out-of-band
+    // schema changes) ON DELETE CASCADE, which makes deleteUser() fail outright with an opaque
+    // "Database error deleting user" - and since that call ran first, this cleanup used to never
+    // run at all. Doing it first also means deleteUser() has nothing left to trip over.
+    const { data: submissions } = await supabaseAdmin.from('test_submissions').select('id').eq('user_id', userId);
+    const submissionIds = (submissions || []).map(s => s.id);
+    if (submissionIds.length > 0) {
+      await supabaseAdmin.from('test_responses').delete().in('submission_id', submissionIds);
+    }
+
+    // Rows owned by this user - safe to hard-delete.
+    await supabaseAdmin.from('test_responses').delete().eq('user_id', userId);
+    await supabaseAdmin.from('test_submissions').delete().eq('user_id', userId);
+    await supabaseAdmin.from('student_progress').delete().eq('user_id', userId);
+    await supabaseAdmin.from('student_plans').delete().eq('user_id', userId);
+    await supabaseAdmin.from('student_states').delete().eq('user_id', userId);
+    await supabaseAdmin.from('custom_prep_plans').delete().eq('student_id', userId);
+    await supabaseAdmin.from('enrollments').delete().eq('user_id', userId);
+    await supabaseAdmin.from('group_members').delete().eq('student_id', userId);
+    await supabaseAdmin.from('feedback').delete().eq('student_id', userId);
+    await supabaseAdmin.from('notification_preferences').delete().eq('profile_id', userId);
+    await supabaseAdmin.from('invitation_uses').delete().eq('user_id', userId);
+    await supabaseAdmin.from('test_assignments').delete().eq('user_id', userId);
+    await supabaseAdmin.from('group_tutors').delete().eq('tutor_id', userId);
+
+    // References where this user was just the creator/reviewer/assigner - clear the pointer,
+    // keep the underlying record (support ticket, group, enrollment key, invitation, etc).
+    await supabaseAdmin.from('support_issues').update({ submitted_by: null }).eq('submitted_by', userId);
+    await supabaseAdmin.from('support_issues').update({ reviewed_by: null }).eq('reviewed_by', userId);
+    await supabaseAdmin.from('student_groups').update({ created_by: null }).eq('created_by', userId);
+    await supabaseAdmin.from('enrollment_keys').update({ created_by: null }).eq('created_by', userId);
+    await supabaseAdmin.from('test_assignments').update({ assigned_by: null }).eq('assigned_by', userId);
+    await supabaseAdmin.from('group_tutors').update({ added_by: null }).eq('added_by', userId);
+    await supabaseAdmin.from('invitation_links').update({ created_by: null }).eq('created_by', userId);
+
+    await supabaseAdmin.from('profiles').delete().eq('id', userId);
+
+    // 2. Delete user from Supabase Auth (this completely purges their auth.users record).
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
     if (authError) {
       console.error('❌ [AUTH] Failed to delete user from Supabase Auth:', authError.message);
       throw authError;
     }
-
-    // 2. As an extra precautionary cleanup, explicitly delete any remaining records across tables
-    await supabaseAdmin.from('profiles').delete().eq('id', userId);
-    await supabaseAdmin.from('enrollments').delete().eq('user_id', userId);
-    await supabaseAdmin.from('progress').delete().eq('user_id', userId);
-    await supabaseAdmin.from('test_submissions').delete().eq('user_id', userId);
-    await supabaseAdmin.from('student_states').delete().eq('user_id', userId);
-    await supabaseAdmin.from('test_reviews').delete().eq('user_id', userId);
 
     console.log(`✅ [AUTH] User ${userId} successfully deleted and cleaned up.`);
     res.json({ success: true, message: 'User successfully deleted.' });
