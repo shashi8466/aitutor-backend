@@ -1473,7 +1473,7 @@ export const analyticsService = {
             supabase.from('courses').select('name, category, tutor_type').eq('id', courseId).single(),
             supabase
                 .from('test_submissions')
-                .select('id, level, raw_score_percentage, scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, math_scaled_score, reading_scaled_score, metadata')
+                .select('id, level, raw_score_percentage, scaled_score, max_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, math_scaled_score, reading_scaled_score, metadata')
                 .eq('user_id', studentId)
                 .eq('course_id', courseId)
                 .order('created_at', { ascending: true }), // chronological
@@ -1488,10 +1488,15 @@ export const analyticsService = {
         const courseName = course.category || course.name;
         const topicName = course.name;
 
+        // Each level's own scoring ceiling under calculate_scaled_score's existing level-aware
+        // bands (see migrations/fix_level_aware_scoring.sql) - used only as a display fallback
+        // when a submission predates the max_scaled_score column or a course has no attempt yet.
+        const LEVEL_MAX_FALLBACK = { Easy: 500, Medium: 650, Hard: 800 };
+
         const levels = {
-            Easy: { submissions: [], latest: null, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, timeSpent: 0, questions: [], score: 0, scaledScore: 200, passStatus: 'N/A' },
-            Medium: { submissions: [], latest: null, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, timeSpent: 0, questions: [], score: 0, scaledScore: 200, passStatus: 'N/A' },
-            Hard: { submissions: [], latest: null, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, timeSpent: 0, questions: [], score: 0, scaledScore: 200, passStatus: 'N/A' }
+            Easy: { submissions: [], latest: null, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, timeSpent: 0, questions: [], score: 0, scaledScore: 200, maxScaledScore: LEVEL_MAX_FALLBACK.Easy, passStatus: 'N/A' },
+            Medium: { submissions: [], latest: null, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, timeSpent: 0, questions: [], score: 0, scaledScore: 200, maxScaledScore: LEVEL_MAX_FALLBACK.Medium, passStatus: 'N/A' },
+            Hard: { submissions: [], latest: null, totalQ: 0, correct: 0, incorrect: 0, unanswered: 0, timeSpent: 0, questions: [], score: 0, scaledScore: 200, maxScaledScore: LEVEL_MAX_FALLBACK.Hard, passStatus: 'N/A' }
         };
 
         const attemptHistory = [];
@@ -1513,6 +1518,7 @@ export const analyticsService = {
                 level: level,
                 score: Math.round(sub.raw_score_percentage || 0),
                 scaledScore: sub.scaled_score || Math.round(200 + ((sub.raw_score_percentage || 0) / 100) * 600),
+                maxScaledScore: sub.max_scaled_score || LEVEL_MAX_FALLBACK[level] || 800,
                 timeSpent: sub.test_duration_seconds || 0
             });
         });
@@ -1547,6 +1553,7 @@ export const analyticsService = {
                     data.unanswered = Math.max(0, data.totalQ - (data.correct + data.incorrect));
                     data.score = Math.round((data.correct / data.totalQ) * 100);
                     data.scaledScore = sub.scaled_score || Math.round(200 + (data.score / 100) * 600);
+                    data.maxScaledScore = sub.max_scaled_score || LEVEL_MAX_FALLBACK[lvl] || 800;
                     data.passStatus = data.score >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT';
                     if (data.score > highestAccuracy) highestAccuracy = data.score;
                     continue;
@@ -1562,6 +1569,7 @@ export const analyticsService = {
 
                     data.score = data.totalQ > 0 ? Math.round((data.correct / data.totalQ) * 100) : Math.round(sub.raw_score_percentage || 0);
                     data.scaledScore = sub.scaled_score || Math.round(200 + (data.score / 100) * 600);
+                    data.maxScaledScore = sub.max_scaled_score || LEVEL_MAX_FALLBACK[lvl] || 800;
                     data.passStatus = data.score >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT';
 
                     if (data.score > highestAccuracy) highestAccuracy = data.score;

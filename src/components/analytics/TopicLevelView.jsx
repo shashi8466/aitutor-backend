@@ -14,12 +14,23 @@ const TopicLevelView = ({ groupId, topic, student, onBack, onAttemptSelect, admi
 
     const attempts = topic.attempts || [];
 
+    // Each level's own scoring ceiling under the app's existing calculate_scaled_score bands -
+    // used only when an individual attempt doesn't already carry its own maxScaledScore.
+    const LEVEL_MAX_FALLBACK = { Easy: 500, Medium: 650, Hard: 800 };
+
     // Calculate Latest & Best Performance
     const latestAttempt = attempts.length > 0 ? attempts[0] : null;
     const latestScaledScore = latestAttempt?.scaledScore || topic.averageScore || 200;
+    const latestMaxScore = latestAttempt?.maxScaledScore || LEVEL_MAX_FALLBACK[latestAttempt?.level] || 800;
     const latestAccuracy = latestAttempt?.score || topic.accuracy || 0;
 
-    const bestScaledScore = attempts.length > 0 ? Math.max(...attempts.map(a => a.scaledScore || 200)) : latestScaledScore;
+    // The attempt with the highest scaled score - not just the number - so its own ceiling
+    // (Easy/Medium/Hard have different maxes) can be displayed alongside it correctly.
+    const bestAttempt = attempts.length > 0
+        ? attempts.reduce((best, a) => ((a.scaledScore || 0) > (best.scaledScore || 0) ? a : best), attempts[0])
+        : latestAttempt;
+    const bestScaledScore = bestAttempt?.scaledScore || latestScaledScore;
+    const bestMaxScore = bestAttempt?.maxScaledScore || LEVEL_MAX_FALLBACK[bestAttempt?.level] || 800;
     const bestAccuracy = attempts.length > 0 ? Math.max(...attempts.map(a => a.score || 0)) : latestAccuracy;
 
     const totalTimeSec = attempts.reduce((acc, a) => acc + (a.timeSpent || 0), 0);
@@ -136,7 +147,7 @@ const TopicLevelView = ({ groupId, topic, student, onBack, onAttemptSelect, admi
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-xs">
                         <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                             <p className="text-[10px] text-slate-400 font-black uppercase">Latest Scaled Score</p>
-                            <p className="text-xl font-black text-yellow-400">{latestScaledScore} <span className="text-xs font-normal text-slate-400">/ 800</span></p>
+                            <p className="text-xl font-black text-yellow-400">{latestScaledScore} <span className="text-xs font-normal text-slate-400">/ {latestMaxScore}</span></p>
                         </div>
                         <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                             <p className="text-[10px] text-slate-400 font-black uppercase">Latest Accuracy</p>
@@ -144,7 +155,7 @@ const TopicLevelView = ({ groupId, topic, student, onBack, onAttemptSelect, admi
                         </div>
                         <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                             <p className="text-[10px] text-slate-400 font-black uppercase">Best Scaled Score</p>
-                            <p className="text-xl font-black text-amber-400">{bestScaledScore} <span className="text-xs font-normal text-slate-400">/ 800</span></p>
+                            <p className="text-xl font-black text-amber-400">{bestScaledScore} <span className="text-xs font-normal text-slate-400">/ {bestMaxScore}</span></p>
                         </div>
                         <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                             <p className="text-[10px] text-slate-400 font-black uppercase">Total Time</p>

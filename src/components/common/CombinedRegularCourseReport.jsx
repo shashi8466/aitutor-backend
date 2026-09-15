@@ -5,6 +5,11 @@ import MathRenderer from '../../common/MathRenderer';
 
 const { FiArrowLeft, FiPrinter, FiCalendar, FiClock, FiCheckCircle, FiAlertCircle } = FiIcons;
 
+// Each level's own scoring ceiling under the app's existing calculate_scaled_score bands (see
+// migrations/fix_level_aware_scoring.sql) - used only as a display fallback when the backend
+// hasn't supplied a maxScaledScore for this attempt (e.g. it predates that field).
+const LEVEL_MAX_FALLBACK = { Easy: 500, Medium: 650, Hard: 800 };
+
 const CombinedRegularCourseReport = ({ submission, topicReportData, studentName: propStudentName, initialTab: propInitialTab, onExit }) => {
     const searchParams = new URLSearchParams(window.location.search);
     const initialTab = propInitialTab || (searchParams.get('view') === 'question-wise' ? 'question-wise' : 'full');
@@ -123,6 +128,10 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                 || (isSingleAttemptReport && canonicalScaledScore != null
                     ? canonicalScaledScore
                     : (totalQ > 0 ? Math.round(200 + (accuracy / 100) * 600) : 200));
+            // The ceiling this level's scaledScore is actually out of - not a uniform 800 for
+            // every level. Prefer the backend-computed value (from the real calculate_scaled_score
+            // engine); only fall back to the level's known band when that's unavailable.
+            const maxScore = levelBackendObj.maxScaledScore || LEVEL_MAX_FALLBACK[levelName] || 800;
             const timeSpent = qs.reduce((sum, q) => sum + q.timeTaken, 0) || levelBackendObj.timeSpent || 0;
             const passStatus = accuracy >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT';
 
@@ -136,6 +145,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                 accuracy,
                 rawScoreText,
                 scaledScore,
+                maxScore,
                 timeSpent,
                 passStatus,
                 // A level only belongs in the consolidated report once it has actually been
@@ -599,7 +609,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         <span className="px-3 py-1 bg-green-600 text-white font-black text-xs uppercase tracking-wider rounded-md">EASY LEVEL</span>
                                         <span className={`text-xs font-black px-2 py-0.5 rounded ${aggregated.easyLevel.passStatus === 'PASS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{aggregated.easyLevel.passStatus}</span>
                                     </div>
-                                    <div className="text-4xl font-black text-green-700 mb-1">{aggregated.easyLevel.scaledScore} <span className="text-sm font-bold text-slate-500">/ 800</span></div>
+                                    <div className="text-4xl font-black text-green-700 mb-1">{aggregated.easyLevel.scaledScore} <span className="text-sm font-bold text-slate-500">/ {aggregated.easyLevel.maxScore}</span></div>
                                     <p className="text-xs font-bold text-slate-700 mb-3">Accuracy: <strong className="text-slate-900">{aggregated.easyLevel.accuracy}%</strong> ({aggregated.easyLevel.correct}/{aggregated.easyLevel.totalQ} Correct)</p>
                                 </div>
                                 <div className="pt-3 border-t border-slate-200 text-xs text-slate-600 flex justify-between font-bold">
@@ -616,7 +626,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         <span className="px-3 py-1 bg-amber-600 text-white font-black text-xs uppercase tracking-wider rounded-md">MEDIUM LEVEL</span>
                                         <span className={`text-xs font-black px-2 py-0.5 rounded ${aggregated.mediumLevel.passStatus === 'PASS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{aggregated.mediumLevel.passStatus}</span>
                                     </div>
-                                    <div className="text-4xl font-black text-amber-700 mb-1">{aggregated.mediumLevel.scaledScore} <span className="text-sm font-bold text-slate-500">/ 800</span></div>
+                                    <div className="text-4xl font-black text-amber-700 mb-1">{aggregated.mediumLevel.scaledScore} <span className="text-sm font-bold text-slate-500">/ {aggregated.mediumLevel.maxScore}</span></div>
                                     <p className="text-xs font-bold text-slate-700 mb-3">Accuracy: <strong className="text-slate-900">{aggregated.mediumLevel.accuracy}%</strong> ({aggregated.mediumLevel.correct}/{aggregated.mediumLevel.totalQ} Correct)</p>
                                 </div>
                                 <div className="pt-3 border-t border-slate-200 text-xs text-slate-600 flex justify-between font-bold">
@@ -633,7 +643,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                                         <span className="px-3 py-1 bg-red-600 text-white font-black text-xs uppercase tracking-wider rounded-md">HARD LEVEL</span>
                                         <span className={`text-xs font-black px-2 py-0.5 rounded ${aggregated.hardLevel.passStatus === 'PASS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{aggregated.hardLevel.passStatus}</span>
                                     </div>
-                                    <div className="text-4xl font-black text-red-700 mb-1">{aggregated.hardLevel.scaledScore} <span className="text-sm font-bold text-slate-500">/ 800</span></div>
+                                    <div className="text-4xl font-black text-red-700 mb-1">{aggregated.hardLevel.scaledScore} <span className="text-sm font-bold text-slate-500">/ {aggregated.hardLevel.maxScore}</span></div>
                                     <p className="text-xs font-bold text-slate-700 mb-3">Accuracy: <strong className="text-slate-900">{aggregated.hardLevel.accuracy}%</strong> ({aggregated.hardLevel.correct}/{aggregated.hardLevel.totalQ} Correct)</p>
                                 </div>
                                 <div className="pt-3 border-t border-slate-200 text-xs text-slate-600 flex justify-between font-bold">
