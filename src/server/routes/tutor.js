@@ -365,18 +365,16 @@ router.get('/students', async (req, res) => {
         }
 
         const distinctEnrolledCourseIds = [...new Set((enrollments || []).map(e => e.course_id))];
-        // An empty .in() array is unreliable across supabase-js/PostgREST versions (some treat it
-        // as "no filter" rather than "match nothing") - the [-1] sentinel guarantees "show
-        // nothing" instead of risking every test_submissions row in the system, same convention
-        // used elsewhere in this codebase (analyticsService.js) for the identical scenario.
-        const courseIdsForSubmissions = distinctEnrolledCourseIds.length > 0 ? distinctEnrolledCourseIds : [-1];
 
         const [{ data: profiles, error: profilesError }, { data: submissions, error: submissionsError }] = await Promise.all([
             fetchAllRows(() => supabase.from('profiles').select('id, name, email').in('id', studentIds).eq('role', 'student')),
+            // Not restricted to distinctEnrolledCourseIds - a completed Full-Length Test may have
+            // no corresponding `enrollments` row at all (it isn't accessed like a regular course),
+            // and must still count toward this roster's Tests/Last Active columns whenever the
+            // tutor is authorized for the student (see the in-memory filter below).
             fetchAllRows(() => supabase.from('test_submissions')
-                .select('user_id, course_id, raw_score_percentage, created_at')
-                .in('user_id', studentIds)
-                .in('course_id', courseIdsForSubmissions))
+                .select('user_id, course_id, raw_score_percentage, created_at, course:courses(is_adaptive, main_category)')
+                .in('user_id', studentIds))
         ]);
 
         if (profilesError) {
@@ -403,6 +401,15 @@ router.get('/students', async (req, res) => {
         (submissions || []).forEach(s => {
             const b = byStudent[s.user_id];
             if (!b) return;
+            // Same scope this route otherwise applies (enrolled-in course), OR - only for the
+            // general, non-course-filtered roster - a completed Full-Length Test, which is always
+            // in scope regardless of enrollment/course assignment, per
+            // analyticsService._isFullLengthCourse (the same classification the working "Student
+            // Report" uses as its single source of truth). A specific ?courseId= filter means the
+            // caller wants that one course's stats, so full-length inclusion is skipped there.
+            const inScope = distinctEnrolledCourseIds.includes(s.course_id) ||
+                (!parsedCourseId && analyticsService._isFullLengthCourse(s.course));
+            if (!inScope) return;
             b.tests++;
             b.scoreSum += (s.raw_score_percentage || 0);
             if (!b.lastActivity || new Date(s.created_at) > new Date(b.lastActivity)) {
@@ -547,7 +554,13 @@ router.get('/student-progress/:studentId', async (req, res) => {
         });
 
         if (!isAdmin && (!enrollments || enrollments.length === 0)) {
-            return res.status(403).json({ error: 'Not authorized for this student' });
+            // Fallback: the Student Roster now lists students by group membership, not
+            // assigned_courses enrollment - a group member without a matching enrollment must
+            // still be allowed to open their Test History (same fallback as /recent-tests below).
+            const hasGroupAccess = (await getTutorGroupStudentIds(supabase, userId)).includes(studentId);
+            if (!hasGroupAccess) {
+                return res.status(403).json({ error: 'Not authorized for this student' });
+            }
         }
 
         // Get student info
@@ -557,17 +570,22 @@ router.get('/student-progress/:studentId', async (req, res) => {
             .eq('id', studentId)
             .single();
 
-        // Get test submissions (only those with scores/attempts)
-        const { data: submissions } = await fetchAllRows(() => {
-            let q = supabase
+        // Get test submissions (only those with scores/attempts). Regular-course submissions stay
+        // scoped to the tutor's assigned_courses (unchanged); a completed Full-Length Test is
+        // always included once the tutor is authorized for this student at all - group/course
+        // assignment is never a prerequisite for it, matching the same _isFullLengthCourse
+        // classification the working "Student Report" (getStudentDashboard) already uses.
+        const { data: allSubmissions } = await fetchAllRows(() =>
+            supabase
                 .from('test_submissions')
                 .select('id, user_id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, raw_score_percentage, correct_questions, incorrect_questions, test_duration_seconds, is_completed, test_date, created_at, course:courses(name, tutor_type, main_category, category, is_adaptive)')
                 .eq('user_id', studentId)
                 .not('raw_score_percentage', 'is', null)
-                .order('created_at', { ascending: false });
-            if (!isAdmin) q = q.in('course_id', assignedCourses);
-            return q;
-        });
+                .order('created_at', { ascending: false })
+        );
+        const submissions = isAdmin
+            ? (allSubmissions || [])
+            : (allSubmissions || []).filter(s => assignedCourses.includes(s.course_id) || analyticsService._isFullLengthCourse(s.course));
 
         // Get progress records
         const { data: progress } = await fetchAllRows(() =>

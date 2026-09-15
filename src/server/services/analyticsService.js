@@ -733,36 +733,33 @@ export const analyticsService = {
      * Full-Length Test submissions have no such levels concept and stay one row per attempt.
      */
     async getRecentCompletedTests(studentId, courseIds, limit) {
-        let q = supabase
+        // No .limit() here - grouping happens below, and capping the raw submission fetch could
+        // cut off a topic's Easy/Medium/Hard mid-group or hide other topics entirely. The
+        // requested `limit` is applied to the final topic-row count instead. No course_id filter
+        // at the query level either - the filter is applied per-row below, since a completed
+        // Full-Length Test must always be included regardless of course scope (see comment there).
+        const { data, error } = await supabase
             .from('test_submissions')
             .select('id, course_id, level, raw_score, scaled_score, math_scaled_score, reading_scaled_score, total_questions, test_date, created_at, course:courses(name, tutor_type, category, main_category, is_adaptive)')
             .eq('user_id', studentId)
             .eq('is_completed', true)
             .order('created_at', { ascending: false });
-
-        // Same null-vs-[] convention as _getGroupScope: courseIds === null means unscoped (e.g.
-        // an admin caller) - no filter at all. A real (possibly empty) array means "restrict to
-        // exactly these courses", and an empty array must show nothing, never fall through to
-        // unscoped.
-        if (courseIds === null) {
-            // unscoped - no course filter
-        } else if (courseIds.length > 0) {
-            q = q.in('course_id', courseIds);
-        } else {
-            q = q.in('id', [-1]);
-        }
-        // No .limit() here - grouping happens below, and capping the raw submission fetch could
-        // cut off a topic's Easy/Medium/Hard mid-group or hide other topics entirely. The
-        // requested `limit` is applied to the final topic-row count instead.
-
-        const { data, error } = await q;
         if (error) throw error;
+
+        // courseIds === null means unscoped (e.g. an admin caller) - keep everything. Otherwise
+        // keep a row only if it's within the caller's course scope, OR it's a completed
+        // Full-Length Test - group/course assignment is never a prerequisite for a student's
+        // Full-Length Test history, same as the working "Student Report" (getStudentDashboard)
+        // already treats it, both driven by this same _isFullLengthCourse classification.
+        const scoped = courseIds === null
+            ? (data || [])
+            : (data || []).filter(sub => courseIds.includes(sub.course_id) || this._isFullLengthCourse(sub.course));
 
         const REQUIRED_LEVELS = ['Easy', 'Medium', 'Hard'];
         const rows = [];
         const topicBuckets = new Map(); // course_id -> { course, levels: { Easy/Medium/Hard: sub } }
 
-        for (const sub of (data || [])) {
+        for (const sub of scoped) {
             if (this._isFullLengthCourse(sub.course)) {
                 rows.push({
                     submissionId: sub.id,
