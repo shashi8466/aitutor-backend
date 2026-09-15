@@ -690,8 +690,8 @@ const QuizInterface = () => {
         mode: submitMode
       });
 
-      const { submissionId, rawScore, rawPercentage, scaledScore, sectionScores } = response.data;
-      setSubmissionResult({ submissionId, rawScore, percentage: rawPercentage, scaledScore, sectionScores, totalQuestions: questions.length });
+      const { submissionId, rawScore, rawPercentage, scaledScore, maxScaledScore, sectionScores } = response.data;
+      setSubmissionResult({ submissionId, rawScore, percentage: rawPercentage, scaledScore, maxScaledScore, sectionScores, totalQuestions: questions.length });
       setShowResults(true);
 
     } catch (err) {
@@ -760,6 +760,10 @@ const QuizInterface = () => {
         const timeSpent = Math.floor((Date.now() - quizStartTime) / 1000);
         const currentLevelName = level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Easy';
         const displayScore = res?.scaledScore || scaledScore || percentage;
+        // Easy/Medium/Hard each have their own scoring ceiling under the app's existing
+        // calculate_scaled_score bands - see analyticsService.js's identical LEVEL_MAX_FALLBACK.
+        const LEVEL_MAX_FALLBACK = { Easy: 500, Medium: 650, Hard: 800 };
+        const displayMaxScore = res?.maxScaledScore || LEVEL_MAX_FALLBACK[currentLevelName] || 800;
 
         return (
             <div className="min-h-screen bg-slate-100/70 dark:bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 transition-colors">
@@ -782,7 +786,7 @@ const QuizInterface = () => {
                                 <SafeIcon icon={FiBarChart2} className="w-4 h-4" />
                             </div>
                             <p className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-wider mb-1">OVERALL</p>
-                            <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400">{displayScore}</p>
+                            <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400">{displayScore} <span className="text-sm font-bold text-blue-400">/ {displayMaxScore}</span></p>
                             <p className="text-[10px] font-bold text-blue-600/80 dark:text-blue-400/80 uppercase tracking-tight mt-0.5">{percentage}% ACCURACY</p>
                         </div>
 
@@ -957,6 +961,13 @@ const QuizInterface = () => {
             // centered 2-column layout instead of stretching across the same 4-column grid
             // used for the 3-4 card cases, which left the two cards bunched on the left.
             const isSingleSubjectResult = !isAdaptive && (isMathCourse || isRWCourse);
+            // Regular Course Easy/Medium/Hard levels each have their own scoring ceiling under
+            // the app's existing calculate_scaled_score bands (200-500/650/800) - only meaningful
+            // for that single-subject case, never for Adaptive (real 1600-scale composite) or ACT
+            // Full-Length (its own early-return branch above never reaches this card at all).
+            const LEVEL_MAX_FALLBACK = { Easy: 500, Medium: 650, Hard: 800 };
+            const currentLevelNameForMax = level ? level.charAt(0).toUpperCase() + level.slice(1).toLowerCase() : 'Easy';
+            const maxScaledScore = res?.maxScaledScore || LEVEL_MAX_FALLBACK[currentLevelNameForMax] || 800;
 
             return (
               <div className={isSingleSubjectResult ? "grid grid-cols-2 gap-3.5 mb-7 max-w-md mx-auto" : "grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-7"}>
@@ -965,7 +976,10 @@ const QuizInterface = () => {
                     <SafeIcon icon={FiBarChart2} className="w-4 h-4" />
                   </div>
                   <p className="text-[10px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-wider mb-1">OVERALL</p>
-                  <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400">{res?.totalScore || res?.scaledScore || scaledScore}</p>
+                  <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400">
+                    {res?.totalScore || res?.scaledScore || scaledScore}
+                    {isSingleSubjectResult && <span className="text-sm font-bold text-blue-400"> / {maxScaledScore}</span>}
+                  </p>
                   <p className="text-[10px] font-bold text-blue-600/80 dark:text-blue-400/80 uppercase tracking-tight mt-0.5">{percentage}% ACCURACY</p>
                 </div>
                 
@@ -988,7 +1002,7 @@ const QuizInterface = () => {
                   // what was actually tested, and previously caused a spurious second card).
                   <div className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider mb-1">{isMathCourse ? 'Math' : 'Reading & Writing'}</p>
-                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{res?.totalScore || res?.scaledScore || scaledScore}</p>
+                    <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{res?.totalScore || res?.scaledScore || scaledScore} <span className="text-sm font-bold text-slate-400">/ {maxScaledScore}</span></p>
                     <p className="text-xs font-bold text-slate-400">{correctCount}/{questions.length} Correct</p>
                   </div>
                 ) : (

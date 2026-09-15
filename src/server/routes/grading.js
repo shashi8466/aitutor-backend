@@ -501,7 +501,7 @@ router.post('/submit-test', async (req, res) => {
         // 1. Idempotency Check: Prevent duplicate submissions within a short window (30s)
         const { data: existingSub } = await supabase
             .from('test_submissions')
-            .select('id, raw_score, raw_score_percentage, scaled_score')
+            .select('id, raw_score, raw_score_percentage, scaled_score, max_scaled_score')
             .eq('user_id', userId)
             .eq('course_id', courseId)
             .eq('level', level)
@@ -517,6 +517,7 @@ router.post('/submit-test', async (req, res) => {
                 rawScore: existingSub.raw_score,
                 rawPercentage: existingSub.raw_score_percentage,
                 scaledScore: existingSub.scaled_score,
+                maxScaledScore: existingSub.max_scaled_score,
                 isDuplicate: true
             });
         }
@@ -542,6 +543,16 @@ router.post('/submit-test', async (req, res) => {
         }
 
         const result = data[0];
+
+        // submit_and_grade_test's RETURN QUERY signature doesn't carry max_scaled_score even
+        // though the row it just wrote does - one cheap indexed lookup by primary key to pass it
+        // through to the completion screen, without touching that function's return shape again.
+        const { data: maxScoreRow } = await supabase
+            .from('test_submissions')
+            .select('max_scaled_score')
+            .eq('id', result.submission_id)
+            .maybeSingle();
+        result.max_scaled_score = maxScoreRow?.max_scaled_score;
 
         // 🟢 ACT Full-Length Metadata Calculation and Storage
         try {
@@ -850,6 +861,7 @@ router.post('/submit-test', async (req, res) => {
             rawScore: result.raw_score,
             rawPercentage: result.raw_percentage,
             scaledScore: result.scaled_score,
+            maxScaledScore: result.max_scaled_score,
             sectionScores: result.section_scores,
             modularScores
         });
