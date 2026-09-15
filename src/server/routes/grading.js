@@ -13,7 +13,7 @@ import { TAXONOMY } from '../../utils/taxonomy.js';
 import { isAnswerCorrect } from '../../utils/answerGrading.js';
 import { assertCourseAccessible } from '../utils/contentAccess.js';
 import { verifyParentAccess } from '../utils/parentAccess.js';
-import { isCoTutorOf } from '../utils/groupTutors.js';
+import { getTutorGroupStudentIds } from '../utils/groupTutors.js';
 
 const router = express.Router();
 
@@ -1242,22 +1242,15 @@ router.get('/submission/:submissionId', async (req, res) => {
             const isParentWithAccess = profile?.role === 'parent' &&
                 (profile?.linked_students || []).includes(submission.user_id);
 
-            // A tutor/admin viewing this attempt from a student group's analytics (see
-            // AttemptLevelView.jsx) was already authorized there by group ownership/co-tutor
-            // status (verifyTutorAccess in tutor.js), not by assigned_courses - so that same
-            // group-based check must be accepted here too, or this second, independent call the
-            // page makes for full-length attempts 403s even though the page itself was allowed in.
-            let isTutorWithGroupAccess = false;
-            const { groupId } = req.query;
-            if (!isAdmin && profile?.role === 'tutor' && groupId) {
-                const { data: group } = await supabase
-                    .from('student_groups')
-                    .select('created_by')
-                    .eq('id', groupId)
-                    .maybeSingle();
-                isTutorWithGroupAccess = !!group &&
-                    (group.created_by === userId || await isCoTutorOf(supabase, groupId, userId));
-            }
+            // A tutor viewing this student from ANY of their Student Groups - the Student
+            // Roster, its "Recent Completed Tests"/report links, and the group analytics
+            // drill-down all authorize purely on group ownership/co-tutor status (see
+            // verifyTutorAccess and getTutorGroupStudentIds in tutor.js), never on
+            // assigned_courses. This is the same, single "is this tutor allowed to see this
+            // student at all" check reused everywhere else, independent of which specific
+            // group/course the student's test happens to belong to.
+            const isTutorWithGroupAccess = !isAdmin && profile?.role === 'tutor' &&
+                (await getTutorGroupStudentIds(supabase, userId)).includes(submission.user_id);
 
             if (!isAdmin && !isTutorWithAccess && !isParentWithAccess && !isTutorWithGroupAccess) {
                 return res.status(403).json({ error: 'Not authorized' });

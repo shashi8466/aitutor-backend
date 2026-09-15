@@ -1414,8 +1414,8 @@ export const gradingService = {
     // data: { courseId, questionIds, answers, duration, scores }
     return axios.post('/api/grading/submit-adaptive-test', data);
   },
-  getSubmission: async (id, groupId) => {
-    return axios.get(`/api/grading/submission/${id}`, { params: groupId ? { groupId } : {} });
+  getSubmission: async (id) => {
+    return axios.get(`/api/grading/submission/${id}`);
   },
   getAllMyScores: async (userId) => {
     return axios.get('/api/grading/all-my-scores', { params: { userId } });

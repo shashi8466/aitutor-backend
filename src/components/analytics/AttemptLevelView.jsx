@@ -46,7 +46,7 @@ const AttemptLevelView = ({ groupId, submissionId, adminMode, onBack }) => {
             );
 
             if (isFullLengthTest) {
-                const subRes = await gradingService.getSubmission(submissionId, groupId);
+                const subRes = await gradingService.getSubmission(submissionId);
                 const subData = subRes.data?.submission || subRes.data;
                 setFullLengthSubmission(subData);
             }
