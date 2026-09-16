@@ -596,7 +596,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                     {/* OVERALL PERFORMANCE & LEVEL SUMMARY TABLE */}
                     <div className="bg-white text-slate-900 p-6 sm:p-10">
                         <div className="bg-[#0f1738] text-white p-4 rounded-xl flex justify-between items-center mb-6 shadow-md">
-                            <h2 className="text-base sm:text-lg font-black uppercase tracking-wider">Scores and History</h2>
+                            <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">Scores and History</h2>
                             <span className="text-xs font-bold text-blue-300 uppercase tracking-widest">FULL PERFORMANCE SUMMARY</span>
                         </div>
 
@@ -727,7 +727,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                         {/* TIME-BASED ANALYSIS */}
                         <div className="mb-12">
                             <div className="bg-[#1d63b8] text-white p-4 rounded-xl flex justify-between items-center mb-6 shadow-md">
-                                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider">Time-Based Analysis</h2>
+                                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">Time-Based Analysis</h2>
                                 <span className="text-xs font-bold text-blue-100 uppercase tracking-widest">PACING & PERFORMANCE INSIGHTS</span>
                             </div>
 
@@ -777,7 +777,7 @@ const CombinedRegularCourseReport = ({ submission, topicReportData, studentName:
                         {/* QUESTION-WISE ANALYTICS SCREEN TABLE */}
                         <div className="mb-12">
                             <div className="bg-[#0f1738] text-white p-4 rounded-xl flex justify-between items-center mb-6 shadow-md">
-                                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider">{aggregated.topic} — Question-Wise Analytics</h2>
+                                <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">{aggregated.topic} — Question-Wise Analytics</h2>
                                 <span className="text-xs font-bold text-blue-300 uppercase tracking-widest">{aggregated.totalQuestions} TOTAL QUESTIONS</span>
                             </div>
 
