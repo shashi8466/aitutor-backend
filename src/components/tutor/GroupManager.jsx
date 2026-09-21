@@ -429,6 +429,12 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         return matchesSearch;
     });
 
+    const filteredCurrentMembers = currentMembers.filter(m => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return true;
+        return m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q);
+    });
+
     // Show analytics view if selected
     if (showAnalytics && analyticsGroupId) {
         return (
@@ -951,20 +957,20 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                         ) : (
                                             <>
                                                 {/* Current Members Section */}
-                                                {currentMembers.length > 0 && (
+                                                {filteredCurrentMembers.length > 0 && (
                                                     <div className="mb-6">
                                                         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-                                                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Current Members ({currentMembers.length})</h4>
+                                                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Current Members ({filteredCurrentMembers.length})</h4>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setSelectedMemberIdsToRemove(
-                                                                    selectedMemberIdsToRemove.length === currentMembers.length
+                                                                    selectedMemberIdsToRemove.length === filteredCurrentMembers.length
                                                                         ? []
-                                                                        : currentMembers.map(m => m.id)
+                                                                        : filteredCurrentMembers.map(m => m.id)
                                                                 )}
                                                                 className="text-xs font-bold text-blue-600 hover:underline"
                                                             >
-                                                                {selectedMemberIdsToRemove.length === currentMembers.length && currentMembers.length > 0 ? 'Deselect All' : 'Select All'}
+                                                                {selectedMemberIdsToRemove.length === filteredCurrentMembers.length && filteredCurrentMembers.length > 0 ? 'Deselect All' : 'Select All'}
                                                             </button>
                                                         </div>
 
@@ -986,7 +992,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                                         )}
 
                                                         <div className="space-y-2">
-                                                            {currentMembers.map(member => (
+                                                            {filteredCurrentMembers.map(member => (
                                                                 <div key={member.id} className="flex items-center justify-between p-3 rounded-xl border bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800 transition-all">
                                                                     <div className="flex items-center gap-3">
                                                                         <input
@@ -1001,7 +1007,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                                                         <div>
                                                                             <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                                                                 {member.name}
-                                                                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">IN BATCH</span>
+                                                                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">IN GROUP</span>
                                                                             </p>
                                                                             <p className="text-xs text-gray-500">{member.email}</p>
                                                                         </div>

@@ -703,7 +703,7 @@ const TestReview = ({ studentId: propStudentId = null, basePath = '/student', on
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">No Test Data Found</h3>
           <p className="text-gray-500 mt-2 max-w-sm mx-auto">Take a practice quiz to see your detailed breakdown here.</p>
           <button
-            onClick={() => navigate('/student/practice-tests')}
+            onClick={() => navigate('/student/courses')}
             className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg font-bold cursor-pointer"
           >
             Start Practice

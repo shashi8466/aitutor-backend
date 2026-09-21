@@ -51,7 +51,6 @@ const StudentSidebar = ({ isOpen, onClose }) => {
       title: "Learning Center",
       items: [
         { name: 'My Courses', path: '/student/courses', icon: FiBook },
-        { name: 'Practice Test', path: '/student/practice-tests', icon: FiActivity, badge: 'Live' },
         { name: 'Score Predictor', path: '/student/score-predictor', icon: FiZap, settingKey: 'feature_score_predictor' },
         { name: 'Leaderboard', path: '/student/leaderboard', icon: FiAward, settingKey: 'feature_leaderboard' },
       ]
@@ -64,6 +63,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
         // { name: 'Smart AI Tutor', path: '/student/smart-tutor', icon: FiFileText, badge: 'NEW', settingKey: 'feature_ai_tutor' },
         { name: 'Study Plan Agent', path: '/student/plan', icon: FiActivity, settingKey: 'feature_study_planner' },
         { name: 'Weakness Drills', path: '/student/drills', icon: FiTarget, settingKey: 'feature_weakness_drills' },
+        { name: 'Custom Prep', path: '/student/custom-prep', icon: FiTrendingUp, settingKey: 'feature_custom_prep' },
         { name: 'Test Review Agent', path: '/student/test-review', icon: FiPieChart, settingKey: 'feature_test_review' },
         { name: 'College Advisor', path: '/student/college', icon: FiMap, settingKey: 'feature_college_advisor' },
       ]

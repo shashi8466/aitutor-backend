@@ -100,8 +100,8 @@ class NotificationScheduler {
       console.log(`⏭️ [Scheduler] Outbox cron DISABLED in dev (set ENABLE_LOCAL_OUTBOX=true to enable locally).`);
     }
 
-    // Weekly progress report — every Saturday at 7 PM IST
-    const weeklyTask = cron.schedule('0 19 * * 6', async () => {
+    // Weekly progress report — every Tuesday at 7 PM IST
+    const weeklyTask = cron.schedule('0 19 * * 2', async () => {
       console.log('📬 [Cron] Weekly progress report job triggered');
       try {
         const port = process.env.PORT || 3001;
