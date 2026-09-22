@@ -402,7 +402,19 @@ const StudentCourseList = () => {
     );
   }), [allCourses, planAccess, topicCourseIds, groupAccessIds, user?.plan_type, activeCategory, activeSubcategory, filter]);
 
+  // Full-Length Tests are a numbered series (Test 1, Test 2, ... Test 11) - the LAST number in the
+  // course name is its position in that series. No dedicated test_number column exists on courses,
+  // so this is the one place that parses the name for it; unnumbered names sort to the end rather
+  // than breaking the list.
+  const extractFullLengthTestNumber = (course) => {
+    const match = (course?.name || '').match(/(\d+)(?!.*\d)/);
+    return match ? parseInt(match[1], 10) : Infinity;
+  };
+
   const sortCourses = (coursesList) => {
+    if (activeCategory === 'FULL LENGTH TESTS') {
+      return [...coursesList].sort((a, b) => extractFullLengthTestNumber(a) - extractFullLengthTestNumber(b));
+    }
     return [...coursesList].sort((a, b) => {
       if (sortBy === 'recent') {
         const dateA = new Date(a.created_at || a.updated_at || 0).getTime() || Number(a.id || 0);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -50,6 +50,53 @@ const QuestionManagement = () => {
       console.error('Error loading courses:', error);
     }
   };
+
+  // Groups the Course filter purely off each course's existing main_category/tutor_type metadata
+  // (set when the course is created - see CourseForm.jsx and AdaptiveCourseForm.jsx) - never off
+  // hard-coded course names. Full-Length Test courses all share main_category 'FULL LENGTH TESTs';
+  // their tutor_type ('Full-Length SAT' | 'Full-Length ACT' | 'Linear SAT') tells them apart.
+  const CATEGORY_ORDER = ['SAT', 'SAT FULL-LENGTH TESTS', 'ACT', 'ACT FULL-LENGTH TESTS', 'AP', 'LINEAR FULL-LENGTH TESTS', 'OTHER'];
+
+  const getCourseGroupLabel = (course) => {
+    const mainCat = (course.main_category || '').trim().toUpperCase();
+    const tutorType = (course.tutor_type || '').trim().toUpperCase();
+    if (mainCat === 'FULL LENGTH TESTS') {
+      if (tutorType === 'FULL-LENGTH SAT') return 'SAT FULL-LENGTH TESTS';
+      if (tutorType === 'FULL-LENGTH ACT') return 'ACT FULL-LENGTH TESTS';
+      if (tutorType === 'LINEAR SAT') return 'LINEAR FULL-LENGTH TESTS';
+      return 'OTHER';
+    }
+    if (mainCat === 'SAT') return 'SAT';
+    if (mainCat === 'ACT') return 'ACT';
+    if (mainCat === 'AP') return 'AP';
+    return 'OTHER';
+  };
+
+  // Within a Full-Length Tests group, order by the test's own number (Test 2 before Test 11)
+  // rather than alphabetically, where a plain string sort would put "Test 11" before "Test 2".
+  const extractTrailingNumber = (name) => {
+    const match = (name || '').match(/(\d+)(?!.*\d)/);
+    return match ? parseInt(match[1], 10) : Infinity;
+  };
+
+  const groupedCourses = useMemo(() => {
+    const groups = new Map();
+    courses.forEach((course) => {
+      const label = getCourseGroupLabel(course);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(course);
+    });
+    groups.forEach((list, label) => {
+      list.sort((a, b) => label.includes('FULL-LENGTH TESTS')
+        ? extractTrailingNumber(a.name) - extractTrailingNumber(b.name)
+        : (a.name || '').localeCompare(b.name || ''));
+    });
+    const orderedLabels = [
+      ...CATEGORY_ORDER.filter((label) => groups.has(label)),
+      ...Array.from(groups.keys()).filter((label) => !CATEGORY_ORDER.includes(label))
+    ];
+    return orderedLabels.map((label) => ({ label, courses: groups.get(label) }));
+  }, [courses]);
 
   const loadUploads = async (courseId) => {
     if (!courseId) {
@@ -254,8 +301,12 @@ const QuestionManagement = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
             >
               <option value="">Select a Course</option>
-              {courses.map(course => (
-                <option key={course.id} value={course.id} className="text-gray-900">{course.name}</option>
+              {groupedCourses.map(({ label, courses: groupCourses }) => (
+                <optgroup key={label} label={label}>
+                  {groupCourses.map(course => (
+                    <option key={course.id} value={course.id} className="text-gray-900">{course.name}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
