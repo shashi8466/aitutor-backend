@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
 import { isAnswerCorrect } from '../../utils/answerGrading';
+import ReportQuestionModal from './ReportQuestionModal';
 
 const {
   FiChevronLeft, FiChevronRight, FiClock, FiGrid, FiMoreVertical, FiEdit3, FiInfo, FiChevronDown, FiStar, FiSlash, FiX, FiMapPin, FiFlag, FiLogOut, FiTrash2, FiType, FiFilePlus, FiTarget, FiCheckCircle, FiRefreshCw
@@ -60,7 +61,8 @@ const ExamInterface = () => {
   const [showNavigation, setShowNavigation] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [eliminatedOptions, setEliminatedOptions] = useState({}); 
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [eliminatedOptions, setEliminatedOptions] = useState({});
   const [showTimer, setShowTimer] = useState(true);
   const [questionTimes, setQuestionTimes] = useState({});
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
@@ -725,13 +727,22 @@ const ExamInterface = () => {
       )}
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-4 bg-white relative z-10">
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[4px] md:border-b-0 md:border-r-[10px] border-[#0f172a] max-h-[calc(100vh-140px)] custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[4px] md:border-b-0 md:border-r-[10px] border-[#0f172a] max-h-[calc(100vh-140px)] custom-scrollbar flex flex-col">
           <div className="prose prose-slate max-w-none leading-relaxed text-[15px] sm:text-[17px] text-black">
                 {currentQuestion?.passage ? (
                     <MathRenderer text={currentQuestion.passage} />
                 ) : (
                     <MathRenderer text={currentQuestion?.question || currentQuestion?.question_html || currentQuestion?.text || ''} />
                 )}
+          </div>
+
+          <div className="mt-auto pt-6">
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium text-sm transition-colors px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
+            >
+              <SafeIcon icon={FiFlag} className="w-4 h-4" /> Report
+            </button>
           </div>
         </div>
 
@@ -839,6 +850,17 @@ const ExamInterface = () => {
           </button>
         </div>
       </footer>
+
+      <ReportQuestionModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        question={currentQuestion}
+        questionNumber={currentQuestionIndex + 1}
+        courseId={courseId}
+        courseInfo={courseInfo}
+        level={level}
+        user={user}
+      />
     </div>
   );
 };

@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import AdaptiveResultsDashboard from '../common/AdaptiveResultsDashboard';
 import { isAnswerCorrect } from '../../utils/answerGrading';
+import ReportQuestionModal from './ReportQuestionModal';
 
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -49,6 +50,7 @@ const AdaptiveExamInterface = () => {
   const [courseInfo, setCourseInfo] = useState(null);
   const [showNavigation, setShowNavigation] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [showTimer, setShowTimer] = useState(true);
   
   // Break & Security State
@@ -853,9 +855,18 @@ const AdaptiveExamInterface = () => {
       <div className="practice-banner">THIS IS A PRACTICE TEST</div>
       
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden pt-2 sm:pt-4 bg-white relative z-10">
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 md:p-12 bg-white border-b-[6px] md:border-b-0 md:border-r-[10px] border-[#0f172a] flex flex-col">
           <div className="prose prose-slate max-w-none leading-[1.6] text-[16px] sm:text-[18px] text-slate-900 font-medium tracking-tight antialiased">
                 <MathRenderer text={currentQuestion?.text || ''} courseId={courseId} />
+          </div>
+
+          <div className="mt-auto pt-6">
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium text-sm transition-colors px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
+            >
+              <SafeIcon icon={FiFlag} className="w-4 h-4" /> Report
+            </button>
           </div>
         </div>
 
@@ -951,6 +962,16 @@ const AdaptiveExamInterface = () => {
           </button>
         </div>
       </footer>
+
+      <ReportQuestionModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        question={currentQuestion}
+        questionNumber={currentQuestionIndex + 1}
+        courseId={courseId}
+        courseInfo={courseInfo}
+        user={user}
+      />
     </div>
   );
 };
