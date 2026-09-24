@@ -43,6 +43,9 @@ const StudyPlanPage = lazy(() => import('./components/student/agents/StudyPlanPa
 const WeaknessDrills = lazy(() => import('./components/student/agents/WeaknessDrills'));
 const TestReview = lazy(() => import('./components/student/agents/TestReview'));
 const CollegeAdvisor = lazy(() => import('./components/student/agents/CollegeAdvisor'));
+const CustomPrepList = lazy(() => import('./components/student/agents/CustomPrepList'));
+const CustomPrepSetup = lazy(() => import('./components/student/agents/CustomPrepSetup'));
+const CustomPrepDashboard = lazy(() => import('./components/student/agents/CustomPrepDashboard'));
 const ScorePredictor = lazy(() => import('./components/student/ScorePredictor'));
 const ParentConnect = lazy(() => import('./components/student/agents/ParentConnect'));
 const PaymentSuccess = lazy(() => import('./components/student/PaymentSuccess'));
@@ -437,6 +440,9 @@ const App = () => {
 
               <Route path="plan" element={<FeatureGate featureKey="feature_study_planner"><StudyPlanPage /></FeatureGate>} />
               <Route path="drills" element={<FeatureGate featureKey="feature_weakness_drills"><WeaknessDrills /></FeatureGate>} />
+              <Route path="custom-prep" element={<FeatureGate featureKey="feature_custom_prep"><CustomPrepList /></FeatureGate>} />
+              <Route path="custom-prep/setup/:submissionId" element={<FeatureGate featureKey="feature_custom_prep"><CustomPrepSetup /></FeatureGate>} />
+              <Route path="custom-prep/:planId" element={<FeatureGate featureKey="feature_custom_prep"><CustomPrepDashboard /></FeatureGate>} />
               <Route path="test-review" element={<FeatureGate featureKey="feature_test_review"><TestReview /></FeatureGate>} />
               <Route path="detailed-review/:submissionId" element={<FeatureGate featureKey="feature_test_review"><DetailedTestReview /></FeatureGate>} />
               <Route path="topic-report/:courseId" element={<FeatureGate featureKey="feature_test_review"><TopicReportReview /></FeatureGate>} />

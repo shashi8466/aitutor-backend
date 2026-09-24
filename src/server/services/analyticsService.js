@@ -1,4 +1,5 @@
 import supabase from '../../supabase/supabaseAdmin.js';
+import { getRecommendedTargetRange, getRecommendedLevel, isPriorityWeakness } from '../utils/customPrepPlanner.js';
 
 export const analyticsService = {
     /**
@@ -695,6 +696,150 @@ export const analyticsService = {
     // site agrees on the exact same split.
     _isFullLengthCourse(course) {
         return course?.is_adaptive === true || (course?.main_category || '').toUpperCase() === 'FULL LENGTH TESTS';
+    },
+
+    /**
+     * CUSTOM PREP ANALYSIS (Full-Length Test only)
+     *
+     * The input the Custom Prep feature is built on: per-topic, per-section (Math vs Reading &
+     * Writing) accuracy for one completed Full-Length Test submission, derived from the same
+     * test_responses -> questions(topic, section) join getStudentTopicPerformance already uses
+     * (the `${section}:${topic}` bucketing technique), rather than the type-specific `metadata`
+     * shape (which only exists in a rich form for SAT Adaptive/Linear, not ACT Full-Length) - so
+     * this works uniformly across every Full-Length Test sub-type. Throws if the submission's
+     * course isn't a Full-Length Test - Custom Prep is deliberately not offered for a regular
+     * topic-quiz submission.
+     */
+    async getFullLengthPrepAnalysis(submissionId) {
+        const { data: sub, error } = await supabase
+            .from('test_submissions')
+            .select('id, user_id, course_id, raw_score_percentage, scaled_score, math_scaled_score, reading_scaled_score, total_questions, correct_questions, incorrect_questions, test_duration_seconds, created_at, course:courses(id, name, is_adaptive, main_category, tutor_type)')
+            .eq('id', submissionId)
+            .single();
+
+        if (error || !sub) {
+            const err = new Error('Submission not found');
+            err.code = 'NOT_FOUND';
+            throw err;
+        }
+        if (!this._isFullLengthCourse(sub.course)) {
+            const err = new Error('Custom Prep is only available for a completed Full-Length Test.');
+            err.code = 'NOT_FULL_LENGTH';
+            throw err;
+        }
+
+        const { data: responses } = await supabase
+            .from('test_responses')
+            .select('is_correct, selected_answer, question:questions(id, topic, section)')
+            .eq('submission_id', submissionId);
+
+        const buckets = new Map();
+        (responses || []).forEach(r => {
+            if (!r.question) return;
+            const rawTopic = (r.question.topic || 'General').trim().replace(/\s+/g, ' ');
+            const rawSection = (r.question.section || '').toLowerCase();
+            const section = rawSection.includes('math') ? 'Math' : (rawSection ? 'Reading & Writing' : 'General');
+            // Group case-insensitively - question-authoring data isn't guaranteed consistent
+            // casing ("Linear Functions" vs "linear functions", "Form, Structure, and Sense" vs
+            // "Form, structure, and sense"), and treating a case variant as a distinct topic
+            // produced literal duplicate rows in the Custom Prep priority list. The first-seen
+            // casing is kept as the display label; every case variant folds into that one bucket.
+            const key = `${section}::${rawTopic.toLowerCase()}`;
+            if (!buckets.has(key)) buckets.set(key, { topic: rawTopic, section, correct: 0, incorrect: 0, unanswered: 0, total: 0 });
+            const b = buckets.get(key);
+            b.total++;
+            const answer = (r.selected_answer || '').toString().toLowerCase();
+            const isUnanswered = !r.selected_answer || answer === 'not recorded' || answer === 'unattempted';
+            if (isUnanswered) b.unanswered++;
+            else if (r.is_correct === true) b.correct++;
+            else b.incorrect++;
+        });
+
+        let topics = Array.from(buckets.values()).map(b => ({
+            ...b,
+            accuracy: b.total > 0 ? Math.round((b.correct / b.total) * 100) : 0
+        }));
+
+        // Best-effort: link each topic to an actual standalone topic course the student could
+        // practice directly (so a Custom Prep task can deep-link straight to it), reusing the
+        // same exact-then-substring name-matching HierarchicalContentSelector already relies on
+        // to resolve a topic name to a course id. Full-Length Test questions all share one
+        // course_id (the test itself), so this is the only way to recover a practicable link.
+        const { data: allCourses } = await supabase.from('courses').select('id, name, category, tutor_type').eq('status', 'active');
+        const matchCourseId = (topicName, section) => {
+            const t = topicName.toLowerCase().trim();
+            if (!t) return null;
+            const exact = (allCourses || []).find(c =>
+                (c.name || '').toLowerCase().trim() === t || (c.category || '').toLowerCase().trim() === t
+            );
+            if (exact) return exact.id;
+            const partial = (allCourses || []).find(c => {
+                const cName = (c.name || '').toLowerCase().trim();
+                return cName.length > 3 && (cName.includes(t) || t.includes(cName));
+            });
+            if (partial) return partial.id;
+            // A topic name with no standalone course (a known gap - see groupContentTree.js's
+            // identical matchCourseId) still needs a practicable "Start Learning" destination, so
+            // fall back to matching by subject alone via tutor_type - the same "reliable subject
+            // signal" this file already treats it as everywhere else (see _isFullLengthCourse
+            // callers). Better to land on the right subject's general course than show no action.
+            const bySubject = (allCourses || []).find(c => {
+                const type = (c.tutor_type || '').toLowerCase();
+                return section === 'Math' ? type.includes('math') : (type.includes('reading') || type.includes('writing'));
+            });
+            return bySubject ? bySubject.id : null;
+        };
+        topics = topics.map(t => ({ ...t, courseId: matchCourseId(t.topic, t.section) }));
+        topics.sort((a, b) => a.accuracy - b.accuracy);
+
+        const overallTotal = topics.reduce((s, t) => s + t.total, 0);
+        const overallCorrect = topics.reduce((s, t) => s + t.correct, 0);
+        const overallIncorrect = topics.reduce((s, t) => s + t.incorrect, 0);
+        const overallUnanswered = topics.reduce((s, t) => s + t.unanswered, 0);
+
+        const overall = {
+            totalQuestions: sub.total_questions || overallTotal,
+            correct: sub.correct_questions?.length ?? overallCorrect,
+            incorrect: sub.incorrect_questions?.length ?? overallIncorrect,
+            unanswered: overallUnanswered,
+            accuracy: sub.raw_score_percentage != null
+                ? Math.round(sub.raw_score_percentage)
+                : (overallTotal > 0 ? Math.round((overallCorrect / overallTotal) * 100) : 0),
+            timeSpentSeconds: sub.test_duration_seconds || 0
+        };
+
+        const currentScore = sub.scaled_score
+            || ((sub.math_scaled_score && sub.reading_scaled_score) ? (sub.math_scaled_score + sub.reading_scaled_score) : null)
+            || 0;
+
+        const strengths = topics.filter(t => t.accuracy > 80 && t.total > 0);
+        // EVERY attempted topic at 80% accuracy or below is a priority weakness and gets a Custom
+        // Prep entry - not just the top few - per isPriorityWeakness. Above 80%, a topic isn't a
+        // weakness at all and is excluded entirely: no Easy/Medium/Hard remediation is forced on a
+        // topic the student has already mastered (see the "1500 scorer" case - only their genuine
+        // sub-80% topics, if any, should ever show up here).
+        const weaknesses = topics
+            .filter(t => t.total > 0 && isPriorityWeakness(t.accuracy))
+            .map(t => ({
+                ...t,
+                priorityScore: t.total * (1 - t.accuracy / 100),
+                recommendedLevel: getRecommendedLevel(t.accuracy)
+            }))
+            .sort((a, b) => b.priorityScore - a.priorityScore);
+
+        return {
+            submissionId: sub.id,
+            courseId: sub.course_id,
+            courseName: sub.course?.name || 'Full-Length Test',
+            currentScore,
+            mathScore: sub.math_scaled_score || null,
+            readingScore: sub.reading_scaled_score || null,
+            overall,
+            topics,
+            strengths,
+            weaknesses,
+            recommendedTarget: getRecommendedTargetRange(currentScore)
+        };
     },
 
     // The single best-scoring Full-Length Test submission from a list of them (by combined

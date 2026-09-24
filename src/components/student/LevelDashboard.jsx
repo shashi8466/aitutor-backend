@@ -173,11 +173,12 @@ const LevelDashboard = () => {
           </Link>
 
           {/* Card 2: Practice Quiz */}
-          <Link 
-            to={course?.is_adaptive 
-              ? `${routeBase}/course/${courseId}/level/moderate/quiz?mode=practice` 
+          <Link
+            to={course?.is_adaptive
+              ? `${routeBase}/course/${courseId}/level/moderate/quiz?mode=practice`
               : `${routeBase}/course/${courseId}/level/${level}/quiz?mode=practice`
-            } 
+            }
+            state={location.state}
             className="group h-full block"
           >
             <div className="h-full bg-white border border-gray-200 shadow-sm rounded-xl p-6 text-left transition-all cursor-pointer hover:shadow-lg hover:border-blue-200 flex flex-col relative">
@@ -220,11 +221,12 @@ const LevelDashboard = () => {
           </Link>
 
           {/* Card 3: Take the Quiz */}
-          <Link 
-            to={course?.is_adaptive 
-              ? `${routeBase}/adaptive-test/${courseId}` 
+          <Link
+            to={course?.is_adaptive
+              ? `${routeBase}/adaptive-test/${courseId}`
               : `${routeBase}/course/${courseId}/level/${level}/quiz`
-            } 
+            }
+            state={location.state}
             className="group h-full block"
           >
             <div className="h-full bg-[#FFF5F5] border border-[#FEE2E2] rounded-xl p-6 text-left transition-all cursor-pointer hover:shadow-lg flex flex-col relative overflow-hidden">
@@ -269,9 +271,19 @@ const LevelDashboard = () => {
         </div>
 
         <div className="mt-12 text-center">
-          <Link to={`${routeBase}/course/${courseId}`} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors py-2">
-            <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Topics
-          </Link>
+          {location.state?.source === 'custom_prep' ? (
+            <Link
+              to={`/student/custom-prep/${location.state.planId}`}
+              state={{ source: 'custom_prep', planId: location.state.planId, dayIndex: location.state.dayIndex }}
+              className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors py-2"
+            >
+              <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Custom Prep Plan
+            </Link>
+          ) : (
+            <Link to={`${routeBase}/course/${courseId}`} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors py-2">
+              <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Topics
+            </Link>
+          )}
         </div>
 
         {/* OLD AI Modal (Preserved for other calls if any) */}

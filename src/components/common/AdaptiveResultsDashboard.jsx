@@ -1,7 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import * as FiIcons from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 
-const AdaptiveResultsDashboard = ({ submission, onExit }) => {
+// Mirrors analyticsService._isFullLengthCourse on the server - the one reliable, uniform signal
+// across every Full-Length Test sub-type (SAT Adaptive sets is_adaptive; Linear SAT and ACT
+// Full-Length don't, but all three set main_category to 'FULL LENGTH TESTs'). Custom Prep is
+// deliberately gated on this, not on response-shape heuristics like isFullLength below, which
+// only detects the SAT case and would silently hide the button for ACT Full-Length/Linear SAT.
+const isFullLengthTestCourse = (course) =>
+    course?.is_adaptive === true || (course?.main_category || '').toUpperCase() === 'FULL LENGTH TESTS';
+
+const AdaptiveResultsDashboard = ({ submission, onExit, adminMode }) => {
+    const navigate = useNavigate();
     // --- DATA AGGREGATION ---
     const allResponses = useMemo(() => {
         if (!submission) return [];
@@ -761,13 +771,20 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
     const getTopicMastery = (responses) => {
         const topics = {};
         responses.forEach(r => {
-            const tName = r.topic || 'General';
-            if (!topics[tName]) topics[tName] = { correct: 0, total: 0 };
-            topics[tName].total++;
-            if (r.is_correct) topics[tName].correct++;
+            // Group case/whitespace-insensitively - "Linear Functions" vs "linear functions" is a
+            // raw questions.topic tagging inconsistency, not two different topics. The first-seen
+            // casing is kept as the display name; the underlying topic name itself is never split,
+            // shortened, or reconstructed. This must stay in sync with
+            // analyticsService.js's getFullLengthPrepAnalysis (same rule, same fallback to
+            // 'General'), which Custom Prep uses, so this report and Custom Prep always show
+            // exactly the same topic set for the same submission - one topic, one source of truth.
+            const rawTopic = (r.topic || 'General').trim().replace(/\s+/g, ' ');
+            const key = rawTopic.toLowerCase();
+            if (!topics[key]) topics[key] = { name: rawTopic, correct: 0, total: 0 };
+            topics[key].total++;
+            if (r.is_correct) topics[key].correct++;
         });
-        return Object.entries(topics).map(([name, data]) => ({
-            name,
+        return Object.values(topics).map(data => ({
             ...data,
             accuracy: Math.round((data.correct / data.total) * 100)
         })).sort((a, b) => b.accuracy - a.accuracy);
@@ -1118,14 +1135,24 @@ const AdaptiveResultsDashboard = ({ submission, onExit }) => {
             `}} />
 
             {/* Header Actions */}
-            <div className="max-w-4xl mx-auto mb-8 flex justify-between items-center print-hidden">
+            <div className="max-w-4xl mx-auto mb-8 flex justify-between items-center print-hidden gap-3 flex-wrap">
                 <button onClick={onExit} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition-colors">
                     <FiIcons.FiArrowLeft /> Back
                 </button>
                 <div className="font-black text-xl tracking-tighter uppercase tracking-widest">AIPrep365</div>
-                <button onClick={() => window.print()} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-bold shadow-lg transition-all">
-                    <FiIcons.FiPrinter /> Download PDF
-                </button>
+                <div className="flex items-center gap-3">
+                    {!adminMode && isFullLengthTestCourse(submission?.course) && (
+                        <button
+                            onClick={() => navigate(`/student/custom-prep/setup/${submission.id}`)}
+                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-full font-bold shadow-lg transition-all"
+                        >
+                            <FiIcons.FiTarget /> Custom Prep
+                        </button>
+                    )}
+                    <button onClick={() => window.print()} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-bold shadow-lg transition-all">
+                        <FiIcons.FiPrinter /> Download PDF
+                    </button>
+                </div>
             </div>
 
             <div className="max-w-4xl mx-auto print:max-w-none print:w-full print:block">

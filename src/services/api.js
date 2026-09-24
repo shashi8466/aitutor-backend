@@ -1402,6 +1402,9 @@ export const customPrepService = {
   },
   updateProgress: async (planId, payload) => {
     return axios.patch(`/api/custom-prep/plans/${planId}/progress`, payload);
+  },
+  deletePlan: async (planId) => {
+    return axios.delete(`/api/custom-prep/plans/${planId}`);
   }
 };
 

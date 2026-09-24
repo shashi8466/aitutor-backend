@@ -9,7 +9,7 @@ import PracticeAITutorModal from './PracticeAITutorModal';
 import PracticeQuizUI from './PracticeQuizUI';
 import PdfExportWrapper from '../analytics/PdfExportWrapper';
 import CombinedRegularCourseReport from '../common/CombinedRegularCourseReport';
-import { questionService, progressService, enrollmentService, gradingService, planService, courseService } from '../../services/api';
+import { questionService, progressService, enrollmentService, gradingService, planService, courseService, customPrepService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { isAnswerCorrect } from '../../utils/answerGrading';
@@ -83,7 +83,41 @@ const QuizInterface = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
+  // When this quiz/study session was opened from a Custom Prep task (see
+  // CustomPrepDashboard.jsx's customPrepNavState), every "Return to Course" link on the results
+  // screen below sends the student back to that plan/day instead of the course - Custom Prep is a
+  // different entry path than My Courses and must not dead-end there. Never hard-coded as the
+  // fallback: absent this state, behavior is exactly what it was before.
+  const isFromCustomPrep = location.state?.source === 'custom_prep';
+  const customPrepReturnTo = isFromCustomPrep ? `/student/custom-prep/${location.state.planId}` : null;
+  const customPrepReturnState = isFromCustomPrep
+    ? { source: 'custom_prep', planId: location.state.planId, dayIndex: location.state.dayIndex }
+    : undefined;
+  // The specific Custom Prep task (day + index) that launched THIS session, if any - carried the
+  // whole way from CustomPrepDashboard's "Start Learning" click (through LevelDashboard's own
+  // pass-through of location.state, for the Study -> Level Dashboard -> Practice Quiz hop). Marking
+  // this exact task complete on a successful Finish is what makes completion automatic without
+  // ever marking a sibling Targeted Practice/Review task for the same topic.
+  const customPrepTaskContext = (isFromCustomPrep && Number.isInteger(location.state?.dayIndex) && Number.isInteger(location.state?.taskIndex))
+    ? { planId: location.state.planId, dayIndex: location.state.dayIndex, taskIndex: location.state.taskIndex }
+    : null;
+
+  // Best-effort: a failure here must never surface as a quiz-submission error - the test attempt
+  // itself already succeeded by the time this is called. Reuses the exact same endpoint the
+  // manual checkbox toggle (CustomPrepDashboard.toggleTask) calls, so this is not a second/parallel
+  // completion mechanism - just the same one, triggered automatically instead of by hand.
+  const markCustomPrepTaskComplete = async () => {
+    if (!customPrepTaskContext) return;
+    try {
+      await customPrepService.updateProgress(customPrepTaskContext.planId, {
+        taskUpdate: { dayIndex: customPrepTaskContext.dayIndex, taskIndex: customPrepTaskContext.taskIndex, completed: true }
+      });
+    } catch (err) {
+      console.error('Failed to auto-complete Custom Prep task:', err);
+    }
+  };
+
   const searchParams = new URLSearchParams(window.location.search);
   const isPracticeMode = searchParams.get('mode') === 'practice';
 
@@ -664,6 +698,7 @@ const QuizInterface = () => {
             percentage: accuracyVal
         });
         setShowResults(true);
+        markCustomPrepTaskComplete();
         return;
       }
 
@@ -693,6 +728,7 @@ const QuizInterface = () => {
       const { submissionId, rawScore, rawPercentage, scaledScore, maxScaledScore, sectionScores } = response.data;
       setSubmissionResult({ submissionId, rawScore, percentage: rawPercentage, scaledScore, maxScaledScore, sectionScores, totalQuestions: questions.length });
       setShowResults(true);
+      markCustomPrepTaskComplete();
 
     } catch (err) {
       console.error("Quiz submission failed:", err);
@@ -830,12 +866,13 @@ const QuizInterface = () => {
 
                     {/* Navigation Buttons */}
                     <div className="flex flex-col gap-3.5">
-                        {/* Primary Button: Return to Course */}
-                        <Link 
-                            to={`/student/course/${courseId}`} 
+                        {/* Primary Button: Return to Course (or back to Custom Prep, if that's where this session came from) */}
+                        <Link
+                            to={isFromCustomPrep ? customPrepReturnTo : `/student/course/${courseId}`}
+                            state={customPrepReturnState}
                             className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-2xl text-sm flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 transition-all"
                         >
-                            <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
+                            <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> {isFromCustomPrep ? 'Back to Custom Prep Plan' : 'Return to Course'}
                         </Link>
 
                         {/* Secondary Action Buttons Row */}
@@ -1062,29 +1099,29 @@ const QuizInterface = () => {
                 if (currentLevelName === 'Easy') {
                   return (
                     <>
-                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/medium/quiz${window.location.search}` : `/student/course/${courseId}/level/medium`} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm">
+                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/medium/quiz${window.location.search}` : `/student/course/${courseId}/level/medium`} state={customPrepReturnState} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm">
                         <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Continue to Medium Level
                       </Link>
-                      <Link to={`/student/course/${courseId}`} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
-                        <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
+                      <Link to={isFromCustomPrep ? customPrepReturnTo : `/student/course/${courseId}`} state={customPrepReturnState} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                        <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> {isFromCustomPrep ? 'Back to Custom Prep Plan' : 'Return to Course'}
                       </Link>
                     </>
                   );
                 } else if (currentLevelName === 'Medium') {
                   return (
                     <>
-                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/hard/quiz${window.location.search}` : `/student/course/${courseId}/level/hard`} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm">
+                      <Link to={(!isACTFullLengthCourse(courseInfo) && !isSequential) ? `/student/course/${courseId}/level/hard/quiz${window.location.search}` : `/student/course/${courseId}/level/hard`} state={customPrepReturnState} className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 text-sm">
                         <SafeIcon icon={FiArrowRight} className="w-4 h-4" /> Continue to Hard Level
                       </Link>
-                      <Link to={`/student/course/${courseId}`} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
-                        <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
+                      <Link to={isFromCustomPrep ? customPrepReturnTo : `/student/course/${courseId}`} state={customPrepReturnState} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                        <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> {isFromCustomPrep ? 'Back to Custom Prep Plan' : 'Return to Course'}
                       </Link>
                     </>
                   );
                 } else {
                   return (
-                    <Link to={`/student/course/${courseId}`} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
-                      <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Return to Course
+                    <Link to={isFromCustomPrep ? customPrepReturnTo : `/student/course/${courseId}`} state={customPrepReturnState} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                      <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> {isFromCustomPrep ? 'Back to Custom Prep Plan' : 'Return to Course'}
                     </Link>
                   );
                 }
@@ -1103,8 +1140,8 @@ const QuizInterface = () => {
                   >
                     <SafeIcon icon={FiRefreshCw} className="w-4 h-4" /> Retry {currentLevelName} Level
                   </button>
-                  <Link to="/student/courses" className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
-                    <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to My Courses
+                  <Link to={isFromCustomPrep ? customPrepReturnTo : '/student/courses'} state={customPrepReturnState} className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 text-sm">
+                    <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> {isFromCustomPrep ? 'Back to Custom Prep Plan' : 'Back to My Courses'}
                   </Link>
                 </>
               );

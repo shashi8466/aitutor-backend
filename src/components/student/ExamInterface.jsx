@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import MathRenderer from '../../common/MathRenderer';
-import { questionService, progressService, enrollmentService, gradingService, planService, courseService } from '../../services/api';
+import { questionService, progressService, enrollmentService, gradingService, planService, courseService, customPrepService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
@@ -23,6 +23,28 @@ const ExamInterface = () => {
   const location = useLocation();
 
   const [courseInfo, setCourseInfo] = useState(null);
+
+  // The specific Custom Prep task (day + index) that launched this "Take the Quiz" session, if
+  // any - same carried-state mechanism QuizInterface.jsx uses for its Practice Quiz path (see
+  // CustomPrepDashboard.jsx's customPrepNavState / LevelDashboard.jsx's location.state pass-through).
+  const isFromCustomPrep = location.state?.source === 'custom_prep';
+  const customPrepTaskContext = (isFromCustomPrep && Number.isInteger(location.state?.dayIndex) && Number.isInteger(location.state?.taskIndex))
+    ? { planId: location.state.planId, dayIndex: location.state.dayIndex, taskIndex: location.state.taskIndex }
+    : null;
+
+  // Best-effort: a failure here must never surface as an exam-submission error - the test attempt
+  // itself already succeeded by the time this is called. Reuses the exact same endpoint the manual
+  // checkbox toggle (CustomPrepDashboard.toggleTask) calls, not a second/parallel mechanism.
+  const markCustomPrepTaskComplete = async () => {
+    if (!customPrepTaskContext) return;
+    try {
+      await customPrepService.updateProgress(customPrepTaskContext.planId, {
+        taskUpdate: { dayIndex: customPrepTaskContext.dayIndex, taskIndex: customPrepTaskContext.taskIndex, completed: true }
+      });
+    } catch (err) {
+      console.error('Failed to auto-complete Custom Prep task:', err);
+    }
+  };
 
   const isSequential = ['AP', 'ACT'].includes(courseInfo?.main_category?.toUpperCase());
   const maxModuleIndex = isSequential ? 0 : 2;
@@ -490,8 +512,9 @@ const ExamInterface = () => {
 
         setSubmissionResult(finalResult);
         setShowResults(true);
-        setShowCheckWork(false); 
-        
+        setShowCheckWork(false);
+        markCustomPrepTaskComplete();
+
         // Backend now handles notification automatically via submitTest
     } catch (err) {
         setError("Failed to submit exam.");
