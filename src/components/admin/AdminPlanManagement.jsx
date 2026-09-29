@@ -44,8 +44,8 @@ const AdminPlanManagement = () => {
       // 2. Load settings with defaults
       const settingsRes = await planService.getSettings().catch(e => ({ data: [] }));
       const settingsMap = {
-        free: { max_questions_math: 250, max_questions_rw: 250, max_tests: 2, feature_custom_prep: true },
-        premium: { max_questions_math: 10000, max_questions_rw: 10000, max_tests: 10, feature_custom_prep: true }
+        free: { max_questions_math: 250, max_questions_rw: 250, max_tests: 2, feature_custom_prep: true, feature_recordings: true },
+        premium: { max_questions_math: 10000, max_questions_rw: 10000, max_tests: 10, feature_custom_prep: true, feature_recordings: true }
       };
       (settingsRes.data || []).forEach(s => {
         settingsMap[s.plan_type] = { ...settingsMap[s.plan_type], ...s };
@@ -387,6 +387,11 @@ const AdminPlanManagement = () => {
                       label="AI Prep365"
                       active={settings[plan]?.feature_ai_tutor}
                       onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_ai_tutor: v}})}
+                    />
+                    <FeatureToggle
+                      label="Recordings"
+                      active={settings[plan]?.feature_recordings}
+                      onToggle={v => setSettings({...settings, [plan]: {...settings[plan], feature_recordings: v}})}
                     />
                   </div>
 

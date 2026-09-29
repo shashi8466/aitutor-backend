@@ -100,8 +100,11 @@ class NotificationScheduler {
       console.log(`⏭️ [Scheduler] Outbox cron DISABLED in dev (set ENABLE_LOCAL_OUTBOX=true to enable locally).`);
     }
 
-    // Weekly progress report — every Tuesday at 7 PM IST
-    const weeklyTask = cron.schedule('0 19 * * 2', async () => {
+    // Weekly progress report — every weekday (Mon-Fri) at 7 PM IST. Not "every Tuesday" anymore:
+    // the fixed-weekday cohort system (see weeklyReportCohorts.js) needs a daily tick so each
+    // student's OWN assigned day (Tue/Wed/Thu/Fri/Mon) actually gets processed - /run-weekly
+    // itself is a same-day no-op on Sat/Sun and only ever touches that day's cohort.
+    const weeklyTask = cron.schedule('0 19 * * 1-5', async () => {
       console.log('📬 [Cron] Weekly progress report job triggered');
       try {
         const port = process.env.PORT || 3001;

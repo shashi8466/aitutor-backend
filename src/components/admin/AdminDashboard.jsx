@@ -30,13 +30,14 @@ const AdminEnrollmentKeys = lazy(() => import('./AdminEnrollmentKeys'));
 const AdminDemoLeads = lazy(() => import('./AdminDemoLeads'));
 const UniversalLeaderboard = lazy(() => import('../common/UniversalLeaderboard'));
 const IssuesAndSupport = lazy(() => import('./IssuesAndSupport'));
+const RecordingsManagement = lazy(() => import('./RecordingsManagement'));
 
 import { courseService, uploadService, adminService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import DashboardPreviewer from './DashboardPreviewer';
 
-const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut, FiLayers, FiShield, FiKey, FiMenu, FiX, FiChevronLeft, FiChevronRight, FiChevronDown, FiCalendar, FiActivity, FiUserPlus, FiFileText, FiCheckCircle, FiArrowUp, FiFlag } = FiIcons;
+const { FiBook, FiUpload, FiHelpCircle, FiFolder, FiTrendingUp, FiUsers, FiGrid, FiDatabase, FiSettings, FiLogOut, FiLayers, FiShield, FiKey, FiMenu, FiX, FiChevronLeft, FiChevronRight, FiChevronDown, FiCalendar, FiActivity, FiUserPlus, FiFileText, FiCheckCircle, FiArrowUp, FiFlag, FiVideo } = FiIcons;
 
 let savedSidebarScroll = 0;
 let savedSidebarOpen = true;
@@ -137,6 +138,12 @@ const AdminDashboard = () => {
       label: 'ISSUES & SUPPORT',
       links: [
         { name: 'Issues & Support', path: '/admin/issues', icon: FiFlag },
+      ]
+    },
+    {
+      label: 'CONTENT',
+      links: [
+        { name: 'Recordings', path: '/admin/recordings', icon: FiVideo },
       ]
     },
     {
@@ -312,6 +319,7 @@ const AdminDashboard = () => {
               <Route path="/notifications" element={<AdminNotificationManager />} />
               <Route path="/questions" element={<QuestionManagement />} />
               <Route path="/issues" element={<IssuesAndSupport />} />
+              <Route path="/recordings" element={<RecordingsManagement />} />
               <Route path="/knowledge-base" element={<KnowledgeBase />} />
               <Route path="/upload" element={<FileUpload />} />
               <Route path="/uploads" element={<UploadManagement />} />

@@ -8,7 +8,7 @@ import { useSettings } from '../../contexts/SettingsContext';
 import { planService } from '../../services/api';
 
 
-const { FiHome, FiCpu, FiTarget, FiActivity, FiTrendingUp, FiMap, FiLogOut, FiPieChart, FiUser, FiBook, FiAward, FiHelpCircle, FiZap, FiCalendar, FiFileText, FiX, FiSettings, FiStar, FiArrowUpCircle, FiMessageSquare } = FiIcons;
+const { FiHome, FiCpu, FiTarget, FiActivity, FiTrendingUp, FiMap, FiLogOut, FiPieChart, FiUser, FiBook, FiAward, FiHelpCircle, FiZap, FiCalendar, FiFileText, FiX, FiSettings, FiStar, FiArrowUpCircle, FiMessageSquare, FiVideo } = FiIcons;
 
 const StudentSidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
@@ -51,6 +51,7 @@ const StudentSidebar = ({ isOpen, onClose }) => {
       title: "Learning Center",
       items: [
         { name: 'My Courses', path: '/student/courses', icon: FiBook },
+        { name: 'Recordings', path: '/student/recordings', icon: FiVideo, settingKey: 'feature_recordings' },
         { name: 'Score Predictor', path: '/student/score-predictor', icon: FiZap, settingKey: 'feature_score_predictor' },
         { name: 'Leaderboard', path: '/student/leaderboard', icon: FiAward, settingKey: 'feature_leaderboard' },
       ]

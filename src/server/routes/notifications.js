@@ -3,6 +3,16 @@ import supabase from '../../supabase/supabaseAdmin.js';
 import { processOutboxOnce, enqueueNotification } from '../utils/notificationOutbox.js';
 import NotificationScheduler from '../services/NotificationScheduler.js';
 import { analyticsService } from '../services/analyticsService.js';
+import {
+  getDailyLimit,
+  getTodayWeekdayName,
+  getReportWeekKey,
+  assignUnassignedStudents,
+  ensureDeliveryRowsForWeek,
+  claimDeliveriesToProcess,
+  markDeliverySent,
+  markDeliveryFailed
+} from '../utils/weeklyReportCohorts.js';
 
 const router = express.Router();
 
@@ -57,112 +67,145 @@ router.post('/process-outbox', async (req, res) => {
   }
 });
 
+// Generates and enqueues ONE student's weekly report (+ any linked parents' copies) - the exact
+// same content/generation logic the old single-Tuesday bulk sender used, completely unchanged.
+// Only WHEN and HOW MANY students this gets called for changed (see /run-weekly below) - never
+// the report itself. Throws on a hard failure so the caller can mark that delivery FAILED and
+// retry it later rather than silently losing it.
+async function generateAndEnqueueWeeklyReport({ student, allParents, weekStart, weekEnd }) {
+  const { data: submissions, error: subErr } = await supabase
+    .from('test_submissions')
+    .select('id, test_date, raw_score_percentage, scaled_score, level, courses(name)')
+    .eq('user_id', student.id)
+    .gte('test_date', weekStart.toISOString())
+    .lte('test_date', weekEnd.toISOString())
+    .order('test_date', { ascending: false });
+  if (subErr) throw subErr;
+
+  const totalTests = submissions?.length || 0;
+  const avgScore = totalTests > 0 ? Math.round(submissions.reduce((sum, sub) => sum + (sub.raw_score_percentage || 0), 0) / totalTests) : 0;
+  const bestScore = totalTests > 0 ? Math.round(Math.max(...submissions.map((sub) => sub.raw_score_percentage || 0))) : 0;
+
+  const linkedParents = (allParents || []).filter((p) => {
+    const linked = p.linked_students || [];
+    return Array.isArray(linked) && linked.some((id) => String(id).trim() === String(student.id).trim());
+  });
+
+  const parentEmails = linkedParents.map((p) => p.email).filter(Boolean);
+  const recipientEmails = [student.email, ...parentEmails].filter(Boolean);
+  if (recipientEmails.length === 0) return;
+
+  const payload = {
+    studentId: student.id,
+    studentName: student.name || 'Student',
+    weekStart: weekStart.toISOString(),
+    weekEnd: weekEnd.toISOString(),
+    submissions: submissions || [],
+    totalTests,
+    avgScore,
+    bestScore
+  };
+
+  await enqueueNotification({
+    eventType: 'WEEKLY_REPORT',
+    recipientProfileId: student.id,
+    recipientType: 'student',
+    payload,
+    scheduledFor: new Date().toISOString()
+  });
+
+  await supabase.from('notifications').insert({
+    user_id: student.id,
+    title: 'Weekly Performance Report',
+    message: `Your report for the week is ready. You completed ${totalTests} tests with an average score of ${avgScore}%.`,
+    type: 'weekly_report',
+    data: { weekStart: weekStart.toISOString() }
+  });
+
+  for (const parent of linkedParents) {
+    if (!parent.email) continue;
+    await enqueueNotification({
+      eventType: 'WEEKLY_REPORT',
+      recipientProfileId: parent.id,
+      recipientType: 'parent',
+      payload,
+      scheduledFor: new Date().toISOString()
+    });
+
+    await supabase.from('notifications').insert({
+      user_id: parent.id,
+      title: `Weekly Report: ${student.name || 'Student'}`,
+      message: `${student.name}'s weekly progress summary is ready. ${totalTests} tests completed this week.`,
+      type: 'weekly_report',
+      data: { weekStart: weekStart.toISOString(), studentId: student.id }
+    });
+  }
+}
+
 // POST /api/notifications/run-weekly
+//
+// Fixed-weekday cohort delivery, not a single Tuesday bulk send: every student has a PERMANENT
+// weekly_report_day (see weeklyReportCohorts.js) and is only ever processed on that day, capped at
+// WEEKLY_REPORT_DAILY_LIMIT/day so this never eats the email provider's whole daily quota. Meant to
+// run once per WEEKDAY (see NotificationScheduler's cron) - Sat/Sun are a no-op. Idempotent per
+// (student, report_week) via weekly_report_deliveries' unique constraint and atomic claim, so a
+// duplicate/overlapping trigger can never double-send the same student's report for the same week.
 router.post('/run-weekly', async (req, res) => {
   try {
     if (!requireCronSecret(req, res)) return;
 
-    // Default: last 7 days from the current moment
     const now = new Date();
-    console.log(`📡 [WeeklyReport] Generating reports at ${now.toISOString()}`);
-    
-    // Use the current time as weekEnd to include everything until now
-    const weekEnd = now;
-    const weekStart = new Date(now.getTime() - 7 * 86400000);
-    
-    console.log(`🔍 [WeeklyReport] Period: ${weekStart.toISOString()} to ${weekEnd.toISOString()}`);
+    const today = getTodayWeekdayName(now);
+    if (!today) {
+      return res.json({ ok: true, skipped: true, reason: 'Weekly reports do not run on weekends.' });
+    }
 
-    // Fetch students and all parents to resolve linking
+    // Onboard any student who doesn't have a permanent cohort day yet (first-ever run covers
+    // every existing student; afterward this only ever picks up new signups). Never touches a
+    // student who's already assigned.
+    const assignedCount = await assignUnassignedStudents();
+
+    const reportWeek = getReportWeekKey(now);
+    await ensureDeliveryRowsForWeek(reportWeek);
+
+    const dailyLimit = getDailyLimit();
+    const claimed = await claimDeliveriesToProcess({ reportWeek, today, capacity: dailyLimit });
+
+    console.log(`📡 [WeeklyReport] ${reportWeek} / ${today}: claimed ${claimed.length} of up to ${dailyLimit}`);
+
+    if (claimed.length === 0) {
+      return res.json({ ok: true, reportWeek, today, assignedCount, claimed: 0, sent: 0, failed: 0 });
+    }
+
+    const studentIds = claimed.map((d) => d.student_id);
     const [{ data: students }, { data: allParents }] = await Promise.all([
-      supabase.from('profiles').select('id, name, email').eq('role', 'student'),
+      supabase.from('profiles').select('id, name, email').in('id', studentIds),
       supabase.from('profiles').select('id, name, email, linked_students').eq('role', 'parent')
     ]);
+    const studentById = new Map((students || []).map((s) => [s.id, s]));
 
-    let enqueued = 0;
+    // Same "last 7 days from now" window the old bulk sender used - report CONTENT is unchanged.
+    const weekEnd = now;
+    const weekStart = new Date(now.getTime() - 7 * 86400000);
 
-    for (const s of students || []) {
-      const { data: submissions } = await supabase
-        .from('test_submissions')
-        .select('id, test_date, raw_score_percentage, scaled_score, level, courses(name)')
-        .eq('user_id', s.id)
-        .gte('test_date', weekStart.toISOString())
-        .lte('test_date', weekEnd.toISOString())
-        .order('test_date', { ascending: false });
-
-      const totalTests = submissions?.length || 0;
-      const avgScore = totalTests > 0 ? Math.round(submissions.reduce((sum, sub) => sum + (sub.raw_score_percentage || 0), 0) / totalTests) : 0;
-      const bestScore = totalTests > 0 ? Math.round(Math.max(...submissions.map(sub => sub.raw_score_percentage || 0))) : 0;
-
-      // Find parents linked to this student
-      const linkedParents = (allParents || []).filter(p => {
-        const linked = p.linked_students || [];
-        return Array.isArray(linked) && linked.some(id => String(id).trim() === String(s.id).trim());
-      });
-
-      const parentEmails = linkedParents.map(p => p.email).filter(Boolean);
-      const recipientEmails = [s.email, ...parentEmails].filter(Boolean);
-
-      if (recipientEmails.length === 0) continue;
-
-      const payload = {
-        studentId: s.id,
-        studentName: s.name || 'Student',
-        weekStart: weekStart.toISOString(),
-        weekEnd: weekEnd.toISOString(),
-        submissions: submissions || [],
-        totalTests,
-        avgScore,
-        bestScore
-      };
-
-      // 1. Enqueue for Student
-      await enqueueNotification({
-        eventType: 'WEEKLY_REPORT',
-        recipientProfileId: s.id,
-        recipientType: 'student',
-        payload,
-        scheduledFor: new Date().toISOString()
-      });
-
-      // In-App Notification (Student Dashboard)
-      await supabase
-        .from('notifications')
-        .insert({
-          user_id: s.id,
-          title: 'Weekly Performance Report',
-          message: `Your report for the week is ready. You completed ${totalTests} tests with an average score of ${avgScore}%.`,
-          type: 'weekly_report',
-          data: { weekStart: weekStart.toISOString() }
-        });
-
-      // 2. Enqueue for each Parent
-      for (const parent of linkedParents) {
-        if (parent.email) {
-          await enqueueNotification({
-            eventType: 'WEEKLY_REPORT',
-            recipientProfileId: parent.id,
-            recipientType: 'parent',
-            payload,
-            scheduledFor: new Date().toISOString()
-          });
-
-          // In-App Notification (Parent Dashboard)
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: parent.id,
-              title: `Weekly Report: ${s.name || 'Student'}`,
-              message: `${s.name}'s weekly progress summary is ready. ${totalTests} tests completed this week.`,
-              type: 'weekly_report',
-              data: { weekStart: weekStart.toISOString(), studentId: s.id }
-            });
-        }
+    let sent = 0;
+    let failed = 0;
+    for (const delivery of claimed) {
+      const student = studentById.get(delivery.student_id);
+      try {
+        if (!student) throw new Error('Student profile not found');
+        await generateAndEnqueueWeeklyReport({ student, allParents, weekStart, weekEnd });
+        await markDeliverySent(delivery.id);
+        sent++;
+      } catch (err) {
+        console.error(`❌ [WeeklyReport] Failed for student ${delivery.student_id}:`, err.message);
+        await markDeliveryFailed(delivery.id, delivery.attempt_count, err.message);
+        failed++;
       }
-      enqueued++;
     }
 
     const processed = await processOutboxOnce({ limit: 500 });
-    res.json({ ok: true, enqueued, ...processed });
+    res.json({ ok: true, reportWeek, today, assignedCount, claimed: claimed.length, sent, failed, ...processed });
   } catch (err) {
     res.status(500).json({ error: err?.message || String(err) });
   }

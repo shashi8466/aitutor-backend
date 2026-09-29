@@ -1408,6 +1408,17 @@ export const customPrepService = {
   }
 };
 
+// --- RECORDINGS SERVICE (tutorial/class recording library) ---
+export const recordingService = {
+  // Student/Tutor browse - server enforces Published-only + audience visibility.
+  getAll: async (params = {}) => axios.get('/api/recordings', { params }),
+  // Admin management - every status, own filters.
+  getAllAdmin: async (params = {}) => axios.get('/api/recordings/admin', { params }),
+  create: async (data) => axios.post('/api/recordings', data),
+  update: async (id, data) => axios.patch(`/api/recordings/${id}`, data),
+  remove: async (id) => axios.delete(`/api/recordings/${id}`)
+};
+
 export const gradingService = {
   submitTest: async (data) => {
     // data: { courseId, level, questionIds, answers, duration }

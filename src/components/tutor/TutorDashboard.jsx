@@ -10,7 +10,7 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import {
     FiHome, FiBook, FiUsers, FiKey, FiMail, FiBarChart2,
     FiSettings, FiLogOut, FiMenu, FiX, FiAward, FiClock,
-    FiTrendingUp, FiCheckCircle, FiLayers, FiGrid, FiFlag
+    FiTrendingUp, FiCheckCircle, FiLayers, FiGrid, FiFlag, FiVideo
 } from 'react-icons/fi';
 
 // Lazy load tutor components
@@ -23,6 +23,7 @@ const TutorEnrollmentKeys = lazy(() => import('./TutorEnrollmentKeys'));
 const TutorInvitations = lazy(() => import('./TutorInvitations'));
 const TutorSettings = lazy(() => import('./TutorSettings'));
 const TutorCourseContent = lazy(() => import('./TutorCourseContent'));
+const RecordingsBrowser = lazy(() => import('../common/RecordingsBrowser'));
 const TopicReportReview = lazy(() => import('../student/TopicReportReview'));
 
 // Lazy load student course view components (for Course Content feature)
@@ -163,6 +164,7 @@ const TutorDashboard = () => {
         { path: '/tutor', icon: FiHome, label: 'Dashboard', exact: true },
         { path: '/tutor/courses', icon: FiBook, label: 'My Courses' },
         { path: '/tutor/course-content', icon: FiGrid, label: 'Course Content' },
+        { path: '/tutor/recordings', icon: FiVideo, label: 'Recordings' },
         { path: '/tutor/students', icon: FiUsers, label: 'Students' },
         { path: '/tutor/groups', icon: FiLayers, label: 'Student Groups' },
         { path: '/tutor/enrollment-keys', icon: FiKey, label: 'Enrollment Keys' },
@@ -345,6 +347,7 @@ const TutorDashboard = () => {
                             <Route path="course-content/act-full-length-test/:courseId" element={<StudentACTFullLengthExam />} />
                             <Route path="course-content/adaptive-test/:courseId" element={<StudentAdaptiveExamInterface />} />
                             <Route path="course-content/adaptive-pre-test/:courseId" element={<StudentAdaptivePreTest />} />
+                            <Route path="recordings" element={<RecordingsBrowser />} />
                             <Route path="students" element={<TutorStudents dashboardData={dashboardData} isParentLoading={loading} />} />
                             <Route path="students/:studentId" element={<TutorStudentProfile />} />
                             <Route path="groups" element={<GroupManager dashboardData={dashboardData} isParentLoading={loading} />} />

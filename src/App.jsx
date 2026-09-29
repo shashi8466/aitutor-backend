@@ -24,6 +24,7 @@ const TermsConditions = lazy(() => import('./components/layout/TermsConditions')
 // Student Pages
 const StudentDashboard = lazy(() => import('./components/student/StudentDashboard'));
 const StudentCourseList = lazy(() => import('./components/student/StudentCourseList'));
+const RecordingsBrowser = lazy(() => import('./components/common/RecordingsBrowser'));
 const CourseView = lazy(() => import('./components/student/CourseView'));
 const LevelDashboard = lazy(() => import('./components/student/LevelDashboard'));
 const VideoPlayer = lazy(() => import('./components/student/VideoPlayer'));
@@ -422,6 +423,7 @@ const App = () => {
             >
               <Route index element={<StudentDashboard />} />
               <Route path="courses" element={<StudentCourseList />} />
+              <Route path="recordings" element={<FeatureGate featureKey="feature_recordings"><RecordingsBrowser /></FeatureGate>} />
               <Route path="enroll" element={<EnrollmentKeyInput />} />
               <Route path="course/:courseId" element={<CourseView />} />
               <Route path="adaptive-pre-test/:courseId" element={<AdaptivePreTest />} />

@@ -81,8 +81,13 @@ router.post('/submit', async (req, res) => {
 
     res.json({ success: true, data });
 
-    // Admin email alert - fire and forget, mirrors the prior contact.js pattern.
-    _notifyAdmin(record).catch((err) => console.error('[SupportIssues] Failed to enqueue admin notification:', err.message));
+    // Admin email notification intentionally disabled (2026-09-28, product request): every one of
+    // these submissions already lands in Admin -> Issues & Support in real time, so a duplicate
+    // email per submission was just consuming email quota for no benefit. The database insert
+    // above (the actual source of truth) and the Admin dashboard are untouched - only this email
+    // side-effect is turned off. _notifyAdmin is left in place, unused, so re-enabling this is a
+    // one-line change if ever needed again.
+    // _notifyAdmin(record).catch((err) => console.error('[SupportIssues] Failed to enqueue admin notification:', err.message));
   } catch (error) {
     console.error('Error submitting support issue:', error);
     if (!res.headersSent) {
