@@ -90,6 +90,18 @@ const FullLengthTestEditPage = () => {
     }
   };
 
+  // Regenerates the .docx from this upload's CURRENT question records (reflecting any saved
+  // Edit Question changes) rather than opening the original uploaded file, which never changes
+  // after an edit.
+  const handleDownloadUpload = async (upload) => {
+    try {
+      await uploadService.downloadCurrentQuestions(upload.id, upload.file_name);
+    } catch (error) {
+      console.error("Error downloading current questions:", error);
+      alert("Failed to download file: " + (error.message || "Unknown error"));
+    }
+  };
+
   if (loading) return <div className="p-8 text-center">Loading Test Details...</div>;
   if (!course) return <div className="p-8 text-center">Test not found</div>;
 
@@ -280,7 +292,7 @@ const FullLengthTestEditPage = () => {
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => window.open(upload.file_url)} className="p-1.5 bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors border border-gray-700">
+                              <button onClick={() => handleDownloadUpload(upload)} title="Download current questions (includes saved edits)" className="p-1.5 bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors border border-gray-700">
                                 <SafeIcon icon={FiIcons.FiDownload} className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => handleDeleteUpload(upload.id)} className="p-1.5 bg-red-900/20 text-red-500 hover:bg-red-900/40 hover:text-red-400 rounded-lg transition-colors border border-red-900/30">

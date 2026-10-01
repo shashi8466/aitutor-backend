@@ -270,7 +270,14 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
     // ---------------------------------------------------------
     // 2. Smart Math Detection & Wrapping
     // ---------------------------------------------------------
-    if (window.MathJax) {
+    // `window.MathJax` exists the instant index.html's inline config script runs (it's just the
+    // config object) - but `.typesetPromise` is only added once the actual MathJax library
+    // (loaded `async` from a CDN in index.html) finishes booting. Calling it before that throws
+    // synchronously, which used to skip straight to the (destructive) catch-less failure path
+    // below with no recovery. Checking for the real function - not just the config placeholder -
+    // means a still-loading MathJax degrades to the plain-HTML `else` branch (tables/images intact,
+    // just not math-typeset yet) instead of ever risking that path.
+    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
       // Split by HTML tags to avoid mangling images/tables
       const parts = processedText.split(/(<[^>]+>)/g);
 
@@ -349,19 +356,17 @@ const MathRenderer = ({ text, className = '', courseId: propCourseId }) => {
           });
         })
         .catch((err) => {
-          console.warn('MathJax processing error:', err);
-          if (!nodeRef.current) return;
-          // Whole-batch typeset failure (rare) - degrade to plain text stripped of LaTeX
-          // control sequences/delimiters/braces rather than dumping raw markup on screen.
-          const plainFallback = processedText
-            .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
-            .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '$1/$2')
-            .replace(/\\sqrt\{([^{}]*)\}/g, '√($1)')
-            .replace(/\\text\{([^{}]*)\}/g, '$1')
-            .replace(/\\[a-zA-Z]+/g, '')
-            .replace(/[{}]/g, '')
-            .replace(/\$/g, '');
-          nodeRef.current.innerText = plainFallback;
+          // Whole-batch typeset failure (rare - e.g. one malformed equation rejecting the whole
+          // batch instead of MathJax's usual per-expression merror). `nodeRef.current.innerHTML`
+          // was already set to `processedText` above (tables/images/passage text all intact) -
+          // this used to then call `.innerText = plainFallback`, which DESTROYS every element in
+          // the node (table, images, everything) and replaces it with one plain-text string, since
+          // `plainFallback` only strips LaTeX syntax, never HTML tags - so on any typeset failure,
+          // a question's table/image vanished right along with its un-typeset math, even though
+          // they had nothing to do with the failure. Leaving the already-rendered HTML in place
+          // means the worst case of a typeset failure is now "this equation isn't pretty-printed",
+          // never "this table/image is gone".
+          console.warn('MathJax processing error - leaving pre-typeset HTML as-is:', err);
         });
     } else {
       nodeRef.current.innerHTML = processedText;

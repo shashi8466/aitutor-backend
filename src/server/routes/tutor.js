@@ -773,7 +773,7 @@ router.get('/groups', async (req, res) => {
 router.post('/groups', async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { name, assigned_content, assigned_course_ids, description, start_date, end_date } = req.body;
+        const { name, assigned_content, assigned_course_ids, assigned_recording_ids, description, start_date, end_date } = req.body;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -789,6 +789,7 @@ router.post('/groups', async (req, res) => {
             name,
             assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
             assigned_course_ids: assigned_course_ids || [],
+            assigned_recording_ids: assigned_recording_ids || [],
             course_id: assigned_course_ids?.[0] || 1, // Bypass NOT NULL constraint until schema is updated
             description,
             start_date: start_date || null,
@@ -818,6 +819,20 @@ router.post('/groups', async (req, res) => {
                 .single());
         }
 
+        // Same fallback, for environments where 1790920000000-recordings_type_and_group_assignment.sql
+        // hasn't been run yet - a group must still be creatable, just without recording assignment.
+        let recordingsNotSaved = false;
+        if (error && (error.code === '42703' || error.code === 'PGRST204') && insertData.assigned_recording_ids?.length) {
+            console.error('⚠️ [GROUPS] assigned_recording_ids column missing - run migration 1790920000000-recordings_type_and_group_assignment.sql. Creating group without recording assignment.');
+            const { assigned_recording_ids: _ari, ...fallbackData } = insertData;
+            recordingsNotSaved = true;
+            ({ data: group, error } = await supabase
+                .from('student_groups')
+                .insert(fallbackData)
+                .select()
+                .single());
+        }
+
         if (error) {
             console.error('❌ [GROUPS] Error creating group:', {
                 message: error.message,
@@ -832,7 +847,7 @@ router.post('/groups', async (req, res) => {
             });
         }
 
-        res.json({ group, ...(datesNotSaved && { datesNotSaved: true }) });
+        res.json({ group, ...(datesNotSaved && { datesNotSaved: true }), ...(recordingsNotSaved && { recordingsNotSaved: true }) });
 
     } catch (error) {
         console.error('Create group error:', error);
@@ -848,7 +863,7 @@ router.put('/groups/:groupId', async (req, res) => {
     try {
         const userId = req.user?.id;
         const { groupId } = req.params;
-        const { name, assigned_content, assigned_course_ids, description, start_date, end_date } = req.body;
+        const { name, assigned_content, assigned_course_ids, assigned_recording_ids, description, start_date, end_date } = req.body;
 
         if (!userId) {
             return res.status(401).json({ error: 'Unauthorized' });
@@ -893,6 +908,7 @@ router.put('/groups/:groupId', async (req, res) => {
             }
         }
         if (assigned_course_ids !== undefined) updateData.assigned_course_ids = assigned_course_ids;
+        if (assigned_recording_ids !== undefined) updateData.assigned_recording_ids = assigned_recording_ids;
         if (start_date !== undefined) updateData.start_date = start_date || null;
         if (end_date !== undefined) {
             updateData.end_date = end_date || null;
@@ -920,8 +936,9 @@ router.put('/groups/:groupId', async (req, res) => {
             // dropped (datesNotSaved) rather than getting a bare "success".
             if (error.code === '42703' || error.code === 'PGRST204') {
                 const hadDates = 'start_date' in updateData || 'end_date' in updateData || 'deadline_processed_at' in updateData;
-                console.error('⚠️ [GROUPS] start_date/end_date columns missing - run migration 1790300000000-group_content_deadline.sql. Updating group without dates.');
-                const { start_date: _sd, end_date: _ed, deadline_processed_at: _dp, ...basicUpdateData } = updateData;
+                const hadRecordings = 'assigned_recording_ids' in updateData;
+                console.error('⚠️ [GROUPS] start_date/end_date/assigned_recording_ids columns missing - run migrations 1790300000000-group_content_deadline.sql and 1790920000000-recordings_type_and_group_assignment.sql. Updating group without them.');
+                const { start_date: _sd, end_date: _ed, deadline_processed_at: _dp, assigned_recording_ids: _ari, ...basicUpdateData } = updateData;
                 const { data: basicUpdated, error: basicError } = await supabase
                     .from('student_groups')
                     .update(basicUpdateData)
@@ -932,7 +949,7 @@ router.put('/groups/:groupId', async (req, res) => {
                 if (basicError) {
                     return res.status(500).json({ error: 'Failed to update group' });
                 }
-                return res.json({ group: basicUpdated, ...(hadDates && { datesNotSaved: true }) });
+                return res.json({ group: basicUpdated, ...(hadDates && { datesNotSaved: true }), ...(hadRecordings && { recordingsNotSaved: true }) });
             }
             return res.status(500).json({ error: 'Failed to update group' });
         }

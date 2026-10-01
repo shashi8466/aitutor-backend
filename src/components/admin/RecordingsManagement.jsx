@@ -7,6 +7,14 @@ import { recordingService, courseService } from '../../services/api';
 const { FiVideo, FiPlus, FiEdit, FiTrash2, FiX, FiSearch, FiEye, FiEyeOff, FiRefreshCw, FiAlertTriangle } = FiIcons;
 
 const CATEGORY_LABEL = { sat: 'SAT', act: 'ACT', ap: 'AP', full_length_test: 'Full-Length Test' };
+// Same curated list as the server's PLATFORM_CATEGORIES (src/server/routes/recordings.js) - kept
+// as a plain literal here rather than fetched, matching the PRD's description of it as a small,
+// occasionally-admin-edited constant rather than live server state.
+const PLATFORM_CATEGORIES = [
+  'Getting Started', 'Account & Profile', 'How to Use the Platform', 'Taking Tests',
+  'Practice Quizzes', 'Test Review', 'Score Predictor', 'Study Plan Agent', 'Weakness Drills',
+  'Custom Prep', 'Leaderboard', 'Calendar', 'Other'
+];
 const STATUS_STYLE = {
   draft: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
   published: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
@@ -38,6 +46,7 @@ const GENERAL_UNIT = 'General';
 const unitOf = (course) => (course?.category && course.category.trim()) || GENERAL_UNIT;
 
 const emptyForm = {
+  recordingType: 'course', // 'course' | 'platform'
   title: '',
   description: '',
   videoUrl: '',
@@ -46,6 +55,8 @@ const emptyForm = {
   unitName: '',
   topicCourseId: '', // the exact topic-level courses.id, when the subject has more than one course
   fullLengthCourseId: '',
+  platformCategory: '',
+  availability: 'groups', // 'groups' | 'all_students' - Platform Recordings only
   recordingDate: '',
   recordingTime: '',
   status: 'draft',
@@ -89,7 +100,10 @@ const RecordingsManagement = () => {
     setLoading(true);
     try {
       const params = {};
-      if (filters.category) params.category = filters.category;
+      // The "platform" tab isn't a `category` value (Platform Recordings have category=null) -
+      // it filters on recording_type instead.
+      if (filters.category === 'platform') params.recordingType = 'platform';
+      else if (filters.category) params.category = filters.category;
       if (filters.status) params.status = filters.status;
       const { data } = await recordingService.getAllAdmin(params);
       setRecordings(data.data || []);
@@ -171,6 +185,7 @@ const RecordingsManagement = () => {
     // under (if any) so the Unit dropdown opens already pointed at the right bucket.
     const course = !isFullLength ? r.course : null;
     setForm({
+      recordingType: r.recording_type === 'platform' ? 'platform' : 'course',
       title: r.title || '',
       description: r.description || '',
       videoUrl: r.video_url || '',
@@ -179,6 +194,8 @@ const RecordingsManagement = () => {
       unitName: course ? unitOf(course) : '',
       topicCourseId: course ? String(r.course_id || '') : '',
       fullLengthCourseId: isFullLength ? String(r.course_id || '') : '',
+      platformCategory: r.platform_category || '',
+      availability: r.availability === 'all_students' ? 'all_students' : 'groups',
       recordingDate: r.recording_date || '',
       recordingTime: r.recording_time || '',
       status: r.status || 'draft',
@@ -191,7 +208,25 @@ const RecordingsManagement = () => {
   };
 
   const handleCategoryChange = (category) => {
-    setForm((prev) => ({ ...emptyForm, title: prev.title, description: prev.description, videoUrl: prev.videoUrl, status: prev.status, recordingDate: prev.recordingDate, recordingTime: prev.recordingTime, visibleToStudents: prev.visibleToStudents, visibleToTutors: prev.visibleToTutors, category }));
+    setForm((prev) => ({ ...emptyForm, recordingType: prev.recordingType, title: prev.title, description: prev.description, videoUrl: prev.videoUrl, status: prev.status, recordingDate: prev.recordingDate, recordingTime: prev.recordingTime, visibleToStudents: prev.visibleToStudents, visibleToTutors: prev.visibleToTutors, category }));
+  };
+
+  // Switching Recording Type resets the fields specific to whichever type is being left behind -
+  // a half-picked course taxonomy or platform category from before the switch should never
+  // silently ride along into a save of the other type.
+  const handleRecordingTypeChange = (recordingType) => {
+    setForm((prev) => ({
+      ...emptyForm,
+      title: prev.title,
+      description: prev.description,
+      videoUrl: prev.videoUrl,
+      status: prev.status,
+      recordingDate: prev.recordingDate,
+      recordingTime: prev.recordingTime,
+      visibleToStudents: prev.visibleToStudents,
+      visibleToTutors: prev.visibleToTutors,
+      recordingType
+    }));
   };
 
   // The single real course this form currently resolves to, if any - a specific topic-level
@@ -205,6 +240,9 @@ const RecordingsManagement = () => {
   // so when the admin leaves it blank this builds a meaningful default from what they DID select,
   // rather than saving a blank/placeholder title.
   const buildAutoTitle = () => {
+    if (form.recordingType === 'platform') {
+      return form.platformCategory ? `${form.platformCategory} — Platform Recording` : 'Platform Recording';
+    }
     if (form.category === 'full_length_test') {
       const course = fullLengthCourses.find((c) => String(c.id) === form.fullLengthCourseId);
       return course ? `${course.name} Recording` : 'Full-Length Test Recording';
@@ -226,34 +264,41 @@ const RecordingsManagement = () => {
       setFormError('Recording Link is required.');
       return;
     }
-
-    let courseId = null;
-    let section = null;
-    if (form.category === 'full_length_test') {
-      courseId = form.fullLengthCourseId ? parseInt(form.fullLengthCourseId, 10) : null;
-    } else {
-      if (form.category === 'sat' && form.subject) {
-        section = form.subject === 'SAT Math' ? 'math' : 'reading_writing';
-      }
-      // Reuse the EXACT courses.id My Courses/Custom Prep already use for this topic - never a
-      // second, recording-only identifier. Single-course subjects (ACT, most AP) resolve as soon
-      // as the subject is picked; multi-course subjects (SAT) need the Unit + Topic drill-down.
-      courseId = resolvedSubjectCourse ? resolvedSubjectCourse.id : null;
+    if (form.recordingType === 'platform' && !form.platformCategory) {
+      setFormError('Platform Category is required.');
+      return;
     }
 
-    const payload = {
+    let payload = {
+      recordingType: form.recordingType,
       title: form.title.trim() || buildAutoTitle(),
       description: form.description.trim() || null,
       videoUrl: form.videoUrl.trim(),
-      category: form.category,
-      section,
-      courseId,
       recordingDate: form.recordingDate || null,
       recordingTime: form.recordingTime || null,
       status: form.status,
       visibleToStudents: form.visibleToStudents,
       visibleToTutors: form.visibleToTutors
     };
+
+    if (form.recordingType === 'platform') {
+      payload = { ...payload, platformCategory: form.platformCategory, availability: form.availability };
+    } else {
+      let courseId = null;
+      let section = null;
+      if (form.category === 'full_length_test') {
+        courseId = form.fullLengthCourseId ? parseInt(form.fullLengthCourseId, 10) : null;
+      } else {
+        if (form.category === 'sat' && form.subject) {
+          section = form.subject === 'SAT Math' ? 'math' : 'reading_writing';
+        }
+        // Reuse the EXACT courses.id My Courses/Custom Prep already use for this topic - never a
+        // second, recording-only identifier. Single-course subjects (ACT, most AP) resolve as
+        // soon as the subject is picked; multi-course subjects (SAT) need the Unit + Topic drill-down.
+        courseId = resolvedSubjectCourse ? resolvedSubjectCourse.id : null;
+      }
+      payload = { ...payload, category: form.category, section, courseId };
+    }
 
     setSaving(true);
     try {
@@ -303,6 +348,7 @@ const RecordingsManagement = () => {
   };
 
   const relatedLabel = (r) => {
+    if (r.recording_type === 'platform') return r.platform_category || '—';
     if (r.category === 'full_length_test') return r.course?.name || '—';
     return r.course?.tutor_type || `All ${CATEGORY_LABEL[r.category]}`;
   };
@@ -311,11 +357,11 @@ const RecordingsManagement = () => {
   // than one course (SAT's per-topic model) - for a single-course subject (ACT, most AP) the
   // course name IS the subject name, so showing it again in this column would just be noise.
   const topicLabel = (r) => {
-    if (r.category === 'full_length_test' || !r.course) return '—';
+    if (r.recording_type === 'platform' || r.category === 'full_length_test' || !r.course) return '—';
     return r.course.name !== r.course.tutor_type ? r.course.name : '—';
   };
 
-  const TABS = ['All', 'sat', 'act', 'ap', 'full_length_test'];
+  const TABS = ['All', 'sat', 'act', 'ap', 'full_length_test', 'platform'];
 
   return (
     <div className="space-y-6">
@@ -344,7 +390,7 @@ const RecordingsManagement = () => {
               onClick={() => { setActiveTab(tab); setFilters((prev) => ({ ...prev, category: tab === 'All' ? '' : tab })); }}
               className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${activeTab === tab ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
             >
-              {tab === 'All' ? 'All' : CATEGORY_LABEL[tab]}
+              {tab === 'All' ? 'All' : tab === 'platform' ? 'Platform' : CATEGORY_LABEL[tab]}
             </button>
           ))}
         </div>
@@ -398,7 +444,7 @@ const RecordingsManagement = () => {
                 filteredRecordings.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white max-w-xs truncate">{r.title}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{CATEGORY_LABEL[r.category] || r.category}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{r.recording_type === 'platform' ? 'Platform' : (CATEGORY_LABEL[r.category] || r.category)}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{relatedLabel(r)}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{topicLabel(r)}</td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{formatDate(r.recording_date) || '—'}</td>
@@ -459,6 +505,45 @@ const RecordingsManagement = () => {
                 </div>
 
                 <div>
+                  <label className={`${LABEL_CLASS} mb-2`}>Recording Type *</label>
+                  <div className="flex items-center gap-5">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input type="radio" name="recordingType" checked={form.recordingType === 'course'} onChange={() => handleRecordingTypeChange('course')} /> Course Recording
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input type="radio" name="recordingType" checked={form.recordingType === 'platform'} onChange={() => handleRecordingTypeChange('platform')} /> Platform Recording
+                    </label>
+                  </div>
+                </div>
+
+                {form.recordingType === 'platform' && (
+                  <>
+                    <div>
+                      <label className={LABEL_CLASS}>Platform Category *</label>
+                      <select value={form.platformCategory} onChange={(e) => setForm({ ...form, platformCategory: e.target.value })} className={FIELD_CLASS}>
+                        <option value="">Select a category</option>
+                        {PLATFORM_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`${LABEL_CLASS} mb-2`}>Availability *</label>
+                      <div className="flex items-center gap-5">
+                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                          <input type="radio" name="availability" checked={form.availability === 'groups'} onChange={() => setForm({ ...form, availability: 'groups' })} /> Assign to Groups
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                          <input type="radio" name="availability" checked={form.availability === 'all_students'} onChange={() => setForm({ ...form, availability: 'all_students' })} /> All Eligible Students
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">"All Eligible Students" skips group assignment entirely - visible to every student/tutor whose plan and role allow Recordings, e.g. a "Welcome to AIPrep365" video.</p>
+                    </div>
+                  </>
+                )}
+
+                {form.recordingType === 'course' && (
+                <div>
                   <label className={`${LABEL_CLASS} mb-2`}>Recording Category *</label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {Object.entries(CATEGORY_LABEL).map(([value, label]) => (
@@ -473,8 +558,9 @@ const RecordingsManagement = () => {
                     ))}
                   </div>
                 </div>
+                )}
 
-                {form.category === 'full_length_test' ? (
+                {form.recordingType === 'course' && (form.category === 'full_length_test' ? (
                   <div>
                     <label className={LABEL_CLASS}>Select Test *</label>
                     <select value={form.fullLengthCourseId} onChange={(e) => setForm({ ...form, fullLengthCourseId: e.target.value })} className={FIELD_CLASS}>
@@ -534,7 +620,7 @@ const RecordingsManagement = () => {
                       </p>
                     )}
                   </>
-                )}
+                ))}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>

@@ -732,6 +732,13 @@ const StudentCourseList = () => {
 
       {/* Subcategory Pills & Sort/View Controls */}
       <div className="flex flex-col xl:flex-row justify-between items-start gap-5 mb-8 w-full">
+        {/* Full-Length Tests has no real subcategories of its own (its "All/SAT/ACT/Linear SAT"
+            pills just re-filtered the SAME enrolled-tests list by test type) - hiding this row
+            for it goes straight to the enrolled tests list instead of an extra filtering step
+            that added no value for a category that's already a single flat list. SAT/ACT/AP keep
+            their pills exactly as before - this only ever hides the row, never the underlying
+            SAT/ACT/Linear SAT course data or its filtering logic. */}
+        {activeCategory !== 'FULL LENGTH TESTS' && (
         <div className="flex flex-wrap items-center gap-2.5 flex-1 w-full">
           <button
             onClick={() => {
@@ -739,8 +746,8 @@ const StudentCourseList = () => {
               setExpandedCategory(null);
             }}
             className={`px-4 h-9 rounded-full text-xs font-bold transition-all border flex items-center justify-center cursor-pointer whitespace-nowrap ${
-              activeSubcategory === 'All' 
-                ? 'bg-[#7C3AED] border-[#7C3AED] text-white shadow-[0_0_15px_rgba(124,58,237,0.35)]' 
+              activeSubcategory === 'All'
+                ? 'bg-[#7C3AED] border-[#7C3AED] text-white shadow-[0_0_15px_rgba(124,58,237,0.35)]'
                 : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
             }`}
           >
@@ -754,8 +761,8 @@ const StudentCourseList = () => {
                 setExpandedCategory(null);
               }}
               className={`px-4 h-9 rounded-full text-xs font-bold transition-all border flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeSubcategory === sub 
-                  ? 'bg-[#181033] border-[#7C3AED] text-white shadow-[0_0_12px_rgba(124,58,237,0.25)]' 
+                activeSubcategory === sub
+                  ? 'bg-[#181033] border-[#7C3AED] text-white shadow-[0_0_12px_rgba(124,58,237,0.25)]'
                   : 'bg-[#131726] border-[#262D42] text-slate-300 hover:border-purple-500/40 hover:bg-[#1A2035] hover:text-white'
               }`}
             >
@@ -764,8 +771,9 @@ const StudentCourseList = () => {
             </button>
           ))}
         </div>
-        
-        <div className="flex items-center gap-3 text-xs font-bold text-gray-400 shrink-0">
+        )}
+
+        <div className="flex items-center gap-3 text-xs font-bold text-gray-400 shrink-0 xl:ml-auto">
            <div className="flex items-center gap-1.5">
              <span className="text-gray-400 hidden sm:inline">Sort by:</span>
              <select

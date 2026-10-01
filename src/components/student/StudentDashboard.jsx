@@ -331,8 +331,9 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
           <p className="text-sm sm:text-base text-gray-500 mt-1">Here is your daily progress overview.</p>
         </div>
 
+        <div className="space-y-6">
         {targetProgress?.reached && (
-          <div className="mb-5 px-4 sm:px-0">
+          <div className="px-4 sm:px-0">
             <div className="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-[#1a1140] via-[#150f38] to-[#0d0a26] p-6 shadow-[0_0_35px_-18px_rgba(139,92,246,0.3)]">
               {/* Ambient glows - kept subtle so the purple stays a soft premium accent, not a
                   strong hover-like glow */}
@@ -469,7 +470,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
         <DashboardNotifications limit={3} studentId={viewStudentId} basePath={isParentView ? '/parent' : '/student'} />
 
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 mx-4 sm:mx-0">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col md:flex-row items-center justify-between gap-6 mx-4 sm:mx-0">
           <div className="flex items-center gap-5 w-full md:w-auto">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500 to-orange-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
               {displayName.charAt(0) || 'S'}
@@ -490,7 +491,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-lg text-gray-800 dark:text-white">Score Performance</h3>
+                <h3 className="font-bold text-lg text-gray-900 dark:text-white">Score Performance</h3>
                 <button onClick={() => navigate(isParentView ? '/parent/test-history' : '/student/test-review')} className="px-4 py-2 bg-sky-600 text-white text-xs font-bold rounded-lg">Review Tests</button>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-8">
@@ -525,7 +526,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
-              <p className="text-xs font-bold text-gray-400 uppercase">Goal Progress</p>
+              <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-6">Goal Progress</h3>
               <p className="text-2xl font-bold text-orange-600 mb-2">{scores.target}</p>
               <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                 <motion.div initial={{ width: 0 }} animate={{ width: progressPercent + "%" }} className="h-full bg-orange-500" />
@@ -535,7 +536,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
-            <h3 className="font-bold text-lg mb-6">Learning Activity</h3>
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-6">Learning Activity</h3>
             <div className="space-y-6">
               <ProgressRow key="row-lessons" icon={FiBook} color="text-sky-500" bg="bg-sky-500" label="Lessons" count={counts.lessons} max={maxCounts.lessons} />
               <ProgressRow key="row-quizzes" icon={FiCheckSquare} color="text-orange-500" bg="bg-orange-500" label="Quizzes" count={counts.tests} max={maxCounts.tests} />
@@ -546,7 +547,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
 
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mx-4 sm:mx-0">
             <div className="flex justify-between items-center mb-6 gap-2">
-              <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-white">Top Scores</h3>
+              <h3 className="font-bold text-lg text-gray-900 dark:text-white">Top Scores</h3>
               <button onClick={() => navigate(isParentView ? '/parent/test-history' : '/student/test-review')} className="text-sky-600 text-xs sm:text-sm font-bold hover:underline whitespace-nowrap flex-shrink-0">View All</button>
             </div>
             {topScores === null ? (
@@ -581,6 +582,7 @@ const StudentDashboard = ({ studentId: viewStudentId = null, student: viewStuden
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

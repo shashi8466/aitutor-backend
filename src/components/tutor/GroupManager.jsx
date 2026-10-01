@@ -6,6 +6,7 @@ import { tutorService } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import GroupAnalytics from './GroupAnalytics';
 import HierarchicalContentSelector from '../common/HierarchicalContentSelector';
+import RecordingAssignmentPicker from '../common/RecordingAssignmentPicker';
 import SuccessToast from '../../common/SuccessToast';
 
 const {
@@ -70,6 +71,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [newGroupName, setNewGroupName] = useState('');
     const [assignedContent, setAssignedContent] = useState({});
     const [assignedCourseIds, setAssignedCourseIds] = useState([]);
+    const [assignedRecordingIds, setAssignedRecordingIds] = useState([]);
     const [groupDescription, setGroupDescription] = useState('');
     const [groupStartDate, setGroupStartDate] = useState('');
     const [groupStartTime, setGroupStartTime] = useState('');
@@ -81,6 +83,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
     const [editGroupName, setEditGroupName] = useState('');
     const [editAssignedContent, setEditAssignedContent] = useState({});
     const [editAssignedCourseIds, setEditAssignedCourseIds] = useState([]);
+    const [editAssignedRecordingIds, setEditAssignedRecordingIds] = useState([]);
     const [editGroupDescription, setEditGroupDescription] = useState('');
     const [editGroupStartDate, setEditGroupStartDate] = useState('');
     const [editGroupStartTime, setEditGroupStartTime] = useState('');
@@ -154,6 +157,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                 name: newGroupName,
                 assigned_content: assignedContent,
                 assigned_course_ids: assignedCourseIds,
+                assigned_recording_ids: assignedRecordingIds,
                 description: groupDescription,
                 start_date: combineDateTime(groupStartDate, groupStartTime, false),
                 end_date: combineDateTime(groupEndDate, groupEndTime, true)
@@ -167,6 +171,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
             setNewGroupName('');
             setAssignedContent({});
             setAssignedCourseIds([]);
+            setAssignedRecordingIds([]);
             setGroupDescription('');
             setGroupStartDate('');
             setGroupStartTime('');
@@ -289,6 +294,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
         setEditGroupName(group.name);
         setEditAssignedContent(group.assigned_content || {});
         setEditAssignedCourseIds(group.assigned_course_ids || []);
+        setEditAssignedRecordingIds(group.assigned_recording_ids || []);
         setEditGroupDescription(group.description || '');
         const startParts = splitDateTime(group.start_date, false);
         const endParts = splitDateTime(group.end_date, true);
@@ -320,6 +326,7 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                 name: editGroupName,
                 assigned_content: editAssignedContent,
                 assigned_course_ids: editAssignedCourseIds,
+                assigned_recording_ids: editAssignedRecordingIds,
                 description: editGroupDescription,
                 start_date: combineDateTime(editGroupStartDate, editGroupStartTime, false),
                 end_date: combineDateTime(editGroupEndDate, editGroupEndTime, true),
@@ -702,6 +709,10 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                             }}
                                         />
                                     </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Recordings</label>
+                                        <RecordingAssignmentPicker selectedIds={assignedRecordingIds} onChange={setAssignedRecordingIds} />
+                                    </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Content Start Date (Optional)</label>
@@ -853,6 +864,10 @@ const GroupManager = ({ dashboardData, isParentLoading }) => {
                                                     setEditAssignedCourseIds(assigned_course_ids);
                                                 }}
                                             />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Recordings</label>
+                                            <RecordingAssignmentPicker selectedIds={editAssignedRecordingIds} onChange={setEditAssignedRecordingIds} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>

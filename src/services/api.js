@@ -1414,6 +1414,8 @@ export const recordingService = {
   getAll: async (params = {}) => axios.get('/api/recordings', { params }),
   // Admin management - every status, own filters.
   getAllAdmin: async (params = {}) => axios.get('/api/recordings/admin', { params }),
+  // Admin/Tutor group-assignment picker - flat list of every Published recording.
+  getAssignable: async (params = {}) => axios.get('/api/recordings/assignable', { params }),
   create: async (data) => axios.post('/api/recordings', data),
   update: async (id, data) => axios.patch(`/api/recordings/${id}`, data),
   remove: async (id) => axios.delete(`/api/recordings/${id}`)

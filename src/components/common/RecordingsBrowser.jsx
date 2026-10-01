@@ -13,7 +13,13 @@ const CATEGORY_CARDS = [
   { id: 'FULL LENGTH TESTS', category: 'full_length_test', title: 'FULL LENGTH TESTS', subtitle: 'Real Exam Simulation', icon: FiIcons.FiClipboard, bg: 'bg-[#0F172A]', border: 'border-blue-500', text: 'text-blue-300' },
   { id: 'SAT', category: 'sat', title: 'SAT', subtitle: 'Digital SAT Prep', icon: FiIcons.FiBookOpen, bg: 'bg-[#181033]', border: 'border-[#7C3AED]', text: 'text-[#c4b5fd]' },
   { id: 'ACT', category: 'act', title: 'ACT', subtitle: 'ACT Prep', icon: FiIcons.FiActivity, bg: 'bg-[#064E3B]', border: 'border-green-500', text: 'text-green-300' },
-  { id: 'AP', category: 'ap', title: 'AP', subtitle: 'AP Courses', icon: FiIcons.FiGrid, bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' }
+  { id: 'AP', category: 'ap', title: 'AP', subtitle: 'AP Courses', icon: FiIcons.FiGrid, bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' },
+  // Not a `category` at all (that column is null on platform rows) - this card's own filter logic
+  // switches on recording_type === 'platform' instead, everywhere `.category === activeCategoryKey`
+  // would normally be used.
+  // 'id' stays 'PLATFORM' (internal key driving isPlatformTab/filtering below) - only the
+  // student/tutor-facing `title` changes per the rename request.
+  { id: 'PLATFORM', category: 'platform', title: 'PREP365 TUTORIALS', subtitle: 'Tutorials & Help', icon: FiIcons.FiHelpCircle, bg: 'bg-[#0F2A2E]', border: 'border-teal-500', text: 'text-teal-300' }
 ];
 
 // Same fixed subcategory pill lists as My Courses' own COURSE_CATEGORIES - shown regardless of
@@ -111,6 +117,11 @@ const RecordingCourseCard = ({ index, title, tutorType, recordings, onWatch }) =
                     {r.recording_time && <span className="flex items-center gap-1"><SafeIcon icon={FiClock} className="w-2.5 h-2.5" /> {formatTime(r.recording_time)}</span>}
                   </p>
                 )}
+                {r.deadline && (
+                  <p className="text-[10px] text-amber-400 flex items-center gap-1 mt-0.5">
+                    <SafeIcon icon={FiClock} className="w-2.5 h-2.5" /> Deadline: {formatDate(r.deadline)}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => onWatch(r)}
@@ -173,20 +184,33 @@ const RecordingsBrowser = () => {
   };
 
   const activeCategoryKey = CATEGORY_CARDS.find((c) => c.id === activeCategory)?.category;
+  const activeCategoryTitle = CATEGORY_CARDS.find((c) => c.id === activeCategory)?.title || activeCategory;
+  const isPlatformTab = activeCategory === 'PLATFORM';
 
   const categoryRecordings = useMemo(
-    () => recordings.filter((r) => r.category === activeCategoryKey),
-    [recordings, activeCategoryKey]
+    () => recordings.filter((r) => (isPlatformTab ? r.recording_type === 'platform' : r.category === activeCategoryKey)),
+    [recordings, activeCategoryKey, isPlatformTab]
   );
+
+  // Platform Recordings don't have a fixed subcategory list (platform_category is an admin-curated,
+  // occasionally-changing constant) - pills are computed from whatever categories are actually
+  // present in this user's authorized recordings, rather than a hardcoded list that could show
+  // empty pills.
+  const platformSubcategoryOptions = useMemo(() => {
+    if (!isPlatformTab) return [];
+    const set = new Set(categoryRecordings.map((r) => r.platform_category).filter(Boolean));
+    return Array.from(set).sort();
+  }, [categoryRecordings, isPlatformTab]);
 
   const subcategoryFiltered = useMemo(() => {
     if (activeSubcategory === 'All') return categoryRecordings;
+    if (isPlatformTab) return categoryRecordings.filter((r) => r.platform_category === activeSubcategory);
     if (activeCategory === 'FULL LENGTH TESTS') {
       const tutorTypeBySub = { SAT: 'Full-Length SAT', ACT: 'Full-Length ACT', 'Linear SAT': 'Linear SAT' };
       return categoryRecordings.filter((r) => r.course?.tutor_type === tutorTypeBySub[activeSubcategory]);
     }
     return categoryRecordings.filter((r) => r.course?.tutor_type === activeSubcategory);
-  }, [categoryRecordings, activeCategory, activeSubcategory]);
+  }, [categoryRecordings, activeCategory, activeSubcategory, isPlatformTab]);
 
   const searched = useMemo(() => {
     const term = filter.trim().toLowerCase();
@@ -195,7 +219,8 @@ const RecordingsBrowser = () => {
       (r.title || '').toLowerCase().includes(term) ||
       (r.course?.name || '').toLowerCase().includes(term) ||
       (r.course?.category || '').toLowerCase().includes(term) ||
-      (r.course?.tutor_type || '').toLowerCase().includes(term)
+      (r.course?.tutor_type || '').toLowerCase().includes(term) ||
+      (r.platform_category || '').toLowerCase().includes(term)
     );
   }, [subcategoryFiltered, filter]);
 
@@ -213,6 +238,20 @@ const RecordingsBrowser = () => {
   // is one card; a SAT topic is one card, nested under its real Unit heading. General (course-less)
   // recordings get their own small section so nothing published is ever lost from view.
   const { unitGroups, flatCards, generalRecordings } = useMemo(() => {
+    if (isPlatformTab) {
+      // Group by platform_category into the SAME { course, recordings } shape the ACT/AP flatCard
+      // branch already uses (course.id/name/tutor_type) - a synthetic "course" so the existing
+      // RecordingCourseCard rendering below needs no Platform-specific branch of its own.
+      const byCategory = new Map();
+      sorted.forEach((r) => {
+        const key = r.platform_category || 'Other';
+        if (!byCategory.has(key)) byCategory.set(key, { course: { id: `platform-${key}`, name: key, tutor_type: 'Platform' }, recordings: [] });
+        byCategory.get(key).recordings.push(r);
+      });
+      const cards = Array.from(byCategory.values()).sort((a, b) => a.course.name.localeCompare(b.course.name));
+      return { unitGroups: null, flatCards: cards, generalRecordings: [] };
+    }
+
     const courseMap = new Map(); // course.id -> { course, recordings }
     const general = [];
     sorted.forEach((r) => {
@@ -243,7 +282,7 @@ const RecordingsBrowser = () => {
     // ACT/AP: one course per subject in this data - a flat grid, same as My Courses shows for ACT.
     const cards = Array.from(courseMap.values()).sort((a, b) => (a.course.name || '').localeCompare(b.course.name || ''));
     return { unitGroups: null, flatCards: cards, generalRecordings: general };
-  }, [sorted, activeCategory]);
+  }, [sorted, activeCategory, isPlatformTab]);
 
   const hasAnyContent = (unitGroups?.length || 0) > 0 || (flatCards?.length || 0) > 0 || generalRecordings.length > 0;
 
@@ -288,7 +327,9 @@ const RecordingsBrowser = () => {
       {/* Category cards - same 4, same colors, same selected-state glow as My Courses */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         {CATEGORY_CARDS.map((cat) => {
-          const count = recordings.filter((r) => r.category === cat.category).length;
+          const count = cat.id === 'PLATFORM'
+            ? recordings.filter((r) => r.recording_type === 'platform').length
+            : recordings.filter((r) => r.category === cat.category).length;
           return (
             <button
               key={cat.id}
@@ -315,6 +356,11 @@ const RecordingsBrowser = () => {
 
       {/* Subcategory pills + Sort/View controls */}
       <div className="flex flex-col xl:flex-row justify-between items-start gap-5 w-full">
+        {/* Same as My Courses (StudentCourseList.jsx) - Full-Length Tests has no real subcategory
+            of its own (the All/SAT/ACT/Linear SAT pills just re-filtered the SAME enrolled-tests
+            list by test type), so hiding this row goes straight to the Full-Length Tests list
+            instead of an extra filtering step. SAT/ACT/AP/Platform keep their pills unchanged. */}
+        {activeCategory !== 'FULL LENGTH TESTS' && (
         <div className="flex flex-wrap items-center gap-2.5 flex-1 w-full">
           <button
             onClick={() => setActiveSubcategory('All')}
@@ -324,7 +370,7 @@ const RecordingsBrowser = () => {
           >
             All
           </button>
-          {(SUBCATEGORY_OPTIONS[activeCategory] || []).map((sub) => (
+          {(isPlatformTab ? platformSubcategoryOptions : (SUBCATEGORY_OPTIONS[activeCategory] || [])).map((sub) => (
             <button
               key={sub}
               onClick={() => setActiveSubcategory(sub)}
@@ -337,8 +383,9 @@ const RecordingsBrowser = () => {
             </button>
           ))}
         </div>
+        )}
 
-        <div className="flex items-center gap-3 text-xs font-bold text-gray-400 shrink-0">
+        <div className="flex items-center gap-3 text-xs font-bold text-gray-400 shrink-0 xl:ml-auto">
           <div className="flex items-center gap-1.5">
             <span className="text-gray-400 hidden sm:inline">Sort by:</span>
             <select
@@ -364,7 +411,7 @@ const RecordingsBrowser = () => {
       {/* Content */}
       <section>
         <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-[#1C202B] pb-3">
-          <SafeIcon icon={FiCheckCircle} className="text-green-500" /> {activeCategory}
+          <SafeIcon icon={FiCheckCircle} className="text-green-500" /> {activeCategoryTitle}
         </h2>
 
         {!hasAnyContent ? (

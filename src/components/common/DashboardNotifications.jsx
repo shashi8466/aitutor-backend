@@ -93,7 +93,7 @@ const DashboardNotifications = ({ limit = 3, studentId = null, basePath = '/stud
     const displayedNotifications = notifications.slice(0, limit);
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-5 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center">

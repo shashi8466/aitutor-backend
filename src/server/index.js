@@ -4,7 +4,10 @@ import dotenv from 'dotenv';
 // 1. Load environment variables FIRST
 dotenv.config();
 
-// 1b. Validate critical environment variables on startup
+// 1b. Validate required environment variables on startup. Deliberately avoids the word
+// "critical" in these log lines - log platforms (Render included) commonly auto-flag any line
+// containing it as an error/warning for severity-coloring purposes, which made this routine,
+// fully-successful startup check show up red in the dashboard even though nothing was wrong.
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 console.log('🔧 ENVIRONMENT VALIDATION');
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -16,27 +19,27 @@ const requiredEnvVars = {
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.EMAIL_USER
 };
 
-let allCriticalVarsPresent = true;
+let allRequiredVarsPresent = true;
 
 Object.entries(requiredEnvVars).forEach(([key, value]) => {
   const isPresent = !!value;
   const status = isPresent ? '✅' : '❌';
-  const displayValue = isPresent 
+  const displayValue = isPresent
     ? (key.includes('KEY') ? `${value.substring(0, 8)}...` : value)
     : 'MISSING';
   console.log(`${status} ${key}: ${displayValue}`);
-  
+
   if (!isPresent && ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'BREVO_API_KEY'].includes(key)) {
-    allCriticalVarsPresent = false;
+    allRequiredVarsPresent = false;
   }
 });
 
-if (!allCriticalVarsPresent) {
-  console.log('\n⚠️  WARNING: Critical environment variables are missing!');
+if (!allRequiredVarsPresent) {
+  console.log('\n⚠️  Some required environment variables are missing!');
   console.log('   Email sending and database operations will fail.');
   console.log('   Check your .env file or deployment platform settings.\n');
 } else {
-  console.log('\n✅ All critical environment variables are present\n');
+  console.log('\n✅ All required environment variables are present\n');
 }
 
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');

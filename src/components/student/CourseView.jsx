@@ -908,6 +908,14 @@ const CourseView = () => {
         
         {course?.is_adaptive ? null : (
           <div className="mb-10 text-center px-4 sm:px-0 flex flex-col items-center">
+            <div className="w-full mb-4 flex justify-start">
+              <Link
+                to={isTutorContext ? '/tutor/course-content' : '/student/courses'}
+                className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-900 bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm hover:shadow transition-all"
+              >
+                <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> {isTutorContext ? 'Back to Dashboard' : 'Back to Courses'}
+              </Link>
+            </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 tracking-tight">
               <span className={isACTFullLengthCourse(course) ? "text-slate-900 uppercase" : isSequentialCourse ? "text-indigo-600" : "text-[#282C4D]"}>
                 {isACTFullLengthCourse(course) ? "ACT FULL-LENGTH TEST" : course.name}
@@ -1442,8 +1450,8 @@ const CourseView = () => {
         )}
 
         <div className="mt-12 text-center">
-          <Link to={isTutorContext ? '/tutor/course-content' : '/student'} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors">
-            <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> Back to Dashboard
+          <Link to={isTutorContext ? '/tutor/course-content' : '/student/courses'} className="text-gray-500 hover:text-black font-bold flex items-center justify-center gap-2 transition-colors">
+            <SafeIcon icon={FiArrowLeft} className="w-4 h-4" /> {isTutorContext ? 'Back to Dashboard' : 'Back to Courses'}
           </Link>
         </div>
       </div>
