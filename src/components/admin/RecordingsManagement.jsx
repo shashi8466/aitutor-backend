@@ -475,7 +475,7 @@ const RecordingsManagement = () => {
       <AnimatePresence>
         {showForm && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]" onClick={() => setShowForm(false)}>
-            <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.96, opacity: 0 }} className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-[min(800px,90vw)] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{editingId ? 'Edit Recording' : 'Add Recording'}</h3>
                 <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><SafeIcon icon={FiX} className="w-5 h-5" /></button>
@@ -508,10 +508,11 @@ const RecordingsManagement = () => {
                   <label className={`${LABEL_CLASS} mb-2`}>Recording Type *</label>
                   <div className="flex items-center gap-5">
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input type="radio" name="recordingType" checked={form.recordingType === 'course'} onChange={() => handleRecordingTypeChange('course')} /> Course Recording
+                      <input type="radio" name="recordingType" className="w-4 h-4 accent-blue-600" checked={form.recordingType === 'course'} onChange={() => handleRecordingTypeChange('course')} /> Course Recording
                     </label>
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input type="radio" name="recordingType" checked={form.recordingType === 'platform'} onChange={() => handleRecordingTypeChange('platform')} /> Platform Recording
+                      {/* Internal value/state stays 'platform' - this is a display-label rename only. */}
+                      <input type="radio" name="recordingType" className="w-4 h-4 accent-blue-600" checked={form.recordingType === 'platform'} onChange={() => handleRecordingTypeChange('platform')} /> Prep 365 Tutorials
                     </label>
                   </div>
                 </div>
