@@ -10,6 +10,16 @@ import AnswerKeyViewerModal from '../common/AnswerKeyViewerModal';
 
 const { FiBook, FiPlay, FiLoader, FiSearch, FiPlusCircle, FiCheckCircle } = FiIcons;
 
+// Keys match category_visibility_settings' 'my_courses' context exactly (and this component's own
+// activeCategory values) - a category missing from the loaded visibility map defaults to visible,
+// matching the DB's own "true unless explicitly turned off" default.
+const CATEGORY_CARDS = [
+  { id: 'FULL LENGTH TESTS', title: 'FULL LENGTH TESTS', subtitle: 'Real Exam Simulation', icon: FiIcons.FiClipboard, bg: 'bg-[#0F172A]', border: 'border-blue-500', text: 'text-blue-300' },
+  { id: 'SAT', title: 'SAT', subtitle: 'Digital SAT Prep', icon: FiIcons.FiBookOpen, bg: 'bg-[#181033]', border: 'border-[#7C3AED]', text: 'text-[#c4b5fd]' },
+  { id: 'ACT', title: 'ACT', subtitle: 'ACT Prep', icon: FiIcons.FiActivity, bg: 'bg-[#064E3B]', border: 'border-green-500', text: 'text-green-300' },
+  { id: 'AP', title: 'AP', subtitle: 'AP Courses', icon: FiIcons.FiGrid, bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' }
+];
+
 const StudentCourseList = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -23,6 +33,9 @@ const StudentCourseList = () => {
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
   const [expandedCategory, setExpandedCategory] = useState(null);
+  // Admin > Plan Management > Course & Recording Visibility - a category hidden here is removed
+  // from the UI entirely (no card, no "disabled" placeholder), independent of plan/enrollment.
+  const [categoryVisibility, setCategoryVisibility] = useState(null); // null = not loaded yet
   const [planAccess, setPlanAccess] = useState([]);
   const [topicCourseIds, setTopicCourseIds] = useState(new Set());
   const [groupAccessIds, setGroupAccessIds] = useState(new Set());
@@ -182,6 +195,17 @@ const StudentCourseList = () => {
     if (user) loadData();
   }, [user]);
 
+  // If the currently-selected category gets hidden (its card is filtered out above), fall back
+  // to the first category that's still visible rather than showing content for a card that's no
+  // longer on screen.
+  useEffect(() => {
+    if (!categoryVisibility) return;
+    if (categoryVisibility[activeCategory] === false) {
+      const firstVisible = CATEGORY_CARDS.find(cat => categoryVisibility[cat.id] !== false);
+      if (firstVisible) setActiveCategory(firstVisible.id);
+    }
+  }, [categoryVisibility]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -200,7 +224,7 @@ const StudentCourseList = () => {
       // gradingService.getAllMyScores doesn't depend on any of the other four calls either -
       // it used to run in its own separate `await` after this batch resolved, stacking a full
       // extra round-trip onto the critical path for no reason. Fold it into the same batch.
-      const [coursesData, enrollmentsData, accessData, groupAccessData, scoresRes] = await Promise.all([
+      const [coursesData, enrollmentsData, accessData, groupAccessData, scoresRes, visibilityRes] = await Promise.all([
         safeFetch(courseService.getAll()),
         safeFetch(enrollmentService.getStudentEnrollments(user.id)),
         safeFetch(planService.getContentAccess(user?.plan_type || 'free')),
@@ -208,7 +232,8 @@ const StudentCourseList = () => {
         gradingService.getAllMyScores(user.id).catch((e) => {
           console.warn("API scores fetch warning:", e.message);
           return null;
-        })
+        }),
+        planService.getCategoryVisibility().catch(() => ({ data: { data: { my_courses: {} } } }))
       ]);
 
       setAllCourses(coursesData);
@@ -216,6 +241,7 @@ const StudentCourseList = () => {
       const ids = new Set(enrollmentsData.map(e => e.course_id));
       setEnrolledIds(ids);
       setGroupAccessIds(new Set(groupAccessData));
+      setCategoryVisibility(visibilityRes.data?.data?.my_courses || {});
 
       if (coursesData.length > 0) {
         const keysData = await safeFetch(uploadService.getAll({ courseIds: coursesData.map(c => c.id), category: 'answer_key' }));
@@ -368,7 +394,12 @@ const StudentCourseList = () => {
     if (mainCat === 'FULL LENGTH TESTs' || c.is_adaptive || (c.tutor_type || '').toUpperCase() === 'LINEAR SAT') {
       mainCat = 'FULL LENGTH TESTS';
     }
-    
+
+    // Admin > Plan Management > Course & Recording Visibility - a globally-hidden category never
+    // shows here, regardless of which tab is active (defense in depth alongside the card itself
+    // being removed above and activeCategory auto-switching away from a hidden category).
+    if (categoryVisibility?.[mainCat] === false) return false;
+
     if (activeCategory !== mainCat) return false;
 
     // 4. Subcategory Filter
@@ -400,7 +431,7 @@ const StudentCourseList = () => {
       courseCat.includes(searchTerm) ||
       courseTutor.includes(searchTerm)
     );
-  }), [allCourses, planAccess, topicCourseIds, groupAccessIds, user?.plan_type, activeCategory, activeSubcategory, filter]);
+  }), [allCourses, planAccess, topicCourseIds, groupAccessIds, user?.plan_type, activeCategory, activeSubcategory, filter, categoryVisibility]);
 
   // Full-Length Tests are a numbered series (Test 1, Test 2, ... Test 11) - the LAST number in the
   // course name is its position in that series. No dedicated test_number column exists on courses,
@@ -695,12 +726,7 @@ const StudentCourseList = () => {
 
       {/* Top Category Buttons (Compact & Balanced) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
-        {[
-           { id: 'FULL LENGTH TESTS', title: 'FULL LENGTH TESTS', subtitle: 'Real Exam Simulation', icon: FiIcons.FiClipboard, bg: 'bg-[#0F172A]', border: 'border-blue-500', text: 'text-blue-300' },
-           { id: 'SAT', title: 'SAT', subtitle: 'Digital SAT Prep', icon: FiIcons.FiBookOpen, bg: 'bg-[#181033]', border: 'border-[#7C3AED]', text: 'text-[#c4b5fd]' },
-           { id: 'ACT', title: 'ACT', subtitle: 'ACT Prep', icon: FiIcons.FiActivity, bg: 'bg-[#064E3B]', border: 'border-green-500', text: 'text-green-300' },
-           { id: 'AP', title: 'AP', subtitle: 'AP Courses', icon: FiIcons.FiGrid, bg: 'bg-[#332210]', border: 'border-orange-500', text: 'text-orange-300' }
-        ].map(cat => (
+        {CATEGORY_CARDS.filter(cat => categoryVisibility?.[cat.id] !== false).map(cat => (
           <button
             key={cat.id}
             disabled={cat.id === 'ACT' && user?.email !== 'ssky57771@gmail.com' && user?.email !== 'admink338@gmail.com'}

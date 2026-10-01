@@ -1,3 +1,5 @@
+import { assertCategoryVisible } from './categoryVisibility.js';
+
 // Defense-in-depth check for the grading routes, which write via a
 // service-role client that bypasses RLS entirely. Calls the same
 // is_course_accessible() Postgres function the RLS policies use, so there is
@@ -14,4 +16,8 @@ export async function assertCourseAccessible(supabaseAdmin, userId, courseId) {
   if (!data) {
     throw Object.assign(new Error('You do not have access to this course.'), { statusCode: 403 });
   }
+
+  // Admin > Plan Management > Course & Recording Visibility - a SEPARATE global gate on top of
+  // the student-specific access check above.
+  await assertCategoryVisible(supabaseAdmin, courseId);
 }

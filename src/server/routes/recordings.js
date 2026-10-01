@@ -43,6 +43,26 @@ const isRecordingsEnabledForPlan = async (planType) => {
   return data.feature_recordings !== false;
 };
 
+// Admin > Plan Management > Course & Recording Visibility - a SEPARATE global layer from the
+// per-plan feature_recordings toggle above. That controls whether Recordings is available to a
+// plan at all; this controls which categories ('sat'|'act'|'ap'|'full_length_test'|'platform')
+// are visible within it, platform-wide, regardless of plan/group assignment. Both must pass.
+const getRecordingCategoryVisibility = async () => {
+  const { data, error } = await supabaseAdmin
+    .from('category_visibility_settings')
+    .select('category, enabled')
+    .eq('context', 'recordings');
+  if (error) {
+    // Same "migration not applied yet" class of gap as everywhere else in this file - fail OPEN
+    // (every category visible) rather than hiding every recording site-wide over a missing table.
+    console.error('[Recordings] Failed to read category_visibility_settings - has that migration been run?', error.message);
+    return {};
+  }
+  const map = {};
+  (data || []).forEach((row) => { map[row.category] = row.enabled; });
+  return map;
+};
+
 const requireAdmin = async (req, res) => {
   if (!req.user) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -515,6 +535,16 @@ router.get('/', async (req, res) => {
     if (error) throw error;
 
     let rows = data || [];
+
+    // Course & Recording Visibility applies to real students AND tutors - admin's SWITCH VIEW
+    // preview still sees everything Published, same exemption the group-gating below already has.
+    if (role === 'student' || role === 'tutor') {
+      const categoryVisibility = await getRecordingCategoryVisibility();
+      rows = rows.filter(r => {
+        const key = r.recording_type === 'platform' ? 'platform' : r.category;
+        return categoryVisibility[key] !== false;
+      });
+    }
 
     // Group-gating applies to real students only - admin's SWITCH VIEW preview and tutors both
     // continue to see everything Published for their role, unaffected by group assignment.

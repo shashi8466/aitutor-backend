@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
-import { recordingService } from '../../services/api';
+import { recordingService, planService } from '../../services/api';
 
 const { FiVideo, FiPlay, FiSearch, FiClock, FiCalendar, FiX, FiLoader, FiCheckCircle } = FiIcons;
 
@@ -166,9 +166,16 @@ const RecordingsBrowser = () => {
   const [sortBy, setSortBy] = useState('recent');
   const [viewMode, setViewMode] = useState('grid');
   const [watching, setWatching] = useState(null);
+  // Admin > Plan Management > Course & Recording Visibility - a category hidden here loses its
+  // whole tab/card, not just an emptied-out list (independent of whether any recordings in it
+  // happen to also be hidden by the backend's own filtering - see recordings.js).
+  const [categoryVisibility, setCategoryVisibility] = useState(null); // null = not loaded yet
 
   useEffect(() => {
     loadRecordings();
+    planService.getCategoryVisibility()
+      .then((res) => setCategoryVisibility(res.data?.data?.recordings || {}))
+      .catch(() => setCategoryVisibility({}));
   }, []);
 
   const loadRecordings = async () => {
@@ -182,6 +189,16 @@ const RecordingsBrowser = () => {
       setLoading(false);
     }
   };
+
+  // If the active tab gets hidden, fall back to the first category card still visible.
+  useEffect(() => {
+    if (!categoryVisibility) return;
+    const activeCard = CATEGORY_CARDS.find((c) => c.id === activeCategory);
+    if (activeCard && categoryVisibility[activeCard.category] === false) {
+      const firstVisible = CATEGORY_CARDS.find((c) => categoryVisibility[c.category] !== false);
+      if (firstVisible) setActiveCategory(firstVisible.id);
+    }
+  }, [categoryVisibility]);
 
   const activeCategoryKey = CATEGORY_CARDS.find((c) => c.id === activeCategory)?.category;
   const activeCategoryTitle = CATEGORY_CARDS.find((c) => c.id === activeCategory)?.title || activeCategory;
@@ -326,7 +343,7 @@ const RecordingsBrowser = () => {
 
       {/* Category cards - same 4, same colors, same selected-state glow as My Courses */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {CATEGORY_CARDS.map((cat) => {
+        {CATEGORY_CARDS.filter((cat) => categoryVisibility?.[cat.category] !== false).map((cat) => {
           const count = cat.id === 'PLATFORM'
             ? recordings.filter((r) => r.recording_type === 'platform').length
             : recordings.filter((r) => r.category === cat.category).length;

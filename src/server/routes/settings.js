@@ -205,4 +205,55 @@ router.put('/advanced', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/settings/category-visibility — Any authenticated user (students/tutors need this to
+// filter their own My Courses / Recordings UI; admin needs it to render the settings screen).
+// Returns { my_courses: { 'SAT': true, ... }, recordings: { 'sat': true, ... } } - every row
+// keyed by its own category, defaulting a category to visible (true) if no row exists for it yet
+// (matches the "ON unless explicitly turned off" default every other row was seeded with).
+router.get('/category-visibility', async (req, res) => {
+  try {
+    const user = req.user || await getUserFromRequest(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data, error } = await supabase.from('category_visibility_settings').select('context, category, enabled');
+    if (error) throw error;
+
+    const byContext = { my_courses: {}, recordings: {} };
+    (data || []).forEach((row) => {
+      if (!byContext[row.context]) byContext[row.context] = {};
+      byContext[row.context][row.category] = row.enabled;
+    });
+    res.json({ success: true, data: byContext });
+  } catch (err) {
+    // Fail OPEN (every category visible) rather than hiding every course/recording site-wide if
+    // this table isn't migrated onto a given environment yet - this is a visibility REFINEMENT,
+    // never the primary access gate, so a read failure here must never look like "nothing exists".
+    console.error('❌ [SETTINGS] Error in GET /category-visibility - has the category_visibility_settings migration been run?', err.message);
+    res.json({ success: true, data: { my_courses: {}, recordings: {} } });
+  }
+});
+
+// PUT /api/settings/category-visibility — Admin only. body: { my_courses: {category: bool},
+// recordings: {category: bool} }. Upserts exactly the categories provided - a category omitted
+// from the body is left untouched, so the UI can save without needing to know about every
+// possible category key (keeps this data-driven/extensible per the original requirement).
+router.put('/category-visibility', requireAdmin, async (req, res) => {
+  try {
+    const { my_courses: myCourses, recordings } = req.body || {};
+    const rows = [];
+    Object.entries(myCourses || {}).forEach(([category, enabled]) => rows.push({ context: 'my_courses', category, enabled: !!enabled, updated_at: new Date().toISOString() }));
+    Object.entries(recordings || {}).forEach(([category, enabled]) => rows.push({ context: 'recordings', category, enabled: !!enabled, updated_at: new Date().toISOString() }));
+
+    if (rows.length === 0) return res.status(400).json({ error: 'No categories provided.' });
+
+    const { error } = await supabase.from('category_visibility_settings').upsert(rows, { onConflict: 'context,category' });
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ [SETTINGS] Error in PUT /category-visibility:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

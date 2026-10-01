@@ -1155,6 +1155,16 @@ export const planService = {
   removeContentAccess: async (id) => {
     return await supabase.from('plan_content_access').delete().eq('id', id);
   },
+  // Global Course & Recording category visibility - separate from the per-plan feature toggles
+  // above. Goes through the Express API (not a direct Supabase call like the rest of this
+  // object) since the GET is readable by any authenticated role and the PUT needs admin
+  // enforcement server-side, not just RLS.
+  getCategoryVisibility: async () => {
+    return axios.get('/api/settings/category-visibility');
+  },
+  updateCategoryVisibility: async ({ myCourses, recordings }) => {
+    return axios.put('/api/settings/category-visibility', { my_courses: myCourses, recordings });
+  },
   requestUpgrade: async (userId) => {
     try {
       // Set plan_status to pending_upgrade and payment_status to paid

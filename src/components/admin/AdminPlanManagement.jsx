@@ -5,7 +5,26 @@ import SafeIcon from '../../common/SafeIcon';
 import { planService, authService, courseService, questionService } from '../../services/api';
 import supabase from '../../supabase/supabase';
 
-const { FiShield, FiUsers, FiSettings, FiCheck, FiX, FiLock, FiUnlock, FiPlus, FiTrash2, FiSave, FiSearch, FiLayers, FiZap, FiBookOpen, FiCheckCircle, FiClock } = FiIcons;
+const { FiShield, FiUsers, FiSettings, FiCheck, FiX, FiLock, FiUnlock, FiPlus, FiTrash2, FiSave, FiSearch, FiLayers, FiZap, FiBookOpen, FiCheckCircle, FiClock, FiEye } = FiIcons;
+
+// Canonical category keys for the global Course & Recording Visibility section below - these
+// match My Courses' own activeCategory values (StudentCourseList.jsx) and Recordings' own
+// category/recording_type values (recordings.js) exactly, since both sides filter by these same
+// strings. 'platform' (Recordings-only) is Prep365 Tutorials. Kept as plain constants (not a
+// hardcoded switch/JSX list per category) - any additional category row added directly in
+// category_visibility_settings later still renders automatically, see myCoursesCategories/
+// recordingsCategories below which merge these defaults with whatever keys the API returns.
+const MY_COURSES_CATEGORY_DEFAULTS = ['FULL LENGTH TESTS', 'SAT', 'ACT', 'AP'];
+const RECORDINGS_CATEGORY_DEFAULTS = ['full_length_test', 'sat', 'act', 'ap', 'platform'];
+const RECORDINGS_CATEGORY_LABEL = { full_length_test: 'Full-Length Tests', sat: 'SAT', act: 'ACT', ap: 'AP', platform: 'Prep365 Tutorials' };
+// The 4 categories shared by BOTH My Courses and Recordings - one table row each, with a toggle
+// in both columns. Prep365 Tutorials (Recordings-only) is rendered as its own row separately.
+const SHARED_CATEGORY_ROWS = [
+  { label: 'Full-Length Tests', myCoursesKey: 'FULL LENGTH TESTS', recordingsKey: 'full_length_test' },
+  { label: 'SAT', myCoursesKey: 'SAT', recordingsKey: 'sat' },
+  { label: 'ACT', myCoursesKey: 'ACT', recordingsKey: 'act' },
+  { label: 'AP', myCoursesKey: 'AP', recordingsKey: 'ap' }
+];
 
 const AdminPlanManagement = () => {
   const [activeTab, setActiveTab] = useState('requests');
@@ -19,7 +38,9 @@ const AdminPlanManagement = () => {
   const [courses, setCourses] = useState([]);
   const [topics, setTopics] = useState([]);
   const [practiceTests, setPracticeTests] = useState([]);
-  
+  const [categoryVisibility, setCategoryVisibility] = useState({ my_courses: {}, recordings: {} });
+  const [savingVisibility, setSavingVisibility] = useState(false);
+
   // Selection State
   const [selectedPlan, setSelectedPlan] = useState('free');
   
@@ -55,6 +76,15 @@ const AdminPlanManagement = () => {
       // 3. Load content access records
       const accessRes = await planService.getContentAccess().catch(e => ({ data: [] }));
       setContentAccess(accessRes.data || []);
+
+      // 3b. Load global Course & Recording Visibility (independent of the per-plan toggles above)
+      const visibilityRes = await planService.getCategoryVisibility().catch(e => ({ data: { data: { my_courses: {}, recordings: {} } } }));
+      const visibilityData = visibilityRes.data?.data || { my_courses: {}, recordings: {} };
+      const withDefaults = (keys, map) => keys.reduce((acc, key) => ({ ...acc, [key]: map[key] !== false }), { ...map });
+      setCategoryVisibility({
+        my_courses: withDefaults(MY_COURSES_CATEGORY_DEFAULTS, visibilityData.my_courses || {}),
+        recordings: withDefaults(RECORDINGS_CATEGORY_DEFAULTS, visibilityData.recordings || {})
+      });
       
       // 4. Load Courses
       const coursesRes = await courseService.getAll().catch(e => ({ data: [] }));
@@ -114,6 +144,18 @@ const AdminPlanManagement = () => {
       alert('Failed to update settings.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveCategoryVisibility = async () => {
+    setSavingVisibility(true);
+    try {
+      await planService.updateCategoryVisibility({ myCourses: categoryVisibility.my_courses, recordings: categoryVisibility.recordings });
+      alert('Category visibility updated successfully!');
+    } catch (err) {
+      alert('Failed to update category visibility.');
+    } finally {
+      setSavingVisibility(false);
     }
   };
 
@@ -406,6 +448,77 @@ const AdminPlanManagement = () => {
               </div>
             ))}
           </div>
+
+          {/* Course & Recording Visibility - a SEPARATE global layer below the Free/Premium
+              cards above (left completely untouched). Those control whether a plan can use a
+              FEATURE at all; this controls which CATEGORIES are visible within My Courses and
+              Recordings, platform-wide, regardless of plan. Both checks apply independently. */}
+          <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 p-8">
+            <div className="flex justify-between items-center mb-2">
+              <div>
+                <h3 className="text-2xl font-black text-gray-900 dark:text-white">Course & Recording Visibility</h3>
+                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Global category-level control</p>
+              </div>
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/30 text-indigo-500">
+                <SafeIcon icon={FiEye} className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-2xl">
+              Control visibility of course categories independently for My Courses and Recordings. Turning a category OFF removes it entirely from the student/tutor UI and blocks backend access to it, regardless of plan, enrollment, or group assignment.
+            </p>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-100 dark:border-gray-800">
+                    <th className="text-left py-3 pr-4">Category</th>
+                    <th className="text-left py-3 px-4">My Courses</th>
+                    <th className="text-left py-3 px-4">Recordings</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {SHARED_CATEGORY_ROWS.map(({ label, myCoursesKey, recordingsKey }) => (
+                    <tr key={label}>
+                      <td className="py-4 pr-4 font-bold text-gray-900 dark:text-white">{label}</td>
+                      <td className="py-4 px-4">
+                        <VisibilitySwitch
+                          active={categoryVisibility.my_courses?.[myCoursesKey] !== false}
+                          onToggle={(v) => setCategoryVisibility((prev) => ({ ...prev, my_courses: { ...prev.my_courses, [myCoursesKey]: v } }))}
+                        />
+                      </td>
+                      <td className="py-4 px-4">
+                        <VisibilitySwitch
+                          active={categoryVisibility.recordings?.[recordingsKey] !== false}
+                          onToggle={(v) => setCategoryVisibility((prev) => ({ ...prev, recordings: { ...prev.recordings, [recordingsKey]: v } }))}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Prep365 Tutorials is Recordings-only (not a My Courses category at all) */}
+                  <tr>
+                    <td className="py-4 pr-4 font-bold text-gray-900 dark:text-white">{RECORDINGS_CATEGORY_LABEL.platform}</td>
+                    <td className="py-4 px-4 text-gray-300 dark:text-gray-700">—</td>
+                    <td className="py-4 px-4">
+                      <VisibilitySwitch
+                        active={categoryVisibility.recordings?.platform !== false}
+                        onToggle={(v) => setCategoryVisibility((prev) => ({ ...prev, recordings: { ...prev.recordings, platform: v } }))}
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={handleSaveCategoryVisibility}
+                disabled={savingVisibility}
+                className="px-6 py-3 bg-gray-900 dark:bg-black text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-800 transition-all disabled:opacity-50"
+              >
+                {savingVisibility ? <SafeIcon icon={FiIcons.FiLoader} className="w-5 h-5 animate-spin" /> : <><SafeIcon icon={FiSave} className="w-5 h-5" /> Save Settings</>}
+              </button>
+            </div>
+          </div>
         </motion.div>
       )}
 
@@ -614,6 +727,19 @@ const LimitInput = ({ label, value, onChange }) => (
       className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-900 dark:text-white font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
     />
   </div>
+);
+
+// A compact toggle for the Course & Recording Visibility table cells - same ON/OFF model as
+// FeatureToggle above, just sized for a dense table row instead of a full-width labeled button.
+const VisibilitySwitch = ({ active, onToggle }) => (
+  <button
+    type="button"
+    onClick={() => onToggle(!active)}
+    className={`w-12 h-7 rounded-full relative transition-colors ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+    aria-pressed={active}
+  >
+    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all ${active ? 'right-1' : 'left-1'}`} />
+  </button>
 );
 
 const FeatureToggle = ({ label, active, onToggle }) => (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import SuccessToast from '../../common/SuccessToast';
 import { recordingService, tutorService } from '../../services/api';
 
 const { FiCheck, FiMinus, FiChevronDown, FiChevronRight, FiVideo, FiSearch, FiLoader } = FiIcons;
@@ -69,14 +70,20 @@ const matchesSearch = (recording, term) => {
   );
 };
 
-/** Tri-state checkbox: 'checked' | 'indeterminate' | 'unchecked'. */
+/**
+ * Tri-state checkbox: 'checked' | 'indeterminate' | 'unchecked'. Includes a real (visually
+ * hidden) <input type="checkbox"> - same as HierarchicalContentSelector's own checkboxes -
+ * so the browser's native "click anywhere in the enclosing <label>" behavior works here too.
+ * Without a real input, only this small styled box itself was clickable; clicking the
+ * recording's title/icon right next to it (the much bigger, more obvious target) did nothing.
+ */
 const TriCheckbox = ({ state, onChange, size = 'w-4 h-4' }) => (
   <div
     className={`${size} rounded-sm flex items-center justify-center border transition-colors shrink-0 ${
       state === 'checked' ? 'bg-blue-600 border-blue-600' : state === 'indeterminate' ? 'bg-blue-600/50 border-blue-600' : 'border-gray-500 bg-gray-800'
     }`}
-    onClick={(e) => { e.stopPropagation(); onChange(state !== 'checked'); }}
   >
+    <input type="checkbox" className="hidden" checked={state === 'checked'} onChange={(e) => onChange(e.target.checked || state === 'indeterminate')} />
     {state === 'checked' && <SafeIcon icon={FiCheck} className="text-white text-[10px]" />}
     {state === 'indeterminate' && <SafeIcon icon={FiMinus} className="text-white text-[10px]" />}
   </div>
@@ -105,7 +112,7 @@ const RecordingAssignmentTree = ({ groupId }) => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [toast, setToast] = useState(null); // { title, message } | null
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState({ 'course:full_length_test': true, 'course:sat': true });
 
@@ -114,7 +121,6 @@ const RecordingAssignmentTree = ({ groupId }) => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      setSaved(false);
       setLoadError(false);
       // Fetched independently (not Promise.all) - the two calls hit different tables, and a
       // failure in one (e.g. group_recording_assignments not migrated onto this DB yet) must
@@ -163,11 +169,14 @@ const RecordingAssignmentTree = ({ groupId }) => {
 
   const handleSave = async () => {
     setSaving(true);
-    setSaved(false);
     try {
+      const count = selectedIds.size;
       await tutorService.updateGroupRecordings(groupId, Array.from(selectedIds));
       setInitialIds(new Set(selectedIds));
-      setSaved(true);
+      setToast({
+        title: 'Recordings saved successfully',
+        message: count > 0 ? `${count} recording${count === 1 ? '' : 's'} assigned to this group.` : 'No recordings are assigned to this group.'
+      });
     } catch (err) {
       console.error('Failed to save group recordings:', err);
       alert('Failed to save recording assignments.');
@@ -309,7 +318,6 @@ const RecordingAssignmentTree = ({ groupId }) => {
       <div className="p-3 border-t border-gray-700 bg-gray-900/50 flex items-center justify-between text-sm">
         <span className="text-gray-400">
           Assigned Recordings: <span className="text-white font-bold">{totalSelected}</span>
-          {saved && !hasChanges && <span className="text-green-400 font-semibold ml-3">Saved</span>}
         </span>
         <button
           type="button"
@@ -320,6 +328,7 @@ const RecordingAssignmentTree = ({ groupId }) => {
           {saving ? 'Saving...' : 'Save Recordings'}
         </button>
       </div>
+      <SuccessToast show={!!toast} title={toast?.title} message={toast?.message} onClose={() => setToast(null)} />
     </div>
   );
 };
