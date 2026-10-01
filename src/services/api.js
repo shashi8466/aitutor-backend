@@ -1557,6 +1557,15 @@ export const tutorService = {
   getGroupMembers: async (groupId) => {
     return cachedTutorGet(`groupMembers_${groupId}`, `/api/tutor/groups/${groupId}/members`);
   },
+  // Manage Recordings tab - shared by both the Admin and Tutor group modals, same as
+  // updateGroup already is (admin's own group edit posts straight to this tutor route too).
+  getGroupRecordings: async (groupId) => {
+    return axios.get(`/api/tutor/groups/${groupId}/recordings`);
+  },
+  updateGroupRecordings: async (groupId, recordingIds) => {
+    clearTutorCache();
+    return axios.put(`/api/tutor/groups/${groupId}/recordings`, { recordingIds });
+  },
   getGroupAnalytics: async (groupId, startDate = null, endDate = null) => {
     let url = `/api/tutor/groups/${groupId}/analytics`;
     const params = new URLSearchParams();

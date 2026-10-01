@@ -5,7 +5,7 @@ import SafeIcon from '../../common/SafeIcon';
 import { adminService, tutorService, courseService } from '../../services/api';
 import GroupAnalytics from '../tutor/GroupAnalytics';
 import HierarchicalContentSelector from '../common/HierarchicalContentSelector';
-import RecordingAssignmentPicker from '../common/RecordingAssignmentPicker';
+import RecordingAssignmentTree from '../common/RecordingAssignmentTree';
 import SuccessToast from '../../common/SuccessToast';
 
 const {
@@ -80,7 +80,6 @@ const AdminGroupManagement = () => {
     const [newGroupName, setNewGroupName] = useState('');
     const [assignedContent, setAssignedContent] = useState({});
     const [assignedCourseIds, setAssignedCourseIds] = useState([]);
-    const [assignedRecordingIds, setAssignedRecordingIds] = useState([]);
     const [groupDescription, setGroupDescription] = useState('');
     const [groupStartDate, setGroupStartDate] = useState('');
     const [groupStartTime, setGroupStartTime] = useState('');
@@ -93,14 +92,13 @@ const AdminGroupManagement = () => {
     const [editGroupName, setEditGroupName] = useState('');
     const [editAssignedContent, setEditAssignedContent] = useState({});
     const [editAssignedCourseIds, setEditAssignedCourseIds] = useState([]);
-    const [editAssignedRecordingIds, setEditAssignedRecordingIds] = useState([]);
     const [editGroupDescription, setEditGroupDescription] = useState('');
     const [editGroupStartDate, setEditGroupStartDate] = useState('');
     const [editGroupStartTime, setEditGroupStartTime] = useState('');
     const [editGroupEndDate, setEditGroupEndDate] = useState('');
     const [editGroupEndTime, setEditGroupEndTime] = useState('');
     const [editGroupStatus, setEditGroupStatus] = useState('active');
-    const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' | 'students' | 'tutors'
+    const [activeEditTab, setActiveEditTab] = useState('settings'); // 'settings' | 'students' | 'tutors' | 'recordings'
     const [inviteLink, setInviteLink] = useState('');
     // Bulk-remove selection for Current Members - separate from selectedStudentIds, which is the
     // Available Students (add-to-group) selection.
@@ -146,7 +144,6 @@ const AdminGroupManagement = () => {
                 name: newGroupName,
                 assigned_content: assignedContent,
                 assigned_course_ids: assignedCourseIds,
-                assigned_recording_ids: assignedRecordingIds,
                 description: groupDescription,
                 start_date: combineDateTime(groupStartDate, groupStartTime, false),
                 end_date: combineDateTime(groupEndDate, groupEndTime, true),
@@ -161,7 +158,6 @@ const AdminGroupManagement = () => {
             setNewGroupName('');
             setAssignedContent({});
             setAssignedCourseIds([]);
-            setAssignedRecordingIds([]);
             setGroupDescription('');
             setGroupStartDate('');
             setGroupStartTime('');
@@ -305,7 +301,6 @@ const AdminGroupManagement = () => {
         setEditGroupName(group.name);
         setEditAssignedContent(group.assigned_content || {});
         setEditAssignedCourseIds(group.assigned_course_ids || []);
-        setEditAssignedRecordingIds(group.assigned_recording_ids || []);
         setEditGroupDescription(group.description || '');
         const startParts = splitDateTime(group.start_date, false);
         const endParts = splitDateTime(group.end_date, true);
@@ -337,7 +332,6 @@ const AdminGroupManagement = () => {
                 name: editGroupName,
                 assigned_content: editAssignedContent,
                 assigned_course_ids: editAssignedCourseIds,
-                assigned_recording_ids: editAssignedRecordingIds,
                 description: editGroupDescription,
                 start_date: combineDateTime(editGroupStartDate, editGroupStartTime, false),
                 end_date: combineDateTime(editGroupEndDate, editGroupEndTime, true),
@@ -762,10 +756,6 @@ const AdminGroupManagement = () => {
                                             }}
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Recordings</label>
-                                        <RecordingAssignmentPicker selectedIds={assignedRecordingIds} onChange={setAssignedRecordingIds} />
-                                    </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Content Start Date (Optional)</label>
@@ -927,7 +917,7 @@ const AdminGroupManagement = () => {
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="relative bg-white dark:bg-gray-800 rounded-3xl p-8 max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                            className="relative bg-white dark:bg-gray-800 rounded-3xl p-8 w-[90vw] max-w-[1400px] h-[90vh] max-h-[900px] shadow-2xl overflow-hidden flex flex-col"
                         >
                             <div className="flex justify-between items-center mb-6">
                                 <div>
@@ -958,6 +948,12 @@ const AdminGroupManagement = () => {
                                 >
                                     Manage Tutors
                                 </button>
+                                <button
+                                    onClick={() => setActiveEditTab('recordings')}
+                                    className={`pb-3 px-4 font-bold text-sm transition-colors border-b-2 ${activeEditTab === 'recordings' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    Manage Recordings
+                                </button>
                             </div>
 
                             <div className="flex-1 overflow-y-auto space-y-6">
@@ -983,10 +979,6 @@ const AdminGroupManagement = () => {
                                                     setEditAssignedCourseIds(assigned_course_ids);
                                                 }}
                                             />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign Recordings</label>
-                                            <RecordingAssignmentPicker selectedIds={editAssignedRecordingIds} onChange={setEditAssignedRecordingIds} />
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
@@ -1204,7 +1196,7 @@ const AdminGroupManagement = () => {
                                             )}
                                         </div>
                                     </div>
-                                ) : (
+                                ) : activeEditTab === 'tutors' ? (
                                     <div className="space-y-6 pr-2">
                                         {loadingTutors ? (
                                             <div className="text-center py-8 text-blue-600 font-bold">Loading tutors...</div>
@@ -1305,6 +1297,8 @@ const AdminGroupManagement = () => {
                                             </>
                                         )}
                                     </div>
+                                ) : (
+                                    <RecordingAssignmentTree groupId={selectedGroup?.id} />
                                 )}
                             </div>
 

@@ -148,7 +148,7 @@ router.get('/groups', async (req, res) => {
 router.post('/groups', async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { name, assigned_content, assigned_course_ids, assigned_recording_ids, description, student_ids, tutor_id, start_date, end_date } = req.body;
+        const { name, assigned_content, assigned_course_ids, description, student_ids, tutor_id, start_date, end_date } = req.body;
 
         if (!name) {
             return res.status(400).json({ error: 'Group name is required' });
@@ -166,7 +166,6 @@ router.post('/groups', async (req, res) => {
             created_by: creatorId,
             assigned_content: { ...(assigned_content || {}), invite_token: inviteToken },
             assigned_course_ids: assigned_course_ids || [],
-            assigned_recording_ids: assigned_recording_ids || [],
             description: description || '',
             start_date: start_date || null,
             end_date: end_date || null
@@ -194,20 +193,6 @@ router.post('/groups', async (req, res) => {
                 .single());
         }
 
-        // Same fallback, for environments where 1790920000000-recordings_type_and_group_assignment.sql
-        // hasn't been run yet - a group must still be creatable, just without recording assignment.
-        let recordingsNotSaved = false;
-        if (error && (error.code === '42703' || error.code === 'PGRST204') && insertData.assigned_recording_ids?.length) {
-            console.error('⚠️ [ADMIN GROUPS] assigned_recording_ids column missing - run migration 1790920000000-recordings_type_and_group_assignment.sql. Creating group without recording assignment.');
-            const { assigned_recording_ids: _ari, ...fallbackData } = insertData;
-            recordingsNotSaved = true;
-            ({ data: group, error } = await supabase
-                .from('student_groups')
-                .insert(fallbackData)
-                .select()
-                .single());
-        }
-
         if (error) {
             console.error('Database error creating group:', error);
             return res.status(500).json({ error: 'Database error creating group', details: error.message });
@@ -221,7 +206,7 @@ router.post('/groups', async (req, res) => {
             await supabase.from('group_members').insert(memberInserts);
         }
 
-        res.json({ group, ...(datesNotSaved && { datesNotSaved: true }), ...(recordingsNotSaved && { recordingsNotSaved: true }) });
+        res.json({ group, ...(datesNotSaved && { datesNotSaved: true }) });
     } catch (error) {
         console.error('Create group error:', error);
         res.status(500).json({ error: 'Failed to create group' });

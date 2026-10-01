@@ -386,7 +386,7 @@ router.get('/assignable', async (req, res) => {
     const { search } = req.query;
     let query = supabaseAdmin
       .from('recordings')
-      .select('id, title, recording_type, category, platform_category, availability, course:course_id (id, name)')
+      .select('id, title, recording_type, category, platform_category, availability, course:course_id (id, name, category, tutor_type, main_category)')
       .eq('status', 'published')
       .order('title', { ascending: true });
     if (search) {
@@ -422,12 +422,12 @@ router.delete('/:id', async (req, res) => {
 });
 
 // A recording is visible to a STUDENT only if it's a Platform Recording explicitly opened up to
-// everyone, OR it was actually assigned to one of the student's own groups (recordings are never
-// globally visible just by being Published - the whole point of the group-gating requirement).
-// Returns { allowedIds: Set<recording_id>, deadlineByRecordingId: Map } - the deadline is each
-// group's own end_date (the SAME shared deadline window a group already uses for its assigned
-// courses), taking the EARLIEST one across every group that granted the student that recording,
-// since a student in multiple groups that assigned the same recording should see the soonest date.
+// everyone, OR it was actually assigned (via group_recording_assignments) to one of the student's
+// own groups (recordings are never globally visible just by being Published - the whole point of
+// the group-gating requirement). Returns { allowedIds: Set<recording_id>, deadlineByRecordingId:
+// Map } - the deadline is each ASSIGNMENT's own `deadline` (not a group-wide date - the same
+// recording can be assigned to different groups with different deadlines), taking the EARLIEST
+// one across every assignment that granted the student that recording.
 const getStudentRecordingAccess = async (studentId) => {
   const { data: memberships, error: memberErr } = await supabaseAdmin
     .from('group_members')
@@ -440,27 +440,26 @@ const getStudentRecordingAccess = async (studentId) => {
   const groupIds = (memberships || []).map(m => m.group_id);
   if (groupIds.length === 0) return { allowedIds: new Set(), deadlineByRecordingId: new Map() };
 
-  const { data: groups, error: groupErr } = await supabaseAdmin
-    .from('student_groups')
-    .select('assigned_recording_ids, end_date')
-    .in('id', groupIds);
-  if (groupErr) {
+  const { data: assignments, error: assignmentErr } = await supabaseAdmin
+    .from('group_recording_assignments')
+    .select('recording_id, deadline')
+    .in('group_id', groupIds)
+    .eq('status', 'active');
+  if (assignmentErr) {
     // Same class of "migration not applied yet" gap seen with plan_settings.feature_recordings -
     // fail toward "nothing group-assigned" rather than crashing the whole recordings list.
-    console.error('[Recordings] Failed to read assigned_recording_ids from student_groups - has the recordings_type_and_group_assignment migration been run?', groupErr.message);
+    console.error('[Recordings] Failed to read group_recording_assignments - has the group_recording_assignments migration been run?', assignmentErr.message);
     return { allowedIds: new Set(), deadlineByRecordingId: new Map() };
   }
 
   const allowedIds = new Set();
   const deadlineByRecordingId = new Map();
-  for (const group of groups || []) {
-    for (const recordingId of group.assigned_recording_ids || []) {
-      allowedIds.add(recordingId);
-      if (group.end_date) {
-        const existing = deadlineByRecordingId.get(recordingId);
-        if (!existing || new Date(group.end_date) < new Date(existing)) {
-          deadlineByRecordingId.set(recordingId, group.end_date);
-        }
+  for (const assignment of assignments || []) {
+    allowedIds.add(assignment.recording_id);
+    if (assignment.deadline) {
+      const existing = deadlineByRecordingId.get(assignment.recording_id);
+      if (!existing || new Date(assignment.deadline) < new Date(existing)) {
+        deadlineByRecordingId.set(assignment.recording_id, assignment.deadline);
       }
     }
   }
